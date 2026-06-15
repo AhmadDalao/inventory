@@ -82,7 +82,7 @@
     </div>
 
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table data-table-mobile">
             <thead>
             <tr>
                 <th>Item</th>
@@ -106,7 +106,7 @@
                 <?php $isLow = (float) $item['current_quantity'] <= (float) $item['reorder_level']; ?>
                 <?php $imageUrl = item_image_url($item['image_path'] ?? null); ?>
                 <tr>
-                    <td>
+                    <td data-label="Item">
                         <a class="item-table-cell cell-link" href="<?= e(url('/items/' . $item['id'])) ?>">
                             <?php if ($imageUrl): ?>
                                 <img
@@ -128,9 +128,9 @@
                             </div>
                         </a>
                     </td>
-                    <td><?= e($item['sku']) ?></td>
-                    <td><?= e($item['category'] ?: 'Unsorted') ?></td>
-                    <td>
+                    <td data-label="SKU"><?= e($item['sku']) ?></td>
+                    <td data-label="Category"><?= e($item['category'] ?: 'Unsorted') ?></td>
+                    <td data-label="Locations">
                         <?php if ((int) ($item['location_count'] ?? 0) === 0): ?>
                             <span class="tiny-copy">No stock locations</span>
                         <?php else: ?>
@@ -138,17 +138,17 @@
                             <div class="tiny-copy"><?= e(truncate_text($item['storage_summary'] ?: '', 52)) ?></div>
                         <?php endif; ?>
                     </td>
-                    <td class="<?= $isLow ? 'danger-text' : '' ?>">
+                    <td class="<?= $isLow ? 'danger-text' : '' ?>" data-label="Current">
                         <?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?>
                     </td>
-                    <td><?= format_quantity($item['reorder_level']) ?> <?= e($item['unit']) ?></td>
-                    <td>
+                    <td data-label="Reorder"><?= format_quantity($item['reorder_level']) ?> <?= e($item['unit']) ?></td>
+                    <td data-label="Status">
                         <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
                             <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
                         </span>
                     </td>
-                    <td><?= $item['last_movement_at'] ? e(date('M j, Y g:i A', strtotime($item['last_movement_at']))) : 'Never' ?></td>
-                    <td>
+                    <td data-label="Last Movement"><?= $item['last_movement_at'] ? e(date('M j, Y g:i A', strtotime($item['last_movement_at']))) : 'Never' ?></td>
+                    <td data-label="Actions">
                         <div class="inline-actions">
                             <a class="text-link" href="<?= e(url('/items/' . $item['id'])) ?>">Open</a>
                             <a class="text-link" href="<?= e(url('/items/' . $item['id'] . '/edit')) ?>">Edit</a>

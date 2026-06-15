@@ -235,7 +235,7 @@ $balanceMapJson = json_encode(item_balance_map($balances), JSON_UNESCAPED_SLASHE
     </div>
 
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table data-table-mobile">
             <thead>
             <tr>
                 <th>When</th>

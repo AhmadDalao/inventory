@@ -79,7 +79,7 @@
     </div>
 
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table data-table-mobile">
             <thead>
             <tr>
                 <th>Name</th>
@@ -101,25 +101,25 @@
             <?php endif; ?>
             <?php foreach ($storages as $storage): ?>
                 <tr>
-                    <td>
+                    <td data-label="Name">
                         <strong><?= e($storage['name']) ?></strong>
                         <div class="tiny-copy">Updated <?= e(date('M j, Y g:i A', strtotime($storage['updated_at']))) ?></div>
                     </td>
-                    <td><?= e(storage_type_label($storage['storage_type'])) ?></td>
-                    <td><?= number_format((int) $storage['active_item_count']) ?></td>
-                    <td><?= format_quantity($storage['total_quantity']) ?></td>
-                    <td><?= format_quantity($storage['total_used']) ?></td>
-                    <td>
+                    <td data-label="Type"><?= e(storage_type_label($storage['storage_type'])) ?></td>
+                    <td data-label="Active Items"><?= number_format((int) $storage['active_item_count']) ?></td>
+                    <td data-label="Remaining"><?= format_quantity($storage['total_quantity']) ?></td>
+                    <td data-label="Used"><?= format_quantity($storage['total_used']) ?></td>
+                    <td data-label="Transfers">
                         In <?= format_quantity($storage['transferred_in']) ?>
                         <div class="tiny-copy">Out <?= format_quantity($storage['transferred_out']) ?></div>
                     </td>
-                    <td>
+                    <td data-label="Status">
                         <span class="pill <?= (int) $storage['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
                             <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?>
                         </span>
                     </td>
-                    <td><?= e($storage['notes'] ? truncate_text($storage['notes'], 72) : '-') ?></td>
-                    <td>
+                    <td data-label="Notes"><?= e($storage['notes'] ? truncate_text($storage['notes'], 72) : '-') ?></td>
+                    <td data-label="Actions">
                         <div class="inline-actions">
                             <a class="text-link" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">Items</a>
                             <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>

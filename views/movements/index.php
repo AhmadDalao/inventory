@@ -93,7 +93,7 @@
     </div>
 
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table data-table-mobile">
             <thead>
             <tr>
                 <th>When</th>
@@ -117,22 +117,22 @@
             <?php endif; ?>
             <?php foreach ($movements as $movement): ?>
                 <tr>
-                    <td><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
-                    <td>
+                    <td data-label="When"><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
+                    <td data-label="Item">
                         <a class="cell-link cell-link-compact" href="<?= e(url('/items/' . $movement['item_id'])) ?>">
                             <strong><?= e($movement['item_name']) ?></strong>
                             <div class="tiny-copy"><?= e($movement['sku']) ?></div>
                         </a>
                     </td>
-                    <td><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
-                    <td><?= format_quantity($movement['movement_quantity'] ?? abs((float) $movement['quantity_delta'])) ?> <?= e($movement['unit']) ?></td>
-                    <td><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
-                    <td><?= format_quantity($movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
-                    <td><?= e($movement['source_storage_name'] ?: '-') ?></td>
-                    <td><?= e($movement['destination_storage_name'] ?: '-') ?></td>
-                    <td><?= e($movement['reference_code'] ?: '-') ?></td>
-                    <td><?= e($movement['user_name'] ?: 'System') ?></td>
-                    <td><?= e($movement['notes'] ?: '-') ?></td>
+                    <td data-label="Type"><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
+                    <td data-label="Quantity"><?= format_quantity($movement['movement_quantity'] ?? abs((float) $movement['quantity_delta'])) ?> <?= e($movement['unit']) ?></td>
+                    <td data-label="Total Change"><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
+                    <td data-label="Balance After"><?= format_quantity($movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
+                    <td data-label="From"><?= e($movement['source_storage_name'] ?: '-') ?></td>
+                    <td data-label="To"><?= e($movement['destination_storage_name'] ?: '-') ?></td>
+                    <td data-label="Reference"><?= e($movement['reference_code'] ?: '-') ?></td>
+                    <td data-label="By"><?= e($movement['user_name'] ?: 'System') ?></td>
+                    <td data-label="Notes"><?= e($movement['notes'] ?: '-') ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

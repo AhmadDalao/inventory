@@ -42,7 +42,7 @@
     </div>
 
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table data-table-mobile">
             <thead>
             <tr>
                 <th>Name</th>
@@ -62,17 +62,17 @@
             <?php endif; ?>
             <?php foreach ($users as $userRow): ?>
                 <tr>
-                    <td><?= e($userRow['name']) ?></td>
-                    <td><?= e($userRow['email']) ?></td>
-                    <td><span class="pill <?= $userRow['role'] === 'owner' ? 'pill-owner' : 'pill-admin' ?>"><?= e(strtoupper($userRow['role'])) ?></span></td>
-                    <td>
+                    <td data-label="Name"><?= e($userRow['name']) ?></td>
+                    <td data-label="Email"><?= e($userRow['email']) ?></td>
+                    <td data-label="Role"><span class="pill <?= $userRow['role'] === 'owner' ? 'pill-owner' : 'pill-admin' ?>"><?= e(strtoupper($userRow['role'])) ?></span></td>
+                    <td data-label="Status">
                         <span class="pill <?= (int) $userRow['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
                             <?= (int) $userRow['is_active'] === 1 ? 'Active' : 'Disabled' ?>
                         </span>
                     </td>
-                    <td><?= $userRow['last_login_at'] ? e(date('M j, Y g:i A', strtotime($userRow['last_login_at']))) : 'Never' ?></td>
-                    <td><?= e(date('M j, Y', strtotime($userRow['created_at']))) ?></td>
-                    <td>
+                    <td data-label="Last Login"><?= $userRow['last_login_at'] ? e(date('M j, Y g:i A', strtotime($userRow['last_login_at']))) : 'Never' ?></td>
+                    <td data-label="Created"><?= e(date('M j, Y', strtotime($userRow['created_at']))) ?></td>
+                    <td data-label="Actions">
                         <div class="inline-actions">
                             <a class="text-link" href="<?= e(url('/users/' . $userRow['id'] . '/edit')) ?>">Edit</a>
                             <?php if ($userRow['role'] !== 'owner'): ?>

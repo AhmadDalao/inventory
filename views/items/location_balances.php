@@ -7,7 +7,7 @@
     </div>
 
     <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table data-table-mobile">
             <thead>
             <tr>
                 <th>Location</th>
@@ -27,18 +27,18 @@
             <?php endif; ?>
             <?php foreach ($balances as $balance): ?>
                 <tr>
-                    <td>
+                    <td data-label="Location">
                         <strong><?= e($balance['name']) ?></strong>
                         <?php if ((int) $balance['is_active'] === 0): ?>
                             <div class="tiny-copy">Archived location</div>
                         <?php endif; ?>
                     </td>
-                    <td><?= e(storage_type_label($balance['storage_type'])) ?></td>
-                    <td><?= format_quantity($balance['quantity']) ?> <?= e($item['unit']) ?></td>
-                    <td><?= format_quantity($balance['total_used']) ?> <?= e($item['unit']) ?></td>
-                    <td><?= format_quantity($balance['transferred_in']) ?> <?= e($item['unit']) ?></td>
-                    <td><?= format_quantity($balance['transferred_out']) ?> <?= e($item['unit']) ?></td>
-                    <td><?= format_money(stock_value($balance['quantity'], $item['cost_per_unit'])) ?></td>
+                    <td data-label="Type"><?= e(storage_type_label($balance['storage_type'])) ?></td>
+                    <td data-label="Remaining"><?= format_quantity($balance['quantity']) ?> <?= e($item['unit']) ?></td>
+                    <td data-label="Used"><?= format_quantity($balance['total_used']) ?> <?= e($item['unit']) ?></td>
+                    <td data-label="Transferred In"><?= format_quantity($balance['transferred_in']) ?> <?= e($item['unit']) ?></td>
+                    <td data-label="Transferred Out"><?= format_quantity($balance['transferred_out']) ?> <?= e($item['unit']) ?></td>
+                    <td data-label="Stock Value"><?= format_money(stock_value($balance['quantity'], $item['cost_per_unit'])) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

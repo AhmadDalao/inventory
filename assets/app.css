@@ -545,6 +545,10 @@ textarea {
     white-space: nowrap;
 }
 
+.data-table-mobile {
+    min-width: 100%;
+}
+
 .data-table {
     width: 100%;
     border-collapse: collapse;
@@ -932,6 +936,7 @@ textarea {
 
     .metric-grid,
     .compact-grid,
+    .filter-grid,
     .panel-grid,
     .detail-grid,
     .movement-filter-grid,
@@ -972,7 +977,101 @@ textarea {
         width: 100%;
     }
 
+    .table-search {
+        flex: none;
+    }
+
+    .table-toolbar-group {
+        flex: none;
+        width: 100%;
+    }
+
+    .table-export-button {
+        align-self: flex-start;
+    }
+
     .table-pagination {
         justify-content: flex-start;
+    }
+
+    .table-wrap {
+        overflow: visible;
+    }
+
+    .data-table-mobile thead {
+        display: none;
+    }
+
+    .data-table-mobile,
+    .data-table-mobile tbody,
+    .data-table-mobile tr,
+    .data-table-mobile td {
+        display: block;
+        width: 100%;
+    }
+
+    .data-table-mobile tbody {
+        display: grid;
+        gap: 14px;
+    }
+
+    .data-table-mobile tbody tr {
+        padding: 6px 16px;
+        border: 1px solid #efe7db;
+        border-radius: 22px;
+        background: #fffdf8;
+        box-shadow: 0 14px 34px rgba(22, 18, 11, 0.05);
+    }
+
+    .data-table-mobile tbody tr:hover {
+        background: #fffdf8;
+    }
+
+    .data-table-mobile td {
+        display: grid;
+        grid-template-columns: minmax(98px, 118px) minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px 0;
+    }
+
+    .data-table-mobile td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .data-table-mobile td:last-child {
+        border-bottom: 0;
+    }
+
+    .data-table-mobile .item-table-cell,
+    .data-table-mobile .cell-link,
+    .data-table-mobile .cell-link-compact {
+        margin: 0;
+        padding: 0;
+    }
+
+    .data-table-mobile .inline-actions {
+        gap: 10px;
+    }
+
+    .data-table-mobile td.empty-cell {
+        display: block;
+        padding: 20px 0;
+        border-bottom: 0;
+    }
+
+    .data-table-mobile td.empty-cell::before {
+        content: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .data-table-mobile td {
+        grid-template-columns: 1fr;
+        gap: 6px;
     }
 }
