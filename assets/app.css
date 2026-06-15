@@ -530,6 +530,75 @@ textarea {
     border-radius: 22px;
 }
 
+.expandable-image {
+    cursor: zoom-in;
+}
+
+.image-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 32px;
+}
+
+.image-lightbox[hidden] {
+    display: none;
+}
+
+.image-lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(16, 12, 7, 0.86);
+    backdrop-filter: blur(8px);
+}
+
+.image-lightbox-dialog {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    display: grid;
+    gap: 12px;
+    max-width: min(92vw, 1200px);
+    max-height: calc(100vh - 96px);
+}
+
+.image-lightbox-image {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 150px);
+    border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.32);
+    background: #fff;
+}
+
+.image-lightbox-caption {
+    position: relative;
+    z-index: 1;
+    margin: 0 auto;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255, 253, 248, 0.94);
+    color: var(--ink);
+    text-align: center;
+    max-width: 100%;
+}
+
+.image-lightbox-close {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    z-index: 2;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: rgba(255, 253, 248, 0.94);
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+}
+
 .mini-row {
     display: flex;
     justify-content: space-between;
@@ -648,6 +717,21 @@ textarea {
 
     .menu-button {
         display: inline-flex;
+    }
+}
+
+@media (max-width: 640px) {
+    .image-lightbox {
+        padding: 20px;
+    }
+
+    .image-lightbox-image {
+        max-height: calc(100vh - 180px);
+    }
+
+    .image-lightbox-close {
+        top: 16px;
+        right: 16px;
     }
 }
 

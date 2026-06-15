@@ -80,7 +80,13 @@
                     <td>
                         <div class="item-table-cell">
                             <?php if ($imageUrl): ?>
-                                <img class="item-thumb" src="<?= e($imageUrl) ?>" alt="<?= e($item['name']) ?>">
+                                <img
+                                    class="item-thumb expandable-image"
+                                    src="<?= e($imageUrl) ?>"
+                                    alt="<?= e($item['name']) ?>"
+                                    data-expand-image
+                                    tabindex="0"
+                                >
                             <?php else: ?>
                                 <span class="item-thumb item-thumb-fallback"><?= e(item_initial($item['name'])) ?></span>
                             <?php endif; ?>

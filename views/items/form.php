@@ -104,7 +104,13 @@ $imageUrl = item_image_url($item['image_path'] ?? null);
         <label class="field">
             <span>Item Image</span>
             <?php if ($imageUrl): ?>
-                <img class="item-form-preview" src="<?= e($imageUrl) ?>" alt="<?= e((string) $item['name']) ?>">
+                <img
+                    class="item-form-preview expandable-image"
+                    src="<?= e($imageUrl) ?>"
+                    alt="<?= e((string) $item['name']) ?>"
+                    data-expand-image
+                    tabindex="0"
+                >
             <?php endif; ?>
             <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
             <small>Optional. Shown on the item page and as a small thumbnail in the items table.</small>

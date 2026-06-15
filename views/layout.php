@@ -80,6 +80,15 @@ $currentUser = (!$authPage && app_installed()) ? Auth::user() : null;
             </main>
         </div>
     </div>
+
+    <div class="image-lightbox" data-image-lightbox hidden>
+        <button class="image-lightbox-close" type="button" data-image-lightbox-close aria-label="Close image">Close</button>
+        <div class="image-lightbox-backdrop" data-image-lightbox-close></div>
+        <figure class="image-lightbox-dialog">
+            <img class="image-lightbox-image" src="" alt="" data-image-lightbox-image>
+            <figcaption class="image-lightbox-caption" data-image-lightbox-caption hidden></figcaption>
+        </figure>
+    </div>
 <?php endif; ?>
 
 <script src="<?= e(asset_url('app.js')) ?>" defer></script>

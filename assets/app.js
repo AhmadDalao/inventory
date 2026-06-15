@@ -11,6 +11,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const summary = document.querySelector('[data-item-summary]');
   const submitButton = document.querySelector('[data-movement-submit]');
   const historyBody = document.querySelector('[data-history-body]');
+  const lightbox = document.querySelector('[data-image-lightbox]');
+  const lightboxImage = document.querySelector('[data-image-lightbox-image]');
+  const lightboxCaption = document.querySelector('[data-image-lightbox-caption]');
+
+  const openLightbox = (image) => {
+    if (!lightbox || !lightboxImage || !image) {
+      return;
+    }
+
+    const src = image.getAttribute('src');
+    const alt = image.getAttribute('alt') || '';
+
+    if (!src) {
+      return;
+    }
+
+    lightboxImage.src = src;
+    lightboxImage.alt = alt;
+
+    if (lightboxCaption) {
+      lightboxCaption.textContent = alt;
+      lightboxCaption.hidden = alt === '';
+    }
+
+    lightbox.hidden = false;
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeLightbox = () => {
+    if (!lightbox || !lightboxImage) {
+      return;
+    }
+
+    lightbox.hidden = true;
+    lightboxImage.src = '';
+    lightboxImage.alt = '';
+
+    if (lightboxCaption) {
+      lightboxCaption.textContent = '';
+      lightboxCaption.hidden = true;
+    }
+
+    document.body.style.overflow = '';
+  };
 
   const parseNumber = (value) => {
     const number = Number.parseFloat(value);
@@ -82,6 +126,31 @@ document.addEventListener('DOMContentLoaded', () => {
     unitSelect.addEventListener('change', syncCustomUnit);
     syncCustomUnit();
   }
+
+  document.querySelectorAll('[data-expand-image]').forEach((image) => {
+    image.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openLightbox(image);
+    });
+
+    image.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openLightbox(image);
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-image-lightbox-close]').forEach((element) => {
+    element.addEventListener('click', closeLightbox);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && lightbox && !lightbox.hidden) {
+      closeLightbox();
+    }
+  });
 
   if (movementForm && movementType && quantityInput && quantityHint && summary) {
     const sourceField = movementForm.querySelector('[data-source-field]');

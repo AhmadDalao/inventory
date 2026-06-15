@@ -30,7 +30,13 @@ $balanceMapJson = json_encode(item_balance_map($balances), JSON_UNESCAPED_SLASHE
         <div class="detail-hero">
             <div class="detail-hero-main">
                 <?php if ($imageUrl): ?>
-                    <img class="item-hero-image" src="<?= e($imageUrl) ?>" alt="<?= e($item['name']) ?>">
+                    <img
+                        class="item-hero-image expandable-image"
+                        src="<?= e($imageUrl) ?>"
+                        alt="<?= e($item['name']) ?>"
+                        data-expand-image
+                        tabindex="0"
+                    >
                 <?php else: ?>
                     <div class="item-hero-image item-hero-image-fallback"><?= e(item_initial($item['name'])) ?></div>
                 <?php endif; ?>
