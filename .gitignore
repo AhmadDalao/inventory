@@ -1,0 +1,6 @@
+.DS_Store
+.env
+/storage/*
+!/storage/logs/
+/storage/logs/*
+!/storage/logs/.gitignore

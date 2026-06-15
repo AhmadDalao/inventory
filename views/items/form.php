@@ -1,0 +1,76 @@
+<?php
+$isEdit = $mode === 'edit';
+$action = $isEdit ? url('/items/' . $item['id'] . '/edit') : url('/items/create');
+?>
+
+<section class="page-head">
+    <div>
+        <p class="eyebrow"><?= $isEdit ? 'Maintain' : 'Create' ?></p>
+        <h3><?= $isEdit ? 'Edit Item' : 'New Item' ?></h3>
+    </div>
+    <div class="page-actions">
+        <a class="ghost-button" href="<?= e($isEdit ? url('/items/' . $item['id']) : url('/items')) ?>">Back</a>
+    </div>
+</section>
+
+<section class="panel form-panel">
+    <form class="stack-form" method="post" action="<?= e($action) ?>">
+        <?= csrf_field() ?>
+
+        <div class="field-row">
+            <label class="field">
+                <span>Name</span>
+                <input type="text" name="name" value="<?= e((string) $item['name']) ?>" required>
+            </label>
+
+            <label class="field">
+                <span>SKU</span>
+                <input type="text" name="sku" value="<?= e((string) $item['sku']) ?>" required>
+            </label>
+        </div>
+
+        <div class="field-row">
+            <label class="field">
+                <span>Category</span>
+                <input type="text" name="category" value="<?= e((string) $item['category']) ?>">
+            </label>
+
+            <label class="field">
+                <span>Unit</span>
+                <input type="text" name="unit" value="<?= e((string) $item['unit']) ?>" placeholder="pcs" required>
+            </label>
+        </div>
+
+        <div class="field-row">
+            <?php if ($isEdit): ?>
+                <label class="field">
+                    <span>Current Quantity</span>
+                    <input type="text" value="<?= e((string) $item['current_quantity']) ?> <?= e((string) $item['unit']) ?>" disabled>
+                    <small>Adjust stock from the item page so the history stays honest.</small>
+                </label>
+            <?php else: ?>
+                <label class="field">
+                    <span>Initial Quantity</span>
+                    <input type="number" min="0" step="0.01" name="current_quantity" value="<?= e((string) $item['current_quantity']) ?>" required>
+                </label>
+            <?php endif; ?>
+
+            <label class="field">
+                <span>Reorder Level</span>
+                <input type="number" min="0" step="0.01" name="reorder_level" value="<?= e((string) $item['reorder_level']) ?>" required>
+            </label>
+
+            <label class="field">
+                <span>Cost Per Unit</span>
+                <input type="number" min="0" step="0.01" name="cost_per_unit" value="<?= e((string) $item['cost_per_unit']) ?>" required>
+            </label>
+        </div>
+
+        <label class="field">
+            <span>Notes</span>
+            <textarea name="notes" rows="5"><?= e((string) $item['notes']) ?></textarea>
+        </label>
+
+        <button class="primary-button" type="submit"><?= $isEdit ? 'Save Changes' : 'Create Item' ?></button>
+    </form>
+</section>
