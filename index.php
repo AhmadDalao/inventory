@@ -92,6 +92,12 @@ $router->get('/exports/items', static function (): void {
 $router->get('/exports/movements', static function (): void {
     handle_export_movements();
 });
+$router->get('/exports/storages', static function (): void {
+    handle_export_storages();
+});
+$router->get('/exports/users', static function (): void {
+    handle_export_users();
+});
 
 $router->get('/users', static function (): void {
     handle_users_index();

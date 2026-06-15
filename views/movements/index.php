@@ -5,9 +5,6 @@
         <p class="eyebrow">Audit Trail</p>
         <h3>Movement Log</h3>
     </div>
-    <div class="page-actions">
-        <a class="ghost-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
-    </div>
 </section>
 
 <section class="filter-panel">
@@ -64,7 +61,37 @@
     </form>
 </section>
 
-<section class="panel">
+<section class="panel data-table-shell" data-table-shell data-empty-text="No movement records match this search.">
+    <div class="table-shell-head">
+        <div class="table-heading">
+            <strong>All Movements</strong>
+            <span class="table-count-badge" data-table-total><?= number_format(count($movements)) ?></span>
+        </div>
+        <p class="table-shell-copy">Search the loaded activity, page it cleanly, and export the full filtered log.</p>
+    </div>
+
+    <div class="data-table-toolbar">
+        <div class="table-toolbar-group">
+            <label class="table-page-size">
+                <span>Show</span>
+                <select data-table-page-size>
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span>entries</span>
+            </label>
+
+            <label class="table-search">
+                <span class="sr-only">Search movement log</span>
+                <input type="search" data-table-search placeholder="Search item, type, location, reference, user, or notes">
+            </label>
+        </div>
+
+        <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
+    </div>
+
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -110,5 +137,10 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+
+    <div class="data-table-footer">
+        <p class="table-results" data-table-results>Showing 0 to 0 of 0 entries</p>
+        <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>

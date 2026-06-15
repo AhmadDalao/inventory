@@ -1,3 +1,5 @@
+<?php $exportUrl = url('/exports/users'); ?>
+
 <section class="page-head">
     <div>
         <p class="eyebrow">Access Control</p>
@@ -8,7 +10,37 @@
     </div>
 </section>
 
-<section class="panel">
+<section class="panel data-table-shell" data-table-shell data-empty-text="No admins match this search.">
+    <div class="table-shell-head">
+        <div class="table-heading">
+            <strong>All Admins</strong>
+            <span class="table-count-badge" data-table-total><?= number_format(count($users)) ?></span>
+        </div>
+        <p class="table-shell-copy">Search, review access, and export the admin list.</p>
+    </div>
+
+    <div class="data-table-toolbar">
+        <div class="table-toolbar-group">
+            <label class="table-page-size">
+                <span>Show</span>
+                <select data-table-page-size>
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span>entries</span>
+            </label>
+
+            <label class="table-search">
+                <span class="sr-only">Search admins</span>
+                <input type="search" data-table-search placeholder="Search admins by name, email, or role">
+            </label>
+        </div>
+
+        <a class="ghost-button table-export-button" href="<?= e($exportUrl) ?>">Export CSV</a>
+    </div>
+
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -23,6 +55,11 @@
             </tr>
             </thead>
             <tbody>
+            <?php if ($users === []): ?>
+                <tr>
+                    <td colspan="7" class="empty-cell">No admins found.</td>
+                </tr>
+            <?php endif; ?>
             <?php foreach ($users as $userRow): ?>
                 <tr>
                     <td><?= e($userRow['name']) ?></td>
@@ -52,5 +89,10 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+
+    <div class="data-table-footer">
+        <p class="table-results" data-table-results>Showing 0 to 0 of 0 entries</p>
+        <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>

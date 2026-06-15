@@ -1641,6 +1641,114 @@ function handle_export_movements(): void
     ], $rows);
 }
 
+function handle_export_storages(): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    $filters = storage_filters();
+    [$where, $params] = build_storage_where($filters);
+
+    $storages = Database::fetchAll(
+        "SELECT s.*,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
+                    WHERE balances.storage_id = s.id
+                      AND balances.quantity > 0
+                      AND i.is_active = 1
+                ) AS active_item_count,
+                (
+                    SELECT COALESCE(SUM(balances.quantity), 0)
+                    FROM item_storage_balances balances
+                    WHERE balances.storage_id = s.id
+                ) AS total_quantity,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.source_storage_id = s.id
+                      AND movements.movement_type = 'usage'
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.source_storage_id = s.id
+                      AND movements.movement_type = 'transfer'
+                ) AS transferred_out,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.destination_storage_id = s.id
+                      AND movements.movement_type = 'transfer'
+                ) AS transferred_in
+         FROM storages s
+         {$where}
+         ORDER BY FIELD(s.storage_type, 'warehouse', 'storage'), s.is_active DESC, s.name ASC",
+        $params
+    );
+
+    $rows = array_map(static function (array $storage): array {
+        return [
+            $storage['name'],
+            storage_type_label($storage['storage_type']),
+            (int) $storage['active_item_count'],
+            format_quantity($storage['total_quantity']),
+            format_quantity($storage['total_used']),
+            format_quantity($storage['transferred_in']),
+            format_quantity($storage['transferred_out']),
+            (int) $storage['is_active'] === 1 ? 'Active' : 'Archived',
+            $storage['notes'] ?: '',
+            $storage['updated_at'] ?: '',
+        ];
+    }, $storages);
+
+    export_csv('storage-export-' . date('Ymd-His') . '.csv', [
+        'Name',
+        'Type',
+        'Active Items',
+        'Remaining Quantity',
+        'Used Quantity',
+        'Transferred In',
+        'Transferred Out',
+        'Status',
+        'Notes',
+        'Updated At',
+    ], $rows);
+}
+
+function handle_export_users(): void
+{
+    app_ready_or_redirect();
+    Auth::requireOwner();
+
+    $users = Database::fetchAll(
+        'SELECT id, name, email, role, is_active, last_login_at, created_at
+         FROM users
+         ORDER BY FIELD(role, "owner", "admin"), created_at ASC'
+    );
+
+    $rows = array_map(static function (array $userRecord): array {
+        return [
+            $userRecord['name'],
+            $userRecord['email'],
+            strtoupper($userRecord['role']),
+            (int) $userRecord['is_active'] === 1 ? 'Active' : 'Disabled',
+            $userRecord['last_login_at'] ?: '',
+            $userRecord['created_at'] ?: '',
+        ];
+    }, $users);
+
+    export_csv('admin-export-' . date('Ymd-His') . '.csv', [
+        'Name',
+        'Email',
+        'Role',
+        'Status',
+        'Last Login At',
+        'Created At',
+    ], $rows);
+}
+
 function handle_storages_index(): void
 {
     app_ready_or_redirect();

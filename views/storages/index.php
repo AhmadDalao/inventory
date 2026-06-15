@@ -1,3 +1,5 @@
+<?php $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null)); ?>
+
 <section class="page-head">
     <div>
         <p class="eyebrow">Locations</p>
@@ -45,7 +47,37 @@
     </div>
 </section>
 
-<section class="panel">
+<section class="panel data-table-shell" data-table-shell data-empty-text="No storages match this search.">
+    <div class="table-shell-head">
+        <div class="table-heading">
+            <strong>All Locations</strong>
+            <span class="table-count-badge" data-table-total><?= number_format(count($storages)) ?></span>
+        </div>
+        <p class="table-shell-copy">Quick search, export, and scan remaining stock by warehouse or storage.</p>
+    </div>
+
+    <div class="data-table-toolbar">
+        <div class="table-toolbar-group">
+            <label class="table-page-size">
+                <span>Show</span>
+                <select data-table-page-size>
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span>entries</span>
+            </label>
+
+            <label class="table-search">
+                <span class="sr-only">Search storages</span>
+                <input type="search" data-table-search placeholder="Search location name, type, notes, or status">
+            </label>
+        </div>
+
+        <a class="ghost-button table-export-button" href="<?= e(url('/exports/storages') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
+    </div>
+
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -103,5 +135,10 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+
+    <div class="data-table-footer">
+        <p class="table-results" data-table-results>Showing 0 to 0 of 0 entries</p>
+        <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>

@@ -6,7 +6,6 @@
         <h3>Items</h3>
     </div>
     <div class="page-actions">
-        <a class="ghost-button" href="<?= e(url('/exports/items') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
         <a class="primary-button" href="<?= e(url('/items/create')) ?>">Create Item</a>
     </div>
 </section>
@@ -51,7 +50,37 @@
     </div>
 </section>
 
-<section class="panel">
+<section class="panel data-table-shell" data-table-shell data-empty-text="No items match this search.">
+    <div class="table-shell-head">
+        <div class="table-heading">
+            <strong>All Items</strong>
+            <span class="table-count-badge" data-table-total><?= number_format(count($items)) ?></span>
+        </div>
+        <p class="table-shell-copy">Search the current result set, page through it, and export the filtered catalog.</p>
+    </div>
+
+    <div class="data-table-toolbar">
+        <div class="table-toolbar-group">
+            <label class="table-page-size">
+                <span>Show</span>
+                <select data-table-page-size>
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span>entries</span>
+            </label>
+
+            <label class="table-search">
+                <span class="sr-only">Search items</span>
+                <input type="search" data-table-search placeholder="Search items, SKU, category, unit, or location">
+            </label>
+        </div>
+
+        <a class="ghost-button table-export-button" href="<?= e(url('/exports/items') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
+    </div>
+
     <div class="table-wrap">
         <table class="data-table">
             <thead>
@@ -135,5 +164,10 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+    </div>
+
+    <div class="data-table-footer">
+        <p class="table-results" data-table-results>Showing 0 to 0 of 0 entries</p>
+        <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>
