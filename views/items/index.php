@@ -78,7 +78,7 @@
                 <?php $imageUrl = item_image_url($item['image_path'] ?? null); ?>
                 <tr>
                     <td>
-                        <div class="item-table-cell">
+                        <a class="item-table-cell cell-link" href="<?= e(url('/items/' . $item['id'])) ?>">
                             <?php if ($imageUrl): ?>
                                 <img
                                     class="item-thumb expandable-image"
@@ -92,12 +92,12 @@
                             <?php endif; ?>
 
                             <div>
-                                <a class="text-link" href="<?= e(url('/items/' . $item['id'])) ?>"><?= e($item['name']) ?></a>
+                                <strong><?= e($item['name']) ?></strong>
                                 <?php if (!empty($item['notes'])): ?>
                                     <div class="tiny-copy"><?= e(truncate_text($item['notes'], 56)) ?></div>
                                 <?php endif; ?>
                             </div>
-                        </div>
+                        </a>
                     </td>
                     <td><?= e($item['sku']) ?></td>
                     <td><?= e($item['category'] ?: 'Unsorted') ?></td>

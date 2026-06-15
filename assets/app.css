@@ -389,6 +389,31 @@ textarea {
     font-weight: 700;
 }
 
+.cell-link {
+    display: block;
+    border-radius: 18px;
+    margin: -8px;
+    padding: 8px;
+    transition: background 180ms ease, transform 180ms ease;
+}
+
+.cell-link:hover,
+.cell-link:focus-visible {
+    background: #faf6ef;
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.cell-link strong {
+    color: var(--accent-strong);
+}
+
+.cell-link-compact {
+    display: inline-block;
+    margin: -6px;
+    padding: 6px;
+}
+
 .text-button {
     border: 0;
     background: transparent;

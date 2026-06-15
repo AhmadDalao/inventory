@@ -92,8 +92,10 @@
                 <tr>
                     <td><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
                     <td>
-                        <a class="text-link" href="<?= e(url('/items/' . $movement['item_id'])) ?>"><?= e($movement['item_name']) ?></a>
-                        <div class="tiny-copy"><?= e($movement['sku']) ?></div>
+                        <a class="cell-link cell-link-compact" href="<?= e(url('/items/' . $movement['item_id'])) ?>">
+                            <strong><?= e($movement['item_name']) ?></strong>
+                            <div class="tiny-copy"><?= e($movement['sku']) ?></div>
+                        </a>
                     </td>
                     <td><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
                     <td><?= format_quantity($movement['movement_quantity'] ?? abs((float) $movement['quantity_delta'])) ?> <?= e($movement['unit']) ?></td>
