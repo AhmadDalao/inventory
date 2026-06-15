@@ -49,7 +49,7 @@ $imageUrl = item_image_url($item['image_path'] ?? null);
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <small><?= $isEdit ? 'This is the default pick location. It does not move stock by itself.' : 'If you create initial stock, this is where that stock lands first.' ?></small>
+                <small><?= $isEdit ? 'This is the default pick location. It does not move stock by itself, and many items can share the same warehouse or storage.' : 'If you create initial stock, this is where that stock lands first. Many items can share the same warehouse or storage.' ?></small>
             </label>
 
             <label class="field">

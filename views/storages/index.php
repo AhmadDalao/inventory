@@ -102,8 +102,10 @@
             <?php foreach ($storages as $storage): ?>
                 <tr>
                     <td data-label="Name">
-                        <strong><?= e($storage['name']) ?></strong>
-                        <div class="tiny-copy">Updated <?= e(date('M j, Y g:i A', strtotime($storage['updated_at']))) ?></div>
+                        <a class="cell-link cell-link-compact" href="<?= e(url('/storages/' . $storage['id'])) ?>">
+                            <strong><?= e($storage['name']) ?></strong>
+                            <div class="tiny-copy">Updated <?= e(date('M j, Y g:i A', strtotime($storage['updated_at']))) ?></div>
+                        </a>
                     </td>
                     <td data-label="Type"><?= e(storage_type_label($storage['storage_type'])) ?></td>
                     <td data-label="Active Items"><?= number_format((int) $storage['active_item_count']) ?></td>
@@ -121,6 +123,7 @@
                     <td data-label="Notes"><?= e($storage['notes'] ? truncate_text($storage['notes'], 72) : '-') ?></td>
                     <td data-label="Actions">
                         <div class="inline-actions">
+                            <a class="text-link" href="<?= e(url('/storages/' . $storage['id'])) ?>">Open</a>
                             <a class="text-link" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">Items</a>
                             <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>
                             <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>">

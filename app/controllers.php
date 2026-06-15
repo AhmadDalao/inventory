@@ -370,6 +370,57 @@ function item_storage_balances(int $itemId): array
     );
 }
 
+function storage_items(int $storageId): array
+{
+    return Database::fetchAll(
+        'SELECT i.id,
+                i.name,
+                i.sku,
+                i.category,
+                i.unit,
+                i.reorder_level,
+                i.cost_per_unit,
+                i.is_active,
+                i.image_path,
+                balances.quantity,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.source_storage_id = balances.storage_id
+                      AND movements.movement_type = "usage"
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.destination_storage_id = balances.storage_id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_in,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.source_storage_id = balances.storage_id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_out,
+                (
+                    SELECT MAX(movements.used_at)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND (
+                          movements.source_storage_id = balances.storage_id
+                          OR movements.destination_storage_id = balances.storage_id
+                      )
+                ) AS last_activity_at
+         FROM item_storage_balances balances
+         INNER JOIN items i ON i.id = balances.item_id
+         WHERE balances.storage_id = :storage_id
+         ORDER BY i.is_active DESC, balances.quantity DESC, i.name ASC',
+        ['storage_id' => $storageId]
+    );
+}
+
 function item_balance_map(array $balances): array
 {
     $map = [];
@@ -1806,6 +1857,36 @@ function handle_storages_index(): void
         'storages' => $storages,
         'filters' => $filters,
         'counts' => $counts,
+    ]);
+}
+
+function handle_storages_show(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    $storage = find_storage_or_abort((int) $params['id']);
+    $items = storage_items((int) $storage['id']);
+
+    $metrics = [
+        'contained_items' => count($items),
+        'active_items' => count(array_filter($items, static fn (array $item): bool => (int) $item['is_active'] === 1)),
+        'low_stock_items' => count(array_filter(
+            $items,
+            static fn (array $item): bool => (int) $item['is_active'] === 1 && (float) $item['quantity'] <= (float) $item['reorder_level']
+        )),
+        'stock_value' => array_reduce(
+            $items,
+            static fn (float $carry, array $item): float => $carry + stock_value($item['quantity'], $item['cost_per_unit']),
+            0.0
+        ),
+    ];
+
+    View::render('storages/show', [
+        'title' => $storage['name'],
+        'storage' => $storage,
+        'items' => $items,
+        'metrics' => $metrics,
     ]);
 }
 

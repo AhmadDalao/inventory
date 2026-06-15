@@ -1,0 +1,187 @@
+<?php
+$storageTypeLabel = storage_type_label($storage['storage_type']);
+?>
+
+<section class="page-head">
+    <div>
+        <p class="eyebrow">Location Detail</p>
+        <h3><?= e($storage['name']) ?></h3>
+    </div>
+    <div class="page-actions">
+        <a class="ghost-button" href="<?= e(url('/storages')) ?>">All Locations</a>
+        <a class="primary-button" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit Location</a>
+    </div>
+</section>
+
+<section class="detail-grid">
+    <article class="panel detail-summary">
+        <div class="detail-hero">
+            <div class="detail-hero-main">
+                <div class="item-hero-image item-hero-image-fallback"><?= e(substr($storageTypeLabel, 0, 1)) ?></div>
+
+                <div>
+                    <span class="pill <?= (int) $storage['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
+                        <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                    </span>
+                    <h4><?= e($storageTypeLabel) ?></h4>
+                    <p><?= e($storage['notes'] ?: 'No notes for this location yet.') ?></p>
+                    <p class="tiny-copy">Updated <?= e(format_datetime_display($storage['updated_at'])) ?></p>
+                </div>
+            </div>
+
+            <div class="align-right">
+                <strong class="stock-number"><?= format_quantity($storage['total_quantity']) ?></strong>
+                <span>units remaining here</span>
+                <span class="tiny-copy"><?= format_money($metrics['stock_value']) ?> stock value</span>
+            </div>
+        </div>
+
+        <div class="metric-grid compact-grid">
+            <article class="metric-card">
+                <span>Contained Items</span>
+                <strong><?= number_format($metrics['contained_items']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Active Items</span>
+                <strong><?= number_format($metrics['active_items']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Low Stock Items</span>
+                <strong><?= number_format($metrics['low_stock_items']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Total Used</span>
+                <strong><?= format_quantity($storage['total_used']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Transferred In</span>
+                <strong><?= format_quantity($storage['transferred_in']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Transferred Out</span>
+                <strong><?= format_quantity($storage['transferred_out']) ?></strong>
+            </article>
+        </div>
+
+        <dl class="detail-list">
+            <div>
+                <dt>Type</dt>
+                <dd><?= e($storageTypeLabel) ?></dd>
+            </div>
+            <div>
+                <dt>Contained Items</dt>
+                <dd>This <?= strtolower($storageTypeLabel) ?> can hold many different items. It currently has <?= number_format($metrics['contained_items']) ?> item<?= $metrics['contained_items'] === 1 ? '' : 's' ?> assigned to it.</dd>
+            </div>
+            <div>
+                <dt>Notes</dt>
+                <dd><?= nl2br(e($storage['notes'] ?: 'No notes.')) ?></dd>
+            </div>
+        </dl>
+    </article>
+
+    <article class="panel">
+        <div class="panel-head">
+            <div>
+                <p class="eyebrow">Flow</p>
+                <h3>Quick Actions</h3>
+            </div>
+        </div>
+
+        <div class="mini-list">
+            <a class="mini-row" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">
+                <div>
+                    <strong>Filter Items By This Location</strong>
+                    <span>See the catalog narrowed to <?= e($storage['name']) ?>.</span>
+                </div>
+            </a>
+            <a class="mini-row" href="<?= e(url('/movements?storage_id=' . $storage['id'])) ?>">
+                <div>
+                    <strong>Open Location Movement Log</strong>
+                    <span>Track everything moved in, out, and used here.</span>
+                </div>
+            </a>
+            <a class="mini-row" href="<?= e(url('/items/create')) ?>">
+                <div>
+                    <strong>Add Another Item</strong>
+                    <span>Create a new item and land its initial stock in this location.</span>
+                </div>
+            </a>
+        </div>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <p class="eyebrow">Contained Stock</p>
+            <h3>Items Inside <?= e($storage['name']) ?></h3>
+        </div>
+    </div>
+
+    <?php if ($items === []): ?>
+        <p class="empty-state">No items are assigned here yet.</p>
+    <?php else: ?>
+        <div class="table-wrap">
+            <table class="data-table data-table-mobile">
+                <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Remaining</th>
+                    <th>Used</th>
+                    <th>Transferred</th>
+                    <th>Stock Value</th>
+                    <th>Status</th>
+                    <th>Last Activity</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($items as $item): ?>
+                    <?php $imageUrl = item_image_url($item['image_path'] ?? null); ?>
+                    <?php $isLow = (float) $item['quantity'] <= (float) $item['reorder_level']; ?>
+                    <tr>
+                        <td data-label="Item">
+                            <a class="item-table-cell cell-link" href="<?= e(url('/items/' . $item['id'])) ?>">
+                                <?php if ($imageUrl): ?>
+                                    <img
+                                        class="item-thumb expandable-image"
+                                        src="<?= e($imageUrl) ?>"
+                                        alt="<?= e($item['name']) ?>"
+                                        data-expand-image
+                                        tabindex="0"
+                                    >
+                                <?php else: ?>
+                                    <span class="item-thumb item-thumb-fallback"><?= e(item_initial($item['name'])) ?></span>
+                                <?php endif; ?>
+
+                                <div>
+                                    <strong><?= e($item['name']) ?></strong>
+                                    <?php if (!empty($item['category'])): ?>
+                                        <div class="tiny-copy"><?= e($item['category']) ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </a>
+                        </td>
+                        <td data-label="SKU"><?= e($item['sku']) ?></td>
+                        <td data-label="Category"><?= e($item['category'] ?: 'Unsorted') ?></td>
+                        <td class="<?= $isLow ? 'danger-text' : '' ?>" data-label="Remaining"><?= format_quantity($item['quantity']) ?> <?= e($item['unit']) ?></td>
+                        <td data-label="Used"><?= format_quantity($item['total_used']) ?> <?= e($item['unit']) ?></td>
+                        <td data-label="Transferred">
+                            In <?= format_quantity($item['transferred_in']) ?>
+                            <div class="tiny-copy">Out <?= format_quantity($item['transferred_out']) ?></div>
+                        </td>
+                        <td data-label="Stock Value"><?= format_money(stock_value($item['quantity'], $item['cost_per_unit'])) ?></td>
+                        <td data-label="Status">
+                            <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
+                                <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                            </span>
+                        </td>
+                        <td data-label="Last Activity"><?= $item['last_activity_at'] ? e(format_datetime_display($item['last_activity_at'])) : 'Never' ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+</section>

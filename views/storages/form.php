@@ -29,7 +29,7 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
                 <option value="warehouse" <?= selected('warehouse', (string) $storage['storage_type']) ?>>Warehouse</option>
                 <option value="storage" <?= selected('storage', (string) $storage['storage_type']) ?>>Storage</option>
             </select>
-            <small>Use warehouse for bulk stock, storage for the areas you pull from.</small>
+            <small>Use warehouse for bulk stock, storage for the areas you pull from. One location can hold many different items.</small>
         </label>
 
         <label class="field">
@@ -45,6 +45,7 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
                 <span class="stat-chip">Used: <?= format_quantity((float) ($storage['total_used'] ?? 0)) ?></span>
                 <span class="stat-chip">Status: <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?></span>
             </div>
+            <a class="text-link" href="<?= e(url('/storages/' . $storage['id'])) ?>">Open location items</a>
         <?php endif; ?>
 
         <button class="primary-button" type="submit"><?= $isEdit ? 'Save Storage' : 'Create Storage' ?></button>

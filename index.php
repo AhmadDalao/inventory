@@ -42,6 +42,9 @@ $router->get('/dashboard', static function (): void {
 $router->get('/storages', static function (): void {
     handle_storages_index();
 });
+$router->get('/storages/{id}', static function (array $params): void {
+    handle_storages_show($params);
+});
 $router->get('/storages/create', static function (): void {
     handle_storages_create_page();
 });
