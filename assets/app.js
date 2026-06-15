@@ -57,22 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     feedback.className = 'movement-feedback';
   };
 
-  const computeDelta = (type, value) => {
-    if (!Number.isFinite(value) || value === 0) {
-      return 0;
-    }
-
-    if (type === 'usage') {
-      return -Math.abs(value);
-    }
-
-    if (type === 'restock') {
-      return Math.abs(value);
-    }
-
-    return value;
-  };
-
   if (toggle && shell) {
     toggle.addEventListener('click', () => {
       shell.classList.toggle('nav-open');
@@ -100,15 +84,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (movementForm && movementType && quantityInput && quantityHint && summary) {
+    const sourceField = movementForm.querySelector('[data-source-field]');
+    const destinationField = movementForm.querySelector('[data-destination-field]');
+    const sourceLabel = movementForm.querySelector('[data-source-label]');
+    const destinationLabel = movementForm.querySelector('[data-destination-label]');
+    const sourceStorage = movementForm.querySelector('[data-source-storage]');
+    const destinationStorage = movementForm.querySelector('[data-destination-storage]');
     const stockNumber = summary.querySelector('[data-stock-number]');
     const stockUnit = summary.querySelector('[data-stock-unit]');
     const stockValueLabel = summary.querySelector('[data-stock-value-label]');
     const totalUsed = summary.querySelector('[data-total-used]');
     const totalAdded = summary.querySelector('[data-total-added]');
+    const totalTransferred = summary.querySelector('[data-total-transferred]');
     const movementCount = summary.querySelector('[data-movement-count]');
     const stockValueMetric = summary.querySelector('[data-stock-value-metric]');
     const previewDelta = movementForm.querySelector('[data-preview-delta]');
     const previewBalance = movementForm.querySelector('[data-preview-balance]');
+    const previewSource = movementForm.querySelector('[data-preview-source]');
+    const previewDestination = movementForm.querySelector('[data-preview-destination]');
+    const previewSourceLabel = movementForm.querySelector('[data-preview-source-label]');
+    const previewDestinationLabel = movementForm.querySelector('[data-preview-destination-label]');
     const previewValue = movementForm.querySelector('[data-preview-value]');
     const dateInput = movementForm.querySelector('input[name="used_at"]');
     const referenceInput = movementForm.querySelector('input[name="reference_code"]');
@@ -117,20 +112,113 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentQuantity = parseNumber(summary.dataset.currentQuantity);
     let costPerUnit = parseNumber(summary.dataset.costPerUnit);
     let currentUnit = summary.dataset.unit || 'pcs';
+    let locationBalances = {};
+
+    try {
+      locationBalances = JSON.parse(summary.dataset.balanceMap || '{}');
+    } catch (error) {
+      locationBalances = {};
+    }
+
+    const getLocationBalance = (storageId) => {
+      if (!storageId) {
+        return 0;
+      }
+
+      return parseNumber(locationBalances[String(storageId)]);
+    };
+
+    const setPreviewValue = (element, value, unit, negative = false) => {
+      if (!element) {
+        return;
+      }
+
+      element.textContent = value === null ? '-' : `${formatQuantity(value)} ${unit}`;
+      element.classList.toggle('danger-text', negative);
+    };
+
+    const syncMovementLayout = () => {
+      const type = movementType.value;
+      const needsSource = type === 'usage' || type === 'transfer' || type === 'adjustment';
+      const needsDestination = type === 'restock' || type === 'transfer';
+
+      if (sourceField) {
+        sourceField.hidden = !needsSource;
+      }
+
+      if (destinationField) {
+        destinationField.hidden = !needsDestination;
+      }
+
+      if (sourceStorage) {
+        sourceStorage.required = needsSource;
+      }
+
+      if (destinationStorage) {
+        destinationStorage.required = needsDestination;
+      }
+
+      if (sourceLabel) {
+        sourceLabel.textContent = type === 'adjustment' ? 'Adjust Location' : 'From Location';
+      }
+
+      if (destinationLabel) {
+        destinationLabel.textContent = type === 'restock' ? 'To Location' : 'Destination';
+      }
+
+      if (previewSourceLabel) {
+        previewSourceLabel.textContent = type === 'adjustment' ? 'Adjusted Location After' : 'Source After';
+      }
+
+      if (previewDestinationLabel) {
+        previewDestinationLabel.textContent = type === 'restock' ? 'Restock Location After' : 'Destination After';
+      }
+    };
 
     const syncMovementState = () => {
-      const quantityValue = parseNumber(quantityInput.value);
-      const delta = computeDelta(movementType.value, quantityValue);
-      const projectedBalance = currentQuantity + delta;
-      const projectedValue = projectedBalance * costPerUnit;
+      const type = movementType.value;
+      const rawQuantity = parseNumber(quantityInput.value);
+      const absoluteQuantity = Math.abs(rawQuantity);
+      const sourceId = sourceStorage ? sourceStorage.value : '';
+      const destinationId = destinationStorage ? destinationStorage.value : '';
+      const sourceCurrent = getLocationBalance(sourceId);
+      const destinationCurrent = getLocationBalance(destinationId);
 
-      if (movementType.value === 'adjustment') {
-        quantityHint.textContent = 'Adjustments can be positive or negative.';
-      } else if (movementType.value === 'restock') {
-        quantityHint.textContent = 'Restock adds stock automatically. Type 100 to add 100.';
+      let delta = 0;
+      let projectedBalance = currentQuantity;
+      let projectedValue = currentQuantity * costPerUnit;
+      let sourceAfter = null;
+      let destinationAfter = null;
+      let invalid = false;
+
+      if (type === 'adjustment') {
+        delta = rawQuantity;
+        projectedBalance = currentQuantity + delta;
+        sourceAfter = sourceId ? sourceCurrent + rawQuantity : null;
+        quantityHint.textContent = 'Adjustments can be positive or negative, but the location cannot go below zero.';
+        invalid = !sourceId || sourceAfter === null || sourceAfter < 0;
+      } else if (type === 'restock') {
+        delta = absoluteQuantity;
+        projectedBalance = currentQuantity + delta;
+        destinationAfter = destinationId ? destinationCurrent + absoluteQuantity : null;
+        quantityHint.textContent = 'Restock adds stock to the selected location.';
+        invalid = !destinationId;
+      } else if (type === 'transfer') {
+        delta = 0;
+        projectedBalance = currentQuantity;
+        sourceAfter = sourceId ? sourceCurrent - absoluteQuantity : null;
+        destinationAfter = destinationId ? destinationCurrent + absoluteQuantity : null;
+        quantityHint.textContent = 'Transfer moves stock between locations without changing the total on hand.';
+        invalid = !sourceId || !destinationId || sourceId === destinationId || sourceAfter === null || sourceAfter < 0;
       } else {
-        quantityHint.textContent = 'Usage subtracts stock automatically. Type 100 to use 100.';
+        delta = -absoluteQuantity;
+        projectedBalance = currentQuantity + delta;
+        sourceAfter = sourceId ? sourceCurrent - absoluteQuantity : null;
+        quantityHint.textContent = 'Usage subtracts stock from the selected location. Type 100 to use 100.';
+        invalid = !sourceId || sourceAfter === null || sourceAfter < 0;
       }
+
+      projectedValue = projectedBalance * costPerUnit;
 
       if (previewDelta) {
         previewDelta.textContent = `${formatQuantity(delta)} ${currentUnit}`;
@@ -142,19 +230,31 @@ document.addEventListener('DOMContentLoaded', () => {
         previewBalance.classList.toggle('danger-text', projectedBalance < 0);
       }
 
+      setPreviewValue(previewSource, sourceAfter, currentUnit, sourceAfter !== null && sourceAfter < 0);
+      setPreviewValue(previewDestination, destinationAfter, currentUnit, false);
+
       if (previewValue) {
         previewValue.textContent = formatMoney(projectedValue);
       }
 
       if (submitButton) {
+        const hasQuantity = quantityInput.value !== '';
         const invalidNegative = projectedBalance < 0;
-        submitButton.disabled = invalidNegative;
-        submitButton.classList.toggle('is-disabled', invalidNegative);
+        submitButton.disabled = invalid || invalidNegative || !hasQuantity;
+        submitButton.classList.toggle('is-disabled', submitButton.disabled);
       }
     };
 
-    movementType.addEventListener('change', syncMovementState);
+    movementType.addEventListener('change', () => {
+      syncMovementLayout();
+      syncMovementState();
+    });
+
     quantityInput.addEventListener('input', syncMovementState);
+    sourceStorage?.addEventListener('change', syncMovementState);
+    destinationStorage?.addEventListener('change', syncMovementState);
+
+    syncMovementLayout();
     syncMovementState();
 
     movementForm.addEventListener('submit', async (event) => {
@@ -172,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const response = await fetch(movementForm.action, {
           method: 'POST',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
           },
           body: formData,
@@ -192,6 +292,16 @@ document.addEventListener('DOMContentLoaded', () => {
         summary.dataset.currentQuantity = String(currentQuantity);
         summary.dataset.costPerUnit = String(costPerUnit);
         summary.dataset.unit = currentUnit;
+
+        if (payload.item.balance_map_json) {
+          summary.dataset.balanceMap = payload.item.balance_map_json;
+
+          try {
+            locationBalances = JSON.parse(payload.item.balance_map_json);
+          } catch (error) {
+            locationBalances = {};
+          }
+        }
 
         if (stockNumber) {
           stockNumber.textContent = payload.item.current_quantity;
@@ -213,12 +323,21 @@ document.addEventListener('DOMContentLoaded', () => {
           totalAdded.textContent = `${payload.item.total_added} ${currentUnit}`;
         }
 
+        if (totalTransferred) {
+          totalTransferred.textContent = `${payload.item.total_transferred} ${currentUnit}`;
+        }
+
         if (movementCount) {
           movementCount.textContent = String(payload.item.movement_count);
         }
 
         if (stockValueMetric) {
           stockValueMetric.textContent = payload.item.stock_value;
+        }
+
+        const locationBalancesSection = document.querySelector('[data-location-balances]');
+        if (locationBalancesSection && payload.item.location_balances_html) {
+          locationBalancesSection.outerHTML = payload.item.location_balances_html;
         }
 
         if (historyBody && payload.movement && payload.movement.row_html) {
@@ -234,6 +353,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         quantityInput.value = '';
+        if (sourceStorage) {
+          sourceStorage.value = '';
+        }
+        if (destinationStorage) {
+          destinationStorage.value = '';
+        }
         if (referenceInput) {
           referenceInput.value = '';
         }
@@ -253,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
           submitButton.textContent = 'Save Movement';
         }
 
+        syncMovementLayout();
         syncMovementState();
       }
     });

@@ -446,6 +446,11 @@ textarea {
     color: #166534;
 }
 
+.pill-transfer {
+    background: #ede9fe;
+    color: #5b21b6;
+}
+
 .pill-adjustment,
 .pill-admin {
     background: #dbeafe;
@@ -473,7 +478,7 @@ textarea {
 
 .movement-filter-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .mini-list,
@@ -575,7 +580,7 @@ textarea {
 .movement-preview-grid {
     display: grid;
     gap: 14px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .preview-card {

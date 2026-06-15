@@ -18,10 +18,12 @@ function app_ready_or_redirect(): void
 function storage_filters(): array
 {
     $status = (string) query('status', 'active');
+    $type = (string) query('type', '');
 
     return [
         'search' => trim((string) query('search', '')),
         'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'active',
+        'type' => in_array($type, ['warehouse', 'storage'], true) ? $type : '',
     ];
 }
 
@@ -41,6 +43,11 @@ function build_storage_where(array $filters, string $alias = 's'): array
         $params['search'] = '%' . $filters['search'] . '%';
     }
 
+    if ($filters['type'] !== '') {
+        $conditions[] = "{$alias}.storage_type = :storage_type";
+        $params['storage_type'] = $filters['type'];
+    }
+
     return [
         $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '',
         $params,
@@ -58,7 +65,7 @@ function item_filters(): array
     ];
 }
 
-function build_item_where(array $filters, string $alias = 'i', string $storageAlias = 's'): array
+function build_item_where(array $filters, string $alias = 'i'): array
 {
     $conditions = [];
     $params = [];
@@ -70,12 +77,30 @@ function build_item_where(array $filters, string $alias = 'i', string $storageAl
     }
 
     if ($filters['search'] !== '') {
-        $conditions[] = "({$alias}.name LIKE :search OR {$alias}.sku LIKE :search OR COALESCE({$alias}.category, '') LIKE :search OR COALESCE({$storageAlias}.name, '') LIKE :search)";
+        $conditions[] = "(
+            {$alias}.name LIKE :search
+            OR {$alias}.sku LIKE :search
+            OR COALESCE({$alias}.category, '') LIKE :search
+            OR EXISTS (
+                SELECT 1
+                FROM item_storage_balances item_balances
+                INNER JOIN storages matched_storage ON matched_storage.id = item_balances.storage_id
+                WHERE item_balances.item_id = {$alias}.id
+                  AND item_balances.quantity > 0
+                  AND matched_storage.name LIKE :search
+            )
+        )";
         $params['search'] = '%' . $filters['search'] . '%';
     }
 
     if ($filters['storage_id']) {
-        $conditions[] = "{$alias}.storage_id = :storage_id";
+        $conditions[] = "EXISTS (
+            SELECT 1
+            FROM item_storage_balances filtered_balances
+            WHERE filtered_balances.item_id = {$alias}.id
+              AND filtered_balances.storage_id = :storage_id
+              AND filtered_balances.quantity > 0
+        )";
         $params['storage_id'] = $filters['storage_id'];
     }
 
@@ -92,7 +117,7 @@ function movement_filters(): array
     return [
         'item_id' => ctype_digit((string) query('item_id', '')) ? (int) query('item_id') : null,
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
-        'movement_type' => in_array($type, ['restock', 'usage', 'adjustment'], true) ? $type : '',
+        'movement_type' => in_array($type, ['restock', 'usage', 'adjustment', 'transfer'], true) ? $type : '',
         'date_from' => trim((string) query('date_from', '')),
         'date_to' => trim((string) query('date_to', '')),
     ];
@@ -109,7 +134,7 @@ function build_movement_where(array $filters, string $alias = 'm', string $itemA
     }
 
     if ($filters['storage_id']) {
-        $conditions[] = "{$itemAlias}.storage_id = :storage_id";
+        $conditions[] = "({$alias}.source_storage_id = :storage_id OR {$alias}.destination_storage_id = :storage_id)";
         $params['storage_id'] = $filters['storage_id'];
     }
 
@@ -152,20 +177,42 @@ function all_storages_for_select(?int $selectedId = null): array
     }
 
     return Database::fetchAll(
-        'SELECT id, name, is_active
+        'SELECT id, name, storage_type, is_active
          FROM storages
          WHERE ' . implode(' OR ', $conditions) . '
-         ORDER BY is_active DESC, name ASC',
+         ORDER BY FIELD(storage_type, "warehouse", "storage"), is_active DESC, name ASC',
         $params
     );
+}
+
+function storage_type_label(string $type): string
+{
+    return $type === 'warehouse' ? 'Warehouse' : 'Storage';
 }
 
 function find_item_or_abort(int $itemId): array
 {
     $item = Database::fetch(
-        'SELECT i.*, s.name AS storage_name, creator.name AS creator_name, updater.name AS updater_name
+        'SELECT i.*,
+                default_storage.name AS default_storage_name,
+                default_storage.storage_type AS default_storage_type,
+                creator.name AS creator_name,
+                updater.name AS updater_name,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS location_count,
+                (
+                    SELECT GROUP_CONCAT(location_storage.name ORDER BY location_balances.quantity DESC, location_storage.name ASC SEPARATOR ", ")
+                    FROM item_storage_balances location_balances
+                    INNER JOIN storages location_storage ON location_storage.id = location_balances.storage_id
+                    WHERE location_balances.item_id = i.id
+                      AND location_balances.quantity > 0
+                ) AS location_summary
          FROM items i
-         LEFT JOIN storages s ON s.id = i.storage_id
+         LEFT JOIN storages default_storage ON default_storage.id = i.storage_id
          LEFT JOIN users creator ON creator.id = i.created_by
          LEFT JOIN users updater ON updater.id = i.updated_by
          WHERE i.id = :id
@@ -184,7 +231,37 @@ function find_storage_or_abort(int $storageId): array
 {
     $storage = Database::fetch(
         'SELECT s.*,
-                (SELECT COUNT(*) FROM items i WHERE i.storage_id = s.id AND i.is_active = 1) AS active_item_count,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
+                    WHERE balances.storage_id = s.id
+                      AND balances.quantity > 0
+                      AND i.is_active = 1
+                ) AS active_item_count,
+                (
+                    SELECT COALESCE(SUM(balances.quantity), 0)
+                    FROM item_storage_balances balances
+                    WHERE balances.storage_id = s.id
+                ) AS total_quantity,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.source_storage_id = s.id
+                      AND movements.movement_type = "usage"
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.source_storage_id = s.id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_out,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.destination_storage_id = s.id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_in,
                 creator.name AS creator_name,
                 updater.name AS updater_name
          FROM storages s
@@ -220,8 +297,9 @@ function item_history_metrics(int $itemId): array
 {
     return Database::fetch(
         'SELECT
-             COALESCE(SUM(CASE WHEN quantity_delta < 0 THEN ABS(quantity_delta) ELSE 0 END), 0) AS total_used,
-             COALESCE(SUM(CASE WHEN quantity_delta > 0 THEN quantity_delta ELSE 0 END), 0) AS total_added,
+             COALESCE(SUM(CASE WHEN movement_type = "usage" THEN movement_quantity ELSE 0 END), 0) AS total_used,
+             COALESCE(SUM(CASE WHEN movement_type = "restock" THEN movement_quantity WHEN movement_type = "adjustment" AND quantity_delta > 0 THEN quantity_delta ELSE 0 END), 0) AS total_added,
+             COALESCE(SUM(CASE WHEN movement_type = "transfer" THEN movement_quantity ELSE 0 END), 0) AS total_transferred,
              COUNT(*) AS movement_count
          FROM inventory_movements
          WHERE item_id = :item_id',
@@ -229,6 +307,7 @@ function item_history_metrics(int $itemId): array
     ) ?: [
         'total_used' => 0,
         'total_added' => 0,
+        'total_transferred' => 0,
         'movement_count' => 0,
     ];
 }
@@ -236,9 +315,16 @@ function item_history_metrics(int $itemId): array
 function latest_item_movement(int $itemId): ?array
 {
     return Database::fetch(
-        'SELECT m.*, u.name AS user_name
+        'SELECT m.*,
+                u.name AS user_name,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type
          FROM inventory_movements m
          LEFT JOIN users u ON u.id = m.performed_by
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          WHERE m.item_id = :item_id
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 1',
@@ -246,10 +332,61 @@ function latest_item_movement(int $itemId): ?array
     );
 }
 
+function item_storage_balances(int $itemId): array
+{
+    return Database::fetchAll(
+        'SELECT balances.item_id,
+                balances.storage_id,
+                balances.quantity,
+                storage.name,
+                storage.storage_type,
+                storage.is_active,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.source_storage_id = balances.storage_id
+                      AND movements.movement_type = "usage"
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.source_storage_id = balances.storage_id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_out,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.destination_storage_id = balances.storage_id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_in
+         FROM item_storage_balances balances
+         INNER JOIN storages storage ON storage.id = balances.storage_id
+         WHERE balances.item_id = :item_id
+         ORDER BY FIELD(storage.storage_type, "warehouse", "storage"), balances.quantity DESC, storage.name ASC',
+        ['item_id' => $itemId]
+    );
+}
+
+function item_balance_map(array $balances): array
+{
+    $map = [];
+
+    foreach ($balances as $balance) {
+        $map[(string) $balance['storage_id']] = (float) $balance['quantity'];
+    }
+
+    return $map;
+}
+
 function item_response_payload(array $item): array
 {
     $historyMetrics = item_history_metrics((int) $item['id']);
     $latestMovement = latest_item_movement((int) $item['id']);
+    $balances = item_storage_balances((int) $item['id']);
+    $balanceMap = item_balance_map($balances);
 
     return [
         'item' => [
@@ -261,10 +398,17 @@ function item_response_payload(array $item): array
             'total_used_raw' => (float) $historyMetrics['total_used'],
             'total_added' => format_quantity($historyMetrics['total_added']),
             'total_added_raw' => (float) $historyMetrics['total_added'],
+            'total_transferred' => format_quantity($historyMetrics['total_transferred'] ?? 0),
+            'total_transferred_raw' => (float) ($historyMetrics['total_transferred'] ?? 0),
             'movement_count' => (int) $historyMetrics['movement_count'],
             'cost_per_unit' => format_money($item['cost_per_unit']),
             'cost_per_unit_raw' => (float) $item['cost_per_unit'],
             'stock_value' => format_money(stock_value($item['current_quantity'], $item['cost_per_unit'])),
+            'balance_map_json' => json_encode($balanceMap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'location_balances_html' => View::partialToString('items/location_balances', [
+                'item' => $item,
+                'balances' => $balances,
+            ]),
         ],
         'movement' => $latestMovement ? [
             'row_html' => View::partialToString('items/history_row', [
@@ -314,31 +458,128 @@ function quantity_delta_for_type(string $type, float $quantity): float
             return -abs($quantity);
         case 'adjustment':
             return $quantity;
+        case 'transfer':
+            return 0.0;
         default:
             return 0.0;
     }
+}
+
+function persist_item_storage_balance(int $itemId, int $storageId, float $quantity): void
+{
+    $normalizedQuantity = round($quantity, 2);
+
+    if ($normalizedQuantity <= 0) {
+        Database::execute(
+            'DELETE FROM item_storage_balances WHERE item_id = :item_id AND storage_id = :storage_id',
+            [
+                'item_id' => $itemId,
+                'storage_id' => $storageId,
+            ]
+        );
+
+        return;
+    }
+
+    Database::execute(
+        'INSERT INTO item_storage_balances (item_id, storage_id, quantity, created_at, updated_at)
+         VALUES (:item_id, :storage_id, :quantity, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), updated_at = NOW()',
+        [
+            'item_id' => $itemId,
+            'storage_id' => $storageId,
+            'quantity' => $normalizedQuantity,
+        ]
+    );
+}
+
+function current_item_balance_map_for_update(int $itemId): array
+{
+    $rows = Database::fetchAll(
+        'SELECT storage_id, quantity
+         FROM item_storage_balances
+         WHERE item_id = :item_id
+         FOR UPDATE',
+        ['item_id' => $itemId]
+    );
+
+    $balances = [];
+
+    foreach ($rows as $row) {
+        $balances[(int) $row['storage_id']] = (float) $row['quantity'];
+    }
+
+    return $balances;
 }
 
 function apply_inventory_movement(
     array $item,
     string $type,
     float $quantity,
+    ?int $sourceStorageId,
+    ?int $destinationStorageId,
     string $usedAt,
     ?string $referenceCode,
     ?string $notes,
     int $performedBy
 ): void {
-    $delta = quantity_delta_for_type($type, $quantity);
-    $newBalance = (float) $item['current_quantity'] + $delta;
-
-    if ($newBalance < 0) {
-        throw new RuntimeException('That movement would make stock negative. Bad data in, bad data out.');
-    }
-
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
     try {
+        Database::fetch(
+            'SELECT id, current_quantity FROM items WHERE id = :id LIMIT 1 FOR UPDATE',
+            ['id' => $item['id']]
+        );
+
+        $balanceMap = current_item_balance_map_for_update((int) $item['id']);
+        $rawQuantity = $type === 'adjustment' ? $quantity : abs($quantity);
+        $movementQuantity = round(abs($rawQuantity), 2);
+        $delta = round(quantity_delta_for_type($type, $quantity), 2);
+        $sourceBalanceAfter = null;
+        $destinationBalanceAfter = null;
+
+        if ($type === 'usage' || $type === 'transfer' || $type === 'adjustment') {
+            $currentSourceBalance = round($balanceMap[$sourceStorageId ?? 0] ?? 0.0, 2);
+
+            if ($type === 'usage') {
+                $sourceBalanceAfter = round($currentSourceBalance - $movementQuantity, 2);
+            } elseif ($type === 'transfer') {
+                $sourceBalanceAfter = round($currentSourceBalance - $movementQuantity, 2);
+            } else {
+                $sourceBalanceAfter = round($currentSourceBalance + $quantity, 2);
+            }
+
+            if ($sourceBalanceAfter < 0) {
+                throw new RuntimeException('That movement would make the source location go negative. Hard no.');
+            }
+
+            $balanceMap[(int) $sourceStorageId] = $sourceBalanceAfter;
+        }
+
+        if ($type === 'restock' || $type === 'transfer') {
+            $currentDestinationBalance = round($balanceMap[$destinationStorageId ?? 0] ?? 0.0, 2);
+            $destinationBalanceAfter = round($currentDestinationBalance + $movementQuantity, 2);
+            $balanceMap[(int) $destinationStorageId] = $destinationBalanceAfter;
+        }
+
+        if ($type === 'adjustment') {
+            $movementQuantity = round(abs($quantity), 2);
+        }
+
+        foreach ($balanceMap as $storageId => $balanceQuantity) {
+            persist_item_storage_balance((int) $item['id'], (int) $storageId, (float) $balanceQuantity);
+        }
+
+        $newBalance = (float) Database::scalar(
+            'SELECT COALESCE(SUM(quantity), 0) FROM item_storage_balances WHERE item_id = :item_id',
+            ['item_id' => $item['id']]
+        );
+
+        if ($newBalance < 0) {
+            throw new RuntimeException('That movement would make stock negative. Bad data in, bad data out.');
+        }
+
         Database::execute(
             'UPDATE items SET current_quantity = :current_quantity, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
             [
@@ -349,13 +590,47 @@ function apply_inventory_movement(
         );
 
         Database::execute(
-            'INSERT INTO inventory_movements (item_id, movement_type, quantity_delta, balance_after, reference_code, notes, used_at, performed_by, created_at)
-             VALUES (:item_id, :movement_type, :quantity_delta, :balance_after, :reference_code, :notes, :used_at, :performed_by, NOW())',
+            'INSERT INTO inventory_movements (
+                item_id,
+                movement_type,
+                movement_quantity,
+                quantity_delta,
+                balance_after,
+                source_storage_id,
+                destination_storage_id,
+                source_balance_after,
+                destination_balance_after,
+                reference_code,
+                notes,
+                used_at,
+                performed_by,
+                created_at
+             ) VALUES (
+                :item_id,
+                :movement_type,
+                :movement_quantity,
+                :quantity_delta,
+                :balance_after,
+                :source_storage_id,
+                :destination_storage_id,
+                :source_balance_after,
+                :destination_balance_after,
+                :reference_code,
+                :notes,
+                :used_at,
+                :performed_by,
+                NOW()
+             )',
             [
                 'item_id' => $item['id'],
                 'movement_type' => $type,
+                'movement_quantity' => $movementQuantity,
                 'quantity_delta' => $delta,
                 'balance_after' => $newBalance,
+                'source_storage_id' => $sourceStorageId,
+                'destination_storage_id' => $destinationStorageId,
+                'source_balance_after' => $sourceBalanceAfter,
+                'destination_balance_after' => $destinationBalanceAfter,
                 'reference_code' => $referenceCode !== '' ? $referenceCode : null,
                 'notes' => $notes !== '' ? $notes : null,
                 'used_at' => $usedAt,
@@ -416,6 +691,7 @@ function default_storage_payload(): array
 {
     return [
         'name' => old('name', ''),
+        'storage_type' => old('storage_type', 'storage'),
         'notes' => old('notes', ''),
         'is_active' => 1,
     ];
@@ -541,37 +817,66 @@ function handle_dashboard_page(): void
     $metrics = [
         'items_total' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1'),
         'storages_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1'),
+        'warehouses_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1 AND storage_type = "warehouse"'),
         'units_total' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity), 0) FROM items WHERE is_active = 1'),
         'low_stock' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1 AND current_quantity <= reorder_level'),
         'inventory_value' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity * cost_per_unit), 0) FROM items WHERE is_active = 1'),
-        'used_last_30' => (float) Database::scalar("SELECT COALESCE(SUM(ABS(quantity_delta)), 0) FROM inventory_movements WHERE quantity_delta < 0 AND used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"),
+        'used_last_30' => (float) Database::scalar("SELECT COALESCE(SUM(movement_quantity), 0) FROM inventory_movements WHERE movement_type = 'usage' AND used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"),
     ];
 
     $recentActivity = Database::fetchAll(
-        'SELECT m.*, i.name AS item_name, i.sku, i.unit, s.name AS storage_name, u.name AS user_name
+        'SELECT m.*,
+                i.name AS item_name,
+                i.sku,
+                i.unit,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
+                u.name AS user_name
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
-         LEFT JOIN storages s ON s.id = i.storage_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 10'
     );
 
     $topUsage = Database::fetchAll(
-        'SELECT i.id, i.name, i.unit, s.name AS storage_name, SUM(ABS(m.quantity_delta)) AS total_used
+        'SELECT i.id,
+                i.name,
+                i.unit,
+                SUM(m.movement_quantity) AS total_used,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS location_count
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
-         LEFT JOIN storages s ON s.id = i.storage_id
-         WHERE m.quantity_delta < 0 AND m.used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-         GROUP BY i.id, i.name, i.unit, s.name
+         WHERE m.movement_type = "usage"
+           AND m.used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+         GROUP BY i.id, i.name, i.unit
          ORDER BY total_used DESC
          LIMIT 5'
     );
 
     $lowStockItems = Database::fetchAll(
-        'SELECT i.id, i.name, i.sku, i.unit, i.current_quantity, i.reorder_level, s.name AS storage_name
+        'SELECT i.id,
+                i.name,
+                i.sku,
+                i.unit,
+                i.current_quantity,
+                i.reorder_level,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS location_count
          FROM items i
-         LEFT JOIN storages s ON s.id = i.storage_id
          WHERE i.is_active = 1 AND i.current_quantity <= i.reorder_level
          ORDER BY i.current_quantity ASC, i.name ASC
          LIMIT 8'
@@ -596,10 +901,23 @@ function handle_items_index(): void
 
     $items = Database::fetchAll(
         "SELECT i.*,
-                s.name AS storage_name,
+                default_storage.name AS default_storage_name,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS location_count,
+                (
+                    SELECT GROUP_CONCAT(storage.name ORDER BY balances.quantity DESC, storage.name ASC SEPARATOR ', ')
+                    FROM item_storage_balances balances
+                    INNER JOIN storages storage ON storage.id = balances.storage_id
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS storage_summary,
                 (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
          FROM items i
-         LEFT JOIN storages s ON s.id = i.storage_id
+         LEFT JOIN storages default_storage ON default_storage.id = i.storage_id
          {$where}
          ORDER BY i.is_active DESC, i.name ASC",
         $params
@@ -697,6 +1015,10 @@ function handle_items_create_submit(): void
         $errors[] = 'Quantity, reorder level, and cost cannot be negative.';
     }
 
+    if ($payload['current_quantity'] > 0 && $storageId === null) {
+        $errors[] = 'Pick a default location when you create stock.';
+    }
+
     $existingSku = Database::fetch('SELECT id FROM items WHERE sku = :sku LIMIT 1', ['sku' => $payload['sku']]);
 
     if ($existingSku) {
@@ -746,14 +1068,44 @@ function handle_items_create_submit(): void
         }
 
         if ($payload['current_quantity'] > 0) {
+            persist_item_storage_balance($itemId, (int) $storageId, $payload['current_quantity']);
+
             Database::execute(
-                'INSERT INTO inventory_movements (item_id, movement_type, quantity_delta, balance_after, reference_code, notes, used_at, performed_by, created_at)
-                 VALUES (:item_id, :movement_type, :quantity_delta, :balance_after, :reference_code, :notes, NOW(), :performed_by, NOW())',
+                'INSERT INTO inventory_movements (
+                    item_id,
+                    movement_type,
+                    movement_quantity,
+                    quantity_delta,
+                    balance_after,
+                    destination_storage_id,
+                    destination_balance_after,
+                    reference_code,
+                    notes,
+                    used_at,
+                    performed_by,
+                    created_at
+                 ) VALUES (
+                    :item_id,
+                    :movement_type,
+                    :movement_quantity,
+                    :quantity_delta,
+                    :balance_after,
+                    :destination_storage_id,
+                    :destination_balance_after,
+                    :reference_code,
+                    :notes,
+                    NOW(),
+                    :performed_by,
+                    NOW()
+                 )',
                 [
                     'item_id' => $itemId,
                     'movement_type' => 'restock',
+                    'movement_quantity' => $payload['current_quantity'],
                     'quantity_delta' => $payload['current_quantity'],
                     'balance_after' => $payload['current_quantity'],
+                    'destination_storage_id' => $storageId,
+                    'destination_balance_after' => $payload['current_quantity'],
                     'reference_code' => 'INITIAL',
                     'notes' => 'Initial stock on item creation',
                     'performed_by' => $user['id'],
@@ -786,9 +1138,16 @@ function handle_items_show(array $params): void
 
     $item = find_item_or_abort((int) $params['id']);
     $history = Database::fetchAll(
-        'SELECT m.*, u.name AS user_name
+        'SELECT m.*,
+                u.name AS user_name,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type
          FROM inventory_movements m
          LEFT JOIN users u ON u.id = m.performed_by
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          WHERE m.item_id = :item_id
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 50',
@@ -796,12 +1155,15 @@ function handle_items_show(array $params): void
     );
 
     $historyMetrics = item_history_metrics((int) $item['id']);
+    $balances = item_storage_balances((int) $item['id']);
 
     View::render('items/show', [
         'title' => $item['name'],
         'item' => $item,
         'history' => $history,
         'historyMetrics' => $historyMetrics,
+        'balances' => $balances,
+        'storages' => all_storages_for_select($item['storage_id'] ? (int) $item['storage_id'] : null),
     ]);
 }
 
@@ -1009,13 +1371,15 @@ function handle_item_movement_submit(array $params): void
 
     $movementType = (string) input('movement_type');
     $quantity = quantity_value(input('quantity'));
+    $sourceStorageId = normalize_storage_selection(input('source_storage_id'));
+    $destinationStorageId = normalize_storage_selection(input('destination_storage_id'));
     $usedAt = trim((string) input('used_at'));
     $referenceCode = trim((string) input('reference_code'));
     $notes = trim((string) input('notes'));
 
     $errors = [];
 
-    if (!in_array($movementType, ['restock', 'usage', 'adjustment'], true)) {
+    if (!in_array($movementType, ['restock', 'usage', 'adjustment', 'transfer'], true)) {
         $errors[] = 'Pick a valid movement type.';
     }
 
@@ -1029,6 +1393,33 @@ function handle_item_movement_submit(array $params): void
         }
     } elseif ($quantity <= 0) {
         $errors[] = 'Quantity must be greater than zero.';
+    }
+
+    if ($movementType === 'usage' && !$sourceStorageId) {
+        $errors[] = 'Pick the location you are using stock from.';
+    }
+
+    if ($movementType === 'restock' && !$destinationStorageId) {
+        $errors[] = 'Pick the location you are adding stock to.';
+    }
+
+    if ($movementType === 'adjustment' && !$sourceStorageId) {
+        $errors[] = 'Pick the location you are adjusting.';
+    }
+
+    if ($movementType === 'transfer' && (!$sourceStorageId || !$destinationStorageId)) {
+        $errors[] = 'Pick both the source and destination locations.';
+    }
+
+    if ($movementType === 'transfer' && $sourceStorageId && $destinationStorageId && $sourceStorageId === $destinationStorageId) {
+        $errors[] = 'Source and destination cannot be the same location.';
+    }
+
+    foreach ([$sourceStorageId, $destinationStorageId] as $storageId) {
+        if ($storageId !== null && !storage_exists_for_assignment($storageId)) {
+            $errors[] = 'Pick valid active locations.';
+            break;
+        }
     }
 
     if ($usedAt === '') {
@@ -1052,6 +1443,8 @@ function handle_item_movement_submit(array $params): void
             $item,
             $movementType,
             $movementType === 'adjustment' ? (float) input('quantity') : $quantity,
+            $sourceStorageId,
+            $destinationStorageId,
             $usedAt,
             $referenceCode,
             $notes,
@@ -1091,10 +1484,19 @@ function handle_movements_index(): void
     [$where, $params] = build_movement_where($filters);
 
     $movements = Database::fetchAll(
-        "SELECT m.*, i.name AS item_name, i.sku, i.unit, s.name AS storage_name, u.name AS user_name
+        "SELECT m.*,
+                i.name AS item_name,
+                i.sku,
+                i.unit,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
+                u.name AS user_name
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
-         LEFT JOIN storages s ON s.id = i.storage_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          {$where}
          ORDER BY m.used_at DESC, m.id DESC
@@ -1103,7 +1505,7 @@ function handle_movements_index(): void
     );
 
     View::render('movements/index', [
-        'title' => 'Usage Log',
+        'title' => 'Movement Log',
         'movements' => $movements,
         'filters' => $filters,
         'items' => all_items_for_select(),
@@ -1120,9 +1522,24 @@ function handle_export_items(): void
     [$where, $params] = build_item_where($filters);
 
     $items = Database::fetchAll(
-        "SELECT i.*, s.name AS storage_name, (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
+        "SELECT i.*,
+                default_storage.name AS default_storage_name,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS location_count,
+                (
+                    SELECT GROUP_CONCAT(storage.name ORDER BY balances.quantity DESC, storage.name ASC SEPARATOR ', ')
+                    FROM item_storage_balances balances
+                    INNER JOIN storages storage ON storage.id = balances.storage_id
+                    WHERE balances.item_id = i.id
+                      AND balances.quantity > 0
+                ) AS storage_summary,
+                (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
          FROM items i
-         LEFT JOIN storages s ON s.id = i.storage_id
+         LEFT JOIN storages default_storage ON default_storage.id = i.storage_id
          {$where}
          ORDER BY i.name ASC",
         $params
@@ -1133,7 +1550,9 @@ function handle_export_items(): void
             $item['name'],
             $item['sku'],
             $item['category'] ?: '',
-            $item['storage_name'] ?: '',
+            $item['location_count'],
+            $item['storage_summary'] ?: '',
+            $item['default_storage_name'] ?: '',
             $item['unit'],
             format_quantity($item['current_quantity']),
             format_quantity($item['reorder_level']),
@@ -1148,7 +1567,9 @@ function handle_export_items(): void
         'Name',
         'SKU',
         'Category',
-        'Storage',
+        'Location Count',
+        'Locations',
+        'Default Location',
         'Unit',
         'Current Quantity',
         'Reorder Level',
@@ -1168,10 +1589,19 @@ function handle_export_movements(): void
     [$where, $params] = build_movement_where($filters);
 
     $movements = Database::fetchAll(
-        "SELECT m.*, i.name AS item_name, i.sku, i.unit, s.name AS storage_name, u.name AS user_name
+        "SELECT m.*,
+                i.name AS item_name,
+                i.sku,
+                i.unit,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
+                u.name AS user_name
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
-         LEFT JOIN storages s ON s.id = i.storage_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          {$where}
          ORDER BY m.used_at DESC, m.id DESC",
@@ -1183,10 +1613,12 @@ function handle_export_movements(): void
             $movement['used_at'],
             $movement['item_name'],
             $movement['sku'],
-            $movement['storage_name'] ?: '',
             ucfirst($movement['movement_type']),
+            $movement['movement_quantity'] ? format_quantity($movement['movement_quantity']) : '',
             format_quantity($movement['quantity_delta']),
             format_quantity($movement['balance_after']),
+            $movement['source_storage_name'] ?: '',
+            $movement['destination_storage_name'] ?: '',
             $movement['reference_code'] ?: '',
             $movement['user_name'] ?: '',
             $movement['notes'] ?: '',
@@ -1197,10 +1629,12 @@ function handle_export_movements(): void
         'Used At',
         'Item',
         'SKU',
-        'Storage',
         'Type',
+        'Movement Quantity',
         'Quantity Delta',
         'Balance After',
+        'Source Location',
+        'Destination Location',
         'Reference',
         'Performed By',
         'Notes',
@@ -1217,11 +1651,40 @@ function handle_storages_index(): void
 
     $storages = Database::fetchAll(
         "SELECT s.*,
-                (SELECT COUNT(*) FROM items i WHERE i.storage_id = s.id AND i.is_active = 1) AS active_item_count,
-                (SELECT COALESCE(SUM(i.current_quantity), 0) FROM items i WHERE i.storage_id = s.id AND i.is_active = 1) AS total_quantity
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
+                    WHERE balances.storage_id = s.id
+                      AND balances.quantity > 0
+                      AND i.is_active = 1
+                ) AS active_item_count,
+                (
+                    SELECT COALESCE(SUM(balances.quantity), 0)
+                    FROM item_storage_balances balances
+                    WHERE balances.storage_id = s.id
+                ) AS total_quantity,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.source_storage_id = s.id
+                      AND movements.movement_type = 'usage'
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.source_storage_id = s.id
+                      AND movements.movement_type = 'transfer'
+                ) AS transferred_out,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.destination_storage_id = s.id
+                      AND movements.movement_type = 'transfer'
+                ) AS transferred_in
          FROM storages s
          {$where}
-         ORDER BY s.is_active DESC, s.name ASC",
+         ORDER BY FIELD(s.storage_type, 'warehouse', 'storage'), s.is_active DESC, s.name ASC",
         $params
     );
 
@@ -1259,6 +1722,7 @@ function handle_storages_create_submit(): void
     $user = Auth::user();
     $payload = [
         'name' => trim((string) input('name')),
+        'storage_type' => (string) input('storage_type', 'storage'),
         'notes' => trim((string) input('notes')),
     ];
 
@@ -1268,6 +1732,10 @@ function handle_storages_create_submit(): void
 
     if ($payload['name'] === '') {
         $errors[] = 'Storage name is required.';
+    }
+
+    if (!in_array($payload['storage_type'], ['warehouse', 'storage'], true)) {
+        $errors[] = 'Pick a valid location type.';
     }
 
     $existingStorage = Database::fetch(
@@ -1285,10 +1753,11 @@ function handle_storages_create_submit(): void
     }
 
     Database::execute(
-        'INSERT INTO storages (name, notes, is_active, created_by, updated_by, created_at, updated_at)
-         VALUES (:name, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
+        'INSERT INTO storages (name, storage_type, notes, is_active, created_by, updated_by, created_at, updated_at)
+         VALUES (:name, :storage_type, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
         [
             'name' => $payload['name'],
+            'storage_type' => $payload['storage_type'],
             'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
             'created_by' => $user['id'],
             'updated_by' => $user['id'],
@@ -1313,9 +1782,12 @@ function handle_storages_edit_page(array $params): void
         'storage' => [
             'id' => $storage['id'],
             'name' => old('name', $storage['name']),
+            'storage_type' => old('storage_type', $storage['storage_type']),
             'notes' => old('notes', $storage['notes']),
             'is_active' => (int) $storage['is_active'],
             'active_item_count' => (int) $storage['active_item_count'],
+            'total_quantity' => (float) $storage['total_quantity'],
+            'total_used' => (float) $storage['total_used'],
         ],
     ]);
 }
@@ -1330,6 +1802,7 @@ function handle_storages_edit_submit(array $params): void
     $user = Auth::user();
     $payload = [
         'name' => trim((string) input('name')),
+        'storage_type' => (string) input('storage_type', 'storage'),
         'notes' => trim((string) input('notes')),
     ];
 
@@ -1339,6 +1812,10 @@ function handle_storages_edit_submit(array $params): void
 
     if ($payload['name'] === '') {
         $errors[] = 'Storage name is required.';
+    }
+
+    if (!in_array($payload['storage_type'], ['warehouse', 'storage'], true)) {
+        $errors[] = 'Pick a valid location type.';
     }
 
     $existingStorage = Database::fetch(
@@ -1358,12 +1835,14 @@ function handle_storages_edit_submit(array $params): void
     Database::execute(
         'UPDATE storages
          SET name = :name,
+             storage_type = :storage_type,
              notes = :notes,
              updated_by = :updated_by,
              updated_at = NOW()
          WHERE id = :id',
         [
             'name' => $payload['name'],
+            'storage_type' => $payload['storage_type'],
             'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
             'updated_by' => $user['id'],
             'id' => $storage['id'],

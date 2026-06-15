@@ -24,6 +24,15 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
         </label>
 
         <label class="field">
+            <span>Type</span>
+            <select name="storage_type" required>
+                <option value="warehouse" <?= selected('warehouse', (string) $storage['storage_type']) ?>>Warehouse</option>
+                <option value="storage" <?= selected('storage', (string) $storage['storage_type']) ?>>Storage</option>
+            </select>
+            <small>Use warehouse for bulk stock, storage for the areas you pull from.</small>
+        </label>
+
+        <label class="field">
             <span>Notes</span>
             <textarea name="notes" rows="5"><?= e((string) $storage['notes']) ?></textarea>
             <small>Optional. Use this for directions, access notes, or anything humans forget.</small>
@@ -32,6 +41,8 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
         <?php if ($isEdit): ?>
             <div class="chip-row">
                 <span class="stat-chip">Active items: <?= number_format((int) ($storage['active_item_count'] ?? 0)) ?></span>
+                <span class="stat-chip">Remaining: <?= format_quantity((float) ($storage['total_quantity'] ?? 0)) ?></span>
+                <span class="stat-chip">Used: <?= format_quantity((float) ($storage['total_used'] ?? 0)) ?></span>
                 <span class="stat-chip">Status: <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?></span>
             </div>
         <?php endif; ?>

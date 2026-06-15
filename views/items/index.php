@@ -28,12 +28,12 @@
         </label>
 
         <label class="field">
-            <span>Storage</span>
+            <span>Location</span>
             <select name="storage_id">
-                <option value="">All storages</option>
+                <option value="">All locations</option>
                 <?php foreach ($storages as $storage): ?>
                     <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($filters['storage_id'] ?? '')) ?>>
-                        <?= e($storage['name']) ?>
+                        <?= e(storage_type_label($storage['storage_type'])) ?> · <?= e($storage['name']) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -59,7 +59,7 @@
                 <th>Item</th>
                 <th>SKU</th>
                 <th>Category</th>
-                <th>Storage</th>
+                <th>Locations</th>
                 <th>Current</th>
                 <th>Reorder</th>
                 <th>Status</th>
@@ -95,7 +95,14 @@
                     </td>
                     <td><?= e($item['sku']) ?></td>
                     <td><?= e($item['category'] ?: 'Unsorted') ?></td>
-                    <td><?= e($item['storage_name'] ?: 'Unassigned') ?></td>
+                    <td>
+                        <?php if ((int) ($item['location_count'] ?? 0) === 0): ?>
+                            <span class="tiny-copy">No stock locations</span>
+                        <?php else: ?>
+                            <strong><?= number_format((int) $item['location_count']) ?> location<?= (int) $item['location_count'] === 1 ? '' : 's' ?></strong>
+                            <div class="tiny-copy"><?= e(truncate_text($item['storage_summary'] ?: '', 52)) ?></div>
+                        <?php endif; ?>
+                    </td>
                     <td class="<?= $isLow ? 'danger-text' : '' ?>">
                         <?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?>
                     </td>

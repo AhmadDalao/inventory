@@ -10,6 +10,10 @@
         <strong><?= number_format($metrics['storages_total']) ?></strong>
     </article>
     <article class="metric-card">
+        <span>Active Warehouses</span>
+        <strong><?= number_format($metrics['warehouses_total']) ?></strong>
+    </article>
+    <article class="metric-card">
         <span>Total Units In Stock</span>
         <strong><?= format_quantity($metrics['units_total']) ?></strong>
     </article>
@@ -45,7 +49,7 @@
                     <a class="mini-row" href="<?= e(url('/items/' . $item['id'])) ?>">
                         <div>
                             <strong><?= e($item['name']) ?></strong>
-                            <span><?= e($item['sku']) ?> · <?= e($item['storage_name'] ?: 'Unassigned') ?></span>
+                            <span><?= e($item['sku']) ?> · <?= number_format((int) $item['location_count']) ?> location<?= (int) $item['location_count'] === 1 ? '' : 's' ?></span>
                         </div>
                         <div class="align-right">
                             <strong><?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?></strong>
@@ -75,7 +79,7 @@
                     <div class="usage-row">
                         <div class="usage-meta">
                             <strong><?= e($usage['name']) ?></strong>
-                            <span><?= e($usage['storage_name'] ?: 'Unassigned') ?></span>
+                            <span>Across <?= number_format((int) $usage['location_count']) ?> location<?= (int) $usage['location_count'] === 1 ? '' : 's' ?></span>
                             <span><?= format_quantity($usage['total_used']) ?> <?= e($usage['unit']) ?></span>
                         </div>
                         <div class="usage-bar-track">
@@ -107,8 +111,10 @@
                     <th>When</th>
                     <th>Item</th>
                     <th>Type</th>
-                    <th>Delta</th>
+                    <th>Quantity</th>
+                    <th>Total Change</th>
                     <th>Balance</th>
+                    <th>Route</th>
                     <th>By</th>
                 </tr>
                 </thead>
@@ -118,11 +124,16 @@
                         <td><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
                         <td>
                             <a class="text-link" href="<?= e(url('/items/' . $movement['item_id'])) ?>"><?= e($movement['item_name']) ?></a>
-                            <div class="tiny-copy"><?= e($movement['sku']) ?> · <?= e($movement['storage_name'] ?: 'Unassigned') ?></div>
+                            <div class="tiny-copy"><?= e($movement['sku']) ?></div>
                         </td>
                         <td><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
+                        <td><?= format_quantity($movement['movement_quantity'] ?? abs((float) $movement['quantity_delta'])) ?> <?= e($movement['unit']) ?></td>
                         <td><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
                         <td><?= format_quantity($movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
+                        <td>
+                            <?= e($movement['source_storage_name'] ?: '-') ?>
+                            <div class="tiny-copy"><?= e($movement['destination_storage_name'] ?: '-') ?></div>
+                        </td>
                         <td><?= e($movement['user_name'] ?: 'System') ?></td>
                     </tr>
                 <?php endforeach; ?>

@@ -16,6 +16,15 @@
         </label>
 
         <label class="field">
+            <span>Type</span>
+            <select name="type">
+                <option value="">All types</option>
+                <option value="warehouse" <?= selected('warehouse', $filters['type']) ?>>Warehouse</option>
+                <option value="storage" <?= selected('storage', $filters['type']) ?>>Storage</option>
+            </select>
+        </label>
+
+        <label class="field">
             <span>Status</span>
             <select name="status">
                 <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
@@ -42,8 +51,11 @@
             <thead>
             <tr>
                 <th>Name</th>
+                <th>Type</th>
                 <th>Active Items</th>
-                <th>Total Units</th>
+                <th>Remaining</th>
+                <th>Used</th>
+                <th>Transfers</th>
                 <th>Status</th>
                 <th>Notes</th>
                 <th></th>
@@ -52,7 +64,7 @@
             <tbody>
             <?php if ($storages === []): ?>
                 <tr>
-                    <td colspan="6" class="empty-cell">No storages found.</td>
+                    <td colspan="9" class="empty-cell">No storages found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($storages as $storage): ?>
@@ -61,8 +73,14 @@
                         <strong><?= e($storage['name']) ?></strong>
                         <div class="tiny-copy">Updated <?= e(date('M j, Y g:i A', strtotime($storage['updated_at']))) ?></div>
                     </td>
+                    <td><?= e(storage_type_label($storage['storage_type'])) ?></td>
                     <td><?= number_format((int) $storage['active_item_count']) ?></td>
                     <td><?= format_quantity($storage['total_quantity']) ?></td>
+                    <td><?= format_quantity($storage['total_used']) ?></td>
+                    <td>
+                        In <?= format_quantity($storage['transferred_in']) ?>
+                        <div class="tiny-copy">Out <?= format_quantity($storage['transferred_out']) ?></div>
+                    </td>
                     <td>
                         <span class="pill <?= (int) $storage['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
                             <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?>

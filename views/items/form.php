@@ -40,16 +40,16 @@ $imageUrl = item_image_url($item['image_path'] ?? null);
             </label>
 
             <label class="field">
-                <span>Storage</span>
+                <span>Default Location</span>
                 <select name="storage_id">
-                    <option value="">Unassigned</option>
+                    <option value="">No default location</option>
                     <?php foreach ($storages as $storage): ?>
                         <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($item['storage_id'] ?? '')) ?>>
-                            <?= e($storage['name']) ?><?= (int) $storage['is_active'] === 0 ? ' (Archived)' : '' ?>
+                            <?= e(storage_type_label($storage['storage_type'])) ?> · <?= e($storage['name']) ?><?= (int) $storage['is_active'] === 0 ? ' (Archived)' : '' ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <small>Pick where this item physically lives. Leave it unassigned if it floats.</small>
+                <small><?= $isEdit ? 'This is the default pick location. It does not move stock by itself.' : 'If you create initial stock, this is where that stock lands first.' ?></small>
             </label>
 
             <label class="field">
