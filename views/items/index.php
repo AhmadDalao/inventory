@@ -62,12 +62,23 @@
             <?php endif; ?>
             <?php foreach ($items as $item): ?>
                 <?php $isLow = (float) $item['current_quantity'] <= (float) $item['reorder_level']; ?>
+                <?php $imageUrl = item_image_url($item['image_path'] ?? null); ?>
                 <tr>
                     <td>
-                        <a class="text-link" href="<?= e(url('/items/' . $item['id'])) ?>"><?= e($item['name']) ?></a>
-                        <?php if (!empty($item['notes'])): ?>
-                            <div class="tiny-copy"><?= e(truncate_text($item['notes'], 56)) ?></div>
-                        <?php endif; ?>
+                        <div class="item-table-cell">
+                            <?php if ($imageUrl): ?>
+                                <img class="item-thumb" src="<?= e($imageUrl) ?>" alt="<?= e($item['name']) ?>">
+                            <?php else: ?>
+                                <span class="item-thumb item-thumb-fallback"><?= e(item_initial($item['name'])) ?></span>
+                            <?php endif; ?>
+
+                            <div>
+                                <a class="text-link" href="<?= e(url('/items/' . $item['id'])) ?>"><?= e($item['name']) ?></a>
+                                <?php if (!empty($item['notes'])): ?>
+                                    <div class="tiny-copy"><?= e(truncate_text($item['notes'], 56)) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </td>
                     <td><?= e($item['sku']) ?></td>
                     <td><?= e($item['category'] ?: 'Unsorted') ?></td>

@@ -159,6 +159,14 @@ function query(string $key, $default = '')
     return $_GET[$key] ?? $default;
 }
 
+function request_wants_json(): bool
+{
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+    $requestedWith = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+
+    return strpos($accept, 'application/json') !== false || $requestedWith === 'xmlhttprequest';
+}
+
 function csrf_token(): string
 {
     if (!isset($_SESSION['_csrf'])) {
@@ -189,6 +197,14 @@ function abort(int $statusCode, string $message): never
     exit;
 }
 
+function json_response(array $payload, int $statusCode = 200): never
+{
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 function format_quantity($value): string
 {
     $number = (float) ($value ?? 0);
@@ -200,6 +216,11 @@ function format_quantity($value): string
 function format_money($value): string
 {
     return '$' . number_format((float) ($value ?? 0), 2);
+}
+
+function format_datetime_display(string $value): string
+{
+    return date('M j, Y g:i A', strtotime($value));
 }
 
 function quantity_value($value): float
@@ -257,6 +278,14 @@ function checked(bool $value): string
     return $value ? 'checked' : '';
 }
 
+function slugify_filename(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?: 'item';
+
+    return trim($value, '-') ?: 'item';
+}
+
 function item_unit_options(): array
 {
     return [
@@ -312,6 +341,153 @@ function resolve_item_unit(string $selectedUnit, string $customUnit): string
     }
 
     return '';
+}
+
+function item_upload_directory(): string
+{
+    return base_path('uploads/items');
+}
+
+function ensure_directory_exists(string $path): void
+{
+    if (is_dir($path)) {
+        return;
+    }
+
+    if (!mkdir($path, 0755, true) && !is_dir($path)) {
+        throw new RuntimeException('Could not create upload directory.');
+    }
+}
+
+function uploaded_file(string $key): ?array
+{
+    if (!isset($_FILES[$key]) || !is_array($_FILES[$key])) {
+        return null;
+    }
+
+    if ((int) ($_FILES[$key]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    return $_FILES[$key];
+}
+
+function validate_item_image_upload(?array $file): ?string
+{
+    if ($file === null) {
+        return null;
+    }
+
+    $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($error !== UPLOAD_ERR_OK) {
+        return 'Image upload failed. Try a JPG, PNG, or WebP under 5 MB.';
+    }
+
+    $size = (int) ($file['size'] ?? 0);
+
+    if ($size <= 0 || $size > 5 * 1024 * 1024) {
+        return 'Image must be smaller than 5 MB.';
+    }
+
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+        return 'Uploaded image is invalid.';
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo ? (string) finfo_file($finfo, $tmpName) : '';
+
+    if ($finfo) {
+        finfo_close($finfo);
+    }
+
+    if (!in_array($mimeType, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        return 'Image must be JPG, PNG, or WebP.';
+    }
+
+    return null;
+}
+
+function store_item_image(array $file, string $itemName): string
+{
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo ? (string) finfo_file($finfo, $tmpName) : '';
+
+    if ($finfo) {
+        finfo_close($finfo);
+    }
+
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
+    if (!isset($extensions[$mimeType])) {
+        throw new RuntimeException('Unsupported image type.');
+    }
+
+    ensure_directory_exists(item_upload_directory());
+
+    $filename = date('YmdHis') . '-' . slugify_filename($itemName) . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.' . $extensions[$mimeType];
+    $destination = item_upload_directory() . '/' . $filename;
+
+    if (!move_uploaded_file($tmpName, $destination)) {
+        throw new RuntimeException('Could not save the uploaded image.');
+    }
+
+    return $filename;
+}
+
+function delete_item_image(?string $imagePath): void
+{
+    $imagePath = trim((string) $imagePath);
+
+    if ($imagePath === '') {
+        return;
+    }
+
+    $fullPath = item_upload_directory() . '/' . basename($imagePath);
+
+    if (is_file($fullPath)) {
+        unlink($fullPath);
+    }
+}
+
+function item_image_url(?string $imagePath): ?string
+{
+    $imagePath = trim((string) $imagePath);
+
+    if ($imagePath === '') {
+        return null;
+    }
+
+    $fullPath = item_upload_directory() . '/' . basename($imagePath);
+
+    if (!is_file($fullPath)) {
+        return null;
+    }
+
+    return url('/uploads/items/' . rawurlencode(basename($imagePath)));
+}
+
+function item_initial(?string $value): string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return 'I';
+    }
+
+    return strtoupper(substr($value, 0, 1));
+}
+
+function stock_value($quantity, $costPerUnit): float
+{
+    return (float) $quantity * (float) $costPerUnit;
 }
 
 function app_installed(): bool

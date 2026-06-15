@@ -24,5 +24,8 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 require __DIR__ . '/Database.php';
 require __DIR__ . '/Auth.php';
 require __DIR__ . '/Installer.php';
+require __DIR__ . '/Maintenance.php';
 require __DIR__ . '/View.php';
 require __DIR__ . '/Router.php';
+
+Maintenance::boot();

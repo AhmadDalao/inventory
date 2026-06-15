@@ -130,6 +130,78 @@ function find_user_or_abort(int $userId): array
     return $user;
 }
 
+function item_history_metrics(int $itemId): array
+{
+    return Database::fetch(
+        'SELECT
+             COALESCE(SUM(CASE WHEN quantity_delta < 0 THEN ABS(quantity_delta) ELSE 0 END), 0) AS total_used,
+             COALESCE(SUM(CASE WHEN quantity_delta > 0 THEN quantity_delta ELSE 0 END), 0) AS total_added,
+             COUNT(*) AS movement_count
+         FROM inventory_movements
+         WHERE item_id = :item_id',
+        ['item_id' => $itemId]
+    ) ?: [
+        'total_used' => 0,
+        'total_added' => 0,
+        'movement_count' => 0,
+    ];
+}
+
+function latest_item_movement(int $itemId): ?array
+{
+    return Database::fetch(
+        'SELECT m.*, u.name AS user_name
+         FROM inventory_movements m
+         LEFT JOIN users u ON u.id = m.performed_by
+         WHERE m.item_id = :item_id
+         ORDER BY m.used_at DESC, m.id DESC
+         LIMIT 1',
+        ['item_id' => $itemId]
+    );
+}
+
+function item_response_payload(array $item): array
+{
+    $historyMetrics = item_history_metrics((int) $item['id']);
+    $latestMovement = latest_item_movement((int) $item['id']);
+
+    return [
+        'item' => [
+            'id' => (int) $item['id'],
+            'unit' => $item['unit'],
+            'current_quantity' => format_quantity($item['current_quantity']),
+            'current_quantity_raw' => (float) $item['current_quantity'],
+            'total_used' => format_quantity($historyMetrics['total_used']),
+            'total_used_raw' => (float) $historyMetrics['total_used'],
+            'total_added' => format_quantity($historyMetrics['total_added']),
+            'total_added_raw' => (float) $historyMetrics['total_added'],
+            'movement_count' => (int) $historyMetrics['movement_count'],
+            'cost_per_unit' => format_money($item['cost_per_unit']),
+            'cost_per_unit_raw' => (float) $item['cost_per_unit'],
+            'stock_value' => format_money(stock_value($item['current_quantity'], $item['cost_per_unit'])),
+        ],
+        'movement' => $latestMovement ? [
+            'row_html' => View::partialToString('items/history_row', [
+                'movement' => $latestMovement,
+                'item' => $item,
+            ]),
+        ] : null,
+    ];
+}
+
+function normalize_item_upload(array $item, string $itemName): array
+{
+    $imageFile = uploaded_file('image');
+    $imageError = validate_item_image_upload($imageFile);
+
+    return [
+        'file' => $imageFile,
+        'error' => $imageError,
+        'current_image_path' => $item['image_path'] ?? null,
+        'item_name' => $itemName,
+    ];
+}
+
 function quantity_delta_for_type(string $type, float $quantity): float
 {
     switch ($type) {
@@ -230,6 +302,7 @@ function default_item_payload(): array
         'reorder_level' => old('reorder_level', '0'),
         'cost_per_unit' => old('cost_per_unit', '0'),
         'current_quantity' => old('current_quantity', '0'),
+        'image_path' => null,
         'notes' => old('notes', ''),
         'is_active' => 1,
     ];
@@ -447,6 +520,7 @@ function handle_items_create_submit(): void
     $user = Auth::user();
     $selectedUnit = trim((string) input('unit', 'pcs'));
     $customUnit = trim((string) input('custom_unit'));
+    $imageUpload = normalize_item_upload(['image_path' => null], trim((string) input('name')));
     $payload = [
         'name' => trim((string) input('name')),
         'sku' => strtoupper(trim((string) input('sku'))),
@@ -484,6 +558,10 @@ function handle_items_create_submit(): void
         $errors[] = 'Unit is required.';
     }
 
+    if ($imageUpload['error'] !== null) {
+        $errors[] = $imageUpload['error'];
+    }
+
     if (!is_numeric_value(input('current_quantity')) || !is_numeric_value(input('reorder_level')) || !is_numeric_value(input('cost_per_unit'))) {
         $errors[] = 'Quantity, reorder level, and cost must be valid numbers.';
     }
@@ -505,11 +583,12 @@ function handle_items_create_submit(): void
 
     $pdo = Database::connection();
     $pdo->beginTransaction();
+    $storedImagePath = null;
 
     try {
         Database::execute(
-            'INSERT INTO items (name, sku, category, unit, current_quantity, reorder_level, cost_per_unit, notes, is_active, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, :sku, :category, :unit, :current_quantity, :reorder_level, :cost_per_unit, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
+            'INSERT INTO items (name, sku, category, unit, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
+             VALUES (:name, :sku, :category, :unit, :current_quantity, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'sku' => $payload['sku'],
@@ -518,6 +597,7 @@ function handle_items_create_submit(): void
                 'current_quantity' => $payload['current_quantity'],
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
+                'image_path' => null,
                 'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
                 'created_by' => $user['id'],
                 'updated_by' => $user['id'],
@@ -525,6 +605,17 @@ function handle_items_create_submit(): void
         );
 
         $itemId = Database::lastInsertId();
+
+        if ($imageUpload['file'] !== null) {
+            $storedImagePath = store_item_image($imageUpload['file'], $payload['name']);
+            Database::execute(
+                'UPDATE items SET image_path = :image_path, updated_at = NOW() WHERE id = :id',
+                [
+                    'image_path' => $storedImagePath,
+                    'id' => $itemId,
+                ]
+            );
+        }
 
         if ($payload['current_quantity'] > 0) {
             Database::execute(
@@ -551,6 +642,10 @@ function handle_items_create_submit(): void
             $pdo->rollBack();
         }
 
+        if ($storedImagePath !== null) {
+            delete_item_image($storedImagePath);
+        }
+
         flash('danger', $exception->getMessage());
         redirect('/items/create');
     }
@@ -572,15 +667,7 @@ function handle_items_show(array $params): void
         ['item_id' => $item['id']]
     );
 
-    $historyMetrics = Database::fetch(
-        'SELECT
-             COALESCE(SUM(CASE WHEN quantity_delta < 0 THEN ABS(quantity_delta) ELSE 0 END), 0) AS total_used,
-             COALESCE(SUM(CASE WHEN quantity_delta > 0 THEN quantity_delta ELSE 0 END), 0) AS total_added,
-             COUNT(*) AS movement_count
-         FROM inventory_movements
-         WHERE item_id = :item_id',
-        ['item_id' => $item['id']]
-    );
+    $historyMetrics = item_history_metrics((int) $item['id']);
 
     View::render('items/show', [
         'title' => $item['name'],
@@ -607,6 +694,7 @@ function handle_items_edit_page(array $params): void
             'reorder_level' => old('reorder_level', format_quantity($item['reorder_level'])),
             'cost_per_unit' => old('cost_per_unit', format_quantity($item['cost_per_unit'])),
             'current_quantity' => format_quantity($item['current_quantity']),
+            'image_path' => $item['image_path'],
             'notes' => old('notes', $item['notes']),
             'is_active' => (int) $item['is_active'],
             'id' => $item['id'],
@@ -624,6 +712,7 @@ function handle_items_edit_submit(array $params): void
     $user = Auth::user();
     $selectedUnit = trim((string) input('unit', 'pcs'));
     $customUnit = trim((string) input('custom_unit'));
+    $imageUpload = normalize_item_upload($item, trim((string) input('name', $item['name'])));
 
     $payload = [
         'name' => trim((string) input('name')),
@@ -657,6 +746,10 @@ function handle_items_edit_submit(array $params): void
         $errors[] = 'Unit is required.';
     }
 
+    if ($imageUpload['error'] !== null) {
+        $errors[] = $imageUpload['error'];
+    }
+
     if (!is_numeric_value(input('reorder_level')) || !is_numeric_value(input('cost_per_unit'))) {
         $errors[] = 'Reorder level and cost must be valid numbers.';
     }
@@ -679,30 +772,53 @@ function handle_items_edit_submit(array $params): void
         redirect('/items/' . $item['id'] . '/edit');
     }
 
-    Database::execute(
-        'UPDATE items
-         SET name = :name,
-             sku = :sku,
-             category = :category,
-             unit = :unit,
-             reorder_level = :reorder_level,
-             cost_per_unit = :cost_per_unit,
-             notes = :notes,
-             updated_by = :updated_by,
-             updated_at = NOW()
-         WHERE id = :id',
-        [
-            'name' => $payload['name'],
-            'sku' => $payload['sku'],
-            'category' => $payload['category'] !== '' ? $payload['category'] : null,
-            'unit' => $resolvedUnit,
-            'reorder_level' => $payload['reorder_level'],
-            'cost_per_unit' => $payload['cost_per_unit'],
-            'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
-            'updated_by' => $user['id'],
-            'id' => $item['id'],
-        ]
-    );
+    $storedImagePath = null;
+    $nextImagePath = $item['image_path'];
+
+    try {
+        if ($imageUpload['file'] !== null) {
+            $storedImagePath = store_item_image($imageUpload['file'], $payload['name']);
+            $nextImagePath = $storedImagePath;
+        }
+
+        Database::execute(
+            'UPDATE items
+             SET name = :name,
+                 sku = :sku,
+                 category = :category,
+                 unit = :unit,
+                 reorder_level = :reorder_level,
+                 cost_per_unit = :cost_per_unit,
+                 image_path = :image_path,
+                 notes = :notes,
+                 updated_by = :updated_by,
+                 updated_at = NOW()
+             WHERE id = :id',
+            [
+                'name' => $payload['name'],
+                'sku' => $payload['sku'],
+                'category' => $payload['category'] !== '' ? $payload['category'] : null,
+                'unit' => $resolvedUnit,
+                'reorder_level' => $payload['reorder_level'],
+                'cost_per_unit' => $payload['cost_per_unit'],
+                'image_path' => $nextImagePath,
+                'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
+                'updated_by' => $user['id'],
+                'id' => $item['id'],
+            ]
+        );
+    } catch (Throwable $exception) {
+        if ($storedImagePath !== null) {
+            delete_item_image($storedImagePath);
+        }
+
+        flash('danger', $exception->getMessage());
+        redirect('/items/' . $item['id'] . '/edit');
+    }
+
+    if ($storedImagePath !== null && !empty($item['image_path']) && $item['image_path'] !== $storedImagePath) {
+        delete_item_image($item['image_path']);
+    }
 
     consume_old_input();
     flash('success', 'Item updated.');
@@ -742,6 +858,13 @@ function handle_item_movement_submit(array $params): void
     $user = Auth::user();
 
     if (!(int) $item['is_active']) {
+        if (request_wants_json()) {
+            json_response([
+                'message' => 'Archived items do not get new movement logs.',
+                'errors' => ['Archived items do not get new movement logs.'],
+            ], 422);
+        }
+
         flash('danger', 'Archived items do not get new movement logs.');
         redirect('/items/' . $item['id']);
     }
@@ -775,6 +898,13 @@ function handle_item_movement_submit(array $params): void
     }
 
     if ($errors !== []) {
+        if (request_wants_json()) {
+            json_response([
+                'message' => 'Movement could not be saved.',
+                'errors' => $errors,
+            ], 422);
+        }
+
         flash_errors($errors);
         redirect('/items/' . $item['id']);
     }
@@ -789,8 +919,25 @@ function handle_item_movement_submit(array $params): void
             $notes,
             (int) $user['id']
         );
+
+        $updatedItem = find_item_or_abort((int) $item['id']);
+        $payload = item_response_payload($updatedItem);
+
+        if (request_wants_json()) {
+            json_response(array_merge([
+                'message' => 'Movement saved.',
+            ], $payload));
+        }
+
         flash('success', 'Movement saved.');
     } catch (Throwable $exception) {
+        if (request_wants_json()) {
+            json_response([
+                'message' => $exception->getMessage(),
+                'errors' => [$exception->getMessage()],
+            ], 422);
+        }
+
         flash('danger', $exception->getMessage());
     }
 

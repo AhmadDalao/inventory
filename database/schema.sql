@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS items (
     current_quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     reorder_level DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     cost_per_unit DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    image_path VARCHAR(255) NULL,
     notes TEXT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_by BIGINT UNSIGNED NULL,

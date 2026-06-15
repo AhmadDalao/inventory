@@ -31,4 +31,12 @@ final class View
         extract($data, EXTR_SKIP);
         require $viewPath;
     }
+
+    public static function partialToString(string $view, array $data = []): string
+    {
+        ob_start();
+        self::partial($view, $data);
+
+        return (string) ob_get_clean();
+    }
 }

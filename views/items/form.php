@@ -2,6 +2,7 @@
 $isEdit = $mode === 'edit';
 $action = $isEdit ? url('/items/' . $item['id'] . '/edit') : url('/items/create');
 $unitOptions = item_unit_options();
+$imageUrl = item_image_url($item['image_path'] ?? null);
 ?>
 
 <section class="page-head">
@@ -15,7 +16,7 @@ $unitOptions = item_unit_options();
 </section>
 
 <section class="panel form-panel">
-    <form class="stack-form" method="post" action="<?= e($action) ?>">
+    <form class="stack-form" method="post" action="<?= e($action) ?>" enctype="multipart/form-data">
         <?= csrf_field() ?>
 
         <div class="field-row">
@@ -85,6 +86,15 @@ $unitOptions = item_unit_options();
         <label class="field">
             <span>Notes</span>
             <textarea name="notes" rows="5"><?= e((string) $item['notes']) ?></textarea>
+        </label>
+
+        <label class="field">
+            <span>Item Image</span>
+            <?php if ($imageUrl): ?>
+                <img class="item-form-preview" src="<?= e($imageUrl) ?>" alt="<?= e((string) $item['name']) ?>">
+            <?php endif; ?>
+            <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+            <small>Optional. Shown on the item page and as a small thumbnail in the items table.</small>
         </label>
 
         <button class="primary-button" type="submit"><?= $isEdit ? 'Save Changes' : 'Create Item' ?></button>

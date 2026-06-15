@@ -1,3 +1,8 @@
+<?php
+$imageUrl = item_image_url($item['image_path'] ?? null);
+$stockValue = stock_value($item['current_quantity'], $item['cost_per_unit']);
+?>
+
 <section class="page-head">
     <div>
         <p class="eyebrow">Item Detail</p>
@@ -10,18 +15,33 @@
 </section>
 
 <section class="detail-grid">
-    <article class="panel detail-summary">
+    <article
+        class="panel detail-summary"
+        data-item-summary
+        data-unit="<?= e($item['unit']) ?>"
+        data-current-quantity="<?= e((string) $item['current_quantity']) ?>"
+        data-cost-per-unit="<?= e((string) $item['cost_per_unit']) ?>"
+    >
         <div class="detail-hero">
-            <div>
-                <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                    <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
-                </span>
-                <h4><?= e($item['sku']) ?></h4>
-                <p><?= e($item['category'] ?: 'No category set') ?></p>
+            <div class="detail-hero-main">
+                <?php if ($imageUrl): ?>
+                    <img class="item-hero-image" src="<?= e($imageUrl) ?>" alt="<?= e($item['name']) ?>">
+                <?php else: ?>
+                    <div class="item-hero-image item-hero-image-fallback"><?= e(item_initial($item['name'])) ?></div>
+                <?php endif; ?>
+
+                <div>
+                    <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
+                        <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                    </span>
+                    <h4><?= e($item['sku']) ?></h4>
+                    <p><?= e($item['category'] ?: 'No category set') ?></p>
+                </div>
             </div>
             <div class="align-right">
-                <strong class="stock-number"><?= format_quantity($item['current_quantity']) ?></strong>
-                <span><?= e($item['unit']) ?> on hand</span>
+                <strong class="stock-number" data-stock-number><?= format_quantity($item['current_quantity']) ?></strong>
+                <span data-stock-unit><?= e($item['unit']) ?> on hand</span>
+                <span class="tiny-copy" data-stock-value-label><?= format_money($stockValue) ?> stock value</span>
             </div>
         </div>
 
@@ -32,15 +52,19 @@
             </article>
             <article class="metric-card">
                 <span>Total Used</span>
-                <strong><?= format_quantity($historyMetrics['total_used']) ?> <?= e($item['unit']) ?></strong>
+                <strong data-total-used><?= format_quantity($historyMetrics['total_used']) ?> <?= e($item['unit']) ?></strong>
             </article>
             <article class="metric-card">
                 <span>Total Added</span>
-                <strong><?= format_quantity($historyMetrics['total_added']) ?> <?= e($item['unit']) ?></strong>
+                <strong data-total-added><?= format_quantity($historyMetrics['total_added']) ?> <?= e($item['unit']) ?></strong>
             </article>
             <article class="metric-card">
                 <span>Movement Count</span>
-                <strong><?= number_format((int) $historyMetrics['movement_count']) ?></strong>
+                <strong data-movement-count><?= number_format((int) $historyMetrics['movement_count']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Stock Value</span>
+                <strong data-stock-value-metric><?= format_money($stockValue) ?></strong>
             </article>
         </div>
 
@@ -82,7 +106,9 @@
         <?php if ((int) $item['is_active'] === 0): ?>
             <p class="empty-state">This item is archived. Restore it if you want new movement entries.</p>
         <?php else: ?>
-            <form class="stack-form" method="post" action="<?= e(url('/items/' . $item['id'] . '/movements')) ?>">
+            <div class="movement-feedback" data-movement-feedback hidden></div>
+
+            <form class="stack-form" method="post" action="<?= e(url('/items/' . $item['id'] . '/movements')) ?>" data-movement-form>
                 <?= csrf_field() ?>
                 <div class="field-row">
                     <label class="field">
@@ -96,8 +122,8 @@
 
                     <label class="field">
                         <span>Quantity</span>
-                        <input type="number" step="0.01" name="quantity" placeholder="Use negative only for adjustments" required>
-                        <small data-quantity-hint>For usage/restock, enter a positive number.</small>
+                        <input type="number" step="0.01" name="quantity" placeholder="Type 100, not -100" data-quantity-input required>
+                        <small data-quantity-hint>For usage, just type a positive number. The app subtracts it for you.</small>
                     </label>
                 </div>
 
@@ -118,7 +144,22 @@
                     <textarea name="notes" rows="4" placeholder="Why this moved, who used it, what changed"></textarea>
                 </label>
 
-                <button class="primary-button" type="submit">Save Movement</button>
+                <section class="movement-preview-grid">
+                    <article class="metric-card preview-card">
+                        <span>Projected Change</span>
+                        <strong data-preview-delta>0 <?= e($item['unit']) ?></strong>
+                    </article>
+                    <article class="metric-card preview-card">
+                        <span>Projected On Hand</span>
+                        <strong data-preview-balance><?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?></strong>
+                    </article>
+                    <article class="metric-card preview-card">
+                        <span>Projected Stock Value</span>
+                        <strong data-preview-value><?= format_money($stockValue) ?></strong>
+                    </article>
+                </section>
+
+                <button class="primary-button" type="submit" data-movement-submit>Save Movement</button>
             </form>
         <?php endif; ?>
     </article>
@@ -145,22 +186,14 @@
                 <th>Notes</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody data-history-body>
             <?php if ($history === []): ?>
                 <tr>
                     <td colspan="7" class="empty-cell">No movement history yet.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($history as $movement): ?>
-                <tr>
-                    <td><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
-                    <td><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
-                    <td><?= format_quantity($movement['quantity_delta']) ?> <?= e($item['unit']) ?></td>
-                    <td><?= format_quantity($movement['balance_after']) ?> <?= e($item['unit']) ?></td>
-                    <td><?= e($movement['reference_code'] ?: '-') ?></td>
-                    <td><?= e($movement['user_name'] ?: 'System') ?></td>
-                    <td><?= e($movement['notes'] ?: '-') ?></td>
-                </tr>
+                <?php View::partial('items/history_row', ['movement' => $movement, 'item' => $item]); ?>
             <?php endforeach; ?>
             </tbody>
         </table>
