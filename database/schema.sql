@@ -10,11 +10,26 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS storages (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(160) NOT NULL UNIQUE,
+    notes TEXT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_by BIGINT UNSIGNED NULL,
+    updated_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_storages_status (is_active),
+    CONSTRAINT fk_storages_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_storages_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS items (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(160) NOT NULL,
     sku VARCHAR(80) NOT NULL UNIQUE,
     category VARCHAR(120) NULL,
+    storage_id BIGINT UNSIGNED NULL,
     unit VARCHAR(40) NOT NULL DEFAULT 'pcs',
     current_quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     reorder_level DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -28,6 +43,8 @@ CREATE TABLE IF NOT EXISTS items (
     updated_at DATETIME NOT NULL,
     INDEX idx_items_status (is_active),
     INDEX idx_items_category (category),
+    INDEX idx_items_storage_id (storage_id),
+    CONSTRAINT fk_items_storage FOREIGN KEY (storage_id) REFERENCES storages(id) ON DELETE SET NULL,
     CONSTRAINT fk_items_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_items_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

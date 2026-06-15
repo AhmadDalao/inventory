@@ -15,7 +15,7 @@ function app_ready_or_redirect(): void
     }
 }
 
-function item_filters(): array
+function storage_filters(): array
 {
     $status = (string) query('status', 'active');
 
@@ -25,7 +25,7 @@ function item_filters(): array
     ];
 }
 
-function build_item_where(array $filters, string $alias = 'i'): array
+function build_storage_where(array $filters, string $alias = 's'): array
 {
     $conditions = [];
     $params = [];
@@ -37,8 +37,46 @@ function build_item_where(array $filters, string $alias = 'i'): array
     }
 
     if ($filters['search'] !== '') {
-        $conditions[] = "({$alias}.name LIKE :search OR {$alias}.sku LIKE :search OR COALESCE({$alias}.category, '') LIKE :search)";
+        $conditions[] = "({$alias}.name LIKE :search OR COALESCE({$alias}.notes, '') LIKE :search)";
         $params['search'] = '%' . $filters['search'] . '%';
+    }
+
+    return [
+        $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '',
+        $params,
+    ];
+}
+
+function item_filters(): array
+{
+    $status = (string) query('status', 'active');
+
+    return [
+        'search' => trim((string) query('search', '')),
+        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'active',
+        'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
+    ];
+}
+
+function build_item_where(array $filters, string $alias = 'i', string $storageAlias = 's'): array
+{
+    $conditions = [];
+    $params = [];
+
+    if ($filters['status'] === 'active') {
+        $conditions[] = "{$alias}.is_active = 1";
+    } elseif ($filters['status'] === 'archived') {
+        $conditions[] = "{$alias}.is_active = 0";
+    }
+
+    if ($filters['search'] !== '') {
+        $conditions[] = "({$alias}.name LIKE :search OR {$alias}.sku LIKE :search OR COALESCE({$alias}.category, '') LIKE :search OR COALESCE({$storageAlias}.name, '') LIKE :search)";
+        $params['search'] = '%' . $filters['search'] . '%';
+    }
+
+    if ($filters['storage_id']) {
+        $conditions[] = "{$alias}.storage_id = :storage_id";
+        $params['storage_id'] = $filters['storage_id'];
     }
 
     return [
@@ -53,13 +91,14 @@ function movement_filters(): array
 
     return [
         'item_id' => ctype_digit((string) query('item_id', '')) ? (int) query('item_id') : null,
+        'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'movement_type' => in_array($type, ['restock', 'usage', 'adjustment'], true) ? $type : '',
         'date_from' => trim((string) query('date_from', '')),
         'date_to' => trim((string) query('date_to', '')),
     ];
 }
 
-function build_movement_where(array $filters, string $alias = 'm'): array
+function build_movement_where(array $filters, string $alias = 'm', string $itemAlias = 'i'): array
 {
     $conditions = [];
     $params = [];
@@ -67,6 +106,11 @@ function build_movement_where(array $filters, string $alias = 'm'): array
     if ($filters['item_id']) {
         $conditions[] = "{$alias}.item_id = :item_id";
         $params['item_id'] = $filters['item_id'];
+    }
+
+    if ($filters['storage_id']) {
+        $conditions[] = "{$itemAlias}.storage_id = :storage_id";
+        $params['storage_id'] = $filters['storage_id'];
     }
 
     if ($filters['movement_type'] !== '') {
@@ -97,11 +141,31 @@ function all_items_for_select(): array
     );
 }
 
+function all_storages_for_select(?int $selectedId = null): array
+{
+    $conditions = ['is_active = 1'];
+    $params = [];
+
+    if ($selectedId !== null) {
+        $conditions[] = 'id = :selected_id';
+        $params['selected_id'] = $selectedId;
+    }
+
+    return Database::fetchAll(
+        'SELECT id, name, is_active
+         FROM storages
+         WHERE ' . implode(' OR ', $conditions) . '
+         ORDER BY is_active DESC, name ASC',
+        $params
+    );
+}
+
 function find_item_or_abort(int $itemId): array
 {
     $item = Database::fetch(
-        'SELECT i.*, creator.name AS creator_name, updater.name AS updater_name
+        'SELECT i.*, s.name AS storage_name, creator.name AS creator_name, updater.name AS updater_name
          FROM items i
+         LEFT JOIN storages s ON s.id = i.storage_id
          LEFT JOIN users creator ON creator.id = i.created_by
          LEFT JOIN users updater ON updater.id = i.updated_by
          WHERE i.id = :id
@@ -114,6 +178,28 @@ function find_item_or_abort(int $itemId): array
     }
 
     return $item;
+}
+
+function find_storage_or_abort(int $storageId): array
+{
+    $storage = Database::fetch(
+        'SELECT s.*,
+                (SELECT COUNT(*) FROM items i WHERE i.storage_id = s.id AND i.is_active = 1) AS active_item_count,
+                creator.name AS creator_name,
+                updater.name AS updater_name
+         FROM storages s
+         LEFT JOIN users creator ON creator.id = s.created_by
+         LEFT JOIN users updater ON updater.id = s.updated_by
+         WHERE s.id = :id
+         LIMIT 1',
+        ['id' => $storageId]
+    );
+
+    if (!$storage) {
+        abort(404, 'Storage not found.');
+    }
+
+    return $storage;
 }
 
 function find_user_or_abort(int $userId): array
@@ -200,6 +286,23 @@ function normalize_item_upload(array $item, string $itemName): array
         'current_image_path' => $item['image_path'] ?? null,
         'item_name' => $itemName,
     ];
+}
+
+function normalize_storage_selection($value): ?int
+{
+    return ctype_digit((string) $value) ? (int) $value : null;
+}
+
+function storage_exists_for_assignment(?int $storageId): bool
+{
+    if ($storageId === null) {
+        return true;
+    }
+
+    return (int) Database::scalar(
+        'SELECT COUNT(*) FROM storages WHERE id = :id AND is_active = 1',
+        ['id' => $storageId]
+    ) > 0;
 }
 
 function quantity_delta_for_type(string $type, float $quantity): float
@@ -297,12 +400,22 @@ function default_item_payload(): array
         'name' => old('name', ''),
         'sku' => old('sku', ''),
         'category' => old('category', ''),
+        'storage_id' => old('storage_id', ''),
         'unit' => old('unit', 'pcs'),
         'custom_unit' => old('custom_unit', ''),
         'reorder_level' => old('reorder_level', '0'),
         'cost_per_unit' => old('cost_per_unit', '0'),
         'current_quantity' => old('current_quantity', '0'),
         'image_path' => null,
+        'notes' => old('notes', ''),
+        'is_active' => 1,
+    ];
+}
+
+function default_storage_payload(): array
+{
+    return [
+        'name' => old('name', ''),
         'notes' => old('notes', ''),
         'is_active' => 1,
     ];
@@ -427,6 +540,7 @@ function handle_dashboard_page(): void
 
     $metrics = [
         'items_total' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1'),
+        'storages_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1'),
         'units_total' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity), 0) FROM items WHERE is_active = 1'),
         'low_stock' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1 AND current_quantity <= reorder_level'),
         'inventory_value' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity * cost_per_unit), 0) FROM items WHERE is_active = 1'),
@@ -434,29 +548,32 @@ function handle_dashboard_page(): void
     ];
 
     $recentActivity = Database::fetchAll(
-        'SELECT m.*, i.name AS item_name, i.sku, i.unit, u.name AS user_name
+        'SELECT m.*, i.name AS item_name, i.sku, i.unit, s.name AS storage_name, u.name AS user_name
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages s ON s.id = i.storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 10'
     );
 
     $topUsage = Database::fetchAll(
-        'SELECT i.id, i.name, i.unit, SUM(ABS(m.quantity_delta)) AS total_used
+        'SELECT i.id, i.name, i.unit, s.name AS storage_name, SUM(ABS(m.quantity_delta)) AS total_used
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages s ON s.id = i.storage_id
          WHERE m.quantity_delta < 0 AND m.used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-         GROUP BY i.id, i.name, i.unit
+         GROUP BY i.id, i.name, i.unit, s.name
          ORDER BY total_used DESC
          LIMIT 5'
     );
 
     $lowStockItems = Database::fetchAll(
-        'SELECT id, name, sku, unit, current_quantity, reorder_level
-         FROM items
-         WHERE is_active = 1 AND current_quantity <= reorder_level
-         ORDER BY current_quantity ASC, name ASC
+        'SELECT i.id, i.name, i.sku, i.unit, i.current_quantity, i.reorder_level, s.name AS storage_name
+         FROM items i
+         LEFT JOIN storages s ON s.id = i.storage_id
+         WHERE i.is_active = 1 AND i.current_quantity <= i.reorder_level
+         ORDER BY i.current_quantity ASC, i.name ASC
          LIMIT 8'
     );
 
@@ -479,8 +596,10 @@ function handle_items_index(): void
 
     $items = Database::fetchAll(
         "SELECT i.*,
+                s.name AS storage_name,
                 (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
          FROM items i
+         LEFT JOIN storages s ON s.id = i.storage_id
          {$where}
          ORDER BY i.is_active DESC, i.name ASC",
         $params
@@ -496,6 +615,7 @@ function handle_items_index(): void
         'items' => $items,
         'filters' => $filters,
         'counts' => $counts,
+        'storages' => all_storages_for_select($filters['storage_id']),
     ]);
 }
 
@@ -508,6 +628,7 @@ function handle_items_create_page(): void
         'title' => 'Create Item',
         'mode' => 'create',
         'item' => default_item_payload(),
+        'storages' => all_storages_for_select(),
     ]);
 }
 
@@ -520,11 +641,13 @@ function handle_items_create_submit(): void
     $user = Auth::user();
     $selectedUnit = trim((string) input('unit', 'pcs'));
     $customUnit = trim((string) input('custom_unit'));
+    $storageId = normalize_storage_selection(input('storage_id'));
     $imageUpload = normalize_item_upload(['image_path' => null], trim((string) input('name')));
     $payload = [
         'name' => trim((string) input('name')),
         'sku' => strtoupper(trim((string) input('sku'))),
         'category' => trim((string) input('category')),
+        'storage_id' => $storageId,
         'unit' => $selectedUnit,
         'custom_unit' => $customUnit,
         'reorder_level' => quantity_value(input('reorder_level')),
@@ -558,6 +681,10 @@ function handle_items_create_submit(): void
         $errors[] = 'Unit is required.';
     }
 
+    if (!storage_exists_for_assignment($storageId)) {
+        $errors[] = 'Pick a valid active storage.';
+    }
+
     if ($imageUpload['error'] !== null) {
         $errors[] = $imageUpload['error'];
     }
@@ -587,12 +714,13 @@ function handle_items_create_submit(): void
 
     try {
         Database::execute(
-            'INSERT INTO items (name, sku, category, unit, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, :sku, :category, :unit, :current_quantity, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
+            'INSERT INTO items (name, sku, category, storage_id, unit, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
+             VALUES (:name, :sku, :category, :storage_id, :unit, :current_quantity, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'sku' => $payload['sku'],
                 'category' => $payload['category'] !== '' ? $payload['category'] : null,
+                'storage_id' => $payload['storage_id'],
                 'unit' => $resolvedUnit,
                 'current_quantity' => $payload['current_quantity'],
                 'reorder_level' => $payload['reorder_level'],
@@ -691,6 +819,7 @@ function handle_items_edit_page(array $params): void
             'name' => old('name', $item['name']),
             'sku' => old('sku', $item['sku']),
             'category' => old('category', $item['category']),
+            'storage_id' => old('storage_id', $item['storage_id']),
             'reorder_level' => old('reorder_level', format_quantity($item['reorder_level'])),
             'cost_per_unit' => old('cost_per_unit', format_quantity($item['cost_per_unit'])),
             'current_quantity' => format_quantity($item['current_quantity']),
@@ -699,6 +828,7 @@ function handle_items_edit_page(array $params): void
             'is_active' => (int) $item['is_active'],
             'id' => $item['id'],
         ], item_unit_form_state(old('unit', $item['unit']))),
+        'storages' => all_storages_for_select($item['storage_id'] ? (int) $item['storage_id'] : null),
     ]);
 }
 
@@ -712,12 +842,14 @@ function handle_items_edit_submit(array $params): void
     $user = Auth::user();
     $selectedUnit = trim((string) input('unit', 'pcs'));
     $customUnit = trim((string) input('custom_unit'));
+    $storageId = normalize_storage_selection(input('storage_id'));
     $imageUpload = normalize_item_upload($item, trim((string) input('name', $item['name'])));
 
     $payload = [
         'name' => trim((string) input('name')),
         'sku' => strtoupper(trim((string) input('sku'))),
         'category' => trim((string) input('category')),
+        'storage_id' => $storageId,
         'unit' => $selectedUnit,
         'custom_unit' => $customUnit,
         'reorder_level' => quantity_value(input('reorder_level')),
@@ -744,6 +876,10 @@ function handle_items_edit_submit(array $params): void
 
     if ($resolvedUnit === '') {
         $errors[] = 'Unit is required.';
+    }
+
+    if (!storage_exists_for_assignment($storageId)) {
+        $errors[] = 'Pick a valid active storage.';
     }
 
     if ($imageUpload['error'] !== null) {
@@ -786,6 +922,7 @@ function handle_items_edit_submit(array $params): void
              SET name = :name,
                  sku = :sku,
                  category = :category,
+                 storage_id = :storage_id,
                  unit = :unit,
                  reorder_level = :reorder_level,
                  cost_per_unit = :cost_per_unit,
@@ -798,6 +935,7 @@ function handle_items_edit_submit(array $params): void
                 'name' => $payload['name'],
                 'sku' => $payload['sku'],
                 'category' => $payload['category'] !== '' ? $payload['category'] : null,
+                'storage_id' => $payload['storage_id'],
                 'unit' => $resolvedUnit,
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
@@ -953,9 +1091,10 @@ function handle_movements_index(): void
     [$where, $params] = build_movement_where($filters);
 
     $movements = Database::fetchAll(
-        "SELECT m.*, i.name AS item_name, i.sku, i.unit, u.name AS user_name
+        "SELECT m.*, i.name AS item_name, i.sku, i.unit, s.name AS storage_name, u.name AS user_name
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages s ON s.id = i.storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          {$where}
          ORDER BY m.used_at DESC, m.id DESC
@@ -968,6 +1107,7 @@ function handle_movements_index(): void
         'movements' => $movements,
         'filters' => $filters,
         'items' => all_items_for_select(),
+        'storages' => all_storages_for_select($filters['storage_id']),
     ]);
 }
 
@@ -980,8 +1120,9 @@ function handle_export_items(): void
     [$where, $params] = build_item_where($filters);
 
     $items = Database::fetchAll(
-        "SELECT i.*, (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
+        "SELECT i.*, s.name AS storage_name, (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
          FROM items i
+         LEFT JOIN storages s ON s.id = i.storage_id
          {$where}
          ORDER BY i.name ASC",
         $params
@@ -992,6 +1133,7 @@ function handle_export_items(): void
             $item['name'],
             $item['sku'],
             $item['category'] ?: '',
+            $item['storage_name'] ?: '',
             $item['unit'],
             format_quantity($item['current_quantity']),
             format_quantity($item['reorder_level']),
@@ -1006,6 +1148,7 @@ function handle_export_items(): void
         'Name',
         'SKU',
         'Category',
+        'Storage',
         'Unit',
         'Current Quantity',
         'Reorder Level',
@@ -1025,9 +1168,10 @@ function handle_export_movements(): void
     [$where, $params] = build_movement_where($filters);
 
     $movements = Database::fetchAll(
-        "SELECT m.*, i.name AS item_name, i.sku, i.unit, u.name AS user_name
+        "SELECT m.*, i.name AS item_name, i.sku, i.unit, s.name AS storage_name, u.name AS user_name
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages s ON s.id = i.storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          {$where}
          ORDER BY m.used_at DESC, m.id DESC",
@@ -1039,6 +1183,7 @@ function handle_export_movements(): void
             $movement['used_at'],
             $movement['item_name'],
             $movement['sku'],
+            $movement['storage_name'] ?: '',
             ucfirst($movement['movement_type']),
             format_quantity($movement['quantity_delta']),
             format_quantity($movement['balance_after']),
@@ -1052,6 +1197,7 @@ function handle_export_movements(): void
         'Used At',
         'Item',
         'SKU',
+        'Storage',
         'Type',
         'Quantity Delta',
         'Balance After',
@@ -1059,6 +1205,202 @@ function handle_export_movements(): void
         'Performed By',
         'Notes',
     ], $rows);
+}
+
+function handle_storages_index(): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    $filters = storage_filters();
+    [$where, $params] = build_storage_where($filters);
+
+    $storages = Database::fetchAll(
+        "SELECT s.*,
+                (SELECT COUNT(*) FROM items i WHERE i.storage_id = s.id AND i.is_active = 1) AS active_item_count,
+                (SELECT COALESCE(SUM(i.current_quantity), 0) FROM items i WHERE i.storage_id = s.id AND i.is_active = 1) AS total_quantity
+         FROM storages s
+         {$where}
+         ORDER BY s.is_active DESC, s.name ASC",
+        $params
+    );
+
+    $counts = [
+        'active' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1'),
+        'archived' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 0'),
+    ];
+
+    View::render('storages/index', [
+        'title' => 'Storages',
+        'storages' => $storages,
+        'filters' => $filters,
+        'counts' => $counts,
+    ]);
+}
+
+function handle_storages_create_page(): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    View::render('storages/form', [
+        'title' => 'Create Storage',
+        'mode' => 'create',
+        'storage' => default_storage_payload(),
+    ]);
+}
+
+function handle_storages_create_submit(): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+    verify_csrf();
+
+    $user = Auth::user();
+    $payload = [
+        'name' => trim((string) input('name')),
+        'notes' => trim((string) input('notes')),
+    ];
+
+    flash_old_input($payload);
+
+    $errors = [];
+
+    if ($payload['name'] === '') {
+        $errors[] = 'Storage name is required.';
+    }
+
+    $existingStorage = Database::fetch(
+        'SELECT id FROM storages WHERE LOWER(name) = LOWER(:name) LIMIT 1',
+        ['name' => $payload['name']]
+    );
+
+    if ($existingStorage) {
+        $errors[] = 'Storage name already exists.';
+    }
+
+    if ($errors !== []) {
+        flash_errors($errors);
+        redirect('/storages/create');
+    }
+
+    Database::execute(
+        'INSERT INTO storages (name, notes, is_active, created_by, updated_by, created_at, updated_at)
+         VALUES (:name, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
+        [
+            'name' => $payload['name'],
+            'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
+            'created_by' => $user['id'],
+            'updated_by' => $user['id'],
+        ]
+    );
+
+    consume_old_input();
+    flash('success', 'Storage created.');
+    redirect('/storages');
+}
+
+function handle_storages_edit_page(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    $storage = find_storage_or_abort((int) $params['id']);
+
+    View::render('storages/form', [
+        'title' => 'Edit ' . $storage['name'],
+        'mode' => 'edit',
+        'storage' => [
+            'id' => $storage['id'],
+            'name' => old('name', $storage['name']),
+            'notes' => old('notes', $storage['notes']),
+            'is_active' => (int) $storage['is_active'],
+            'active_item_count' => (int) $storage['active_item_count'],
+        ],
+    ]);
+}
+
+function handle_storages_edit_submit(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+    verify_csrf();
+
+    $storage = find_storage_or_abort((int) $params['id']);
+    $user = Auth::user();
+    $payload = [
+        'name' => trim((string) input('name')),
+        'notes' => trim((string) input('notes')),
+    ];
+
+    flash_old_input($payload);
+
+    $errors = [];
+
+    if ($payload['name'] === '') {
+        $errors[] = 'Storage name is required.';
+    }
+
+    $existingStorage = Database::fetch(
+        'SELECT id FROM storages WHERE LOWER(name) = LOWER(:name) AND id != :id LIMIT 1',
+        ['name' => $payload['name'], 'id' => $storage['id']]
+    );
+
+    if ($existingStorage) {
+        $errors[] = 'Storage name already exists.';
+    }
+
+    if ($errors !== []) {
+        flash_errors($errors);
+        redirect('/storages/' . $storage['id'] . '/edit');
+    }
+
+    Database::execute(
+        'UPDATE storages
+         SET name = :name,
+             notes = :notes,
+             updated_by = :updated_by,
+             updated_at = NOW()
+         WHERE id = :id',
+        [
+            'name' => $payload['name'],
+            'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
+            'updated_by' => $user['id'],
+            'id' => $storage['id'],
+        ]
+    );
+
+    consume_old_input();
+    flash('success', 'Storage updated.');
+    redirect('/storages');
+}
+
+function handle_storages_status_submit(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+    verify_csrf();
+
+    $storage = find_storage_or_abort((int) $params['id']);
+    $user = Auth::user();
+    $nextStatus = (int) $storage['is_active'] === 1 ? 0 : 1;
+
+    if ($nextStatus === 0 && (int) $storage['active_item_count'] > 0) {
+        flash('danger', 'Move or archive the active items in this storage before archiving it.');
+        redirect('/storages');
+    }
+
+    Database::execute(
+        'UPDATE storages SET is_active = :is_active, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
+        [
+            'is_active' => $nextStatus,
+            'updated_by' => $user['id'],
+            'id' => $storage['id'],
+        ]
+    );
+
+    flash('success', $nextStatus ? 'Storage restored.' : 'Storage archived.');
+    redirect('/storages');
 }
 
 function handle_users_index(): void

@@ -6,6 +6,10 @@
         <strong><?= number_format($metrics['items_total']) ?></strong>
     </article>
     <article class="metric-card">
+        <span>Active Storages</span>
+        <strong><?= number_format($metrics['storages_total']) ?></strong>
+    </article>
+    <article class="metric-card">
         <span>Total Units In Stock</span>
         <strong><?= format_quantity($metrics['units_total']) ?></strong>
     </article>
@@ -41,7 +45,7 @@
                     <a class="mini-row" href="<?= e(url('/items/' . $item['id'])) ?>">
                         <div>
                             <strong><?= e($item['name']) ?></strong>
-                            <span><?= e($item['sku']) ?></span>
+                            <span><?= e($item['sku']) ?> · <?= e($item['storage_name'] ?: 'Unassigned') ?></span>
                         </div>
                         <div class="align-right">
                             <strong><?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?></strong>
@@ -71,6 +75,7 @@
                     <div class="usage-row">
                         <div class="usage-meta">
                             <strong><?= e($usage['name']) ?></strong>
+                            <span><?= e($usage['storage_name'] ?: 'Unassigned') ?></span>
                             <span><?= format_quantity($usage['total_used']) ?> <?= e($usage['unit']) ?></span>
                         </div>
                         <div class="usage-bar-track">
@@ -113,7 +118,7 @@
                         <td><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
                         <td>
                             <a class="text-link" href="<?= e(url('/items/' . $movement['item_id'])) ?>"><?= e($movement['item_name']) ?></a>
-                            <div class="tiny-copy"><?= e($movement['sku']) ?></div>
+                            <div class="tiny-copy"><?= e($movement['sku']) ?> · <?= e($movement['storage_name'] ?: 'Unassigned') ?></div>
                         </td>
                         <td><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
                         <td><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>

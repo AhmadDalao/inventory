@@ -15,7 +15,7 @@
     <form class="filter-grid" method="get" action="<?= e(url('/items')) ?>">
         <label class="field">
             <span>Search</span>
-            <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Name, SKU, category">
+            <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Name, SKU, category, storage">
         </label>
 
         <label class="field">
@@ -24,6 +24,18 @@
                 <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
                 <option value="archived" <?= selected('archived', $filters['status']) ?>>Archived</option>
                 <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Storage</span>
+            <select name="storage_id">
+                <option value="">All storages</option>
+                <?php foreach ($storages as $storage): ?>
+                    <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($filters['storage_id'] ?? '')) ?>>
+                        <?= e($storage['name']) ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
         </label>
 
@@ -47,6 +59,7 @@
                 <th>Item</th>
                 <th>SKU</th>
                 <th>Category</th>
+                <th>Storage</th>
                 <th>Current</th>
                 <th>Reorder</th>
                 <th>Status</th>
@@ -57,7 +70,7 @@
             <tbody>
             <?php if ($items === []): ?>
                 <tr>
-                    <td colspan="8" class="empty-cell">No items found.</td>
+                    <td colspan="9" class="empty-cell">No items found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($items as $item): ?>
@@ -82,6 +95,7 @@
                     </td>
                     <td><?= e($item['sku']) ?></td>
                     <td><?= e($item['category'] ?: 'Unsorted') ?></td>
+                    <td><?= e($item['storage_name'] ?: 'Unassigned') ?></td>
                     <td class="<?= $isLow ? 'danger-text' : '' ?>">
                         <?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?>
                     </td>

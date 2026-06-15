@@ -1,0 +1,89 @@
+<section class="page-head">
+    <div>
+        <p class="eyebrow">Locations</p>
+        <h3>Storages</h3>
+    </div>
+    <div class="page-actions">
+        <a class="primary-button" href="<?= e(url('/storages/create')) ?>">Create Storage</a>
+    </div>
+</section>
+
+<section class="filter-panel">
+    <form class="filter-grid" method="get" action="<?= e(url('/storages')) ?>">
+        <label class="field">
+            <span>Search</span>
+            <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Storage name or notes">
+        </label>
+
+        <label class="field">
+            <span>Status</span>
+            <select name="status">
+                <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
+                <option value="archived" <?= selected('archived', $filters['status']) ?>>Archived</option>
+                <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
+            </select>
+        </label>
+
+        <div class="filter-actions">
+            <button class="primary-button" type="submit">Filter</button>
+            <a class="ghost-button" href="<?= e(url('/storages')) ?>">Reset</a>
+        </div>
+    </form>
+
+    <div class="chip-row">
+        <span class="stat-chip">Active: <?= number_format($counts['active']) ?></span>
+        <span class="stat-chip">Archived: <?= number_format($counts['archived']) ?></span>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Active Items</th>
+                <th>Total Units</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if ($storages === []): ?>
+                <tr>
+                    <td colspan="6" class="empty-cell">No storages found.</td>
+                </tr>
+            <?php endif; ?>
+            <?php foreach ($storages as $storage): ?>
+                <tr>
+                    <td>
+                        <strong><?= e($storage['name']) ?></strong>
+                        <div class="tiny-copy">Updated <?= e(date('M j, Y g:i A', strtotime($storage['updated_at']))) ?></div>
+                    </td>
+                    <td><?= number_format((int) $storage['active_item_count']) ?></td>
+                    <td><?= format_quantity($storage['total_quantity']) ?></td>
+                    <td>
+                        <span class="pill <?= (int) $storage['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
+                            <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                        </span>
+                    </td>
+                    <td><?= e($storage['notes'] ? truncate_text($storage['notes'], 72) : '-') ?></td>
+                    <td>
+                        <div class="inline-actions">
+                            <a class="text-link" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">Items</a>
+                            <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>
+                            <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>">
+                                <?= csrf_field() ?>
+                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Archive this storage?' : 'Restore this storage?' ?>">
+                                    <?= (int) $storage['is_active'] === 1 ? 'Archive' : 'Restore' ?>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</section>

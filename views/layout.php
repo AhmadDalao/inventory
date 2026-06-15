@@ -39,6 +39,7 @@ $currentUser = (!$authPage && app_installed()) ? Auth::user() : null;
 
             <nav class="nav-links">
                 <a class="nav-link <?= active_route('/dashboard') ?>" href="<?= e(url('/dashboard')) ?>">Dashboard</a>
+                <a class="nav-link <?= active_route('/storages', true) ?>" href="<?= e(url('/storages')) ?>">Storages</a>
                 <a class="nav-link <?= active_route('/items', true) ?>" href="<?= e(url('/items')) ?>">Items</a>
                 <a class="nav-link <?= active_route('/movements') ?>" href="<?= e(url('/movements')) ?>">Usage Log</a>
                 <?php if (Auth::isOwner()): ?>

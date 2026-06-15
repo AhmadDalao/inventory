@@ -39,6 +39,25 @@ $router->get('/dashboard', static function (): void {
     handle_dashboard_page();
 });
 
+$router->get('/storages', static function (): void {
+    handle_storages_index();
+});
+$router->get('/storages/create', static function (): void {
+    handle_storages_create_page();
+});
+$router->post('/storages/create', static function (): void {
+    handle_storages_create_submit();
+});
+$router->get('/storages/{id}/edit', static function (array $params): void {
+    handle_storages_edit_page($params);
+});
+$router->post('/storages/{id}/edit', static function (array $params): void {
+    handle_storages_edit_submit($params);
+});
+$router->post('/storages/{id}/status', static function (array $params): void {
+    handle_storages_status_submit($params);
+});
+
 $router->get('/items', static function (): void {
     handle_items_index();
 });

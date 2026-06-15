@@ -40,6 +40,19 @@ $imageUrl = item_image_url($item['image_path'] ?? null);
             </label>
 
             <label class="field">
+                <span>Storage</span>
+                <select name="storage_id">
+                    <option value="">Unassigned</option>
+                    <?php foreach ($storages as $storage): ?>
+                        <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($item['storage_id'] ?? '')) ?>>
+                            <?= e($storage['name']) ?><?= (int) $storage['is_active'] === 0 ? ' (Archived)' : '' ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <small>Pick where this item physically lives. Leave it unassigned if it floats.</small>
+            </label>
+
+            <label class="field">
                 <span>Unit</span>
                 <select name="unit" data-unit-select>
                     <?php foreach ($unitOptions as $value => $label): ?>

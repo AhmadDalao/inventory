@@ -36,6 +36,7 @@ $stockValue = stock_value($item['current_quantity'], $item['cost_per_unit']);
                     </span>
                     <h4><?= e($item['sku']) ?></h4>
                     <p><?= e($item['category'] ?: 'No category set') ?></p>
+                    <p class="tiny-copy">Storage: <?= e($item['storage_name'] ?: 'Unassigned') ?></p>
                 </div>
             </div>
             <div class="align-right">
@@ -72,6 +73,10 @@ $stockValue = stock_value($item['current_quantity'], $item['cost_per_unit']);
             <div>
                 <dt>Cost Per Unit</dt>
                 <dd><?= format_money($item['cost_per_unit']) ?></dd>
+            </div>
+            <div>
+                <dt>Storage</dt>
+                <dd><?= e($item['storage_name'] ?: 'Unassigned') ?></dd>
             </div>
             <div>
                 <dt>Created By</dt>

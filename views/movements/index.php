@@ -35,6 +35,18 @@
         </label>
 
         <label class="field">
+            <span>Storage</span>
+            <select name="storage_id">
+                <option value="">All storages</option>
+                <?php foreach ($storages as $storage): ?>
+                    <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($filters['storage_id'] ?? '')) ?>>
+                        <?= e($storage['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
             <span>From</span>
             <input type="date" name="date_from" value="<?= e($filters['date_from']) ?>">
         </label>
@@ -58,6 +70,7 @@
             <tr>
                 <th>When</th>
                 <th>Item</th>
+                <th>Storage</th>
                 <th>Type</th>
                 <th>Delta</th>
                 <th>Balance After</th>
@@ -69,7 +82,7 @@
             <tbody>
             <?php if ($movements === []): ?>
                 <tr>
-                    <td colspan="8" class="empty-cell">No movement records found.</td>
+                    <td colspan="9" class="empty-cell">No movement records found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($movements as $movement): ?>
@@ -79,6 +92,7 @@
                         <a class="text-link" href="<?= e(url('/items/' . $movement['item_id'])) ?>"><?= e($movement['item_name']) ?></a>
                         <div class="tiny-copy"><?= e($movement['sku']) ?></div>
                     </td>
+                    <td><?= e($movement['storage_name'] ?: 'Unassigned') ?></td>
                     <td><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
                     <td><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
                     <td><?= format_quantity($movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
