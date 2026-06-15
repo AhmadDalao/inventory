@@ -1,6 +1,7 @@
 <?php
 $isEdit = $mode === 'edit';
 $action = $isEdit ? url('/items/' . $item['id'] . '/edit') : url('/items/create');
+$unitOptions = item_unit_options();
 ?>
 
 <section class="page-head">
@@ -26,6 +27,7 @@ $action = $isEdit ? url('/items/' . $item['id'] . '/edit') : url('/items/create'
             <label class="field">
                 <span>SKU</span>
                 <input type="text" name="sku" value="<?= e((string) $item['sku']) ?>" required>
+                <small>SKU is your internal item code. Example: CABLE-USB-C-01.</small>
             </label>
         </div>
 
@@ -33,11 +35,25 @@ $action = $isEdit ? url('/items/' . $item['id'] . '/edit') : url('/items/create'
             <label class="field">
                 <span>Category</span>
                 <input type="text" name="category" value="<?= e((string) $item['category']) ?>">
+                <small>Category is just the group name. Example: Cleaning, Office, Electrical.</small>
             </label>
 
             <label class="field">
                 <span>Unit</span>
-                <input type="text" name="unit" value="<?= e((string) $item['unit']) ?>" placeholder="pcs" required>
+                <select name="unit" data-unit-select>
+                    <?php foreach ($unitOptions as $value => $label): ?>
+                        <option value="<?= e($value) ?>" <?= selected($value, $item['unit']) ?>><?= e($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input
+                    type="text"
+                    name="custom_unit"
+                    value="<?= e((string) ($item['custom_unit'] ?? '')) ?>"
+                    placeholder="Enter custom unit"
+                    data-custom-unit
+                    <?= ($item['unit'] ?? 'pcs') === 'custom' ? '' : 'hidden' ?>
+                >
+                <small>Default is pcs, but you can choose another unit or add a custom one.</small>
             </label>
         </div>
 

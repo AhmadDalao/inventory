@@ -84,7 +84,15 @@ function url(string $path = '/'): string
 
 function asset_url(string $path): string
 {
-    return url('/assets/' . ltrim($path, '/'));
+    $relativePath = 'assets/' . ltrim($path, '/');
+    $assetUrl = url('/' . $relativePath);
+    $assetPath = base_path($relativePath);
+
+    if (!is_file($assetPath)) {
+        return $assetUrl;
+    }
+
+    return $assetUrl . '?v=' . filemtime($assetPath);
 }
 
 function redirect(string $path = '/'): never
@@ -247,6 +255,63 @@ function selected($value, $current): string
 function checked(bool $value): string
 {
     return $value ? 'checked' : '';
+}
+
+function item_unit_options(): array
+{
+    return [
+        'pcs' => 'Pieces (pcs)',
+        'box' => 'Box',
+        'pack' => 'Pack',
+        'carton' => 'Carton',
+        'set' => 'Set',
+        'roll' => 'Roll',
+        'bottle' => 'Bottle',
+        'kg' => 'Kilogram (kg)',
+        'g' => 'Gram (g)',
+        'liter' => 'Liter',
+        'ml' => 'Milliliter (ml)',
+        'meter' => 'Meter',
+        'custom' => 'Custom',
+    ];
+}
+
+function is_known_unit(string $unit): bool
+{
+    return array_key_exists($unit, item_unit_options()) && $unit !== 'custom';
+}
+
+function item_unit_form_state(?string $storedUnit): array
+{
+    $storedUnit = trim((string) $storedUnit);
+
+    if ($storedUnit === '' || is_known_unit($storedUnit)) {
+        return [
+            'unit' => $storedUnit !== '' ? $storedUnit : 'pcs',
+            'custom_unit' => '',
+        ];
+    }
+
+    return [
+        'unit' => 'custom',
+        'custom_unit' => $storedUnit,
+    ];
+}
+
+function resolve_item_unit(string $selectedUnit, string $customUnit): string
+{
+    $selectedUnit = trim($selectedUnit);
+    $customUnit = trim($customUnit);
+
+    if ($selectedUnit === 'custom') {
+        return $customUnit;
+    }
+
+    if (is_known_unit($selectedUnit)) {
+        return $selectedUnit;
+    }
+
+    return '';
 }
 
 function app_installed(): bool

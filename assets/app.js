@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.querySelector('[data-menu-toggle]');
   const movementType = document.querySelector('[data-movement-type]');
   const quantityHint = document.querySelector('[data-quantity-hint]');
+  const unitSelect = document.querySelector('[data-unit-select]');
+  const customUnitField = document.querySelector('[data-custom-unit]');
 
   if (toggle && shell) {
     toggle.addEventListener('click', () => {
@@ -31,5 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     movementType.addEventListener('change', syncHint);
     syncHint();
+  }
+
+  if (unitSelect && customUnitField) {
+    const syncCustomUnit = () => {
+      const showCustom = unitSelect.value === 'custom';
+      customUnitField.hidden = !showCustom;
+      customUnitField.required = showCustom;
+    };
+
+    unitSelect.addEventListener('change', syncCustomUnit);
+    syncCustomUnit();
   }
 });

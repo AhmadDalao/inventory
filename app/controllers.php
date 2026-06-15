@@ -226,6 +226,7 @@ function default_item_payload(): array
         'sku' => old('sku', ''),
         'category' => old('category', ''),
         'unit' => old('unit', 'pcs'),
+        'custom_unit' => old('custom_unit', ''),
         'reorder_level' => old('reorder_level', '0'),
         'cost_per_unit' => old('cost_per_unit', '0'),
         'current_quantity' => old('current_quantity', '0'),
@@ -444,16 +445,21 @@ function handle_items_create_submit(): void
     verify_csrf();
 
     $user = Auth::user();
+    $selectedUnit = trim((string) input('unit', 'pcs'));
+    $customUnit = trim((string) input('custom_unit'));
     $payload = [
         'name' => trim((string) input('name')),
         'sku' => strtoupper(trim((string) input('sku'))),
         'category' => trim((string) input('category')),
-        'unit' => trim((string) input('unit')),
+        'unit' => $selectedUnit,
+        'custom_unit' => $customUnit,
         'reorder_level' => quantity_value(input('reorder_level')),
         'cost_per_unit' => quantity_value(input('cost_per_unit')),
         'current_quantity' => quantity_value(input('current_quantity')),
         'notes' => trim((string) input('notes')),
     ];
+
+    $resolvedUnit = resolve_item_unit($selectedUnit, $customUnit);
 
     flash_old_input(array_map(
         static fn ($value) => is_float($value) ? (string) $value : $value,
@@ -470,7 +476,11 @@ function handle_items_create_submit(): void
         $errors[] = 'SKU is required.';
     }
 
-    if ($payload['unit'] === '') {
+    if ($selectedUnit === 'custom' && $customUnit === '') {
+        $errors[] = 'Enter a custom unit name.';
+    }
+
+    if ($resolvedUnit === '') {
         $errors[] = 'Unit is required.';
     }
 
@@ -504,7 +514,7 @@ function handle_items_create_submit(): void
                 'name' => $payload['name'],
                 'sku' => $payload['sku'],
                 'category' => $payload['category'] !== '' ? $payload['category'] : null,
-                'unit' => $payload['unit'],
+                'unit' => $resolvedUnit,
                 'current_quantity' => $payload['current_quantity'],
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
@@ -590,18 +600,17 @@ function handle_items_edit_page(array $params): void
     View::render('items/form', [
         'title' => 'Edit ' . $item['name'],
         'mode' => 'edit',
-        'item' => [
+        'item' => array_merge([
             'name' => old('name', $item['name']),
             'sku' => old('sku', $item['sku']),
             'category' => old('category', $item['category']),
-            'unit' => old('unit', $item['unit']),
             'reorder_level' => old('reorder_level', format_quantity($item['reorder_level'])),
             'cost_per_unit' => old('cost_per_unit', format_quantity($item['cost_per_unit'])),
             'current_quantity' => format_quantity($item['current_quantity']),
             'notes' => old('notes', $item['notes']),
             'is_active' => (int) $item['is_active'],
             'id' => $item['id'],
-        ],
+        ], item_unit_form_state(old('unit', $item['unit']))),
     ]);
 }
 
@@ -613,16 +622,21 @@ function handle_items_edit_submit(array $params): void
 
     $item = find_item_or_abort((int) $params['id']);
     $user = Auth::user();
+    $selectedUnit = trim((string) input('unit', 'pcs'));
+    $customUnit = trim((string) input('custom_unit'));
 
     $payload = [
         'name' => trim((string) input('name')),
         'sku' => strtoupper(trim((string) input('sku'))),
         'category' => trim((string) input('category')),
-        'unit' => trim((string) input('unit')),
+        'unit' => $selectedUnit,
+        'custom_unit' => $customUnit,
         'reorder_level' => quantity_value(input('reorder_level')),
         'cost_per_unit' => quantity_value(input('cost_per_unit')),
         'notes' => trim((string) input('notes')),
     ];
+
+    $resolvedUnit = resolve_item_unit($selectedUnit, $customUnit);
 
     flash_old_input(array_map(
         static fn ($value) => is_float($value) ? (string) $value : $value,
@@ -631,8 +645,16 @@ function handle_items_edit_submit(array $params): void
 
     $errors = [];
 
-    if ($payload['name'] === '' || $payload['sku'] === '' || $payload['unit'] === '') {
-        $errors[] = 'Name, SKU, and unit are required.';
+    if ($payload['name'] === '' || $payload['sku'] === '') {
+        $errors[] = 'Name and SKU are required.';
+    }
+
+    if ($selectedUnit === 'custom' && $customUnit === '') {
+        $errors[] = 'Enter a custom unit name.';
+    }
+
+    if ($resolvedUnit === '') {
+        $errors[] = 'Unit is required.';
     }
 
     if (!is_numeric_value(input('reorder_level')) || !is_numeric_value(input('cost_per_unit'))) {
@@ -673,7 +695,7 @@ function handle_items_edit_submit(array $params): void
             'name' => $payload['name'],
             'sku' => $payload['sku'],
             'category' => $payload['category'] !== '' ? $payload['category'] : null,
-            'unit' => $payload['unit'],
+            'unit' => $resolvedUnit,
             'reorder_level' => $payload['reorder_level'],
             'cost_per_unit' => $payload['cost_per_unit'],
             'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
