@@ -188,6 +188,36 @@ function all_storages_for_select(?int $selectedId = null): array
     );
 }
 
+function active_item_sku_exists(string $sku, ?int $ignoreId = null): bool
+{
+    $sql = 'SELECT id FROM items WHERE sku = :sku AND is_active = 1';
+    $params = ['sku' => $sku];
+
+    if ($ignoreId !== null) {
+        $sql .= ' AND id != :ignore_id';
+        $params['ignore_id'] = $ignoreId;
+    }
+
+    $sql .= ' LIMIT 1';
+
+    return Database::fetch($sql, $params) !== null;
+}
+
+function active_storage_name_exists(string $name, ?int $ignoreId = null): bool
+{
+    $sql = 'SELECT id FROM storages WHERE LOWER(name) = LOWER(:name) AND is_active = 1';
+    $params = ['name' => $name];
+
+    if ($ignoreId !== null) {
+        $sql .= ' AND id != :ignore_id';
+        $params['ignore_id'] = $ignoreId;
+    }
+
+    $sql .= ' LIMIT 1';
+
+    return Database::fetch($sql, $params) !== null;
+}
+
 function storage_type_label(string $type): string
 {
     return $type === 'warehouse' ? 'Warehouse' : 'Storage';
@@ -1090,10 +1120,8 @@ function handle_items_create_submit(): void
         $errors[] = 'Create an active location first, or set initial quantity to 0.';
     }
 
-    $existingSku = Database::fetch('SELECT id FROM items WHERE sku = :sku LIMIT 1', ['sku' => $payload['sku']]);
-
-    if ($existingSku) {
-        $errors[] = 'SKU already exists.';
+    if (active_item_sku_exists($payload['sku'])) {
+        $errors[] = 'An active item already uses this SKU.';
     }
 
     if ($errors !== []) {
@@ -1327,13 +1355,8 @@ function handle_items_edit_submit(array $params): void
         $errors[] = 'Reorder level and cost cannot be negative.';
     }
 
-    $existingSku = Database::fetch(
-        'SELECT id FROM items WHERE sku = :sku AND id != :id LIMIT 1',
-        ['sku' => $payload['sku'], 'id' => $item['id']]
-    );
-
-    if ($existingSku) {
-        $errors[] = 'SKU already exists.';
+    if (active_item_sku_exists($payload['sku'], (int) $item['id'])) {
+        $errors[] = 'An active item already uses this SKU.';
     }
 
     if ($errors !== []) {
@@ -1406,6 +1429,11 @@ function handle_items_status_submit(array $params): void
     $user = Auth::user();
     $nextStatus = (int) $item['is_active'] === 1 ? 0 : 1;
 
+    if ($nextStatus === 1 && active_item_sku_exists((string) $item['sku'], (int) $item['id'])) {
+        flash('danger', 'Recover failed. Another active item already uses SKU ' . $item['sku'] . '.');
+        redirect('/items?status=archived');
+    }
+
     Database::execute(
         'UPDATE items SET is_active = :is_active, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
         [
@@ -1416,7 +1444,7 @@ function handle_items_status_submit(array $params): void
     );
 
     flash('success', $nextStatus ? 'Item recovered.' : 'Item deleted.');
-    redirect('/items');
+    redirect($nextStatus ? '/items' : '/items?status=archived');
 }
 
 function handle_item_movement_submit(array $params): void
@@ -1963,13 +1991,8 @@ function handle_storages_create_submit(): void
         $errors[] = 'Pick a valid location type.';
     }
 
-    $existingStorage = Database::fetch(
-        'SELECT id FROM storages WHERE LOWER(name) = LOWER(:name) LIMIT 1',
-        ['name' => $payload['name']]
-    );
-
-    if ($existingStorage) {
-        $errors[] = 'Storage name already exists.';
+    if (active_storage_name_exists($payload['name'])) {
+        $errors[] = 'An active location already uses this name.';
     }
 
     if ($errors !== []) {
@@ -2043,13 +2066,8 @@ function handle_storages_edit_submit(array $params): void
         $errors[] = 'Pick a valid location type.';
     }
 
-    $existingStorage = Database::fetch(
-        'SELECT id FROM storages WHERE LOWER(name) = LOWER(:name) AND id != :id LIMIT 1',
-        ['name' => $payload['name'], 'id' => $storage['id']]
-    );
-
-    if ($existingStorage) {
-        $errors[] = 'Storage name already exists.';
+    if (active_storage_name_exists($payload['name'], (int) $storage['id'])) {
+        $errors[] = 'An active location already uses this name.';
     }
 
     if ($errors !== []) {
@@ -2094,6 +2112,11 @@ function handle_storages_status_submit(array $params): void
         redirect('/storages');
     }
 
+    if ($nextStatus === 1 && active_storage_name_exists((string) $storage['name'], (int) $storage['id'])) {
+        flash('danger', 'Recover failed. Another active location already uses the name ' . $storage['name'] . '.');
+        redirect('/storages?status=archived');
+    }
+
     Database::execute(
         'UPDATE storages SET is_active = :is_active, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
         [
@@ -2104,7 +2127,7 @@ function handle_storages_status_submit(array $params): void
     );
 
     flash('success', $nextStatus ? 'Storage recovered.' : 'Storage deleted.');
-    redirect('/storages');
+    redirect($nextStatus ? '/storages' : '/storages?status=archived');
 }
 
 function handle_users_index(): void

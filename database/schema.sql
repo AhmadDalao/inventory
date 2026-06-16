@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS storages (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(160) NOT NULL UNIQUE,
+    name VARCHAR(160) NOT NULL,
     storage_type ENUM('warehouse', 'storage') NOT NULL DEFAULT 'storage',
     notes TEXT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS storages (
     updated_by BIGINT UNSIGNED NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    INDEX idx_storages_name (name),
     INDEX idx_storages_status (is_active),
     CONSTRAINT fk_storages_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_storages_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
@@ -28,7 +29,7 @@ CREATE TABLE IF NOT EXISTS storages (
 CREATE TABLE IF NOT EXISTS items (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(160) NOT NULL,
-    sku VARCHAR(80) NOT NULL UNIQUE,
+    sku VARCHAR(80) NOT NULL,
     category VARCHAR(120) NULL,
     storage_id BIGINT UNSIGNED NULL,
     unit VARCHAR(40) NOT NULL DEFAULT 'pcs',
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS items (
     updated_by BIGINT UNSIGNED NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    INDEX idx_items_sku (sku),
     INDEX idx_items_status (is_active),
     INDEX idx_items_category (category),
     INDEX idx_items_storage_id (storage_id),

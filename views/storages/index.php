@@ -1,4 +1,12 @@
-<?php $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null)); ?>
+<?php
+$exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null));
+$storageFilterUrl = static function (string $status) use ($filters): string {
+    $query = $filters;
+    $query['status'] = $status;
+
+    return url('/storages' . '?' . http_build_query(array_filter($query, static fn ($value): bool => $value !== '' && $value !== null)));
+};
+?>
 
 <section class="page-head">
     <div>
@@ -42,8 +50,9 @@
     </form>
 
     <div class="chip-row">
-        <span class="stat-chip">Active: <?= number_format($counts['active']) ?></span>
-        <span class="stat-chip">Deleted: <?= number_format($counts['archived']) ?></span>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('active')) ?>">Active: <?= number_format($counts['active']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('archived')) ?>">Deleted: <?= number_format($counts['archived']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('all')) ?>">All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
     </div>
 </section>
 

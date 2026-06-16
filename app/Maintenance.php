@@ -40,7 +40,7 @@ final class Maintenance
         Database::execute(
             'CREATE TABLE IF NOT EXISTS storages (
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(160) NOT NULL UNIQUE,
+                name VARCHAR(160) NOT NULL,
                 storage_type ENUM("warehouse", "storage") NOT NULL DEFAULT "storage",
                 notes TEXT NULL,
                 is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -48,6 +48,7 @@ final class Maintenance
                 updated_by BIGINT UNSIGNED NULL,
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
+                INDEX idx_storages_name (name),
                 INDEX idx_storages_status (is_active),
                 CONSTRAINT fk_storages_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_storages_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
@@ -89,6 +90,9 @@ final class Maintenance
         if ($storageColumnExists === 0) {
             Database::execute('ALTER TABLE items ADD COLUMN storage_id BIGINT UNSIGNED NULL AFTER category');
         }
+
+        self::ensureNonUniqueIndex('storages', 'name', 'idx_storages_name');
+        self::ensureNonUniqueIndex('items', 'sku', 'idx_items_sku');
 
         Database::execute(
             'CREATE TABLE IF NOT EXISTS item_storage_balances (
@@ -266,5 +270,42 @@ final class Maintenance
              ) balances ON balances.item_id = i.id
              SET i.current_quantity = COALESCE(balances.total_quantity, 0)'
         );
+    }
+
+    private static function ensureNonUniqueIndex(string $table, string $column, string $indexName): void
+    {
+        $uniqueIndexes = Database::fetchAll(
+            'SELECT DISTINCT index_name
+             FROM information_schema.statistics
+             WHERE table_schema = DATABASE()
+               AND table_name = :table_name
+               AND column_name = :column_name
+               AND non_unique = 0
+               AND index_name != "PRIMARY"',
+            [
+                'table_name' => $table,
+                'column_name' => $column,
+            ]
+        );
+
+        foreach ($uniqueIndexes as $index) {
+            Database::execute('ALTER TABLE `' . $table . '` DROP INDEX `' . $index['index_name'] . '`');
+        }
+
+        $indexExists = (int) Database::scalar(
+            'SELECT COUNT(*)
+             FROM information_schema.statistics
+             WHERE table_schema = DATABASE()
+               AND table_name = :table_name
+               AND index_name = :index_name',
+            [
+                'table_name' => $table,
+                'index_name' => $indexName,
+            ]
+        );
+
+        if ($indexExists === 0) {
+            Database::execute('CREATE INDEX `' . $indexName . '` ON `' . $table . '` (`' . $column . '`)');
+        }
     }
 }

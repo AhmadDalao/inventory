@@ -616,6 +616,23 @@ textarea {
     color: #766a5c;
 }
 
+.filter-chip {
+    border: 1px solid transparent;
+    transition: 180ms ease;
+}
+
+.filter-chip:hover {
+    border-color: rgba(11, 110, 105, 0.2);
+    background: rgba(11, 110, 105, 0.08);
+    color: var(--accent-strong);
+}
+
+.filter-chip-active {
+    background: rgba(11, 110, 105, 0.14);
+    border-color: rgba(11, 110, 105, 0.22);
+    color: var(--accent-strong);
+}
+
 .filter-panel {
     display: grid;
     gap: 16px;
