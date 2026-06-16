@@ -1,14 +1,15 @@
 <?php $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null)); ?>
 
 <section class="page-head">
-    <div>
+    <div class="page-head-copy">
         <p class="eyebrow">Audit Trail</p>
-        <h3>Movement Log</h3>
+        <h3 class="page-head-title"><?= ui_icon('movements') ?><span>Movement Log</span></h3>
     </div>
 </section>
 
+<div class="live-filter-region" data-live-filter-region="movements">
 <section class="filter-panel">
-    <form class="filter-grid movement-filter-grid" method="get" action="<?= e(url('/movements')) ?>">
+    <form class="filter-grid movement-filter-grid" method="get" action="<?= e(url('/movements')) ?>" data-live-filter-form>
         <label class="field">
             <span>Item</span>
             <select name="item_id">
@@ -55,8 +56,8 @@
         </label>
 
         <div class="filter-actions">
-            <button class="primary-button" type="submit">Filter</button>
-            <a class="ghost-button" href="<?= e(url('/movements')) ?>">Reset</a>
+            <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
+            <a class="ghost-button" href="<?= e(url('/movements')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
         </div>
     </form>
 </section>
@@ -64,7 +65,7 @@
 <section class="panel data-table-shell" data-table-shell data-empty-text="No movement records match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong>All Movements</strong>
+            <strong><?= ui_icon('movements') ?><span>All Movements</span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($movements)) ?></span>
         </div>
         <p class="table-shell-copy">Search the loaded activity, page it cleanly, and export the full filtered log.</p>
@@ -89,7 +90,7 @@
             </label>
         </div>
 
-        <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
+        <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
     </div>
 
     <div class="table-wrap">
@@ -144,3 +145,4 @@
         <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>
+</div>

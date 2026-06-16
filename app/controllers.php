@@ -425,6 +425,7 @@ function storage_items(int $storageId): array
                 i.unit,
                 i.reorder_level,
                 i.cost_per_unit,
+                i.notes,
                 i.is_active,
                 i.image_path,
                 balances.quantity,
@@ -464,6 +465,65 @@ function storage_items(int $storageId): array
            AND i.is_active = 1
          ORDER BY i.is_active DESC, balances.quantity DESC, i.name ASC',
         ['storage_id' => $storageId]
+    );
+}
+
+function storage_summaries(array $filters): array
+{
+    [$where, $params] = build_storage_where($filters);
+
+    return Database::fetchAll(
+        "SELECT s.*,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
+                    WHERE balances.storage_id = s.id
+                      AND balances.quantity > 0
+                      AND i.is_active = 1
+                ) AS active_item_count,
+                (
+                    SELECT COALESCE(SUM(balances.quantity), 0)
+                    FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
+                    WHERE balances.storage_id = s.id
+                      AND i.is_active = 1
+                ) AS total_quantity,
+                (
+                    SELECT COALESCE(SUM(balances.quantity * i.cost_per_unit), 0)
+                    FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
+                    WHERE balances.storage_id = s.id
+                      AND i.is_active = 1
+                ) AS total_stock_value,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
+                    WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
+                      AND movements.movement_type = 'usage'
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
+                    WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
+                      AND movements.movement_type = 'transfer'
+                ) AS transferred_out,
+                (
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
+                    FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
+                    WHERE movements.destination_storage_id = s.id
+                      AND i.is_active = 1
+                      AND movements.movement_type = 'transfer'
+                ) AS transferred_in
+         FROM storages s
+         {$where}
+         ORDER BY FIELD(s.storage_type, 'warehouse', 'storage'), s.is_active DESC, s.name ASC",
+        $params
     );
 }
 
@@ -756,10 +816,10 @@ function export_csv(string $filename, array $headers, array $rows): never
         abort(500, 'Could not start CSV export.');
     }
 
-    fputcsv($output, $headers);
+    fputcsv($output, $headers, ',', '"', '\\');
 
     foreach ($rows as $row) {
-        fputcsv($output, $row);
+        fputcsv($output, $row, ',', '"', '\\');
     }
 
     fclose($output);
@@ -1750,81 +1810,96 @@ function handle_export_storages(): void
     Auth::requireLogin();
 
     $filters = storage_filters();
-    [$where, $params] = build_storage_where($filters);
+    $storages = storage_summaries($filters);
+    $rows = [];
 
-    $storages = Database::fetchAll(
-        "SELECT s.*,
-                (
-                    SELECT COUNT(*)
-                    FROM item_storage_balances balances
-                    INNER JOIN items i ON i.id = balances.item_id
-                    WHERE balances.storage_id = s.id
-                      AND balances.quantity > 0
-                      AND i.is_active = 1
-                ) AS active_item_count,
-                (
-                    SELECT COALESCE(SUM(balances.quantity), 0)
-                    FROM item_storage_balances balances
-                    INNER JOIN items i ON i.id = balances.item_id
-                    WHERE balances.storage_id = s.id
-                      AND i.is_active = 1
-                ) AS total_quantity,
-                (
-                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
-                    FROM inventory_movements movements
-                    INNER JOIN items i ON i.id = movements.item_id
-                    WHERE movements.source_storage_id = s.id
-                      AND i.is_active = 1
-                      AND movements.movement_type = 'usage'
-                ) AS total_used,
-                (
-                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
-                    FROM inventory_movements movements
-                    INNER JOIN items i ON i.id = movements.item_id
-                    WHERE movements.source_storage_id = s.id
-                      AND i.is_active = 1
-                      AND movements.movement_type = 'transfer'
-                ) AS transferred_out,
-                (
-                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
-                    FROM inventory_movements movements
-                    INNER JOIN items i ON i.id = movements.item_id
-                    WHERE movements.destination_storage_id = s.id
-                      AND i.is_active = 1
-                      AND movements.movement_type = 'transfer'
-                ) AS transferred_in
-         FROM storages s
-         {$where}
-         ORDER BY FIELD(s.storage_type, 'warehouse', 'storage'), s.is_active DESC, s.name ASC",
-        $params
-    );
+    foreach ($storages as $storage) {
+        $storageLabel = storage_type_label($storage['storage_type']);
+        $storageStatus = (int) $storage['is_active'] === 1 ? 'Active' : 'Deleted';
+        $storageUpdatedAt = $storage['updated_at'] ? format_datetime_display($storage['updated_at']) : '';
+        $storageItems = storage_items((int) $storage['id']);
 
-    $rows = array_map(static function (array $storage): array {
-        return [
+        $storageColumns = [
             $storage['name'],
-            storage_type_label($storage['storage_type']),
+            $storageLabel,
+            $storageStatus,
             (int) $storage['active_item_count'],
             format_quantity($storage['total_quantity']),
+            format_money($storage['total_stock_value']),
             format_quantity($storage['total_used']),
             format_quantity($storage['transferred_in']),
             format_quantity($storage['transferred_out']),
-            (int) $storage['is_active'] === 1 ? 'Active' : 'Deleted',
             $storage['notes'] ?: '',
-            $storage['updated_at'] ?: '',
+            $storageUpdatedAt,
         ];
-    }, $storages);
+
+        $rows[] = array_merge($storageColumns, [
+            'Storage',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+        ]);
+
+        foreach ($storageItems as $item) {
+            $rows[] = array_merge($storageColumns, [
+                'Item',
+                $item['name'],
+                $item['sku'],
+                $item['category'] ?: 'Unsorted',
+                format_quantity($item['quantity']),
+                $item['unit'],
+                format_money($item['cost_per_unit']),
+                format_money(stock_value($item['quantity'], $item['cost_per_unit'])),
+                format_quantity($item['reorder_level']),
+                format_quantity($item['total_used']),
+                format_quantity($item['transferred_in']),
+                format_quantity($item['transferred_out']),
+                (int) $item['is_active'] === 1 ? 'Active' : 'Deleted',
+                $item['last_activity_at'] ? format_datetime_display($item['last_activity_at']) : 'Never',
+                $item['notes'] ?: '',
+            ]);
+        }
+
+        $rows[] = array_fill(0, 26, '');
+    }
 
     export_csv('storage-export-' . date('Ymd-His') . '.csv', [
-        'Name',
-        'Type',
+        'Storage Name',
+        'Storage Type',
+        'Storage Status',
         'Active Items',
         'Remaining Quantity',
+        'Storage Total Value',
         'Used Quantity',
         'Transferred In',
         'Transferred Out',
-        'Status',
-        'Notes',
-        'Updated At',
+        'Storage Notes',
+        'Storage Updated At',
+        'Row Type',
+        'Item Name',
+        'Item SKU',
+        'Item Category',
+        'Item Quantity',
+        'Item Unit',
+        'Item Cost Per Unit',
+        'Item Stock Value',
+        'Item Reorder Level',
+        'Item Used Quantity',
+        'Item Transferred In',
+        'Item Transferred Out',
+        'Item Status',
+        'Item Last Activity',
+        'Item Notes',
     ], $rows);
 }
 
@@ -1866,54 +1941,7 @@ function handle_storages_index(): void
     Auth::requireLogin();
 
     $filters = storage_filters();
-    [$where, $params] = build_storage_where($filters);
-
-    $storages = Database::fetchAll(
-        "SELECT s.*,
-                (
-                    SELECT COUNT(*)
-                    FROM item_storage_balances balances
-                    INNER JOIN items i ON i.id = balances.item_id
-                    WHERE balances.storage_id = s.id
-                      AND balances.quantity > 0
-                      AND i.is_active = 1
-                ) AS active_item_count,
-                (
-                    SELECT COALESCE(SUM(balances.quantity), 0)
-                    FROM item_storage_balances balances
-                    INNER JOIN items i ON i.id = balances.item_id
-                    WHERE balances.storage_id = s.id
-                      AND i.is_active = 1
-                ) AS total_quantity,
-                (
-                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
-                    FROM inventory_movements movements
-                    INNER JOIN items i ON i.id = movements.item_id
-                    WHERE movements.source_storage_id = s.id
-                      AND i.is_active = 1
-                      AND movements.movement_type = 'usage'
-                ) AS total_used,
-                (
-                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
-                    FROM inventory_movements movements
-                    INNER JOIN items i ON i.id = movements.item_id
-                    WHERE movements.source_storage_id = s.id
-                      AND i.is_active = 1
-                      AND movements.movement_type = 'transfer'
-                ) AS transferred_out,
-                (
-                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
-                    FROM inventory_movements movements
-                    INNER JOIN items i ON i.id = movements.item_id
-                    WHERE movements.destination_storage_id = s.id
-                      AND i.is_active = 1
-                      AND movements.movement_type = 'transfer'
-                ) AS transferred_in
-         FROM storages s
-         {$where}
-         ORDER BY FIELD(s.storage_type, 'warehouse', 'storage'), s.is_active DESC, s.name ASC",
-        $params
-    );
+    $storages = storage_summaries($filters);
 
     $counts = [
         'active' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1'),

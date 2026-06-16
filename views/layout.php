@@ -38,12 +38,12 @@ $currentUser = (!$authPage && app_installed()) ? Auth::user() : null;
             </div>
 
             <nav class="nav-links">
-                <a class="nav-link <?= active_route('/dashboard') ?>" href="<?= e(url('/dashboard')) ?>">Dashboard</a>
-                <a class="nav-link <?= active_route('/storages', true) ?>" href="<?= e(url('/storages')) ?>">Storages</a>
-                <a class="nav-link <?= active_route('/items', true) ?>" href="<?= e(url('/items')) ?>">Items</a>
-                <a class="nav-link <?= active_route('/movements') ?>" href="<?= e(url('/movements')) ?>">Movement Log</a>
+                <a class="nav-link <?= active_route('/dashboard') ?>" href="<?= e(url('/dashboard')) ?>"><?= ui_icon('dashboard') ?><span>Dashboard</span></a>
+                <a class="nav-link <?= active_route('/storages', true) ?>" href="<?= e(url('/storages')) ?>"><?= ui_icon('storages') ?><span>Storages</span></a>
+                <a class="nav-link <?= active_route('/items', true) ?>" href="<?= e(url('/items')) ?>"><?= ui_icon('items') ?><span>Items</span></a>
+                <a class="nav-link <?= active_route('/movements') ?>" href="<?= e(url('/movements')) ?>"><?= ui_icon('movements') ?><span>Movement Log</span></a>
                 <?php if (Auth::isOwner()): ?>
-                    <a class="nav-link <?= active_route('/users', true) ?>" href="<?= e(url('/users')) ?>">Admins</a>
+                    <a class="nav-link <?= active_route('/users', true) ?>" href="<?= e(url('/users')) ?>"><?= ui_icon('users') ?><span>Admins</span></a>
                 <?php endif; ?>
             </nav>
 

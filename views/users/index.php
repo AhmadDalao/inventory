@@ -1,19 +1,19 @@
 <?php $exportUrl = url('/exports/users'); ?>
 
 <section class="page-head">
-    <div>
+    <div class="page-head-copy">
         <p class="eyebrow">Access Control</p>
-        <h3>Admins</h3>
+        <h3 class="page-head-title"><?= ui_icon('users') ?><span>Admins</span></h3>
     </div>
     <div class="page-actions">
-        <a class="primary-button" href="<?= e(url('/users/create')) ?>">Create Admin</a>
+        <a class="primary-button" href="<?= e(url('/users/create')) ?>"><?= ui_icon('plus') ?><span>Create Admin</span></a>
     </div>
 </section>
 
 <section class="panel data-table-shell" data-table-shell data-empty-text="No admins match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong>All Admins</strong>
+            <strong><?= ui_icon('users') ?><span>All Admins</span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($users)) ?></span>
         </div>
         <p class="table-shell-copy">Search, review access, and export the admin list.</p>
@@ -38,7 +38,7 @@
             </label>
         </div>
 
-        <a class="ghost-button table-export-button" href="<?= e($exportUrl) ?>">Export CSV</a>
+        <a class="ghost-button table-export-button" href="<?= e($exportUrl) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
     </div>
 
     <div class="table-wrap">

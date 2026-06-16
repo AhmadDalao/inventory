@@ -2,31 +2,31 @@
 
 <section class="metric-grid">
     <article class="metric-card">
-        <span>Total Active Items</span>
+        <span class="metric-card-icon"><?= ui_icon('items') ?><span>Total Active Items</span></span>
         <strong><?= number_format($metrics['items_total']) ?></strong>
     </article>
     <article class="metric-card">
-        <span>Active Storages</span>
+        <span class="metric-card-icon"><?= ui_icon('storages') ?><span>Active Storages</span></span>
         <strong><?= number_format($metrics['storages_total']) ?></strong>
     </article>
     <article class="metric-card">
-        <span>Active Warehouses</span>
+        <span class="metric-card-icon"><?= ui_icon('storages') ?><span>Active Warehouses</span></span>
         <strong><?= number_format($metrics['warehouses_total']) ?></strong>
     </article>
     <article class="metric-card">
-        <span>Total Units In Stock</span>
+        <span class="metric-card-icon"><?= ui_icon('dashboard') ?><span>Total Units In Stock</span></span>
         <strong><?= format_quantity($metrics['units_total']) ?></strong>
     </article>
     <article class="metric-card">
-        <span>Low Stock Items</span>
+        <span class="metric-card-icon"><?= ui_icon('flash') ?><span>Low Stock Items</span></span>
         <strong><?= number_format($metrics['low_stock']) ?></strong>
     </article>
     <article class="metric-card">
-        <span>Inventory Value</span>
+        <span class="metric-card-icon"><?= ui_icon('value') ?><span>Inventory Value</span></span>
         <strong><?= format_money($metrics['inventory_value']) ?></strong>
     </article>
     <article class="metric-card metric-card-wide">
-        <span>Units Used In Last 30 Days</span>
+        <span class="metric-card-icon"><?= ui_icon('movements') ?><span>Units Used In Last 30 Days</span></span>
         <strong><?= format_quantity($metrics['used_last_30']) ?></strong>
     </article>
 </section>

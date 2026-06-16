@@ -26,8 +26,11 @@ register_shutdown_function(static function () use ($cookieFile): void {
 });
 
 $storageName = $prefix . ' Storage';
+$secondaryStorageName = $prefix . ' Office Storage';
 $itemName = $prefix . ' Item';
 $itemSku = $prefix . '-SKU';
+$secondaryItemName = $prefix . ' Office Item';
+$secondaryItemSku = $prefix . '-OFFICE-SKU';
 
 $results = [];
 
@@ -190,6 +193,30 @@ function location_matches(?string $location, string $expectedPath): bool
     return $path === $expectedPath;
 }
 
+function csv_rows(string $csv): array
+{
+    $lines = preg_split("/\r\n|\n|\r/", trim($csv)) ?: [];
+
+    return array_values(array_filter(array_map(static function (string $line): ?array {
+        if (trim($line) === '') {
+            return null;
+        }
+
+        return str_getcsv($line, ',', '"', '\\');
+    }, $lines)));
+}
+
+function find_csv_row(array $rows, callable $matcher): ?array
+{
+    foreach ($rows as $row) {
+        if ($matcher($row)) {
+            return $row;
+        }
+    }
+
+    return null;
+}
+
 note('Logging in.');
 $loginPage = request($baseUrl, $cookieFile, 'GET', '/login');
 assert_true($loginPage['status'] === 200, 'Login page did not load.');
@@ -285,6 +312,21 @@ assert_true(location_matches($storageRecover['location'], '/storages'), 'Storage
 $storageRecoveredPage = request($baseUrl, $cookieFile, 'GET', '/storages?status=active&search=' . rawurlencode($storageName));
 assert_true(contains_text($storageRecoveredPage['body'], $storageName), 'Recovered storage is missing from the active list.');
 
+note('Creating a second active storage for grouped export coverage.');
+$secondActiveStoragePage = request($baseUrl, $cookieFile, 'GET', '/storages/create');
+$secondActiveStorageCreate = request($baseUrl, $cookieFile, 'POST', '/storages/create', [
+    '_token' => extract_csrf($secondActiveStoragePage['body']),
+    'name' => $secondaryStorageName,
+    'storage_type' => 'storage',
+    'notes' => 'Regression office storage',
+]);
+assert_true($secondActiveStorageCreate['status'] === 302, 'Second active storage create did not redirect.');
+$secondActiveStorageList = request($baseUrl, $cookieFile, 'GET', '/storages?status=active&search=' . rawurlencode($secondaryStorageName));
+assert_true($secondActiveStorageList['status'] === 200, 'Second active storage list did not load.');
+assert_true(contains_text($secondActiveStorageList['body'], $secondaryStorageName), 'Second active storage is missing from the active list.');
+$thirdStorageId = first_numeric_path_id($secondActiveStorageList['body'], '/storages');
+assert_true($thirdStorageId !== null, 'Could not find the second active storage id.');
+
 note('Creating the first item.');
 $itemCreatePage = request($baseUrl, $cookieFile, 'GET', '/items/create');
 assert_true($itemCreatePage['status'] === 200, 'Item create page did not load.');
@@ -293,12 +335,12 @@ $itemCreate = request($baseUrl, $cookieFile, 'POST', '/items/create', [
     'name' => $itemName,
     'sku' => $itemSku,
     'category' => 'Regression',
-    'storage_id' => '',
+    'storage_id' => (string) $firstStorageId,
     'unit' => 'pcs',
     'custom_unit' => '',
-    'current_quantity' => '0',
+    'current_quantity' => '4',
     'reorder_level' => '0',
-    'cost_per_unit' => '1',
+    'cost_per_unit' => '12.50',
     'notes' => 'Regression test item',
 ]);
 assert_true($itemCreate['status'] === 302, 'Item create did not redirect.');
@@ -364,5 +406,55 @@ assert_true(location_matches($itemRecover['location'], '/items'), 'Item recovery
 $itemRecoveredPage = request($baseUrl, $cookieFile, 'GET', '/items?status=active&search=' . rawurlencode($itemSku));
 assert_true(contains_text($itemRecoveredPage['body'], $itemSku), 'Recovered item is missing from the active list.');
 
+note('Creating a second active item in the second storage.');
+$secondItemCreatePage = request($baseUrl, $cookieFile, 'GET', '/items/create');
+$secondItemCreate = request($baseUrl, $cookieFile, 'POST', '/items/create', [
+    '_token' => extract_csrf($secondItemCreatePage['body']),
+    'name' => $secondaryItemName,
+    'sku' => $secondaryItemSku,
+    'category' => 'Regression',
+    'storage_id' => (string) $thirdStorageId,
+    'unit' => 'pcs',
+    'custom_unit' => '',
+    'current_quantity' => '3',
+    'reorder_level' => '0',
+    'cost_per_unit' => '5',
+    'notes' => 'Regression second storage item',
+]);
+assert_true($secondItemCreate['status'] === 302, 'Second active item create did not redirect.');
+
+note('Checking storage detail values.');
+$primaryStorageDetail = request($baseUrl, $cookieFile, 'GET', '/storages/' . $firstStorageId);
+assert_true($primaryStorageDetail['status'] === 200, 'Primary storage detail did not load.');
+assert_true(contains_text($primaryStorageDetail['body'], '$50.00 stock value'), 'Primary storage detail is missing the correct stock value.');
+
+$secondaryStorageDetail = request($baseUrl, $cookieFile, 'GET', '/storages/' . $thirdStorageId);
+assert_true($secondaryStorageDetail['status'] === 200, 'Secondary storage detail did not load.');
+assert_true(contains_text($secondaryStorageDetail['body'], '$15.00 stock value'), 'Secondary storage detail is missing the correct stock value.');
+
+note('Exporting storages and verifying grouped item rows and values.');
+$storageExport = request($baseUrl, $cookieFile, 'GET', '/exports/storages?search=' . rawurlencode($prefix));
+assert_true($storageExport['status'] === 200, 'Storage export did not respond with HTTP 200.');
+$storageExportRows = csv_rows($storageExport['body']);
+assert_true(($storageExportRows[0][0] ?? null) === 'Storage Name', 'Storage export headers are wrong.');
+
+$storageSummaryRow = find_csv_row($storageExportRows, static fn (array $row): bool => ($row[0] ?? '') === $storageName && ($row[11] ?? '') === 'Storage');
+assert_true($storageSummaryRow !== null, 'Storage export is missing the storage summary row.');
+assert_true(($storageSummaryRow[5] ?? '') === '$50.00', 'Storage export summary value is wrong.');
+
+$storageItemRow = find_csv_row($storageExportRows, static fn (array $row): bool => ($row[0] ?? '') === $storageName && ($row[11] ?? '') === 'Item' && ($row[12] ?? '') === $itemName);
+assert_true($storageItemRow !== null, 'Storage export is missing the child item row.');
+assert_true(($storageItemRow[18] ?? '') === '$50.00', 'Storage export item value is wrong.');
+assert_true(($storageItemRow[15] ?? '') === '4', 'Storage export item quantity is wrong.');
+
+$secondaryStorageSummaryRow = find_csv_row($storageExportRows, static fn (array $row): bool => ($row[0] ?? '') === $secondaryStorageName && ($row[11] ?? '') === 'Storage');
+assert_true($secondaryStorageSummaryRow !== null, 'Storage export is missing the second storage summary row.');
+assert_true(($secondaryStorageSummaryRow[5] ?? '') === '$15.00', 'Second storage export summary value is wrong.');
+
+$secondaryStorageItemRow = find_csv_row($storageExportRows, static fn (array $row): bool => ($row[0] ?? '') === $secondaryStorageName && ($row[11] ?? '') === 'Item' && ($row[12] ?? '') === $secondaryItemName);
+assert_true($secondaryStorageItemRow !== null, 'Storage export is missing the second storage item row.');
+assert_true(($secondaryStorageItemRow[18] ?? '') === '$15.00', 'Second storage export item value is wrong.');
+assert_true(($secondaryStorageItemRow[15] ?? '') === '3', 'Second storage export item quantity is wrong.');
+
 note('Regression run passed.');
-echo '[regression] PASS: soft delete visibility, recovery, and duplicate reuse are working for items and storages.' . PHP_EOL;
+echo '[regression] PASS: soft delete visibility, recovery, duplicate reuse, storage values, and grouped storage export are working for items and storages.' . PHP_EOL;

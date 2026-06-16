@@ -9,17 +9,18 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
 ?>
 
 <section class="page-head">
-    <div>
+    <div class="page-head-copy">
         <p class="eyebrow">Locations</p>
-        <h3>Storages</h3>
+        <h3 class="page-head-title"><?= ui_icon('storages') ?><span>Storages</span></h3>
     </div>
     <div class="page-actions">
-        <a class="primary-button" href="<?= e(url('/storages/create')) ?>">Create Storage</a>
+        <a class="primary-button" href="<?= e(url('/storages/create')) ?>"><?= ui_icon('plus') ?><span>Create Storage</span></a>
     </div>
 </section>
 
+<div class="live-filter-region" data-live-filter-region="storages">
 <section class="filter-panel">
-    <form class="filter-grid" method="get" action="<?= e(url('/storages')) ?>">
+    <form class="filter-grid" method="get" action="<?= e(url('/storages')) ?>" data-live-filter-form>
         <label class="field">
             <span>Search</span>
             <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Storage name or notes">
@@ -44,22 +45,22 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             </label>
 
         <div class="filter-actions">
-            <button class="primary-button" type="submit">Filter</button>
-            <a class="ghost-button" href="<?= e(url('/storages')) ?>">Reset</a>
+            <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
+            <a class="ghost-button" href="<?= e(url('/storages')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
         </div>
     </form>
 
     <div class="chip-row">
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('active')) ?>">Active: <?= number_format($counts['active']) ?></a>
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('archived')) ?>">Deleted: <?= number_format($counts['archived']) ?></a>
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('all')) ?>">All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('active')) ?>" data-live-filter-link>Active: <?= number_format($counts['active']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('archived')) ?>" data-live-filter-link>Deleted: <?= number_format($counts['archived']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
     </div>
 </section>
 
 <section class="panel data-table-shell" data-table-shell data-empty-text="No storages match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong>All Locations</strong>
+            <strong><?= ui_icon('storages') ?><span>All Locations</span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($storages)) ?></span>
         </div>
         <p class="table-shell-copy">Quick search, export, and scan remaining stock by warehouse or storage.</p>
@@ -84,7 +85,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             </label>
         </div>
 
-        <a class="ghost-button table-export-button" href="<?= e(url('/exports/storages') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
+        <a class="ghost-button table-export-button" href="<?= e(url('/exports/storages') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
     </div>
 
     <div class="table-wrap">
@@ -95,6 +96,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                 <th>Type</th>
                 <th>Active Items</th>
                 <th>Remaining</th>
+                <th>Value</th>
                 <th>Used</th>
                 <th>Transfers</th>
                 <th>Status</th>
@@ -105,7 +107,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             <tbody>
             <?php if ($storages === []): ?>
                 <tr>
-                    <td colspan="9" class="empty-cell">No storages found.</td>
+                    <td colspan="10" class="empty-cell">No storages found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($storages as $storage): ?>
@@ -119,6 +121,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                     <td data-label="Type"><?= e(storage_type_label($storage['storage_type'])) ?></td>
                     <td data-label="Active Items"><?= number_format((int) $storage['active_item_count']) ?></td>
                     <td data-label="Remaining"><?= format_quantity($storage['total_quantity']) ?></td>
+                    <td data-label="Value"><?= format_money($storage['total_stock_value']) ?></td>
                     <td data-label="Used"><?= format_quantity($storage['total_used']) ?></td>
                     <td data-label="Transfers">
                         In <?= format_quantity($storage['transferred_in']) ?>
@@ -154,3 +157,4 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
         <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>
+</div>

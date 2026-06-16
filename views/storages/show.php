@@ -3,13 +3,13 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
 ?>
 
 <section class="page-head">
-    <div>
+    <div class="page-head-copy">
         <p class="eyebrow">Location Detail</p>
-        <h3><?= e($storage['name']) ?></h3>
+        <h3 class="page-head-title"><?= ui_icon('storages') ?><span><?= e($storage['name']) ?></span></h3>
     </div>
     <div class="page-actions">
-        <a class="ghost-button" href="<?= e(url('/storages')) ?>">All Locations</a>
-        <a class="primary-button" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit Location</a>
+        <a class="ghost-button" href="<?= e(url('/storages')) ?>"><?= ui_icon('back') ?><span>All Locations</span></a>
+        <a class="primary-button" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit Location</span></a>
     </div>
 </section>
 
@@ -52,6 +52,10 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
             <article class="metric-card">
                 <span>Total Used</span>
                 <strong><?= format_quantity($storage['total_used']) ?></strong>
+            </article>
+            <article class="metric-card">
+                <span>Stock Value</span>
+                <strong><?= format_money($metrics['stock_value']) ?></strong>
             </article>
             <article class="metric-card">
                 <span>Transferred In</span>

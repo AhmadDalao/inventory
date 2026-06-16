@@ -9,17 +9,18 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
 ?>
 
 <section class="page-head">
-    <div>
+    <div class="page-head-copy">
         <p class="eyebrow">Catalog</p>
-        <h3>Items</h3>
+        <h3 class="page-head-title"><?= ui_icon('items') ?><span>Items</span></h3>
     </div>
     <div class="page-actions">
-        <a class="primary-button" href="<?= e(url('/items/create')) ?>">Create Item</a>
+        <a class="primary-button" href="<?= e(url('/items/create')) ?>"><?= ui_icon('plus') ?><span>Create Item</span></a>
     </div>
 </section>
 
+<div class="live-filter-region" data-live-filter-region="items">
 <section class="filter-panel">
-    <form class="filter-grid" method="get" action="<?= e(url('/items')) ?>">
+    <form class="filter-grid" method="get" action="<?= e(url('/items')) ?>" data-live-filter-form>
         <label class="field">
             <span>Search</span>
             <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Name, SKU, category, storage">
@@ -47,22 +48,22 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
         </label>
 
         <div class="filter-actions">
-            <button class="primary-button" type="submit">Filter</button>
-            <a class="ghost-button" href="<?= e(url('/items')) ?>">Reset</a>
+            <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
+            <a class="ghost-button" href="<?= e(url('/items')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
         </div>
     </form>
 
     <div class="chip-row">
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('active')) ?>">Active: <?= number_format($counts['active']) ?></a>
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('archived')) ?>">Deleted: <?= number_format($counts['archived']) ?></a>
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('all')) ?>">All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('active')) ?>" data-live-filter-link>Active: <?= number_format($counts['active']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('archived')) ?>" data-live-filter-link>Deleted: <?= number_format($counts['archived']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
     </div>
 </section>
 
 <section class="panel data-table-shell" data-table-shell data-empty-text="No items match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong>All Items</strong>
+            <strong><?= ui_icon('items') ?><span>All Items</span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($items)) ?></span>
         </div>
         <p class="table-shell-copy">Search the current result set, page through it, and export the filtered catalog.</p>
@@ -87,7 +88,7 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
             </label>
         </div>
 
-        <a class="ghost-button table-export-button" href="<?= e(url('/exports/items') . ($exportQuery ? '?' . $exportQuery : '')) ?>">Export CSV</a>
+        <a class="ghost-button table-export-button" href="<?= e(url('/exports/items') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
     </div>
 
     <div class="table-wrap">
@@ -180,3 +181,4 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
         <div class="table-pagination" data-table-pagination></div>
     </div>
 </section>
+</div>
