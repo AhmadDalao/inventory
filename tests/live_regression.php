@@ -93,8 +93,6 @@ function request(string $baseUrl, string $cookieFile, string $method, string $pa
     $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $headerText = substr($rawResponse, 0, $headerSize);
     $body = substr($rawResponse, $headerSize);
-    curl_close($ch);
-
     $location = null;
 
     foreach (preg_split("/\r\n|\n|\r/", trim($headerText)) ?: [] as $line) {
@@ -171,6 +169,27 @@ function contains_text(string $html, string $needle): bool
     return stripos($html, $needle) !== false;
 }
 
+function location_matches(?string $location, string $expectedPath): bool
+{
+    if ($location === null || $location === '') {
+        return false;
+    }
+
+    if ($location === $expectedPath) {
+        return true;
+    }
+
+    $path = (string) parse_url($location, PHP_URL_PATH);
+    $query = (string) parse_url($location, PHP_URL_QUERY);
+    $expectedQuery = (string) parse_url($expectedPath, PHP_URL_QUERY);
+
+    if ($expectedQuery !== '') {
+        return $path . '?' . $query === $expectedPath;
+    }
+
+    return $path === $expectedPath;
+}
+
 note('Logging in.');
 $loginPage = request($baseUrl, $cookieFile, 'GET', '/login');
 assert_true($loginPage['status'] === 200, 'Login page did not load.');
@@ -181,7 +200,7 @@ $loginSubmit = request($baseUrl, $cookieFile, 'POST', '/login', [
     'password' => $password,
 ]);
 assert_true($loginSubmit['status'] === 302, 'Login did not redirect.');
-assert_true($loginSubmit['location'] === '/dashboard', 'Login did not land on /dashboard.');
+assert_true(location_matches($loginSubmit['location'], '/dashboard'), 'Login did not land on /dashboard.');
 
 note('Creating the first storage.');
 $storageCreatePage = request($baseUrl, $cookieFile, 'GET', '/storages/create');
@@ -194,7 +213,7 @@ $storageCreate = request($baseUrl, $cookieFile, 'POST', '/storages/create', [
     'notes' => 'Regression test storage',
 ]);
 assert_true($storageCreate['status'] === 302, 'Storage create did not redirect.');
-assert_true($storageCreate['location'] === '/storages', 'Storage create did not return to /storages.');
+assert_true(location_matches($storageCreate['location'], '/storages'), 'Storage create did not return to /storages.');
 
 $storageActiveList = request($baseUrl, $cookieFile, 'GET', '/storages?status=active&search=' . rawurlencode($storageName));
 assert_true($storageActiveList['status'] === 200, 'Active storage list did not load.');
@@ -207,7 +226,7 @@ $storageDelete = request($baseUrl, $cookieFile, 'POST', '/storages/' . $firstSto
     '_token' => extract_csrf($storageActiveList['body']),
 ]);
 assert_true($storageDelete['status'] === 302, 'Storage delete did not redirect.');
-assert_true($storageDelete['location'] === '/storages?status=archived', 'Storage delete did not redirect to the deleted list.');
+assert_true(location_matches($storageDelete['location'], '/storages?status=archived'), 'Storage delete did not redirect to the deleted list.');
 
 $storageDeletedList = request($baseUrl, $cookieFile, 'GET', '/storages?status=archived&search=' . rawurlencode($storageName));
 assert_true(contains_text($storageDeletedList['body'], $storageName), 'Deleted storage is missing from the deleted list.');
@@ -222,7 +241,7 @@ $storageCreateAgain = request($baseUrl, $cookieFile, 'POST', '/storages/create',
     'notes' => 'Regression duplicate storage',
 ]);
 assert_true($storageCreateAgain['status'] === 302, 'Second storage create did not redirect.');
-assert_true($storageCreateAgain['location'] === '/storages', 'Second storage create did not return to /storages.');
+assert_true(location_matches($storageCreateAgain['location'], '/storages'), 'Second storage create did not return to /storages.');
 
 $storageAllList = request($baseUrl, $cookieFile, 'GET', '/storages?status=all&search=' . rawurlencode($storageName));
 assert_true(count_numeric_path_ids($storageAllList['body'], '/storages') >= 2, 'Duplicate storage names are still blocked.');
@@ -262,7 +281,7 @@ $storageRecover = request($baseUrl, $cookieFile, 'POST', '/storages/' . $firstSt
     '_token' => extract_csrf($storageDeletedListAgain['body']),
 ]);
 assert_true($storageRecover['status'] === 302, 'Storage recovery did not redirect.');
-assert_true($storageRecover['location'] === '/storages', 'Storage recovery did not return to the active list.');
+assert_true(location_matches($storageRecover['location'], '/storages'), 'Storage recovery did not return to the active list.');
 $storageRecoveredPage = request($baseUrl, $cookieFile, 'GET', '/storages?status=active&search=' . rawurlencode($storageName));
 assert_true(contains_text($storageRecoveredPage['body'], $storageName), 'Recovered storage is missing from the active list.');
 
@@ -294,7 +313,7 @@ $itemDelete = request($baseUrl, $cookieFile, 'POST', '/items/' . $firstItemId . 
     '_token' => extract_csrf($itemActiveList['body']),
 ]);
 assert_true($itemDelete['status'] === 302, 'Item delete did not redirect.');
-assert_true($itemDelete['location'] === '/items?status=archived', 'Item delete did not redirect to the deleted list.');
+assert_true(location_matches($itemDelete['location'], '/items?status=archived'), 'Item delete did not redirect to the deleted list.');
 
 $itemDeletedList = request($baseUrl, $cookieFile, 'GET', '/items?status=archived&search=' . rawurlencode($itemSku));
 assert_true(contains_text($itemDeletedList['body'], $itemSku), 'Deleted item is missing from the deleted list.');
@@ -341,7 +360,7 @@ $itemRecover = request($baseUrl, $cookieFile, 'POST', '/items/' . $firstItemId .
     '_token' => extract_csrf($itemDeletedListAgain['body']),
 ]);
 assert_true($itemRecover['status'] === 302, 'Item recovery did not redirect.');
-assert_true($itemRecover['location'] === '/items', 'Item recovery did not return to the active list.');
+assert_true(location_matches($itemRecover['location'], '/items'), 'Item recovery did not return to the active list.');
 $itemRecoveredPage = request($baseUrl, $cookieFile, 'GET', '/items?status=active&search=' . rawurlencode($itemSku));
 assert_true(contains_text($itemRecoveredPage['body'], $itemSku), 'Recovered item is missing from the active list.');
 

@@ -39,8 +39,9 @@ function build_storage_where(array $filters, string $alias = 's'): array
     }
 
     if ($filters['search'] !== '') {
-        $conditions[] = "({$alias}.name LIKE :search OR COALESCE({$alias}.notes, '') LIKE :search)";
-        $params['search'] = '%' . $filters['search'] . '%';
+        $conditions[] = "({$alias}.name LIKE :search_name OR COALESCE({$alias}.notes, '') LIKE :search_notes)";
+        $params['search_name'] = '%' . $filters['search'] . '%';
+        $params['search_notes'] = '%' . $filters['search'] . '%';
     }
 
     if ($filters['type'] !== '') {
@@ -78,19 +79,22 @@ function build_item_where(array $filters, string $alias = 'i'): array
 
     if ($filters['search'] !== '') {
         $conditions[] = "(
-            {$alias}.name LIKE :search
-            OR {$alias}.sku LIKE :search
-            OR COALESCE({$alias}.category, '') LIKE :search
+            {$alias}.name LIKE :search_name
+            OR {$alias}.sku LIKE :search_sku
+            OR COALESCE({$alias}.category, '') LIKE :search_category
             OR EXISTS (
                 SELECT 1
                 FROM item_storage_balances item_balances
                 INNER JOIN storages matched_storage ON matched_storage.id = item_balances.storage_id
                 WHERE item_balances.item_id = {$alias}.id
                   AND item_balances.quantity > 0
-                  AND matched_storage.name LIKE :search
+                  AND matched_storage.name LIKE :search_storage
             )
         )";
-        $params['search'] = '%' . $filters['search'] . '%';
+        $params['search_name'] = '%' . $filters['search'] . '%';
+        $params['search_sku'] = '%' . $filters['search'] . '%';
+        $params['search_category'] = '%' . $filters['search'] . '%';
+        $params['search_storage'] = '%' . $filters['search'] . '%';
     }
 
     if ($filters['storage_id']) {
