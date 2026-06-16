@@ -21,7 +21,7 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
 
                 <div>
                     <span class="pill <?= (int) $storage['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                        <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                        <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Deleted' ?>
                     </span>
                     <h4><?= e($storageTypeLabel) ?></h4>
                     <p><?= e($storage['notes'] ?: 'No notes for this location yet.') ?></p>
@@ -174,7 +174,7 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                         <td data-label="Stock Value"><?= format_money(stock_value($item['quantity'], $item['cost_per_unit'])) ?></td>
                         <td data-label="Status">
                             <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                                <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                                <?= (int) $item['is_active'] === 1 ? 'Active' : 'Deleted' ?>
                             </span>
                         </td>
                         <td data-label="Last Activity"><?= $item['last_activity_at'] ? e(format_datetime_display($item['last_activity_at'])) : 'Never' ?></td>

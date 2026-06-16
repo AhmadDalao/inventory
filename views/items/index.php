@@ -17,14 +17,14 @@
             <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Name, SKU, category, storage">
         </label>
 
-        <label class="field">
-            <span>Status</span>
-            <select name="status">
-                <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
-                <option value="archived" <?= selected('archived', $filters['status']) ?>>Archived</option>
-                <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
-            </select>
-        </label>
+            <label class="field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
+                    <option value="archived" <?= selected('archived', $filters['status']) ?>>Deleted</option>
+                    <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
+                </select>
+            </label>
 
         <label class="field">
             <span>Location</span>
@@ -46,7 +46,7 @@
 
     <div class="chip-row">
         <span class="stat-chip">Active: <?= number_format($counts['active']) ?></span>
-        <span class="stat-chip">Archived: <?= number_format($counts['archived']) ?></span>
+        <span class="stat-chip">Deleted: <?= number_format($counts['archived']) ?></span>
     </div>
 </section>
 
@@ -144,7 +144,7 @@
                     <td data-label="Reorder"><?= format_quantity($item['reorder_level']) ?> <?= e($item['unit']) ?></td>
                     <td data-label="Status">
                         <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                            <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                            <?= (int) $item['is_active'] === 1 ? 'Active' : 'Deleted' ?>
                         </span>
                     </td>
                     <td data-label="Last Movement"><?= $item['last_movement_at'] ? e(date('M j, Y g:i A', strtotime($item['last_movement_at']))) : 'Never' ?></td>
@@ -154,8 +154,8 @@
                             <a class="text-link" href="<?= e(url('/items/' . $item['id'] . '/edit')) ?>">Edit</a>
                             <form method="post" action="<?= e(url('/items/' . $item['id'] . '/status')) ?>">
                                 <?= csrf_field() ?>
-                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Archive this item?' : 'Restore this item?' ?>">
-                                    <?= (int) $item['is_active'] === 1 ? 'Archive' : 'Restore' ?>
+                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Delete this item? You can recover it later.' : 'Recover this item?' ?>">
+                                    <?= (int) $item['is_active'] === 1 ? 'Delete' : 'Recover' ?>
                                 </button>
                             </form>
                         </div>

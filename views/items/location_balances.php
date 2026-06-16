@@ -30,7 +30,7 @@
                     <td data-label="Location">
                         <strong><?= e($balance['name']) ?></strong>
                         <?php if ((int) $balance['is_active'] === 0): ?>
-                            <div class="tiny-copy">Archived location</div>
+                            <div class="tiny-copy">Deleted location</div>
                         <?php endif; ?>
                     </td>
                     <td data-label="Type"><?= e(storage_type_label($balance['storage_type'])) ?></td>

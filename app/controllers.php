@@ -162,7 +162,10 @@ function build_movement_where(array $filters, string $alias = 'm', string $itemA
 function all_items_for_select(): array
 {
     return Database::fetchAll(
-        'SELECT id, name, sku, unit, is_active FROM items ORDER BY is_active DESC, name ASC'
+        'SELECT id, name, sku, unit, is_active
+         FROM items
+         WHERE is_active = 1
+         ORDER BY name ASC'
     );
 }
 
@@ -242,24 +245,32 @@ function find_storage_or_abort(int $storageId): array
                 (
                     SELECT COALESCE(SUM(balances.quantity), 0)
                     FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
                     WHERE balances.storage_id = s.id
+                      AND i.is_active = 1
                 ) AS total_quantity,
                 (
-                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = "usage"
                 ) AS total_used,
                 (
-                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = "transfer"
                 ) AS transferred_out,
                 (
-                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.destination_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = "transfer"
                 ) AS transferred_in,
                 creator.name AS creator_name,
@@ -416,6 +427,7 @@ function storage_items(int $storageId): array
          FROM item_storage_balances balances
          INNER JOIN items i ON i.id = balances.item_id
          WHERE balances.storage_id = :storage_id
+           AND i.is_active = 1
          ORDER BY i.is_active DESC, balances.quantity DESC, i.name ASC',
         ['storage_id' => $storageId]
     );
@@ -872,7 +884,14 @@ function handle_dashboard_page(): void
         'units_total' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity), 0) FROM items WHERE is_active = 1'),
         'low_stock' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1 AND current_quantity <= reorder_level'),
         'inventory_value' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity * cost_per_unit), 0) FROM items WHERE is_active = 1'),
-        'used_last_30' => (float) Database::scalar("SELECT COALESCE(SUM(movement_quantity), 0) FROM inventory_movements WHERE movement_type = 'usage' AND used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"),
+        'used_last_30' => (float) Database::scalar(
+            "SELECT COALESCE(SUM(m.movement_quantity), 0)
+             FROM inventory_movements m
+             INNER JOIN items i ON i.id = m.item_id
+             WHERE i.is_active = 1
+               AND m.movement_type = 'usage'
+               AND m.used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+        ),
     ];
 
     $recentActivity = Database::fetchAll(
@@ -886,7 +905,7 @@ function handle_dashboard_page(): void
                 destination_storage.storage_type AS destination_storage_type,
                 u.name AS user_name
          FROM inventory_movements m
-         INNER JOIN items i ON i.id = m.item_id
+         INNER JOIN items i ON i.id = m.item_id AND i.is_active = 1
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
@@ -908,6 +927,7 @@ function handle_dashboard_page(): void
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
          WHERE m.movement_type = "usage"
+           AND i.is_active = 1
            AND m.used_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
          GROUP BY i.id, i.name, i.unit
          ORDER BY total_used DESC
@@ -1067,7 +1087,7 @@ function handle_items_create_submit(): void
     }
 
     if ($payload['current_quantity'] > 0 && $storageId === null) {
-        $errors[] = 'Pick a default location when you create stock.';
+        $errors[] = 'Create an active location first, or set initial quantity to 0.';
     }
 
     $existingSku = Database::fetch('SELECT id FROM items WHERE sku = :sku LIMIT 1', ['sku' => $payload['sku']]);
@@ -1395,7 +1415,7 @@ function handle_items_status_submit(array $params): void
         ]
     );
 
-    flash('success', $nextStatus ? 'Item restored.' : 'Item archived.');
+    flash('success', $nextStatus ? 'Item recovered.' : 'Item deleted.');
     redirect('/items');
 }
 
@@ -1411,12 +1431,12 @@ function handle_item_movement_submit(array $params): void
     if (!(int) $item['is_active']) {
         if (request_wants_json()) {
             json_response([
-                'message' => 'Archived items do not get new movement logs.',
-                'errors' => ['Archived items do not get new movement logs.'],
+                'message' => 'Deleted items do not get new movement logs.',
+                'errors' => ['Deleted items do not get new movement logs.'],
             ], 422);
         }
 
-        flash('danger', 'Archived items do not get new movement logs.');
+        flash('danger', 'Deleted items do not get new movement logs.');
         redirect('/items/' . $item['id']);
     }
 
@@ -1545,7 +1565,7 @@ function handle_movements_index(): void
                 destination_storage.storage_type AS destination_storage_type,
                 u.name AS user_name
          FROM inventory_movements m
-         INNER JOIN items i ON i.id = m.item_id
+         INNER JOIN items i ON i.id = m.item_id AND i.is_active = 1
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
@@ -1608,7 +1628,7 @@ function handle_export_items(): void
             format_quantity($item['current_quantity']),
             format_quantity($item['reorder_level']),
             format_money($item['cost_per_unit']),
-            (int) $item['is_active'] === 1 ? 'Active' : 'Archived',
+            (int) $item['is_active'] === 1 ? 'Active' : 'Deleted',
             $item['last_movement_at'] ?: '',
             $item['notes'] ?: '',
         ];
@@ -1650,7 +1670,7 @@ function handle_export_movements(): void
                 destination_storage.storage_type AS destination_storage_type,
                 u.name AS user_name
          FROM inventory_movements m
-         INNER JOIN items i ON i.id = m.item_id
+         INNER JOIN items i ON i.id = m.item_id AND i.is_active = 1
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
@@ -1713,24 +1733,32 @@ function handle_export_storages(): void
                 (
                     SELECT COALESCE(SUM(balances.quantity), 0)
                     FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
                     WHERE balances.storage_id = s.id
+                      AND i.is_active = 1
                 ) AS total_quantity,
                 (
                     SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = 'usage'
                 ) AS total_used,
                 (
                     SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = 'transfer'
                 ) AS transferred_out,
                 (
                     SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.destination_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = 'transfer'
                 ) AS transferred_in
          FROM storages s
@@ -1748,7 +1776,7 @@ function handle_export_storages(): void
             format_quantity($storage['total_used']),
             format_quantity($storage['transferred_in']),
             format_quantity($storage['transferred_out']),
-            (int) $storage['is_active'] === 1 ? 'Active' : 'Archived',
+            (int) $storage['is_active'] === 1 ? 'Active' : 'Deleted',
             $storage['notes'] ?: '',
             $storage['updated_at'] ?: '',
         ];
@@ -1821,24 +1849,32 @@ function handle_storages_index(): void
                 (
                     SELECT COALESCE(SUM(balances.quantity), 0)
                     FROM item_storage_balances balances
+                    INNER JOIN items i ON i.id = balances.item_id
                     WHERE balances.storage_id = s.id
+                      AND i.is_active = 1
                 ) AS total_quantity,
                 (
                     SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = 'usage'
                 ) AS total_used,
                 (
                     SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.source_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = 'transfer'
                 ) AS transferred_out,
                 (
                     SELECT COALESCE(SUM(movements.movement_quantity), 0)
                     FROM inventory_movements movements
+                    INNER JOIN items i ON i.id = movements.item_id
                     WHERE movements.destination_storage_id = s.id
+                      AND i.is_active = 1
                       AND movements.movement_type = 'transfer'
                 ) AS transferred_in
          FROM storages s
@@ -2054,7 +2090,7 @@ function handle_storages_status_submit(array $params): void
     $nextStatus = (int) $storage['is_active'] === 1 ? 0 : 1;
 
     if ($nextStatus === 0 && (int) $storage['active_item_count'] > 0) {
-        flash('danger', 'Move or archive the active items in this storage before archiving it.');
+        flash('danger', 'Move or delete the active items in this location before deleting it.');
         redirect('/storages');
     }
 
@@ -2067,7 +2103,7 @@ function handle_storages_status_submit(array $params): void
         ]
     );
 
-    flash('success', $nextStatus ? 'Storage restored.' : 'Storage archived.');
+    flash('success', $nextStatus ? 'Storage recovered.' : 'Storage deleted.');
     redirect('/storages');
 }
 

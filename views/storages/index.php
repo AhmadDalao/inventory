@@ -26,14 +26,14 @@
             </select>
         </label>
 
-        <label class="field">
-            <span>Status</span>
-            <select name="status">
-                <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
-                <option value="archived" <?= selected('archived', $filters['status']) ?>>Archived</option>
-                <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
-            </select>
-        </label>
+            <label class="field">
+                <span>Status</span>
+                <select name="status">
+                    <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
+                    <option value="archived" <?= selected('archived', $filters['status']) ?>>Deleted</option>
+                    <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
+                </select>
+            </label>
 
         <div class="filter-actions">
             <button class="primary-button" type="submit">Filter</button>
@@ -43,7 +43,7 @@
 
     <div class="chip-row">
         <span class="stat-chip">Active: <?= number_format($counts['active']) ?></span>
-        <span class="stat-chip">Archived: <?= number_format($counts['archived']) ?></span>
+        <span class="stat-chip">Deleted: <?= number_format($counts['archived']) ?></span>
     </div>
 </section>
 
@@ -117,7 +117,7 @@
                     </td>
                     <td data-label="Status">
                         <span class="pill <?= (int) $storage['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                            <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                            <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Deleted' ?>
                         </span>
                     </td>
                     <td data-label="Notes"><?= e($storage['notes'] ? truncate_text($storage['notes'], 72) : '-') ?></td>
@@ -128,8 +128,8 @@
                             <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>
                             <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>">
                                 <?= csrf_field() ?>
-                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Archive this storage?' : 'Restore this storage?' ?>">
-                                    <?= (int) $storage['is_active'] === 1 ? 'Archive' : 'Restore' ?>
+                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Delete this location? You can recover it later.' : 'Recover this location?' ?>">
+                                    <?= (int) $storage['is_active'] === 1 ? 'Delete' : 'Recover' ?>
                                 </button>
                             </form>
                         </div>

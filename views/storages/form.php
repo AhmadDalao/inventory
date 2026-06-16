@@ -43,7 +43,7 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
                 <span class="stat-chip">Active items: <?= number_format((int) ($storage['active_item_count'] ?? 0)) ?></span>
                 <span class="stat-chip">Remaining: <?= format_quantity((float) ($storage['total_quantity'] ?? 0)) ?></span>
                 <span class="stat-chip">Used: <?= format_quantity((float) ($storage['total_used'] ?? 0)) ?></span>
-                <span class="stat-chip">Status: <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Archived' ?></span>
+                <span class="stat-chip">Status: <?= (int) $storage['is_active'] === 1 ? 'Active' : 'Deleted' ?></span>
             </div>
             <a class="text-link" href="<?= e(url('/storages/' . $storage['id'])) ?>">Open location items</a>
         <?php endif; ?>

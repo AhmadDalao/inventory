@@ -43,7 +43,7 @@ $balanceMapJson = json_encode(item_balance_map($balances), JSON_UNESCAPED_SLASHE
 
                 <div>
                     <span class="pill <?= (int) $item['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                        <?= (int) $item['is_active'] === 1 ? 'Active' : 'Archived' ?>
+                        <?= (int) $item['is_active'] === 1 ? 'Active' : 'Deleted' ?>
                     </span>
                     <h4><?= e($item['sku']) ?></h4>
                     <p><?= e($item['category'] ?: 'No category set') ?></p>
@@ -115,8 +115,8 @@ $balanceMapJson = json_encode(item_balance_map($balances), JSON_UNESCAPED_SLASHE
 
         <form method="post" action="<?= e(url('/items/' . $item['id'] . '/status')) ?>">
             <?= csrf_field() ?>
-            <button class="ghost-button" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Archive this item?' : 'Restore this item?' ?>">
-                <?= (int) $item['is_active'] === 1 ? 'Archive Item' : 'Restore Item' ?>
+            <button class="ghost-button" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Delete this item? You can recover it later.' : 'Recover this item?' ?>">
+                <?= (int) $item['is_active'] === 1 ? 'Delete Item' : 'Recover Item' ?>
             </button>
         </form>
     </article>
@@ -130,7 +130,7 @@ $balanceMapJson = json_encode(item_balance_map($balances), JSON_UNESCAPED_SLASHE
         </div>
 
         <?php if ((int) $item['is_active'] === 0): ?>
-            <p class="empty-state">This item is archived. Restore it if you want new movement entries.</p>
+            <p class="empty-state">This item is deleted. Recover it if you want new movement entries.</p>
         <?php else: ?>
             <div class="movement-feedback" data-movement-feedback hidden></div>
 

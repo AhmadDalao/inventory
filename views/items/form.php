@@ -45,11 +45,15 @@ $imageUrl = item_image_url($item['image_path'] ?? null);
                     <option value="">No default location</option>
                     <?php foreach ($storages as $storage): ?>
                         <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($item['storage_id'] ?? '')) ?>>
-                            <?= e(storage_type_label($storage['storage_type'])) ?> · <?= e($storage['name']) ?><?= (int) $storage['is_active'] === 0 ? ' (Archived)' : '' ?>
+                            <?= e(storage_type_label($storage['storage_type'])) ?> · <?= e($storage['name']) ?><?= (int) $storage['is_active'] === 0 ? ' (Deleted)' : '' ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
                 <small><?= $isEdit ? 'This is the default pick location. It does not move stock by itself, and many items can share the same warehouse or storage.' : 'If you create initial stock, this is where that stock lands first. Many items can share the same warehouse or storage.' ?></small>
+                <?php if ($storages === []): ?>
+                    <small>No active locations exist yet. Create one first if you want to add stock now.</small>
+                    <a class="text-link" href="<?= e(url('/storages/create')) ?>">Create Location</a>
+                <?php endif; ?>
             </label>
 
             <label class="field">
