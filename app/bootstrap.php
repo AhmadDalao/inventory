@@ -4,6 +4,12 @@ declare(strict_types=1);
 require __DIR__ . '/Env.php';
 require __DIR__ . '/helpers.php';
 
+$composerAutoload = base_path('vendor/autoload.php');
+
+if (is_file($composerAutoload)) {
+    require_once $composerAutoload;
+}
+
 Env::load(base_path('.env'));
 
 $appConfig = require base_path('config/app.php');

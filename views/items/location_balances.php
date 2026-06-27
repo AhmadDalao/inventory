@@ -17,12 +17,13 @@
                 <th>Transferred In</th>
                 <th>Transferred Out</th>
                 <th>Stock Value</th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
             <?php if ($balances === []): ?>
                 <tr>
-                    <td colspan="7" class="empty-cell">No stock is assigned to any location yet.</td>
+                    <td colspan="8" class="empty-cell">No stock is assigned to any location yet.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($balances as $balance): ?>
@@ -39,6 +40,23 @@
                     <td data-label="Transferred In"><?= format_quantity($balance['transferred_in']) ?> <?= e($item['unit']) ?></td>
                     <td data-label="Transferred Out"><?= format_quantity($balance['transferred_out']) ?> <?= e($item['unit']) ?></td>
                     <td data-label="Stock Value"><?= format_money(stock_value($balance['quantity'], $item['cost_per_unit'])) ?></td>
+                    <td data-label="Actions">
+                        <?php if ((int) $item['is_active'] === 1 && (int) $balance['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
+                            <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $balance['storage_id'] . '/remove')) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="return_to" value="<?= e('/items/' . $item['id']) ?>">
+                                <button
+                                    class="text-button danger-link"
+                                    type="submit"
+                                    data-confirm="Remove <?= e($item['name']) ?> from <?= e($balance['name']) ?> only? Other storages keep their quantities."
+                                >
+                                    Remove From Storage
+                                </button>
+                            </form>
+                        <?php else: ?>
+                            <span class="tiny-copy">-</span>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

@@ -2,8 +2,8 @@
 
 <section class="page-head">
     <div class="page-head-copy">
-        <p class="eyebrow">Audit Trail</p>
-        <h3 class="page-head-title"><?= ui_icon('movements') ?><span>Movement Log</span></h3>
+        <p class="eyebrow"><?= e(site_setting('page.movements_eyebrow', 'Audit Trail')) ?></p>
+        <h3 class="page-head-title"><?= ui_icon('movements') ?><span><?= e(site_setting('page.movements', 'Movement Log')) ?></span></h3>
     </div>
 </section>
 
@@ -65,7 +65,7 @@
 <section class="panel data-table-shell" data-table-shell data-empty-text="No movement records match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong><?= ui_icon('movements') ?><span>All Movements</span></strong>
+            <strong><?= ui_icon('movements') ?><span><?= e(site_setting('table.movements', 'All Movements')) ?></span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($movements)) ?></span>
         </div>
         <p class="table-shell-copy">Search the loaded activity, page it cleanly, and export the full filtered log.</p>
@@ -90,7 +90,9 @@
             </label>
         </div>
 
-        <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+        <?php if (Auth::hasPermission('movements.export')): ?>
+            <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+        <?php endif; ?>
     </div>
 
     <div class="table-wrap">

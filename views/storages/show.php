@@ -9,7 +9,12 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
     </div>
     <div class="page-actions">
         <a class="ghost-button" href="<?= e(url('/storages')) ?>"><?= ui_icon('back') ?><span>All Locations</span></a>
-        <a class="primary-button" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit Location</span></a>
+        <?php if (Auth::hasPermission('storages.copy') && Auth::hasPermission('storages.create')): ?>
+            <a class="ghost-button" href="<?= e(url('/storages/create?copy=' . $storage['id'])) ?>"><?= ui_icon('copy_action') ?><span>Copy Location</span></a>
+        <?php endif; ?>
+        <?php if (Auth::hasPermission('storages.edit')): ?>
+            <a class="primary-button" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit Location</span></a>
+        <?php endif; ?>
     </div>
 </section>
 
@@ -25,6 +30,9 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                     </span>
                     <h4><?= e($storageTypeLabel) ?></h4>
                     <p><?= e($storage['notes'] ?: 'No notes for this location yet.') ?></p>
+                    <?php if (!empty($storage['owner_name'])): ?>
+                        <p class="tiny-copy">Owned by <?= e((string) $storage['owner_name']) ?></p>
+                    <?php endif; ?>
                     <p class="tiny-copy">Updated <?= e(format_datetime_display($storage['updated_at'])) ?></p>
                 </div>
             </div>
@@ -42,8 +50,8 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                 <strong><?= number_format($metrics['contained_items']) ?></strong>
             </article>
             <article class="metric-card">
-                <span>Active Items</span>
-                <strong><?= number_format($metrics['active_items']) ?></strong>
+                <span>Items With Stock</span>
+                <strong><?= number_format($metrics['stocked_items']) ?></strong>
             </article>
             <article class="metric-card">
                 <span>Low Stock Items</span>
@@ -77,6 +85,10 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                 <dd>This <?= strtolower($storageTypeLabel) ?> can hold many different items. It currently has <?= number_format($metrics['contained_items']) ?> item<?= $metrics['contained_items'] === 1 ? '' : 's' ?> assigned to it.</dd>
             </div>
             <div>
+                <dt>Owner Admin</dt>
+                <dd><?= !empty($storage['owner_name']) ? e((string) $storage['owner_name']) . (!empty($storage['owner_email']) ? ' · ' . e((string) $storage['owner_email']) : '') : 'No owner assigned' ?></dd>
+            </div>
+            <div>
                 <dt>Notes</dt>
                 <dd><?= nl2br(e($storage['notes'] ?: 'No notes.')) ?></dd>
             </div>
@@ -104,15 +116,44 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                     <span>Track everything moved in, out, and used here.</span>
                 </div>
             </a>
-            <a class="mini-row" href="<?= e(url('/items/create')) ?>">
-                <div>
-                    <strong>Add Another Item</strong>
-                    <span>Create a new item and land its initial stock in this location.</span>
-                </div>
-            </a>
+            <?php if (Auth::hasPermission('items.create')): ?>
+                <a class="mini-row" href="<?= e(url('/items/create')) ?>">
+                    <div>
+                        <strong>Add Another Item</strong>
+                        <span>Create a new item and land its initial stock in this location.</span>
+                    </div>
+                </a>
+            <?php endif; ?>
         </div>
     </article>
 </section>
+
+<?php if (!empty($purchaseHistory)): ?>
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <p class="eyebrow">Supplier Trace</p>
+                <h3>Purchases Into <?= e($storage['name']) ?></h3>
+            </div>
+            <a class="text-link" href="<?= e(url('/purchases?storage_id=' . $storage['id'])) ?>">Open purchases</a>
+        </div>
+
+        <div class="mini-list">
+            <?php foreach ($purchaseHistory as $purchase): ?>
+                <a class="mini-row" href="<?= e(url('/purchases/' . $purchase['id'])) ?>">
+                    <div>
+                        <strong><?= e($purchase['purchase_number']) ?></strong>
+                        <span><?= e($purchase['supplier_name']) ?> · <?= e(purchase_status_label((string) $purchase['status'])) ?></span>
+                    </div>
+                    <div class="align-right">
+                        <strong><?= e($purchase['currency']) ?> <?= number_format((float) $purchase['total_value'], 2) ?></strong>
+                        <span><?= format_quantity($purchase['total_quantity']) ?> units received</span>
+                    </div>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+<?php endif; ?>
 
 <section class="panel">
     <div class="panel-head">
@@ -131,13 +172,13 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                 <tr>
                     <th>Item</th>
                     <th>SKU</th>
-                    <th>Category</th>
                     <th>Remaining</th>
                     <th>Used</th>
                     <th>Transferred</th>
                     <th>Stock Value</th>
                     <th>Status</th>
                     <th>Last Activity</th>
+                    <th></th>
                 </tr>
                 </thead>
                 <tbody>
@@ -161,14 +202,11 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
 
                                 <div>
                                     <strong><?= e($item['name']) ?></strong>
-                                    <?php if (!empty($item['category'])): ?>
-                                        <div class="tiny-copy"><?= e($item['category']) ?></div>
-                                    <?php endif; ?>
+                                    <div class="tiny-copy"><?= e($item['unit']) ?></div>
                                 </div>
                             </a>
                         </td>
                         <td data-label="SKU"><?= e($item['sku']) ?></td>
-                        <td data-label="Category"><?= e($item['category'] ?: 'Unsorted') ?></td>
                         <td class="<?= $isLow ? 'danger-text' : '' ?>" data-label="Remaining"><?= format_quantity($item['quantity']) ?> <?= e($item['unit']) ?></td>
                         <td data-label="Used"><?= format_quantity($item['total_used']) ?> <?= e($item['unit']) ?></td>
                         <td data-label="Transferred">
@@ -182,6 +220,23 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                             </span>
                         </td>
                         <td data-label="Last Activity"><?= $item['last_activity_at'] ? e(format_datetime_display($item['last_activity_at'])) : 'Never' ?></td>
+                        <td data-label="Actions">
+                            <?php if ((int) $item['is_active'] === 1 && (int) $storage['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
+                                <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $storage['id'] . '/remove')) ?>">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="return_to" value="<?= e('/storages/' . $storage['id']) ?>">
+                                    <button
+                                        class="text-button danger-link"
+                                        type="submit"
+                                        data-confirm="Remove <?= e($item['name']) ?> from <?= e($storage['name']) ?> only? Other storages keep their quantities."
+                                    >
+                                        Remove
+                                    </button>
+                                </form>
+                            <?php else: ?>
+                                <span class="tiny-copy">-</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

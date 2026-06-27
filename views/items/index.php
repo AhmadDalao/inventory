@@ -1,5 +1,6 @@
 <?php
 $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null));
+$currentListPath = '/items' . ($exportQuery ? '?' . $exportQuery : '');
 $itemFilterUrl = static function (string $status) use ($filters): string {
     $query = $filters;
     $query['status'] = $status;
@@ -10,11 +11,13 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
 
 <section class="page-head">
     <div class="page-head-copy">
-        <p class="eyebrow">Catalog</p>
-        <h3 class="page-head-title"><?= ui_icon('items') ?><span>Items</span></h3>
+        <p class="eyebrow"><?= e(site_setting('page.items_eyebrow', 'Catalog')) ?></p>
+        <h3 class="page-head-title"><?= ui_icon('items') ?><span><?= e(site_setting('page.items', 'Items')) ?></span></h3>
     </div>
     <div class="page-actions">
-        <a class="primary-button" href="<?= e(url('/items/create')) ?>"><?= ui_icon('plus') ?><span>Create Item</span></a>
+        <?php if (Auth::hasPermission('items.create')): ?>
+            <a class="primary-button" href="<?= e(url('/items/create')) ?>"><?= ui_icon('plus') ?><span>Create Item</span></a>
+        <?php endif; ?>
     </div>
 </section>
 
@@ -23,7 +26,7 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
     <form class="filter-grid" method="get" action="<?= e(url('/items')) ?>" data-live-filter-form>
         <label class="field">
             <span>Search</span>
-            <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Name, SKU, category, storage">
+            <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Name, SKU, barcode, or storage">
         </label>
 
             <label class="field">
@@ -57,13 +60,17 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
         <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('active')) ?>" data-live-filter-link>Active: <?= number_format($counts['active']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('archived')) ?>" data-live-filter-link>Deleted: <?= number_format($counts['archived']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($itemFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
+        <?php if (!empty($selectedStorage)): ?>
+            <span class="stat-chip"><?= e(storage_type_label($selectedStorage['storage_type'])) ?>: <?= e($selectedStorage['name']) ?></span>
+            <span class="stat-chip">Remove here = this location only</span>
+        <?php endif; ?>
     </div>
 </section>
 
 <section class="panel data-table-shell" data-table-shell data-empty-text="No items match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong><?= ui_icon('items') ?><span>All Items</span></strong>
+            <strong><?= ui_icon('items') ?><span><?= e(site_setting('table.items', 'All Items')) ?></span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($items)) ?></span>
         </div>
         <p class="table-shell-copy">Search the current result set, page through it, and export the filtered catalog.</p>
@@ -84,7 +91,7 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
 
             <label class="table-search">
                 <span class="sr-only">Search items</span>
-                <input type="search" data-table-search placeholder="Search items, SKU, category, unit, or location">
+                <input type="search" data-table-search placeholder="Search items, SKU, barcode, category, unit, or location">
             </label>
         </div>
 
@@ -97,7 +104,7 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
             <tr>
                 <th>Item</th>
                 <th>SKU</th>
-                <th>Category</th>
+                <th>Barcode</th>
                 <th>Locations</th>
                 <th>Current</th>
                 <th>Reorder</th>
@@ -132,19 +139,23 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
 
                             <div>
                                 <strong><?= e($item['name']) ?></strong>
-                                <?php if (!empty($item['notes'])): ?>
-                                    <div class="tiny-copy"><?= e(truncate_text($item['notes'], 56)) ?></div>
-                                <?php endif; ?>
+                                <div class="tiny-copy"><?= e($item['unit']) ?></div>
                             </div>
                         </a>
                     </td>
                     <td data-label="SKU"><?= e($item['sku']) ?></td>
-                    <td data-label="Category"><?= e($item['category'] ?: 'Unsorted') ?></td>
+                    <td data-label="Barcode">
+                        <?php if (normalize_item_barcode($item['barcode'] ?? '') !== ''): ?>
+                            <code><?= e((string) $item['barcode']) ?></code>
+                        <?php else: ?>
+                            <span class="tiny-copy">Uses SKU label</span>
+                        <?php endif; ?>
+                    </td>
                     <td data-label="Locations">
                         <?php if ((int) ($item['location_count'] ?? 0) === 0): ?>
-                            <span class="tiny-copy">No stock locations</span>
+                            <span class="tiny-copy">No assigned locations</span>
                         <?php else: ?>
-                            <strong><?= number_format((int) $item['location_count']) ?> location<?= (int) $item['location_count'] === 1 ? '' : 's' ?></strong>
+                            <strong><?= number_format((int) $item['location_count']) ?> assigned location<?= (int) ($item['location_count'] ?? 0) === 1 ? '' : 's' ?></strong>
                             <div class="tiny-copy"><?= e(truncate_text($item['storage_summary'] ?: '', 52)) ?></div>
                         <?php endif; ?>
                     </td>
@@ -161,13 +172,29 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
                     <td data-label="Actions">
                         <div class="inline-actions">
                             <a class="text-link" href="<?= e(url('/items/' . $item['id'])) ?>">Open</a>
-                            <a class="text-link" href="<?= e(url('/items/' . $item['id'] . '/edit')) ?>">Edit</a>
-                            <form method="post" action="<?= e(url('/items/' . $item['id'] . '/status')) ?>">
-                                <?= csrf_field() ?>
-                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Delete this item? You can recover it later.' : 'Recover this item?' ?>">
-                                    <?= (int) $item['is_active'] === 1 ? 'Delete' : 'Recover' ?>
-                                </button>
-                            </form>
+                            <?php if (Auth::hasPermission('items.edit')): ?>
+                                <a class="text-link" href="<?= e(url('/items/' . $item['id'] . '/edit')) ?>">Edit</a>
+                            <?php endif; ?>
+                            <?php if (Auth::hasPermission('items.copy') && Auth::hasPermission('items.create')): ?>
+                                <a class="text-link" href="<?= e(url('/items/create?copy=' . $item['id'])) ?>">Copy</a>
+                            <?php endif; ?>
+                            <?php if (!empty($selectedStorage) && (int) $item['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
+                                <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $selectedStorage['id'] . '/remove')) ?>" data-live-action-form>
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="return_to" value="<?= e($currentListPath) ?>">
+                                    <button class="text-button danger-link" type="submit" data-confirm="Remove <?= e($item['name']) ?> from <?= e($selectedStorage['name']) ?> only? Other storages keep their quantities.">
+                                        Remove Here
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                            <?php if (Auth::hasPermission('items.archive')): ?>
+                                <form method="post" action="<?= e(url('/items/' . $item['id'] . '/status')) ?>" data-live-action-form>
+                                    <?= csrf_field() ?>
+                                    <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Archive this shared item? This affects every storage that still has it.' : 'Recover this item?' ?>">
+                                        <?= (int) $item['is_active'] === 1 ? 'Archive' : 'Recover' ?>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </td>
                 </tr>

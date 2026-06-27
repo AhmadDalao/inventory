@@ -1,5 +1,8 @@
 .DS_Store
 .env
+/vendor/
+/tmp/
+/output/
 /storage/*
 !/storage/logs/
 /storage/logs/*

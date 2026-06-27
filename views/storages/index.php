@@ -10,11 +10,13 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
 
 <section class="page-head">
     <div class="page-head-copy">
-        <p class="eyebrow">Locations</p>
-        <h3 class="page-head-title"><?= ui_icon('storages') ?><span>Storages</span></h3>
+        <p class="eyebrow"><?= e(site_setting('page.storages_eyebrow', 'Locations')) ?></p>
+        <h3 class="page-head-title"><?= ui_icon('storages') ?><span><?= e(site_setting('page.storages', 'Storages')) ?></span></h3>
     </div>
     <div class="page-actions">
-        <a class="primary-button" href="<?= e(url('/storages/create')) ?>"><?= ui_icon('plus') ?><span>Create Storage</span></a>
+        <?php if (Auth::hasPermission('storages.create')): ?>
+            <a class="primary-button" href="<?= e(url('/storages/create')) ?>"><?= ui_icon('plus') ?><span>Create Storage</span></a>
+        <?php endif; ?>
     </div>
 </section>
 
@@ -60,7 +62,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
 <section class="panel data-table-shell" data-table-shell data-empty-text="No storages match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
-            <strong><?= ui_icon('storages') ?><span>All Locations</span></strong>
+            <strong><?= ui_icon('storages') ?><span><?= e(site_setting('table.storages', 'All Locations')) ?></span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($storages)) ?></span>
         </div>
         <p class="table-shell-copy">Quick search, export, and scan remaining stock by warehouse or storage.</p>
@@ -94,7 +96,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             <tr>
                 <th>Name</th>
                 <th>Type</th>
-                <th>Active Items</th>
+                <th>Assigned Items</th>
                 <th>Remaining</th>
                 <th>Value</th>
                 <th>Used</th>
@@ -119,7 +121,10 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                         </a>
                     </td>
                     <td data-label="Type"><?= e(storage_type_label($storage['storage_type'])) ?></td>
-                    <td data-label="Active Items"><?= number_format((int) $storage['active_item_count']) ?></td>
+                    <td data-label="Assigned Items">
+                        <?= number_format((int) $storage['assigned_item_count']) ?>
+                        <div class="tiny-copy">With stock <?= number_format((int) $storage['stocked_item_count']) ?></div>
+                    </td>
                     <td data-label="Remaining"><?= format_quantity($storage['total_quantity']) ?></td>
                     <td data-label="Value"><?= format_money($storage['total_stock_value']) ?></td>
                     <td data-label="Used"><?= format_quantity($storage['total_used']) ?></td>
@@ -136,14 +141,23 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                     <td data-label="Actions">
                         <div class="inline-actions">
                             <a class="text-link" href="<?= e(url('/storages/' . $storage['id'])) ?>">Open</a>
-                            <a class="text-link" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">Items</a>
-                            <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>
-                            <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>">
-                                <?= csrf_field() ?>
-                                <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Delete this location? You can recover it later.' : 'Recover this location?' ?>">
-                                    <?= (int) $storage['is_active'] === 1 ? 'Delete' : 'Recover' ?>
-                                </button>
-                            </form>
+                            <?php if (Auth::hasPermission('items.view')): ?>
+                                <a class="text-link" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">Items</a>
+                            <?php endif; ?>
+                            <?php if (Auth::hasPermission('storages.edit')): ?>
+                                <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>
+                            <?php endif; ?>
+                            <?php if (Auth::hasPermission('storages.copy') && Auth::hasPermission('storages.create')): ?>
+                                <a class="text-link" href="<?= e(url('/storages/create?copy=' . $storage['id'])) ?>">Copy</a>
+                            <?php endif; ?>
+                            <?php if (Auth::hasPermission('storages.archive')): ?>
+                                <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>" data-live-action-form>
+                                    <?= csrf_field() ?>
+                                    <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Delete this location? You can recover it later.' : 'Recover this location?' ?>">
+                                        <?= (int) $storage['is_active'] === 1 ? 'Delete' : 'Recover' ?>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </td>
                 </tr>

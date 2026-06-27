@@ -18,6 +18,7 @@ return [
         'env' => Env::get('APP_ENV', 'production'),
         'debug' => filter_var(Env::get('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN),
         'timezone' => Env::get('APP_TIMEZONE', 'UTC'),
+        'url' => $appUrl,
         'base_path' => $basePath,
     ],
     'db' => [
@@ -27,5 +28,13 @@ return [
         'username' => Env::get('DB_USERNAME', ''),
         'password' => Env::get('DB_PASSWORD', ''),
         'charset' => Env::get('DB_CHARSET', 'utf8mb4'),
+    ],
+    'ocr' => [
+        'openai_api_key' => Env::get('OPENAI_API_KEY', ''),
+        'openai_model' => Env::get('OPENAI_OCR_MODEL', 'gpt-5.5'),
+        'openai_enabled' => filter_var(
+            Env::get('OPENAI_OCR_ENABLED', Env::get('OPENAI_API_KEY', '') !== '' ? 'true' : 'false'),
+            FILTER_VALIDATE_BOOLEAN
+        ),
     ],
 ];

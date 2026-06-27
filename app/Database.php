@@ -36,8 +36,7 @@ final class Database
 
     public static function fetch(string $sql, array $params = []): ?array
     {
-        $statement = self::connection()->prepare($sql);
-        $statement->execute($params);
+        $statement = self::prepareAndExecute($sql, $params);
         $result = $statement->fetch();
 
         return $result === false ? null : $result;
@@ -45,29 +44,61 @@ final class Database
 
     public static function fetchAll(string $sql, array $params = []): array
     {
-        $statement = self::connection()->prepare($sql);
-        $statement->execute($params);
+        $statement = self::prepareAndExecute($sql, $params);
 
         return $statement->fetchAll();
     }
 
     public static function scalar(string $sql, array $params = [])
     {
-        $statement = self::connection()->prepare($sql);
-        $statement->execute($params);
+        $statement = self::prepareAndExecute($sql, $params);
 
         return $statement->fetchColumn();
     }
 
     public static function execute(string $sql, array $params = []): bool
     {
-        $statement = self::connection()->prepare($sql);
+        self::prepareAndExecute($sql, $params);
 
-        return $statement->execute($params);
+        return true;
     }
 
     public static function lastInsertId(): int
     {
         return (int) self::connection()->lastInsertId();
+    }
+
+    private static function prepareAndExecute(string $sql, array $params = [], int $attempt = 0): PDOStatement
+    {
+        try {
+            $statement = self::connection()->prepare($sql);
+            $statement->execute($params);
+
+            return $statement;
+        } catch (PDOException $exception) {
+            $connection = self::$connection;
+            $canRetry = $attempt === 0
+                && $connection instanceof PDO
+                && !$connection->inTransaction()
+                && self::isReconnectableException($exception);
+
+            if (!$canRetry) {
+                throw $exception;
+            }
+
+            self::$connection = null;
+
+            return self::prepareAndExecute($sql, $params, $attempt + 1);
+        }
+    }
+
+    private static function isReconnectableException(PDOException $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'server has gone away')
+            || str_contains($message, 'lost connection')
+            || str_contains($message, 'error while sending')
+            || str_contains($message, 'error writing data to the connection');
     }
 }
