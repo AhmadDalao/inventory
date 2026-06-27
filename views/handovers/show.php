@@ -28,6 +28,8 @@ $canApproveClose = Auth::hasPermission('handovers.approve')
     && (string) $handoverRecord['status'] === 'pending_approval'
     && $isSourceOwner;
 $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $currentUser) === null;
+$canOverrideHandoverStatus = Auth::hasPermission('handovers.status_override');
+$handoverStatusOptions = handover_status_options();
 $handoverRecoveryTargetStatus = Auth::hasPermission('handovers.status_override')
     ? handover_recovery_target_status($handoverRecord, $lines)
     : null;
@@ -477,6 +479,32 @@ foreach ($lines as $line) {
                     This handover is already closed.
                 <?php endif; ?>
             </p>
+        <?php endif; ?>
+
+        <?php if ($canOverrideHandoverStatus): ?>
+            <div class="copy-context-card">
+                <strong>Admin Status Override</strong>
+                <p>Change the workflow status directly. Stock-impact changes are still checked, so unsafe jumps will be blocked instead of corrupting inventory.</p>
+            </div>
+
+            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/status-override')) ?>" data-live-action-form>
+                <?= csrf_field() ?>
+                <label class="field">
+                    <span>New Status</span>
+                    <select name="target_status" required>
+                        <?php foreach ($handoverStatusOptions as $statusValue => $statusText): ?>
+                            <option value="<?= e($statusValue) ?>" <?= $statusValue === $handoverStatus ? 'selected' : '' ?>>
+                                <?= e($statusText) ?><?= $statusValue === $handoverStatus ? ' (current)' : '' ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Override Note Optional</span>
+                    <textarea name="status_notes" rows="3" placeholder="Optional note for why this status was changed"></textarea>
+                </label>
+                <button class="primary-button" type="submit" data-confirm="Change this handover status? Stock checks will run before saving.">Change Status</button>
+            </form>
         <?php endif; ?>
 
         <?php if ($canRecoverHandover): ?>

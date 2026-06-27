@@ -2602,6 +2602,22 @@ assert_true((string) $cancelHandoverCreated['status'] === 'awaiting_receipt', 'C
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($cancelHandoverSourceBefore - 4, 2), 'Cancelable handover should reserve source stock.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($cancelHandoverBufferBefore + 4, 2), 'Cancelable handover should move stock into buffer.');
 
+$cancelHandoverOwnerOverridePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $cancelHandoverId);
+assert_true(strpos($cancelHandoverOwnerOverridePage['body'], 'Admin Status Override') !== false, 'Owner should see handover status override controls.');
+$cancelHandoverOverride = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $cancelHandoverId . '/status-override', [
+    '_token' => extract_csrf($cancelHandoverOwnerOverridePage['body'], 'handover status override'),
+    'target_status' => 'delivered',
+    'status_notes' => $prefix . ' force delivered after manual handoff',
+]);
+assert_true($cancelHandoverOverride['status'] === 302, 'Handover status override did not redirect.');
+$cancelHandoverDelivered = find_handover_or_abort($cancelHandoverId);
+assert_true((string) $cancelHandoverDelivered['status'] === 'delivered', 'Handover status override should move awaiting receipt to delivered.');
+$cancelHandoverDeliveredLines = handover_lines($cancelHandoverId);
+assert_true(round((float) $cancelHandoverDeliveredLines[0]['quantity_received'], 2) === 4.0, 'Delivered override should mark handed quantity as received.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($cancelHandoverSourceBefore - 4, 2), 'Delivered override should not double-move source stock.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($cancelHandoverBufferBefore + 4, 2), 'Delivered override should keep reserved stock in the buffer.');
+assert_true((int) Database::scalar('SELECT COUNT(*) FROM activity_logs WHERE action = "handover.status_override" AND entity_type = "handover" AND entity_id = :id', ['id' => $cancelHandoverId]) > 0, 'Handover status override should be audited.');
+
 $cancelHandoverStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $cancelHandoverId);
 assert_true($cancelHandoverStaffPage['status'] === 200, 'Cancelable handover page did not load for recipient.');
 assert_true(strpos($cancelHandoverStaffPage['body'], 'Cancel Handover') !== false, 'Recipient should be able to cancel an issued handover before receipt.');
@@ -2621,7 +2637,7 @@ $cancelHandoverRecover = http_request($baseUrl, $ownerCookie, 'POST', '/handover
 ]);
 assert_true($cancelHandoverRecover['status'] === 302, 'Handover recovery did not redirect.');
 $cancelHandoverRecovered = find_handover_or_abort($cancelHandoverId);
-assert_true((string) $cancelHandoverRecovered['status'] === 'awaiting_receipt', 'Recovered issued handover should reopen as awaiting receipt.');
+assert_true((string) $cancelHandoverRecovered['status'] === 'delivered', 'Recovered delivered handover should reopen as delivered.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($cancelHandoverSourceBefore - 4, 2), 'Recovered handover should reissue source stock.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($cancelHandoverBufferBefore + 4, 2), 'Recovered handover should move stock back into the buffer.');
 assert_true((int) Database::scalar('SELECT COUNT(*) FROM activity_logs WHERE action = "handover.recovered" AND entity_type = "handover" AND entity_id = :id', ['id' => $cancelHandoverId]) > 0, 'Handover recovery should be audited.');

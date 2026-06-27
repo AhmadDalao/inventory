@@ -189,6 +189,9 @@ $router->post('/handovers/{id}/cancel', static function (array $params): void {
 $router->post('/handovers/{id}/recover', static function (array $params): void {
     handle_handovers_recover_submit($params);
 });
+$router->post('/handovers/{id}/status-override', static function (array $params): void {
+    handle_handovers_status_override_submit($params);
+});
 $router->post('/handovers/{id}/void', static function (array $params): void {
     handle_handovers_void_submit($params);
 });

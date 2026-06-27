@@ -1651,6 +1651,20 @@ function handover_status_label(string $status): string
     }
 }
 
+function handover_status_options(): array
+{
+    return [
+        'requested' => 'Requested',
+        'awaiting_receipt' => 'Awaiting Receipt',
+        'receipt_review' => 'Receipt Review',
+        'delivered' => 'Delivered',
+        'pending_approval' => 'Waiting Approval',
+        'closed' => 'Closed',
+        'rejected' => 'Rejected',
+        'cancelled' => 'Cancelled',
+    ];
+}
+
 function purchase_status_label(string $status): string
 {
     switch ($status) {
