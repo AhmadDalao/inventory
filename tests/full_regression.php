@@ -1313,9 +1313,11 @@ $accountSetupPosition = strpos($userCreatePage['body'], 'Account Setup');
 assert_true($permissionSearchPosition !== false && $accountSetupPosition !== false && $permissionSearchPosition < $accountSetupPosition, 'Permission search should be the first control on the user create page.');
 assert_true(strpos($userCreatePage['body'], 'settings-accordion access-accordion') !== false, 'User create page should use the settings accordion layout.');
 assert_true(strpos($userCreatePage['body'], 'Permission Group') !== false, 'User create page should render collapsible permission groups.');
-foreach (['movements.usage', 'movements.restock', 'movements.transfer', 'movements.adjustment', 'requests.status_override', 'handovers.status_override', 'files.manage', 'settings.secrets'] as $expectedPermissionKey) {
+foreach (['movements.usage', 'movements.restock', 'movements.transfer', 'movements.adjustment', 'files.manage', 'settings.secrets'] as $expectedPermissionKey) {
     assert_true(strpos($userCreatePage['body'], $expectedPermissionKey) !== false, 'User create page is missing permission key ' . $expectedPermissionKey . '.');
 }
+assert_true(strpos($userCreatePage['body'], 'requests.status_override') === false, 'Request status override should not be assignable to regular admins.');
+assert_true(strpos($userCreatePage['body'], 'handovers.status_override') === false, 'Handover status override should not be assignable to regular admins.');
 assert_true(strpos($userCreatePage['body'], 'data-assigned-owner-field') !== false, 'User create page is missing staff owner assignment control.');
 assert_true(strpos($userCreatePage['body'], 'data-notification-sound-toggle') !== false, 'Authenticated layout is missing notification sound controls.');
 $settingsPageForTheme = http_request($baseUrl, $ownerCookie, 'GET', '/settings/site');
@@ -2278,6 +2280,12 @@ $requestCancelled = find_request_or_abort($requestCancelId);
 assert_true((string) $requestCancelled['status'] === 'cancelled', 'Requester-owned request should become cancelled without a reason.');
 assert_true(trim((string) ($requestCancelled['decision_notes'] ?? '')) === '', 'Optional request cancel note should stay empty when not submitted.');
 assert_true(balance_quantity((int) $issueItems[0]['id'], (int) $issueSource['id']) === $initialIssueItemOneQuantity, 'Cancelling a pending request should not change source stock.');
+$requestAdminRecoverPage = http_request($baseUrl, $adminCookie, 'GET', '/requests/' . $requestCancelId);
+assert_true($requestAdminRecoverPage['status'] === 200, 'Cancelled request page did not load for admin.');
+assert_true(strpos($requestAdminRecoverPage['body'], 'Recover Request') === false, 'Regular admin should not see request recovery controls.');
+$requestAdminRecover = http_request($baseUrl, $adminCookie, 'POST', '/requests/' . $requestCancelId . '/recover');
+assert_true($requestAdminRecover['status'] === 302, 'Regular admin request recovery should redirect away.');
+assert_true((string) find_request_or_abort($requestCancelId)['status'] === 'cancelled', 'Regular admin should not recover cancelled requests.');
 $requestRecoverPage = http_request($baseUrl, $ownerCookie, 'GET', '/requests/' . $requestCancelId);
 assert_true($requestRecoverPage['status'] === 200, 'Cancelled request page did not load for owner recovery.');
 assert_true(strpos($requestRecoverPage['body'], 'Recover Request') !== false, 'Owner should see request recovery controls for a safe cancelled request.');
@@ -2604,6 +2612,15 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('h
 
 $cancelHandoverOwnerOverridePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $cancelHandoverId);
 assert_true(strpos($cancelHandoverOwnerOverridePage['body'], 'Admin Status Override') !== false, 'Owner should see handover status override controls.');
+$cancelHandoverAdminOverridePage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $cancelHandoverId);
+assert_true($cancelHandoverAdminOverridePage['status'] === 200, 'Cancelable handover page did not load for admin.');
+assert_true(strpos($cancelHandoverAdminOverridePage['body'], 'Admin Status Override') === false, 'Regular admin should not see handover status override controls.');
+$cancelHandoverAdminOverride = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $cancelHandoverId . '/status-override', [
+    'target_status' => 'delivered',
+    'status_notes' => $prefix . ' admin should not force delivery',
+]);
+assert_true($cancelHandoverAdminOverride['status'] === 302, 'Regular admin handover status override should redirect away.');
+assert_true((string) find_handover_or_abort($cancelHandoverId)['status'] === 'awaiting_receipt', 'Regular admin should not override handover status.');
 $cancelHandoverOverride = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $cancelHandoverId . '/status-override', [
     '_token' => extract_csrf($cancelHandoverOwnerOverridePage['body'], 'handover status override'),
     'target_status' => 'delivered',
@@ -2631,6 +2648,11 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSourc
 assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === $cancelHandoverBufferBefore, 'Cancelled handover should clear reserved buffer stock.');
 $cancelHandoverRecoverPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $cancelHandoverId);
 assert_true(strpos($cancelHandoverRecoverPage['body'], 'Recover Handover') !== false, 'Owner should see handover recovery controls for a safe cancelled handover.');
+$cancelHandoverAdminRecoverPage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $cancelHandoverId);
+assert_true(strpos($cancelHandoverAdminRecoverPage['body'], 'Recover Handover') === false, 'Regular admin should not see handover recovery controls.');
+$cancelHandoverAdminRecover = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $cancelHandoverId . '/recover');
+assert_true($cancelHandoverAdminRecover['status'] === 302, 'Regular admin handover recovery should redirect away.');
+assert_true((string) find_handover_or_abort($cancelHandoverId)['status'] === 'cancelled', 'Regular admin should not recover cancelled handovers.');
 $cancelHandoverRecover = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $cancelHandoverId . '/recover', [
     '_token' => extract_csrf($cancelHandoverRecoverPage['body'], 'handover recovery'),
     'status_notes' => $prefix . ' recovered issued handover',

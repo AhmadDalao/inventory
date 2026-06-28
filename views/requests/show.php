@@ -16,7 +16,7 @@ $canConfirmReceipt = Auth::hasPermission('requests.approve')
     && request_receipt_confirm_block_reason($requestRecord, $currentUser) === null;
 $canCancel = request_cancel_block_reason($requestRecord, $currentUser) === null;
 $canVoidRecord = workflow_void_block_reason('request', $requestRecord, $currentUser) === null;
-$requestRecoveryTargetStatus = Auth::hasPermission('requests.status_override')
+$requestRecoveryTargetStatus = Auth::isOwner()
     ? request_recovery_target_status($requestRecord, $lines)
     : null;
 $requestRecoveryBlockReason = $requestRecoveryTargetStatus !== null

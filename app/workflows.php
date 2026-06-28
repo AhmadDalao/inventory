@@ -1904,8 +1904,8 @@ function request_recovery_block_reason(array $request, array $lines, ?array $use
         return 'Login first.';
     }
 
-    if (!Auth::hasPermission('requests.status_override')) {
-        return 'You do not have permission to recover requests.';
+    if (!Auth::isOwner()) {
+        return 'Only the owner can recover requests.';
     }
 
     $targetStatus = request_recovery_target_status($request, $lines);
@@ -1945,8 +1945,8 @@ function handover_recovery_block_reason(array $handover, array $lines, ?array $u
         return 'Login first.';
     }
 
-    if (!Auth::hasPermission('handovers.status_override')) {
-        return 'You do not have permission to recover handovers.';
+    if (!Auth::isOwner()) {
+        return 'Only the owner can recover handovers.';
     }
 
     $targetStatus = handover_recovery_target_status($handover, $lines);
@@ -2037,8 +2037,8 @@ function handover_status_override_block_reason(array $handover, array $lines, st
         return 'Login first.';
     }
 
-    if (!Auth::hasPermission('handovers.status_override')) {
-        return 'You do not have permission to override handover statuses.';
+    if (!Auth::isOwner()) {
+        return 'Only the owner can override handover statuses.';
     }
 
     if (!array_key_exists($targetStatus, handover_status_options())) {
@@ -5893,7 +5893,7 @@ function handle_requests_cancel_submit(array $params): void
 function handle_requests_recover_submit(array $params): void
 {
     app_ready_or_redirect();
-    Auth::requirePermission('requests.status_override');
+    Auth::requireOwner();
     verify_csrf();
 
     $request = find_request_or_abort((int) $params['id']);
@@ -6765,7 +6765,7 @@ function handle_handovers_cancel_submit(array $params): void
 function handle_handovers_recover_submit(array $params): void
 {
     app_ready_or_redirect();
-    Auth::requirePermission('handovers.status_override');
+    Auth::requireOwner();
     verify_csrf();
 
     $handover = find_handover_or_abort((int) $params['id']);
@@ -6866,7 +6866,7 @@ function handle_handovers_recover_submit(array $params): void
 function handle_handovers_status_override_submit(array $params): void
 {
     app_ready_or_redirect();
-    Auth::requirePermission('handovers.status_override');
+    Auth::requireOwner();
     verify_csrf();
 
     $handover = find_handover_or_abort((int) $params['id']);

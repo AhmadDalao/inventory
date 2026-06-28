@@ -28,9 +28,9 @@ $canApproveClose = Auth::hasPermission('handovers.approve')
     && (string) $handoverRecord['status'] === 'pending_approval'
     && $isSourceOwner;
 $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $currentUser) === null;
-$canOverrideHandoverStatus = Auth::hasPermission('handovers.status_override');
+$canOverrideHandoverStatus = Auth::isOwner();
 $handoverStatusOptions = handover_status_options();
-$handoverRecoveryTargetStatus = Auth::hasPermission('handovers.status_override')
+$handoverRecoveryTargetStatus = Auth::isOwner()
     ? handover_recovery_target_status($handoverRecord, $lines)
     : null;
 $handoverRecoveryBlockReason = $handoverRecoveryTargetStatus !== null
