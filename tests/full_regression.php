@@ -2873,6 +2873,21 @@ assert_true(strpos($notificationsPage['body'], 'Complete Log') !== false, 'Notif
 $emailLogsPage = http_request($baseUrl, $ownerCookie, 'GET', '/email-logs?status=all');
 assert_true($emailLogsPage['status'] === 200, 'Email logs page did not load.');
 assert_true(strpos($emailLogsPage['body'], 'Email Settings') !== false, 'Email logs page is missing the settings shortcut.');
+foreach ([
+    '/items' => 'Items',
+    '/storages' => 'Storages',
+    '/requests' => 'Requests',
+    '/handovers' => 'Handovers',
+    '/purchases' => 'Purchases',
+    '/files' => 'Files',
+    '/stocktakes' => 'Stocktakes',
+    '/suppliers' => 'Suppliers',
+    '/email-logs' => 'Email logs',
+] as $defaultAllRoute => $defaultAllLabel) {
+    $defaultAllPage = http_request($baseUrl, $ownerCookie, 'GET', $defaultAllRoute);
+    assert_true($defaultAllPage['status'] === 200, $defaultAllLabel . ' default table page did not load.');
+    assert_true(strpos($defaultAllPage['body'], 'value="all" selected') !== false, $defaultAllLabel . ' should default to the All status filter.');
+}
 	$scanPage = http_request($baseUrl, $ownerCookie, 'GET', '/scan');
     assert_true($scanPage['status'] === 200, 'Scan Center did not load for owner.');
     assert_true(strpos($scanPage['body'], 'data-scan-center') !== false, 'Scan Center page is missing scanner root.');

@@ -17,12 +17,12 @@ function app_ready_or_redirect(): void
 
 function storage_filters(): array
 {
-    $status = (string) query('status', 'active');
+    $status = (string) query('status', 'all');
     $type = (string) query('type', '');
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'active',
+        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'all',
         'type' => in_array($type, ['warehouse', 'storage'], true) ? $type : '',
     ];
 }
@@ -57,11 +57,11 @@ function build_storage_where(array $filters, string $alias = 's'): array
 
 function item_filters(): array
 {
-    $status = (string) query('status', 'active');
+    $status = (string) query('status', 'all');
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'active',
+        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
     ];
 }

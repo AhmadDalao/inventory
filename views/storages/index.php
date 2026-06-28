@@ -40,9 +40,9 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             <label class="field">
                 <span>Status</span>
                 <select name="status">
+                    <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
                     <option value="active" <?= selected('active', $filters['status']) ?>>Active</option>
                     <option value="archived" <?= selected('archived', $filters['status']) ?>>Deleted</option>
-                    <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
                 </select>
             </label>
 
@@ -53,9 +53,9 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
     </form>
 
     <div class="chip-row">
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('active')) ?>" data-live-filter-link>Active: <?= number_format($counts['active']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('archived')) ?>" data-live-filter-link>Deleted: <?= number_format($counts['archived']) ?></a>
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['active'] + $counts['archived']) ?></a>
     </div>
 </section>
 

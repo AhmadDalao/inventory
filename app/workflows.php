@@ -1347,11 +1347,11 @@ function normalize_workflow_date(string $value): string
 
 function request_filters(): array
 {
-    $status = (string) query('status', 'open');
+    $status = (string) query('status', 'all');
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => in_array($status, ['open', 'pending', 'approved', 'receipt_review', 'completed', 'rejected', 'cancelled', 'all'], true) ? $status : 'open',
+        'status' => in_array($status, ['open', 'pending', 'approved', 'receipt_review', 'completed', 'rejected', 'cancelled', 'all'], true) ? $status : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
@@ -1423,11 +1423,11 @@ function build_request_where(array $filters, string $alias = 'r'): array
 
 function handover_filters(): array
 {
-    $status = (string) query('status', 'open');
+    $status = (string) query('status', 'all');
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => in_array($status, ['open', 'requested', 'awaiting_receipt', 'receipt_review', 'delivered', 'pending_approval', 'closed', 'rejected', 'cancelled', 'all'], true) ? $status : 'open',
+        'status' => in_array($status, ['open', 'requested', 'awaiting_receipt', 'receipt_review', 'delivered', 'pending_approval', 'closed', 'rejected', 'cancelled', 'all'], true) ? $status : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
@@ -10997,14 +10997,14 @@ function handle_documentation_index(): void
 function file_filters(): array
 {
     $group = trim((string) query('group', 'all'));
-    $status = trim((string) query('status', 'active'));
+    $status = trim((string) query('status', 'all'));
     $groups = file_asset_group_options();
     $statuses = file_asset_status_options();
 
     return [
         'search' => trim((string) query('search', '')),
         'group' => array_key_exists($group, $groups) ? $group : 'all',
-        'status' => array_key_exists($status, $statuses) ? $status : 'active',
+        'status' => array_key_exists($status, $statuses) ? $status : 'all',
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
     ];
@@ -11424,22 +11424,22 @@ function record_activity(string $action, ?string $entityType, ?int $entityId, st
 function stocktake_status_options(): array
 {
     return [
+        'all' => 'All',
         'open' => 'Open',
         'draft' => 'Draft',
         'pending_approval' => 'Waiting Approval',
         'approved' => 'Approved',
         'cancelled' => 'Cancelled',
-        'all' => 'All',
     ];
 }
 
 function stocktake_filters(): array
 {
-    $status = (string) query('status', 'open');
+    $status = (string) query('status', 'all');
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => array_key_exists($status, stocktake_status_options()) ? $status : 'open',
+        'status' => array_key_exists($status, stocktake_status_options()) ? $status : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
@@ -11956,11 +11956,11 @@ function handle_stocktakes_cancel_submit(array $params): void
 
 function supplier_filters(): array
 {
-    $status = (string) query('status', 'active');
+    $status = (string) query('status', 'all');
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'active',
+        'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'all',
     ];
 }
 

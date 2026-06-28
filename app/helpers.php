@@ -3351,9 +3351,9 @@ function file_asset_group_label(string $group): string
 function file_asset_status_options(): array
 {
     return [
+        'all' => 'All statuses',
         'active' => 'Available',
         'deleted' => 'Deleted',
-        'all' => 'All statuses',
     ];
 }
 

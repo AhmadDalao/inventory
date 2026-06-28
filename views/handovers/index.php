@@ -31,6 +31,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
         <label class="field">
             <span>Status</span>
             <select name="status">
+                <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
                 <option value="open" <?= selected('open', $filters['status']) ?>>Open</option>
                 <option value="requested" <?= selected('requested', $filters['status']) ?>>Requested</option>
                 <option value="awaiting_receipt" <?= selected('awaiting_receipt', $filters['status']) ?>>Awaiting Receipt</option>
@@ -40,7 +41,6 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
                 <option value="closed" <?= selected('closed', $filters['status']) ?>>Closed</option>
                 <option value="rejected" <?= selected('rejected', $filters['status']) ?>>Rejected</option>
                 <option value="cancelled" <?= selected('cancelled', $filters['status']) ?>>Cancelled</option>
-                <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
             </select>
         </label>
 
@@ -73,6 +73,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
     </form>
 
     <div class="chip-row">
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['open'] + $counts['closed'] + $counts['rejected'] + $counts['cancelled']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'open' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('open')) ?>" data-live-filter-link>Open: <?= number_format($counts['open']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'requested' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('requested')) ?>" data-live-filter-link>Requested: <?= number_format($counts['requested']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'awaiting_receipt' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('awaiting_receipt')) ?>" data-live-filter-link>Awaiting Receipt: <?= number_format($counts['awaiting_receipt']) ?></a>
@@ -81,6 +82,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
         <a class="stat-chip filter-chip <?= $filters['status'] === 'pending_approval' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('pending_approval')) ?>" data-live-filter-link>Waiting Approval: <?= number_format($counts['pending_approval']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'closed' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('closed')) ?>" data-live-filter-link>Closed: <?= number_format($counts['closed']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'rejected' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('rejected')) ?>" data-live-filter-link>Rejected: <?= number_format($counts['rejected']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'cancelled' ? 'filter-chip-active' : '' ?>" href="<?= e($handoverFilterUrl('cancelled')) ?>" data-live-filter-link>Cancelled: <?= number_format($counts['cancelled']) ?></a>
     </div>
 </section>
 
