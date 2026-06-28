@@ -8885,13 +8885,28 @@ body.theme-official.auth-shell {
     padding-right: 8px;
     padding-bottom: calc(18px + env(safe-area-inset-bottom));
     scrollbar-gutter: stable;
+    scrollbar-width: none;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+}
+
+.sidebar .nav-links:hover,
+.theme-clean .sidebar .nav-links:hover,
+.theme-official .sidebar .nav-links:hover {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(138, 100, 48, 0.48) transparent;
 }
 
 .sidebar .nav-links::-webkit-scrollbar,
 .theme-clean .sidebar .nav-links::-webkit-scrollbar,
 .theme-official .sidebar .nav-links::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.sidebar .nav-links:hover::-webkit-scrollbar,
+.theme-clean .sidebar .nav-links:hover::-webkit-scrollbar,
+.theme-official .sidebar .nav-links:hover::-webkit-scrollbar {
     width: 8px;
 }
 
