@@ -8863,3 +8863,53 @@ body.theme-official.auth-shell {
         grid-template-columns: 1fr;
     }
 }
+
+/* Sidebar scroll fix: the navigation must scroll independently at every width. */
+.sidebar,
+.theme-clean .sidebar,
+.theme-official .sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.sidebar .nav-links,
+.theme-clean .sidebar .nav-links,
+.theme-official .sidebar .nav-links {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-content: start;
+    padding-right: 8px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.sidebar .nav-links::-webkit-scrollbar,
+.theme-clean .sidebar .nav-links::-webkit-scrollbar,
+.theme-official .sidebar .nav-links::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar .nav-links::-webkit-scrollbar-track,
+.theme-clean .sidebar .nav-links::-webkit-scrollbar-track,
+.theme-official .sidebar .nav-links::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar .nav-links::-webkit-scrollbar-thumb,
+.theme-clean .sidebar .nav-links::-webkit-scrollbar-thumb,
+.theme-official .sidebar .nav-links::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(138, 100, 48, 0.28);
+}
+
+.sidebar .nav-links:hover::-webkit-scrollbar-thumb,
+.theme-clean .sidebar .nav-links:hover::-webkit-scrollbar-thumb,
+.theme-official .sidebar .nav-links:hover::-webkit-scrollbar-thumb {
+    background: rgba(138, 100, 48, 0.48);
+}
