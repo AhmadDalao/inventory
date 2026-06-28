@@ -272,8 +272,12 @@ if (contains_text($dashboardPage['body'], '/settings/site')) {
     assert_true(contains_text($settingsPage['body'], 'settings[workflow.signoff_image_custom_width]'), 'Website control form is missing the workflow document custom image width control.');
     assert_true(contains_text($settingsPage['body'], 'settings[workflow.signoff_image_custom_height]'), 'Website control form is missing the workflow document custom image height control.');
     assert_true(contains_text($settingsPage['body'], 'settings[ocr.openai_api_key]'), 'Website control form is missing the OpenAI OCR API key field.');
+    assert_true(contains_text($settingsPage['body'], 'settings[ocr.mode]'), 'Website control form is missing the OCR mode control.');
     assert_true(contains_text($settingsPage['body'], 'settings[ocr.openai_enabled]'), 'Website control form is missing the OpenAI OCR enable switch.');
     assert_true(contains_text($settingsPage['body'], 'settings[ocr.openai_model]'), 'Website control form is missing the OpenAI OCR model field.');
+    assert_true(contains_text($settingsPage['body'], 'settings[ocr.max_pdf_pages]'), 'Website control form is missing the OCR max PDF pages control.');
+    assert_true(contains_text($settingsPage['body'], 'settings[ocr.min_confidence]'), 'Website control form is missing the OCR confidence control.');
+    assert_true(contains_text($settingsPage['body'], 'OCR Health'), 'Website control form is missing the OCR health panel.');
     assert_true(contains_text($settingsPage['body'], 'settings[backup.retention_days]'), 'Website control form is missing the backup retention control.');
     assert_true(contains_text($settingsPage['body'], 'settings[backup.include_uploads]'), 'Website control form is missing the backup file inclusion control.');
     assert_true(contains_text($settingsPage['body'], 'settings[reports.daily_enabled]'), 'Website control form is missing the daily report control.');

@@ -184,12 +184,24 @@ function site_setting_schema(): array
         [
             'id' => 'purchase-ocr',
             'title' => 'Purchase OCR',
-            'copy' => 'Server-side AI extraction for Arabic and English supplier PDFs, scans, quotes, receipts, and price lists.',
+            'copy' => 'Document extraction for Arabic and English supplier PDFs, scans, quotes, receipts, and price lists.',
             'fields' => [
+                'ocr.mode' => [
+                    'label' => 'OCR mode',
+                    'default' => 'hybrid',
+                    'help' => 'Free only never calls OpenAI. Fallback shows a Run AI button when free/browser OCR is weak. OpenAI first sends files to AI before local extraction.',
+                    'type' => 'select',
+                    'options' => [
+                        'free_only' => 'Free only',
+                        'hybrid' => 'Free + OpenAI fallback',
+                        'openai_first' => 'OpenAI first',
+                    ],
+                    'maxlength' => 20,
+                ],
                 'ocr.openai_enabled' => [
-                    'label' => 'Enable OpenAI purchase OCR',
+                    'label' => 'Allow OpenAI OCR calls',
                     'default' => '1',
-                    'help' => 'When enabled and an API key is saved, purchase document uploads can be read directly on the server.',
+                    'help' => 'OpenAI runs only when this is Yes, a key is saved, and OCR mode allows it.',
                     'type' => 'select',
                     'options' => [
                         '1' => 'Yes',
@@ -210,6 +222,26 @@ function site_setting_schema(): array
                     'default' => (string) app_config('ocr.openai_model', 'gpt-5.5'),
                     'help' => 'Model used for purchase document extraction.',
                     'maxlength' => 80,
+                ],
+                'ocr.max_pdf_pages' => [
+                    'label' => 'Max PDF pages per file',
+                    'default' => '8',
+                    'help' => 'Browser OCR reads this many pages from scanned PDFs to keep phones and laptops responsive.',
+                    'type' => 'number',
+                    'maxlength' => 2,
+                ],
+                'ocr.min_confidence' => [
+                    'label' => 'Minimum confidence percent',
+                    'default' => '70',
+                    'help' => 'Rows below this score are marked Needs review. Use 70 as the sane default.',
+                    'type' => 'number',
+                    'maxlength' => 3,
+                ],
+                'ocr.monthly_safety_note' => [
+                    'label' => 'Monthly safety note',
+                    'default' => 'OpenAI OCR is paid. Use it for hard scans only and review every extracted row before creating drafts.',
+                    'help' => 'Shown to owners as a reminder that AI OCR can cost money and still needs review.',
+                    'maxlength' => 190,
                 ],
             ],
         ],
@@ -650,6 +682,28 @@ function openai_ocr_model(): string
     $model = trim(site_setting('ocr.openai_model', (string) app_config('ocr.openai_model', 'gpt-5.5')));
 
     return $model !== '' ? $model : 'gpt-5.5';
+}
+
+function purchase_ocr_mode(): string
+{
+    $mode = site_setting('ocr.mode', 'hybrid');
+
+    return in_array($mode, ['free_only', 'hybrid', 'openai_first'], true) ? $mode : 'hybrid';
+}
+
+function purchase_ocr_max_pdf_pages(): int
+{
+    $pages = (int) site_setting('ocr.max_pdf_pages', '8');
+
+    return max(1, min(20, $pages));
+}
+
+function purchase_ocr_min_confidence(): float
+{
+    $percent = (int) site_setting('ocr.min_confidence', '70');
+    $percent = max(1, min(95, $percent));
+
+    return $percent / 100;
 }
 
 function openai_ocr_enabled(): bool

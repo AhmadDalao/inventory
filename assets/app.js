@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return payload;
   };
 
-  const browserOcrTextFromFiles = async (files, setStatus = () => {}) => {
+  const browserOcrTextFromFiles = async (files, setStatus = () => {}, options = {}) => {
     const imageFiles = files.filter((file) => /^image\/(jpeg|png|webp)$/i.test(file.type));
     const pdfFiles = files.filter((file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
 
@@ -126,7 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const pdfjsLib = await pdfJsLoaderPromise;
-      const maxPagesPerPdf = 12;
+      const configuredMaxPages = Number.parseInt(options.maxPagesPerPdf || '8', 10);
+      const maxPagesPerPdf = Number.isFinite(configuredMaxPages) ? Math.max(1, Math.min(20, configuredMaxPages)) : 8;
 
       for (const file of pdfFiles) {
         setStatus(`Opening scanned PDF ${file.name}...`);
@@ -211,15 +212,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const supplier = confidenceScore(confidence.supplier, overall);
     const lines = confidenceScore(confidence.lines, overall);
     const engine = confidence.engine ? ` · ${confidence.engine}` : '';
+    const lineCount = Array.isArray(parsed.lines) ? parsed.lines.length : 0;
+    const needsReview = overall < 0.7 || flags.length > 0 || lineCount === 0;
+    const title = needsReview ? 'Needs human review' : 'Ready for review';
+    const action = lineCount === 0
+      ? 'No item rows were detected. Add rows manually or rerun with AI if enabled.'
+      : (needsReview ? 'Check supplier, quantities, unit prices, and any generated SKU before creating the draft.' : 'Review the fields once, then submit the draft normally.');
     const flagMarkup = flags.length
       ? `<ul class="ocr-review-flags">${flags.slice(0, 8).map((flag) => `<li>${escapeHtml(flag)}</li>`).join('')}</ul>`
       : '';
 
     return `
-      <span class="ocr-confidence-chip ${confidenceClass(overall)}">OCR Confidence ${Math.round(overall * 100)}%${escapeHtml(engine)}</span>
-      <span class="tiny-copy">Supplier ${Math.round(supplier * 100)}% · Lines ${Math.round(lines * 100)}%. Review low confidence fields before submitting.</span>
-      ${flagMarkup}
+      <div class="ocr-review-summary ${needsReview ? 'needs-review' : 'is-ready'}">
+        <div>
+          <span class="ocr-confidence-chip ${confidenceClass(overall)}">OCR Confidence ${Math.round(overall * 100)}%${escapeHtml(engine)}</span>
+          <strong>${title}</strong>
+          <span class="tiny-copy">${escapeHtml(action)}</span>
+        </div>
+        <div class="ocr-review-metrics" aria-label="OCR metrics">
+          <span><strong>${Math.round(supplier * 100)}%</strong> Supplier</span>
+          <span><strong>${Math.round(lines * 100)}%</strong> Lines</span>
+          <span><strong>${formatCount(lineCount)}</strong> Rows</span>
+        </div>
+      </div>
+      ${flagMarkup || '<p class="tiny-copy ocr-review-clean">No warning flags from OCR. Still review before approval.</p>'}
     `;
+  };
+
+  const looksLikeScanCode = (value) => {
+    const normalized = String(value || '').trim();
+
+    if (normalized === '') {
+      return false;
+    }
+
+    if (/^(HDO|REQ|PO|STK)-\d{8,}-[A-Z0-9]+$/i.test(normalized)) {
+      return true;
+    }
+
+    if (normalized.length >= 6 && !/\s/.test(normalized) && /[A-Z0-9]/i.test(normalized)) {
+      return true;
+    }
+
+    return false;
   };
 
   const formatDateTimeCopy = (value) => {
@@ -3785,12 +3820,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const ocrUrl = form.dataset.purchaseOcrUrl;
       const fileInput = form.querySelector('[data-purchase-ocr-files]');
       const button = form.querySelector('[data-purchase-ocr-button]');
+      const aiButton = form.querySelector('[data-purchase-ocr-ai-button]');
       const status = form.querySelector('[data-purchase-ocr-status]');
       const review = form.querySelector('[data-purchase-ocr-review]');
+      const preview = form.querySelector('[data-purchase-ocr-preview]');
+      const runHolder = form.querySelector('[data-purchase-ocr-run-holder]');
       const textWrap = form.querySelector('[data-purchase-ocr-text-wrap]');
       const textPreview = form.querySelector('[data-purchase-ocr-text]');
       const body = form.querySelector('[data-purchase-line-body]');
       const addButton = form.querySelector('[data-add-purchase-line]');
+      const canRunAi = form.dataset.purchaseOcrCanAi === '1';
+      const maxPagesPerPdf = Number.parseInt(form.dataset.purchaseOcrMaxPages || '8', 10);
+      const minConfidence = confidenceScore(form.dataset.purchaseOcrMinConfidence, 0.7);
 
       if (!ocrUrl || !(fileInput instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement) || !body || !addButton) {
         return;
@@ -3804,6 +3845,65 @@ document.addEventListener('DOMContentLoaded', () => {
         status.textContent = message;
         status.classList.toggle('danger-text', type === 'danger');
         status.classList.toggle('success-text', type === 'success');
+      };
+
+      const renderDocumentPreview = (files) => {
+        if (!(preview instanceof HTMLElement)) {
+          return;
+        }
+
+        if (!files.length) {
+          preview.hidden = true;
+          preview.innerHTML = '';
+          return;
+        }
+
+        preview.innerHTML = files.map((file, index) => {
+          const isImage = /^image\/(jpeg|png|webp)$/i.test(file.type);
+          const thumb = isImage
+            ? `<img src="${escapeHtml(URL.createObjectURL(file))}" alt="">`
+            : escapeHtml((file.name.split('.').pop() || 'file').slice(0, 4).toUpperCase());
+
+          return `
+            <article class="purchase-document-preview-card">
+              <span class="purchase-document-preview-thumb">${thumb}</span>
+              <span>
+                <strong>${escapeHtml(file.name || `Document ${index + 1}`)}</strong>
+                <small class="tiny-copy">${escapeHtml(file.type || 'document')} · ${formatCount(Math.ceil((file.size || 0) / 1024))} KB</small>
+              </span>
+            </article>
+          `;
+        }).join('');
+        preview.hidden = false;
+      };
+
+      const syncOcrRunIds = (ids) => {
+        if (!(runHolder instanceof HTMLElement) || !Array.isArray(ids)) {
+          return;
+        }
+
+        const existing = new Set(Array.from(runHolder.querySelectorAll('input[name="ocr_run_ids[]"]')).map((input) => input.value));
+
+        ids.forEach((id) => {
+          const normalized = String(id || '').trim();
+
+          if (!normalized || existing.has(normalized)) {
+            return;
+          }
+
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'ocr_run_ids[]';
+          input.value = normalized;
+          runHolder.appendChild(input);
+          existing.add(normalized);
+        });
+      };
+
+      const showAiButton = (show) => {
+        if (aiButton instanceof HTMLButtonElement) {
+          aiButton.hidden = !(show && canRunAi);
+        }
       };
 
       const setFieldValue = (name, value, overwrite = false) => {
@@ -3993,6 +4093,10 @@ document.addEventListener('DOMContentLoaded', () => {
           review.hidden = false;
         }
 
+        syncOcrRunIds(payload.ocr_run_ids || []);
+        const overall = confidenceScore(parsed.confidence?.overall, 0);
+        showAiButton(overall > 0 && overall < minConfidence);
+
         const warnings = Array.isArray(payload.warnings) && payload.warnings.length > 0
           ? ` ${payload.warnings.join(' ')}`
           : '';
@@ -4019,93 +4123,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return payload;
       };
 
-      const browserOcrText = async (files) => {
-        const imageFiles = files.filter((file) => /^image\/(jpeg|png|webp)$/i.test(file.type));
-        const pdfFiles = files.filter((file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
-
-        if (imageFiles.length === 0 && pdfFiles.length === 0) {
-          throw new Error('Browser OCR supports JPG, PNG, WebP, and scanned PDFs.');
-        }
-
-        if (!tesseractLoaderPromise) {
-          setStatus('Loading browser OCR engine. This may take a moment the first time...');
-          tesseractLoaderPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', 'Tesseract');
-        }
-
-        const Tesseract = await tesseractLoaderPromise;
-        const recognizeImage = async (imageSource, label) => {
-          setStatus(`Reading ${label} in ${purchaseOcrLanguageLabel}...`);
-          const result = await Tesseract.recognize(imageSource, purchaseOcrLanguages, {
-            logger: (progress) => {
-              if (progress && progress.status) {
-                const pct = typeof progress.progress === 'number' ? ` ${Math.round(progress.progress * 100)}%` : '';
-                setStatus(`${label}: ${progress.status}${pct}`);
-              }
-            },
-          });
-
-          return result?.data?.text || '';
-        };
-
-        let text = '';
-
-        for (const file of imageFiles) {
-          text += `\n${await recognizeImage(file, file.name)}`;
-        }
-
-        if (pdfFiles.length > 0) {
-          if (!pdfJsLoaderPromise) {
-            setStatus('Loading PDF renderer...');
-            pdfJsLoaderPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js', 'pdfjsLib').then((pdfjsLib) => {
-              pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-              return pdfjsLib;
-            });
-          }
-
-          const pdfjsLib = await pdfJsLoaderPromise;
-          const maxPagesPerPdf = 12;
-
-          for (const file of pdfFiles) {
-            setStatus(`Opening scanned PDF ${file.name}...`);
-            const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-            const pageCount = Math.min(pdf.numPages, maxPagesPerPdf);
-
-            if (pdf.numPages > maxPagesPerPdf) {
-              setStatus(`${file.name} has ${pdf.numPages} pages. Reading first ${maxPagesPerPdf} pages to keep the browser responsive.`);
-            }
-
-            for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-              const page = await pdf.getPage(pageNumber);
-              const baseViewport = page.getViewport({ scale: 1 });
-              const maxDimension = Math.max(baseViewport.width, baseViewport.height);
-              const scale = Math.max(1.35, Math.min(2.25, 1800 / Math.max(maxDimension, 1)));
-              const viewport = page.getViewport({ scale });
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d', { alpha: false });
-
-              if (!context) {
-                throw new Error('Could not create a browser canvas for PDF OCR.');
-              }
-
-              canvas.width = Math.ceil(viewport.width);
-              canvas.height = Math.ceil(viewport.height);
-              context.fillStyle = '#ffffff';
-              context.fillRect(0, 0, canvas.width, canvas.height);
-              setStatus(`Rendering ${file.name}, page ${pageNumber} of ${pdf.numPages}...`);
-              await page.render({ canvasContext: context, viewport }).promise;
-              text += `\n${await recognizeImage(canvas, `${file.name} page ${pageNumber}`)}`;
-              canvas.width = 1;
-              canvas.height = 1;
-            }
-          }
-        }
-
-        return text.trim();
-      };
-
       form.dataset.ocrBound = 'true';
 
-      button.addEventListener('click', async () => {
+      fileInput.addEventListener('change', () => {
+        renderDocumentPreview(Array.from(fileInput.files || []));
+        showAiButton(false);
+      });
+
+      const runFileExtraction = async (engine = 'auto') => {
         const files = Array.from(fileInput.files || []);
 
         if (files.length === 0) {
@@ -4113,12 +4138,19 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        renderDocumentPreview(files);
         button.disabled = true;
-        setStatus('Extracting document text...');
+
+        if (aiButton instanceof HTMLButtonElement) {
+          aiButton.disabled = true;
+        }
+
+        setStatus(engine === 'openai' ? 'Running AI extraction...' : 'Extracting document text...');
 
         try {
           const formData = new FormData();
           formData.append('_token', csrfToken(form));
+          formData.append('ocr_engine', engine);
           files.forEach((file) => formData.append('documents[]', file));
 
           const payload = await postToServer(formData);
@@ -4129,23 +4161,51 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!needsBrowserOcr) {
             setStatus(error.message || 'OCR failed.', 'danger');
             button.disabled = false;
+            if (aiButton instanceof HTMLButtonElement) {
+              aiButton.disabled = false;
+            }
+            return;
+          }
+
+          if (engine === 'openai') {
+            setStatus(error.message || 'AI OCR failed. Review manually or try browser OCR.', 'danger');
+            showAiButton(canRunAi);
+            button.disabled = false;
+            if (aiButton instanceof HTMLButtonElement) {
+              aiButton.disabled = false;
+            }
             return;
           }
 
           try {
-            const text = await browserOcrText(files);
+            const text = await browserOcrTextFromFiles(files, setStatus, { maxPagesPerPdf });
             const textFormData = new FormData();
             textFormData.append('_token', csrfToken(form));
             textFormData.append('ocr_text', text);
+            textFormData.append('ocr_source_name', files.map((file) => file.name).join(', ') || 'Browser OCR text');
             const payload = await postToServer(textFormData);
             await applyParsedPayload(payload);
           } catch (browserError) {
             setStatus(browserError.message || 'Browser OCR failed.', 'danger');
+            showAiButton(canRunAi);
           }
         } finally {
           button.disabled = false;
+          if (aiButton instanceof HTMLButtonElement) {
+            aiButton.disabled = false;
+          }
         }
+      };
+
+      button.addEventListener('click', () => {
+        runFileExtraction('auto');
       });
+
+      if (aiButton instanceof HTMLButtonElement) {
+        aiButton.addEventListener('click', () => {
+          runFileExtraction('openai');
+        });
+      }
     });
   };
 
@@ -4158,9 +4218,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const ocrUrl = form.dataset.purchaseOcrUrl;
       const fileInput = form.querySelector('[data-purchase-bulk-files]');
       const processButton = form.querySelector('[data-purchase-bulk-process]');
+      const aiProcessButton = form.querySelector('[data-purchase-bulk-ai-process]');
       const status = form.querySelector('[data-purchase-bulk-status]');
       const review = form.querySelector('[data-purchase-bulk-review]');
       const submitButton = form.querySelector('[data-purchase-bulk-submit]');
+      const canRunAi = form.dataset.purchaseOcrCanAi === '1';
+      const maxPagesPerPdf = Number.parseInt(form.dataset.purchaseOcrMaxPages || '8', 10);
+      const minConfidence = confidenceScore(form.dataset.purchaseOcrMinConfidence, 0.7);
 
       if (!ocrUrl || !(fileInput instanceof HTMLInputElement) || !(processButton instanceof HTMLButtonElement) || !review) {
         return;
@@ -4308,10 +4372,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const currency = purchase.currency || selectedValue('[name="default_currency"]', 'SAR') || 'SAR';
         const documentType = selectedValue('[name="default_document_type"]', 'quote') || 'quote';
         const textExcerpt = parsed.text_excerpt || '';
+        const runIds = Array.isArray(payload?.ocr_run_ids) ? payload.ocr_run_ids : [];
+        const confidence = confidenceScore(parsed.confidence?.overall, 0);
+        const showAiRerun = canRunAi && (warning || (confidence > 0 && confidence < minConfidence));
 
         return `
           <article class="purchase-import-card" data-import-document="${documentIndex}">
             <input type="hidden" name="document_index[]" value="${documentIndex}">
+            ${runIds[0] ? `<input type="hidden" name="ocr_run_id[${documentIndex}]" value="${escapeHtml(runIds[0])}">` : ''}
             <div class="purchase-import-card-head">
               <label class="choice-field purchase-import-include">
                 <input type="checkbox" name="document_include[${documentIndex}]" value="1" checked>
@@ -4327,6 +4395,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             ${warning ? `<div class="copy-context-card danger-text">${escapeHtml(warning)}</div>` : ''}
+            ${showAiRerun ? `<button class="ghost-button" type="button" data-import-run-ai>Run AI Extraction For This File</button>` : ''}
             <div class="ocr-confidence-panel purchase-import-confidence">${ocrConfidenceMarkup(parsed)}</div>
 
             <div class="field-row">
@@ -4532,9 +4601,10 @@ document.addEventListener('DOMContentLoaded', () => {
         updateTotals(row.closest('[data-import-document]') || form);
       };
 
-      const extractPayloadForFile = async (file) => {
+      const extractPayloadForFile = async (file, engine = 'auto') => {
         const formData = new FormData();
         formData.append('_token', csrfToken(form));
+        formData.append('ocr_engine', engine);
         formData.append('documents[]', file);
 
         try {
@@ -4542,14 +4612,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
           const needsBrowserOcr = error.payload?.needs_browser_ocr || /^image\//i.test(file.type) || file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 
-          if (!needsBrowserOcr) {
+          if (!needsBrowserOcr || engine === 'openai') {
             throw error;
           }
 
-          const text = await browserOcrTextFromFiles([file], setStatus);
+          const text = await browserOcrTextFromFiles([file], setStatus, { maxPagesPerPdf });
           const textFormData = new FormData();
           textFormData.append('_token', csrfToken(form));
           textFormData.append('ocr_text', text);
+          textFormData.append('ocr_source_name', file.name || 'Browser OCR text');
 
           return postPurchaseOcr(ocrUrl, textFormData);
         }
@@ -4572,7 +4643,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       fileInput.addEventListener('change', resetReview);
 
-      processButton.addEventListener('click', async () => {
+      if (aiProcessButton instanceof HTMLButtonElement) {
+        aiProcessButton.hidden = !canRunAi;
+      }
+
+      const processFiles = async (engine = 'auto') => {
         const files = Array.from(fileInput.files || []);
 
         if (files.length === 0) {
@@ -4581,14 +4656,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         processButton.disabled = true;
+        if (aiProcessButton instanceof HTMLButtonElement) {
+          aiProcessButton.disabled = true;
+        }
         review.innerHTML = '';
 
         try {
           for (const [index, file] of files.entries()) {
-            setStatus(`Processing ${file.name} (${index + 1} of ${files.length})...`);
+            setStatus(`${engine === 'openai' ? 'AI processing' : 'Processing'} ${file.name} (${index + 1} of ${files.length})...`);
 
             try {
-              const payload = await extractPayloadForFile(file);
+              const payload = await extractPayloadForFile(file, engine);
               review.insertAdjacentHTML('beforeend', cardMarkup(file, index, payload));
             } catch (error) {
               review.insertAdjacentHTML('beforeend', cardMarkup(file, index, { parsed: { lines: [{}] } }, error.message || 'OCR failed. Fill this document manually.'));
@@ -4612,8 +4690,21 @@ document.addEventListener('DOMContentLoaded', () => {
           setStatus(`Processed ${files.length} document${files.length === 1 ? '' : 's'}. Review and create drafts when ready.`, 'success');
         } finally {
           processButton.disabled = false;
+          if (aiProcessButton instanceof HTMLButtonElement) {
+            aiProcessButton.disabled = false;
+          }
         }
+      };
+
+      processButton.addEventListener('click', () => {
+        processFiles('auto');
       });
+
+      if (aiProcessButton instanceof HTMLButtonElement) {
+        aiProcessButton.addEventListener('click', () => {
+          processFiles('openai');
+        });
+      }
 
       review.addEventListener('click', (event) => {
         const target = event.target;
@@ -4624,6 +4715,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const addButton = target.closest('[data-import-add-line]');
         const removeButton = target.closest('[data-import-remove-line]');
+        const aiButton = target.closest('[data-import-run-ai]');
+
+        if (aiButton) {
+          const card = aiButton.closest('[data-import-document]');
+          const documentIndex = Number.parseInt(card?.getAttribute('data-import-document') || '', 10);
+          const file = Number.isFinite(documentIndex) ? Array.from(fileInput.files || [])[documentIndex] : null;
+
+          if (!card || !file) {
+            setStatus('Could not find the selected document for AI rerun.', 'danger');
+            return;
+          }
+
+          aiButton.disabled = true;
+          setStatus(`Running AI extraction for ${file.name}...`);
+
+          extractPayloadForFile(file, 'openai')
+            .then((payload) => {
+              card.outerHTML = cardMarkup(file, documentIndex, payload);
+              const nextCard = review.querySelector(`[data-import-document="${documentIndex}"]`);
+
+              if (nextCard) {
+                initSupplierTypeOtherFields(nextCard);
+                nextCard.querySelectorAll('[data-import-line]').forEach((row) => {
+                  syncRowFromCatalog(row);
+                });
+                updateTotals(nextCard);
+              }
+
+              setStatus(`AI extraction finished for ${file.name}. Review before creating drafts.`, 'success');
+            })
+            .catch((error) => {
+              setStatus(error.message || 'AI extraction failed for this file.', 'danger');
+              aiButton.disabled = false;
+            });
+
+          return;
+        }
 
         if (addButton) {
           const card = addButton.closest('[data-import-document]');
@@ -4729,7 +4857,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const batchItems = new Map();
       let cameraStream = null;
       let cameraScanning = false;
-      let lookupTimer = null;
+      let entryLookupTimer = null;
+      let batchLookupTimer = null;
       let lookupSequence = 0;
       let cameraLookupInFlight = false;
       let lastCameraCode = '';
@@ -5236,7 +5365,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setCameraButtonLabels();
 
         if (batchMode && batchInput instanceof HTMLInputElement) {
-          window.setTimeout(() => batchInput.focus(), 0);
+          window.setTimeout(() => {
+            batchPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            batchInput.focus();
+          }, 0);
         }
       };
 
@@ -5387,7 +5519,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const scheduleLookup = () => {
         const value = input.value.trim();
-        window.clearTimeout(lookupTimer);
+        window.clearTimeout(entryLookupTimer);
 
         if (value === '') {
           resetLookupState();
@@ -5405,13 +5537,13 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        lookupTimer = window.setTimeout(async () => {
+        entryLookupTimer = window.setTimeout(async () => {
           try {
-            await lookup(value);
+            await lookup(value, { addToBatch: batchMode });
           } catch (error) {
             setStatus(error.message || 'Lookup failed.', 'danger');
           }
-        }, value.length >= 6 ? 160 : 260);
+        }, looksLikeScanCode(value) ? 40 : 260);
       };
 
       const scheduleBatchLookup = () => {
@@ -5420,7 +5552,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const value = batchInput.value.trim();
-        window.clearTimeout(lookupTimer);
+        window.clearTimeout(batchLookupTimer);
 
         if (value === '') {
           setBatchStatus('Batch scan field is ready.');
@@ -5432,13 +5564,13 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        lookupTimer = window.setTimeout(async () => {
+        batchLookupTimer = window.setTimeout(async () => {
           try {
             await lookup(value, { addToBatch: true });
           } catch (error) {
             setBatchStatus(error.message || 'Batch lookup failed.', 'danger');
           }
-        }, value.length >= 6 ? 120 : 240);
+        }, looksLikeScanCode(value) ? 40 : 220);
       };
 
       const stopCamera = () => {
@@ -5481,6 +5613,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (cameraWrap instanceof HTMLElement) {
           cameraWrap.hidden = false;
+
+          if (batchMode) {
+            cameraWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
         }
 
         const detector = new window.BarcodeDetector({
@@ -5546,7 +5682,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        window.clearTimeout(lookupTimer);
+        window.clearTimeout(entryLookupTimer);
 
         try {
           await lookup(input.value, { addToBatch: batchMode });
@@ -5710,7 +5846,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (batchForm instanceof HTMLFormElement && batchInput instanceof HTMLInputElement) {
         batchForm.addEventListener('submit', async (event) => {
           event.preventDefault();
-          window.clearTimeout(lookupTimer);
+          window.clearTimeout(batchLookupTimer);
 
           try {
             await lookup(batchInput.value, { addToBatch: true });

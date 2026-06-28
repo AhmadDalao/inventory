@@ -1332,8 +1332,12 @@ assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_ima
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_image_custom_width]') !== false, 'Settings page is missing workflow document custom image width control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_image_custom_height]') !== false, 'Settings page is missing workflow document custom image height control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[ocr.openai_api_key]') !== false, 'Settings page is missing the OpenAI OCR API key field.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[ocr.mode]') !== false, 'Settings page is missing the OCR mode control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[ocr.openai_enabled]') !== false, 'Settings page is missing the OpenAI OCR enable switch.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[ocr.openai_model]') !== false, 'Settings page is missing the OpenAI OCR model field.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[ocr.max_pdf_pages]') !== false, 'Settings page is missing the OCR max PDF pages control.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[ocr.min_confidence]') !== false, 'Settings page is missing the OCR confidence control.');
+assert_true(strpos($settingsPageForTheme['body'], 'OCR Health') !== false, 'Settings page is missing the OCR health panel.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[nav.scan]') !== false, 'Settings page is missing scan navigation label control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[nav.reports]') !== false, 'Settings page is missing reports navigation label control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[page.scan]') !== false, 'Settings page is missing scan page title control.');
@@ -1357,8 +1361,11 @@ assert_true(strpos($settingsPageForTheme['body'], 'settings-accordion') !== fals
 assert_true(strpos($settingsPageForTheme['body'], 'Classic Warm') !== false, 'Settings page is missing the classic UI rollback option.');
 [$ocrKeepPayload, $ocrKeepErrors, $ocrSkippedSecrets] = normalize_site_settings_payload([
     'ocr.openai_api_key' => '',
+    'ocr.mode' => 'hybrid',
     'ocr.openai_enabled' => '1',
     'ocr.openai_model' => 'gpt-5.5',
+    'ocr.max_pdf_pages' => '8',
+    'ocr.min_confidence' => '70',
 ]);
 assert_true($ocrKeepErrors === [], 'Blank OpenAI key should not trigger settings validation errors.');
 assert_true(!array_key_exists('ocr.openai_api_key', $ocrKeepPayload), 'Blank OpenAI key should keep the saved key instead of overwriting it.');
@@ -1555,6 +1562,9 @@ assert_true(count($ocrPayload['parsed']['lines'] ?? []) >= 1, 'Purchase OCR did 
 assert_true((int) ($ocrPayload['parsed']['lines'][0]['item_id'] ?? 0) === (int) $ocrSourceItem['id'], 'Purchase OCR did not match existing item by SKU.');
 assert_true(isset($ocrPayload['parsed']['confidence']['overall']), 'Purchase OCR response is missing overall confidence.');
 assert_true(isset($ocrPayload['parsed']['lines'][0]['confidence']), 'Purchase OCR line is missing confidence.');
+assert_true(!empty($ocrPayload['ocr_run_ids']) && is_array($ocrPayload['ocr_run_ids']), 'Purchase OCR response is missing OCR run IDs.');
+$ocrRunCount = (int) Database::scalar('SELECT COUNT(*) FROM purchase_ocr_runs WHERE id = :id', ['id' => (int) $ocrPayload['ocr_run_ids'][0]]);
+assert_true($ocrRunCount === 1, 'Purchase OCR run was not logged.');
 
 $arabicOcrText = implode("\n", [
     'شركة ' . $prefix . ' العربية للتوريدات',
@@ -1585,6 +1595,7 @@ assert_true(($arabicOcrPayload['parsed']['lines'][0]['quantity_requested'] ?? ''
 assert_true(($arabicOcrPayload['parsed']['lines'][0]['unit_cost_quoted'] ?? '') === '3.5', 'Arabic OCR did not parse Arabic unit price.');
 assert_true(isset($arabicOcrPayload['parsed']['confidence']['overall']), 'Arabic OCR response is missing confidence.');
 assert_true(isset($arabicOcrPayload['parsed']['review_flags']) && is_array($arabicOcrPayload['parsed']['review_flags']), 'Arabic OCR response is missing review flags.');
+assert_true(!empty($arabicOcrPayload['ocr_run_ids']), 'Arabic OCR response is missing OCR run IDs.');
 
 $providerNormalized = purchase_ocr_normalize_parsed_result([
     'supplier' => [
@@ -2933,11 +2944,15 @@ assert_true($staffScanPage['status'] === 302 && location_matches($staffScanPage[
 $reportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
 assert_true($reportsPage['status'] === 200, 'Reports page did not load for owner.');
 assert_true(strpos($reportsPage['body'], 'report-preset-card') !== false, 'Reports page is missing preset cards.');
+assert_true(strpos($reportsPage['body'], 'Today Stock Activity') !== false, 'Reports page is missing the today stock activity preset.');
+assert_true(strpos($reportsPage['body'], 'Requests Needing Decisions') !== false, 'Reports page is missing the request decision preset.');
+assert_true(strpos($reportsPage['body'], 'Purchase Receiving Queue') !== false, 'Reports page is missing the purchase receiving preset.');
 $staffReportsPage = http_request($baseUrl, $staffCookie, 'GET', '/reports');
 assert_true($staffReportsPage['status'] === 403, 'Staff should not open reports.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/requests?status=open')['status'] === 200, 'Requests index filter failed.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/handovers?status=open')['status'] === 200, 'Handovers index filter failed.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/purchases?status=completed')['status'] === 200, 'Purchases index filter failed.');
+assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/purchases?status=receipt_review')['status'] === 200, 'Purchase receipt-review filter failed.');
 assert_stock_invariants('before cleanup', $prefix);
 
 note('Cleaning up regression data.');

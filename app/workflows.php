@@ -7947,7 +7947,147 @@ function purchase_ocr_tesseract_language_config(string $tesseract): array
     return $configs[$tesseract];
 }
 
-function purchase_ocr_extract_text_from_file(array $file): array
+function purchase_ocr_health(): array
+{
+    $pdftotext = purchase_ocr_command_path('pdftotext');
+    $pdftoppm = purchase_ocr_command_path('pdftoppm');
+    $tesseract = purchase_ocr_command_path('tesseract');
+    $tesseractConfig = $tesseract !== null ? purchase_ocr_tesseract_language_config($tesseract) : null;
+    $openaiConfigured = purchase_ocr_openai_enabled();
+    $mode = purchase_ocr_mode();
+
+    return [
+        [
+            'label' => 'pdftotext',
+            'status' => $pdftotext !== null ? 'available' : 'missing',
+            'ok' => $pdftotext !== null,
+            'detail' => $pdftotext !== null ? $pdftotext : 'Normal PDF text extraction is unavailable on this server.',
+        ],
+        [
+            'label' => 'pdftoppm',
+            'status' => $pdftoppm !== null ? 'available' : 'missing',
+            'ok' => $pdftoppm !== null,
+            'detail' => $pdftoppm !== null ? $pdftoppm : 'Server-side scanned PDF rendering is unavailable.',
+        ],
+        [
+            'label' => 'tesseract',
+            'status' => $tesseract !== null ? 'available' : 'missing',
+            'ok' => $tesseract !== null,
+            'detail' => $tesseract !== null ? $tesseract : 'Server-side image OCR is unavailable.',
+        ],
+        [
+            'label' => 'Arabic language data',
+            'status' => !empty($tesseractConfig['has_arabic']) ? 'available' : 'missing',
+            'ok' => !empty($tesseractConfig['has_arabic']),
+            'detail' => !empty($tesseractConfig['has_arabic']) ? 'Tesseract can read Arabic server-side.' : 'Browser OCR and OpenAI fallback handle Arabic scans better here.',
+        ],
+        [
+            'label' => 'OpenAI OCR',
+            'status' => $openaiConfigured ? 'configured' : 'not configured',
+            'ok' => $openaiConfigured,
+            'detail' => $openaiConfigured ? 'Mode: ' . $mode . '. Model: ' . openai_ocr_model() . '.' : 'Save an API key and keep OpenAI OCR enabled to use AI extraction.',
+        ],
+        [
+            'label' => 'Browser OCR',
+            'status' => 'available fallback',
+            'ok' => true,
+            'detail' => 'PDF.js + Tesseract.js can run in the browser for images and scanned PDFs.',
+        ],
+    ];
+}
+
+function purchase_ocr_excerpt(string $text): string
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $text) ?: $text);
+
+    return mb_substr($text, 0, 3000);
+}
+
+function purchase_ocr_log_run(array $data): ?int
+{
+    try {
+        Database::execute(
+            'INSERT INTO purchase_ocr_runs (
+                purchase_id,
+                created_draft_purchase_id,
+                source_filename,
+                mime_type,
+                engine,
+                confidence,
+                parsed_line_count,
+                warnings,
+                text_excerpt,
+                processed_by,
+                created_at
+             ) VALUES (
+                :purchase_id,
+                :created_draft_purchase_id,
+                :source_filename,
+                :mime_type,
+                :engine,
+                :confidence,
+                :parsed_line_count,
+                :warnings,
+                :text_excerpt,
+                :processed_by,
+                NOW()
+             )',
+            [
+                'purchase_id' => $data['purchase_id'] ?? null,
+                'created_draft_purchase_id' => $data['created_draft_purchase_id'] ?? null,
+                'source_filename' => mb_substr((string) ($data['source_filename'] ?? ''), 0, 255),
+                'mime_type' => mb_substr((string) ($data['mime_type'] ?? ''), 0, 120),
+                'engine' => mb_substr((string) ($data['engine'] ?? ''), 0, 120),
+                'confidence' => max(0.0, min(1.0, (float) ($data['confidence'] ?? 0))),
+                'parsed_line_count' => max(0, (int) ($data['parsed_line_count'] ?? 0)),
+                'warnings' => !empty($data['warnings']) ? json_encode(array_values(array_map('strval', (array) $data['warnings'])), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : null,
+                'text_excerpt' => isset($data['text_excerpt']) ? purchase_ocr_excerpt((string) $data['text_excerpt']) : null,
+                'processed_by' => Auth::user()['id'] ?? null,
+            ]
+        );
+
+        return Database::lastInsertId();
+    } catch (Throwable $exception) {
+        return null;
+    }
+}
+
+function purchase_ocr_update_runs_purchase(array $runIds, int $purchaseId): void
+{
+    $runIds = array_values(array_filter(array_map(static fn ($id): int => (int) $id, $runIds), static fn (int $id): bool => $id > 0));
+
+    if ($runIds === []) {
+        return;
+    }
+
+    $placeholders = [];
+    $params = [
+        'purchase_id' => $purchaseId,
+        'created_draft_purchase_id' => $purchaseId,
+        'processed_by' => Auth::user()['id'] ?? null,
+    ];
+
+    foreach ($runIds as $index => $runId) {
+        $key = 'id' . $index;
+        $placeholders[] = ':' . $key;
+        $params[$key] = $runId;
+    }
+
+    try {
+        Database::execute(
+            'UPDATE purchase_ocr_runs
+             SET purchase_id = :purchase_id,
+                 created_draft_purchase_id = :created_draft_purchase_id
+             WHERE id IN (' . implode(', ', $placeholders) . ')
+               AND (processed_by = :processed_by OR processed_by IS NULL)',
+            $params
+        );
+    } catch (Throwable $exception) {
+        // OCR logs must never block purchase creation.
+    }
+}
+
+function purchase_ocr_extract_text_from_file(array $file, string $requestedEngine = 'auto'): array
 {
     $meta = purchase_document_file_meta($file);
     $path = (string) ($file['tmp_name'] ?? '');
@@ -7955,8 +8095,15 @@ function purchase_ocr_extract_text_from_file(array $file): array
     $text = '';
     $engine = null;
     $parsed = null;
+    $requestedEngine = in_array($requestedEngine, ['auto', 'free', 'openai'], true) ? $requestedEngine : 'auto';
+    $settingsMode = purchase_ocr_mode();
+    $openaiFirst = $requestedEngine === 'openai' || ($requestedEngine === 'auto' && $settingsMode === 'openai_first');
 
-    if (purchase_ocr_openai_enabled() && in_array($meta['mime_type'], ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true)) {
+    if ($openaiFirst && !purchase_ocr_openai_enabled()) {
+        $warnings[] = 'AI OCR is not configured or not allowed by settings. Free OCR/manual review will be used instead.';
+    }
+
+    if ($openaiFirst && purchase_ocr_openai_enabled() && in_array($meta['mime_type'], ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true)) {
         $aiResult = purchase_ocr_openai_extract_from_file($file, $meta);
         $warnings = array_merge($warnings, $aiResult['warnings'] ?? []);
 
@@ -7998,7 +8145,7 @@ function purchase_ocr_extract_text_from_file(array $file): array
                 $languageConfig = purchase_ocr_tesseract_language_config($tesseract);
                 $engine = 'pdftoppm+tesseract';
                 $prefix = rtrim(sys_get_temp_dir(), '/') . '/inventory-ocr-' . bin2hex(random_bytes(4));
-                @shell_exec(escapeshellarg($pdftoppm) . ' -f 1 -l 3 -r 180 -png ' . escapeshellarg($path) . ' ' . escapeshellarg($prefix) . ' 2>/dev/null');
+                @shell_exec(escapeshellarg($pdftoppm) . ' -f 1 -l ' . (int) purchase_ocr_max_pdf_pages() . ' -r 180 -png ' . escapeshellarg($path) . ' ' . escapeshellarg($prefix) . ' 2>/dev/null');
 
                 foreach (glob($prefix . '-*.png') ?: [] as $imagePath) {
                     $text .= "\n" . (string) @shell_exec(escapeshellarg($tesseract) . ' ' . escapeshellarg($imagePath) . ' stdout -l ' . escapeshellarg($languageConfig['language']) . ' --psm 6 2>/dev/null');
@@ -8012,7 +8159,7 @@ function purchase_ocr_extract_text_from_file(array $file): array
         }
 
         if (trim($text) === '') {
-            $warnings[] = 'PDF text extraction is not available on this server. Upload a JPG/PNG/WebP scan for browser OCR, or install pdftotext/tesseract on the server.';
+            $warnings[] = 'PDF text extraction is not available on this server. Browser OCR can read scanned PDFs, or you can run AI extraction when configured.';
         }
     } elseif (strpos($meta['mime_type'], 'image/') === 0) {
         $tesseract = purchase_ocr_command_path('tesseract');
@@ -8243,6 +8390,7 @@ function purchase_ocr_normalize_supplier_type(string $type, string $customType =
 function purchase_ocr_normalize_parsed_result(array $parsed, string $fallbackText = ''): array
 {
     $result = purchase_ocr_empty_result($fallbackText);
+    $minimumConfidence = purchase_ocr_min_confidence();
     $supplier = is_array($parsed['supplier'] ?? null) ? $parsed['supplier'] : [];
     $purchase = is_array($parsed['purchase'] ?? null) ? $parsed['purchase'] : [];
     $confidence = is_array($parsed['confidence'] ?? null) ? $parsed['confidence'] : [];
@@ -8375,12 +8523,12 @@ function purchase_ocr_normalize_parsed_result(array $parsed, string $fallbackTex
     }
 
     foreach ($result['lines'] as $line) {
-        if ((float) ($line['confidence'] ?? 0) < 0.7) {
+        if ((float) ($line['confidence'] ?? 0) < $minimumConfidence) {
             purchase_ocr_review_flag('Low confidence line: ' . (string) $line['item_name'] . '.', $reviewFlags);
         }
     }
 
-    if ((float) $result['confidence']['overall'] < 0.7) {
+    if ((float) $result['confidence']['overall'] < $minimumConfidence) {
         purchase_ocr_review_flag('Overall OCR confidence is low. Review every field before creating the draft.', $reviewFlags);
     }
 
@@ -8875,14 +9023,32 @@ function handle_purchase_ocr_preview_submit(): void
     verify_csrf();
 
     $manualText = trim((string) input('ocr_text', ''));
+    $requestedEngine = trim((string) input('ocr_engine', 'auto'));
+    $requestedEngine = in_array($requestedEngine, ['auto', 'free', 'openai'], true) ? $requestedEngine : 'auto';
+    $canRunAi = purchase_ocr_openai_enabled() && purchase_ocr_mode() !== 'free_only';
     $warnings = [];
     $engines = [];
     $text = '';
     $parsedDocuments = [];
+    $ocrRunIds = [];
 
     if ($manualText !== '') {
         $text = $manualText;
         $engines[] = 'browser';
+        $manualParsed = purchase_ocr_normalize_parsed_result(purchase_ocr_parse_text($manualText), $manualText);
+        $runId = purchase_ocr_log_run([
+            'source_filename' => trim((string) input('ocr_source_name', 'Browser OCR text')),
+            'mime_type' => 'text/plain',
+            'engine' => 'browser',
+            'confidence' => (float) ($manualParsed['confidence']['overall'] ?? 0),
+            'parsed_line_count' => count($manualParsed['lines'] ?? []),
+            'warnings' => $manualParsed['review_flags'] ?? [],
+            'text_excerpt' => $manualText,
+        ]);
+
+        if ($runId !== null) {
+            $ocrRunIds[] = $runId;
+        }
     } else {
         $files = uploaded_files('documents');
 
@@ -8903,16 +9069,34 @@ function handle_purchase_ocr_preview_submit(): void
                 ], 422);
             }
 
-            $result = purchase_ocr_extract_text_from_file($file);
+            $result = purchase_ocr_extract_text_from_file($file, $requestedEngine);
             $text .= "\n" . (string) $result['text'];
             $warnings = array_merge($warnings, $result['warnings']);
+            $documentParsed = null;
 
             if (is_array($result['parsed'] ?? null)) {
                 $parsedDocuments[] = $result['parsed'];
+                $documentParsed = $result['parsed'];
+            } elseif (trim((string) ($result['text'] ?? '')) !== '') {
+                $documentParsed = purchase_ocr_normalize_parsed_result(purchase_ocr_parse_text((string) $result['text']), (string) $result['text']);
             }
 
             if (!empty($result['engine'])) {
                 $engines[] = (string) $result['engine'];
+            }
+
+            $runId = purchase_ocr_log_run([
+                'source_filename' => (string) ($file['name'] ?? ''),
+                'mime_type' => (string) (purchase_document_file_meta($file)['mime_type'] ?? ''),
+                'engine' => (string) ($result['engine'] ?? ($requestedEngine === 'openai' ? 'openai' : 'none')),
+                'confidence' => is_array($documentParsed) ? (float) ($documentParsed['confidence']['overall'] ?? 0) : 0.0,
+                'parsed_line_count' => is_array($documentParsed) ? count($documentParsed['lines'] ?? []) : 0,
+                'warnings' => array_values(array_unique(array_merge($result['warnings'] ?? [], is_array($documentParsed) ? ($documentParsed['review_flags'] ?? []) : []))),
+                'text_excerpt' => is_array($documentParsed) ? (string) ($documentParsed['text_excerpt'] ?? '') : (string) ($result['text'] ?? ''),
+            ]);
+
+            if ($runId !== null) {
+                $ocrRunIds[] = $runId;
             }
         }
     }
@@ -8926,6 +9110,9 @@ function handle_purchase_ocr_preview_submit(): void
                 ? 'No readable purchase data was found. Review the scan quality or type the lines manually.'
                 : 'No readable text was found. Configure AI OCR for scanned PDFs, use JPG/PNG/WebP browser OCR, or type the lines manually.',
             'needs_browser_ocr' => true,
+            'can_run_ai' => $canRunAi,
+            'ocr_mode' => purchase_ocr_mode(),
+            'ocr_run_ids' => $ocrRunIds,
             'warnings' => array_values(array_unique($warnings)),
         ], 422);
     }
@@ -8944,6 +9131,10 @@ function handle_purchase_ocr_preview_submit(): void
         'engine' => implode('+', array_values(array_unique($engines))),
         'warnings' => array_values(array_unique(array_merge($warnings, $reviewFlags))),
         'review_flags' => $reviewFlags,
+        'ocr_mode' => purchase_ocr_mode(),
+        'can_run_ai' => $canRunAi,
+        'min_confidence' => purchase_ocr_min_confidence(),
+        'ocr_run_ids' => $ocrRunIds,
         'parsed' => $parsed,
     ]);
 }
@@ -9404,6 +9595,8 @@ function persist_purchase_from_request(?array $purchase = null): int
         'notes' => trim((string) input('notes')),
         'document_type' => trim((string) input('document_type', 'proof')),
     ];
+    $ocrRunIds = input('ocr_run_ids', []);
+    $ocrRunIds = is_array($ocrRunIds) ? $ocrRunIds : [];
 
     flash_old_input(array_merge($payload, [
         'supplier_id' => (string) ($payload['supplier_id'] ?? ''),
@@ -9639,6 +9832,7 @@ function persist_purchase_from_request(?array $purchase = null): int
         }
 
         $storedDocuments = save_purchase_documents($purchaseId, $purchaseNumber, uploaded_files('documents'), $payload['document_type'], (int) $user['id']);
+        purchase_ocr_update_runs_purchase($ocrRunIds, $purchaseId);
 
         if ($action === 'submit') {
             if (!purchase_submit_ready($purchaseId)) {
@@ -9849,6 +10043,7 @@ function handle_purchases_import_drafts_submit(): void
     $documentIndices = input('document_index', []);
     $documentIncludes = input('document_include', []);
     $documentFiles = uploaded_files('documents');
+    $ocrRunIds = input('ocr_run_id', []);
     $storageId = normalize_entity_id(input('destination_storage_id'));
     $approverUserId = normalize_entity_id(input('approver_user_id'));
     $defaultCurrency = strtoupper(trim((string) input('default_currency', 'SAR'))) ?: 'SAR';
@@ -9871,6 +10066,10 @@ function handle_purchases_import_drafts_submit(): void
 
     if (!is_array($documentIncludes)) {
         $documentIncludes = [];
+    }
+
+    if (!is_array($ocrRunIds)) {
+        $ocrRunIds = [];
     }
 
     if ($storageId === null || !storage_exists_for_assignment($storageId)) {
@@ -9917,6 +10116,7 @@ function handle_purchases_import_drafts_submit(): void
         $expectedDate = purchase_import_document_value('expected_date', $documentIndex);
         $currency = strtoupper(purchase_import_document_value('currency', $documentIndex, $defaultCurrency)) ?: $defaultCurrency;
         $documentType = purchase_import_document_value('document_type', $documentIndex, $defaultDocumentType);
+        $documentOcrRunId = normalize_entity_id($ocrRunIds[$documentIndex] ?? ($ocrRunIds[(string) $documentIndex] ?? null));
 
         if ($file === null) {
             $errors[] = 'Document ' . $displayNumber . ' is missing its uploaded file.';
@@ -9992,6 +10192,7 @@ function handle_purchases_import_drafts_submit(): void
             'expected_date' => $expectedDate,
             'currency' => $currency,
             'document_type' => $documentType,
+            'ocr_run_id' => $documentOcrRunId,
             'lines' => $lines,
         ];
     }
@@ -10113,6 +10314,9 @@ function handle_purchases_import_drafts_submit(): void
 
             $storedForPurchase = save_purchase_documents($purchaseId, $purchaseNumber, [$draft['file']], $draft['document_type'], (int) $user['id']);
             $storedDocuments = array_merge($storedDocuments, $storedForPurchase);
+            if (!empty($draft['ocr_run_id'])) {
+                purchase_ocr_update_runs_purchase([(int) $draft['ocr_run_id']], $purchaseId);
+            }
             $createdPurchaseIds[] = $purchaseId;
             $createdPurchaseNumbers[] = $purchaseNumber;
         }

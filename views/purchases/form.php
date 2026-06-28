@@ -26,7 +26,19 @@ foreach ($suppliers as $supplierOption) {
 </section>
 
 <section class="panel form-panel">
-    <form class="stack-form" method="post" action="<?= e($actionUrl) ?>" enctype="multipart/form-data" data-purchase-line-builder data-purchase-catalog="<?= e((string) $itemsJson) ?>" data-purchase-suppliers="<?= e((string) $suppliersJson) ?>" data-purchase-ocr-url="<?= e(url('/purchases/ocr-preview')) ?>">
+    <form
+        class="stack-form"
+        method="post"
+        action="<?= e($actionUrl) ?>"
+        enctype="multipart/form-data"
+        data-purchase-line-builder
+        data-purchase-catalog="<?= e((string) $itemsJson) ?>"
+        data-purchase-suppliers="<?= e((string) $suppliersJson) ?>"
+        data-purchase-ocr-url="<?= e(url('/purchases/ocr-preview')) ?>"
+        data-purchase-ocr-can-ai="<?= purchase_ocr_openai_enabled() && purchase_ocr_mode() !== 'free_only' ? '1' : '0' ?>"
+        data-purchase-ocr-max-pages="<?= e((string) purchase_ocr_max_pdf_pages()) ?>"
+        data-purchase-ocr-min-confidence="<?= e((string) purchase_ocr_min_confidence()) ?>"
+    >
         <?= csrf_field() ?>
 
         <div class="copy-context-card">
@@ -183,13 +195,16 @@ foreach ($suppliers as $supplierOption) {
         <div class="copy-context-card purchase-ocr-card" data-purchase-ocr-panel>
             <div>
                 <strong>Extract quote / receipt details</strong>
-                <p>Upload an Arabic or English supplier quote, price list, receipt, or scanned PDF. Server AI OCR reads old scans when configured, then you review before submitting.</p>
+                <p>Upload an Arabic or English supplier quote, price list, receipt, or scanned PDF. Free/browser OCR runs first unless Website Control is set to OpenAI first.</p>
             </div>
             <div class="button-row">
                 <button class="ghost-button" type="button" data-purchase-ocr-button><?= ui_icon('document') ?><span>Extract From File</span></button>
+                <button class="ghost-button" type="button" data-purchase-ocr-ai-button hidden><?= ui_icon('document') ?><span>Run AI Extraction</span></button>
             </div>
-            <div class="purchase-ocr-status tiny-copy" data-purchase-ocr-status>OCR supports Arabic + English PDF, JPG, PNG, and WebP. If server AI OCR is unavailable, browser OCR/manual review remains available.</div>
+            <div class="purchase-ocr-status tiny-copy" data-purchase-ocr-status>OCR supports Arabic + English PDF, JPG, PNG, and WebP. Weak results stay editable before draft creation.</div>
+            <div class="purchase-document-preview" data-purchase-ocr-preview hidden></div>
             <div class="ocr-confidence-panel" data-purchase-ocr-review hidden></div>
+            <div data-purchase-ocr-run-holder hidden></div>
             <details class="purchase-ocr-text" data-purchase-ocr-text-wrap hidden>
                 <summary>Extracted text preview</summary>
                 <pre data-purchase-ocr-text></pre>

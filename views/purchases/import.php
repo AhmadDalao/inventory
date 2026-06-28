@@ -24,6 +24,9 @@ $supplierTypeOptionsJson = json_encode(supplier_type_options(), JSON_UNESCAPED_S
         enctype="multipart/form-data"
         data-purchase-bulk-import
         data-purchase-ocr-url="<?= e(url('/purchases/ocr-preview')) ?>"
+        data-purchase-ocr-can-ai="<?= purchase_ocr_openai_enabled() && purchase_ocr_mode() !== 'free_only' ? '1' : '0' ?>"
+        data-purchase-ocr-max-pages="<?= e((string) purchase_ocr_max_pdf_pages()) ?>"
+        data-purchase-ocr-min-confidence="<?= e((string) purchase_ocr_min_confidence()) ?>"
         data-purchase-catalog="<?= e((string) $itemsJson) ?>"
         data-purchase-unit-options="<?= e((string) $unitOptionsJson) ?>"
         data-purchase-document-types="<?= e((string) $documentTypesJson) ?>"
@@ -34,7 +37,7 @@ $supplierTypeOptionsJson = json_encode(supplier_type_options(), JSON_UNESCAPED_S
         <div class="copy-context-card purchase-import-hero">
             <div>
                 <strong>Turn old supplier files into purchase drafts</strong>
-                <p>Upload Arabic or English quotes, price lists, receipts, or scanned PDFs. Server AI OCR handles old scans when configured, then you review the rows before creating drafts.</p>
+                <p>Upload Arabic or English quotes, price lists, receipts, or scanned PDFs. Free/browser OCR runs first unless Website Control is set to OpenAI first.</p>
             </div>
             <span class="status-badge badge-warning">Drafts only</span>
         </div>
@@ -94,6 +97,7 @@ $supplierTypeOptionsJson = json_encode(supplier_type_options(), JSON_UNESCAPED_S
 
         <div class="purchase-import-actions">
             <button class="primary-button" type="button" data-purchase-bulk-process><?= ui_icon('document') ?><span>Process Documents</span></button>
+            <button class="ghost-button" type="button" data-purchase-bulk-ai-process hidden><?= ui_icon('document') ?><span>Process With AI</span></button>
             <span class="purchase-ocr-status tiny-copy" data-purchase-bulk-status>Upload files, process them, then review every row before creating drafts.</span>
         </div>
 

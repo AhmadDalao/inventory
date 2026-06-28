@@ -58,6 +58,29 @@
         </div>
     </form>
 
+    <?php if (!empty($ocrHealth) && is_array($ocrHealth)): ?>
+        <div class="settings-health-panel">
+            <div class="settings-health-head">
+                <div>
+                    <p class="eyebrow">OCR Health</p>
+                    <h4>Purchase Document Extraction</h4>
+                </div>
+                <span class="status-badge badge-warning"><?= e(site_setting('ocr.mode', 'hybrid')) ?></span>
+            </div>
+            <div class="settings-health-grid">
+                <?php foreach ($ocrHealth as $healthItem): ?>
+                    <article class="settings-health-card <?= !empty($healthItem['ok']) ? 'is-ok' : 'is-missing' ?>">
+                        <span class="settings-health-status"><?= !empty($healthItem['ok']) ? 'Ready' : 'Needs setup' ?></span>
+                        <strong><?= e((string) ($healthItem['label'] ?? 'OCR check')) ?></strong>
+                        <p><?= e((string) ($healthItem['status'] ?? 'unknown')) ?></p>
+                        <small><?= e((string) ($healthItem['detail'] ?? '')) ?></small>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+            <p class="tiny-copy settings-health-note"><?= e(site_setting('ocr.monthly_safety_note', 'OpenAI OCR is paid. Use it for hard scans only and review every extracted row before creating drafts.')) ?></p>
+        </div>
+    <?php endif; ?>
+
     <form class="stack-form" method="post" action="<?= e(url('/settings/site')) ?>">
         <?= csrf_field() ?>
 

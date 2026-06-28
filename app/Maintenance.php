@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Maintenance
 {
-    private const SCHEMA_VERSION = '2026-06-23-scan-package-presets';
+    private const SCHEMA_VERSION = '2026-06-28-purchase-ocr-runs';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -951,6 +951,30 @@ final class Maintenance
         );
 
         Database::execute(
+            'CREATE TABLE IF NOT EXISTS purchase_ocr_runs (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                purchase_id BIGINT UNSIGNED NULL,
+                created_draft_purchase_id BIGINT UNSIGNED NULL,
+                source_filename VARCHAR(255) NOT NULL DEFAULT "",
+                mime_type VARCHAR(120) NOT NULL DEFAULT "",
+                engine VARCHAR(120) NOT NULL DEFAULT "",
+                confidence DECIMAL(5,4) NOT NULL DEFAULT 0.0000,
+                parsed_line_count INT UNSIGNED NOT NULL DEFAULT 0,
+                warnings TEXT NULL,
+                text_excerpt TEXT NULL,
+                processed_by BIGINT UNSIGNED NULL,
+                created_at DATETIME NOT NULL,
+                INDEX idx_purchase_ocr_runs_purchase (purchase_id),
+                INDEX idx_purchase_ocr_runs_draft (created_draft_purchase_id),
+                INDEX idx_purchase_ocr_runs_processed_by (processed_by, created_at),
+                INDEX idx_purchase_ocr_runs_engine (engine, created_at),
+                CONSTRAINT fk_purchase_ocr_runs_purchase FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE SET NULL,
+                CONSTRAINT fk_purchase_ocr_runs_draft FOREIGN KEY (created_draft_purchase_id) REFERENCES purchases(id) ON DELETE SET NULL,
+                CONSTRAINT fk_purchase_ocr_runs_processed_by FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
             'CREATE TABLE IF NOT EXISTS stocktakes (
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 stocktake_number VARCHAR(40) NOT NULL,
@@ -1378,7 +1402,7 @@ final class Maintenance
 
     private static function purchaseSchemaIsCurrent(): bool
     {
-        foreach (['suppliers', 'purchases', 'purchase_lines', 'purchase_documents'] as $tableName) {
+        foreach (['suppliers', 'purchases', 'purchase_lines', 'purchase_documents', 'purchase_ocr_runs'] as $tableName) {
             if (!self::tableExists($tableName)) {
                 return false;
             }

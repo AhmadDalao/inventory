@@ -2072,6 +2072,22 @@ function normalize_site_settings_payload(array $submitted, array $clearSubmitted
             }
         }
 
+        if ($key === 'ocr.max_pdf_pages' && $value !== '') {
+            $pageCount = (int) $value;
+
+            if ($pageCount < 1 || $pageCount > 20) {
+                $errors[] = 'Max PDF pages per file must be between 1 and 20.';
+            }
+        }
+
+        if ($key === 'ocr.min_confidence' && $value !== '') {
+            $confidence = (int) $value;
+
+            if ($confidence < 1 || $confidence > 95) {
+                $errors[] = 'Minimum confidence percent must be between 1 and 95.';
+            }
+        }
+
         $payload[$key] = $value;
     }
 
@@ -3519,6 +3535,15 @@ function report_preset_cards(): array
                 'badge' => 'Value',
             ],
             [
+                'title' => 'Today Stock Activity',
+                'copy' => 'All restock, usage, transfer, and adjustment movements recorded today.',
+                'icon' => 'movements',
+                'permission' => 'movements.export',
+                'download_url' => url('/exports/movements?date_from=' . rawurlencode($today) . '&date_to=' . rawurlencode($today)),
+                'source_url' => url('/movements?date_from=' . rawurlencode($today) . '&date_to=' . rawurlencode($today)),
+                'badge' => 'Today',
+            ],
+            [
                 'title' => 'Low Stock Reorder',
                 'copy' => 'Items at or below reorder level with suggested refill quantity and estimated value.',
                 'icon' => 'reorder',
@@ -3566,6 +3591,15 @@ function report_preset_cards(): array
                 'badge' => 'Requests',
             ],
             [
+                'title' => 'Requests Needing Decisions',
+                'copy' => 'Request approvals still waiting for an owner or assigned admin decision.',
+                'icon' => 'requests',
+                'permission' => 'requests.export',
+                'download_url' => url('/exports/requests?status=pending&date_from=' . rawurlencode($last30Start) . '&date_to=' . rawurlencode($today)),
+                'source_url' => url('/requests?status=pending'),
+                'badge' => 'Approve',
+            ],
+            [
                 'title' => 'Handover Closeouts',
                 'copy' => 'Temporary item issues, used quantities, returned quantities, and closeout status.',
                 'icon' => 'handover',
@@ -3574,8 +3608,35 @@ function report_preset_cards(): array
                 'source_url' => url('/handovers?status=all'),
                 'badge' => 'Handover',
             ],
+            [
+                'title' => 'Open Handover Proof Trail',
+                'copy' => 'Handovers that are still requested, delivered, awaiting receipt, or waiting final approval.',
+                'icon' => 'handover',
+                'permission' => 'handovers.export',
+                'download_url' => url('/exports/handovers?status=open&date_from=' . rawurlencode($last30Start) . '&date_to=' . rawurlencode($today)),
+                'source_url' => url('/handovers?status=open'),
+                'badge' => 'Open',
+            ],
         ],
         'Finance And Suppliers' => [
+            [
+                'title' => 'Purchase Approval Queue',
+                'copy' => 'Supplier purchases submitted for approval before stock can move.',
+                'icon' => 'purchases',
+                'permission' => 'purchases.export',
+                'download_url' => url('/exports/purchases?status=pending_approval&date_from=' . rawurlencode($last30Start) . '&date_to=' . rawurlencode($today)),
+                'source_url' => url('/purchases?status=pending_approval'),
+                'badge' => 'Approve',
+            ],
+            [
+                'title' => 'Purchase Receiving Queue',
+                'copy' => 'Approved or receipt-review purchases that still need received quantities confirmed.',
+                'icon' => 'purchases',
+                'permission' => 'purchases.export',
+                'download_url' => url('/exports/purchases?status=receipt_review&date_from=' . rawurlencode($last30Start) . '&date_to=' . rawurlencode($today)),
+                'source_url' => url('/purchases?status=receipt_review'),
+                'badge' => 'Receive',
+            ],
             [
                 'title' => 'Completed Purchases',
                 'copy' => 'Supplier purchases that finished receiving and posted restock movements.',
@@ -4867,6 +4928,7 @@ function handle_site_settings_page(): void
         'title' => site_setting('page.settings', 'Website Control'),
         'settingGroups' => site_setting_groups(is_array($values) ? $values : [], Auth::hasPermission('settings.secrets')),
         'canManageSecretSettings' => Auth::hasPermission('settings.secrets'),
+        'ocrHealth' => function_exists('purchase_ocr_health') ? purchase_ocr_health() : null,
     ]);
 }
 
