@@ -1261,6 +1261,15 @@ function export_csv(string $filename, array $headers, array $rows): never
     exit;
 }
 
+function export_xlsx(string $filename, string $bytes): never
+{
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
 function default_item_payload(?array $sourceItem = null): array
 {
     $sourceUnit = item_unit_form_state($sourceItem['unit'] ?? 'pcs');
@@ -3732,15 +3741,11 @@ function handle_reports_index(): void
     ]);
 }
 
-function handle_export_items(): void
+function item_export_rows(array $filters): array
 {
-    app_ready_or_redirect();
-    Auth::requirePermission('items.export');
-
-    $filters = item_filters();
     [$where, $params] = build_item_where($filters);
 
-    $items = Database::fetchAll(
+    return Database::fetchAll(
         "SELECT i.*,
                 default_storage.name AS default_storage_name,
                 (
@@ -3761,6 +3766,14 @@ function handle_export_items(): void
          ORDER BY i.name ASC",
         $params
     );
+}
+
+function handle_export_items(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('items.export');
+
+    $items = item_export_rows(item_filters());
 
     $rows = array_map(static function (array $item): array {
         return [
@@ -3797,6 +3810,162 @@ function handle_export_items(): void
         'Last Movement At',
         'Notes',
     ], $rows);
+}
+
+function item_export_xlsx_sheet_xml(array $items, array $images): string
+{
+    $headers = [
+        'Image',
+        'Name',
+        'SKU',
+        'Barcode',
+        'Category',
+        'Locations',
+        'Default Location',
+        'Unit',
+        'Current Quantity',
+        'Reorder Level',
+        'Cost Per Unit',
+        'Status',
+        'Last Movement',
+        'Notes',
+    ];
+
+    $sheetRows = [];
+    $headerCells = '';
+
+    foreach ($headers as $index => $header) {
+        $headerCells .= workflow_xlsx_cell(workflow_xlsx_column($index + 1) . '1', $header, 2);
+    }
+
+    $sheetRows[] = '<row r="1" ht="24" customHeight="1">' . $headerCells . '</row>';
+    $rowNumber = 2;
+
+    foreach ($items as $item) {
+        $cells = '';
+        $cells .= workflow_xlsx_cell('A' . $rowNumber, workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : 'No image', 3);
+        $cells .= workflow_xlsx_cell('B' . $rowNumber, (string) $item['name'], 3);
+        $cells .= workflow_xlsx_cell('C' . $rowNumber, (string) $item['sku'], 3);
+        $cells .= workflow_xlsx_cell('D' . $rowNumber, (string) ($item['barcode'] ?: ''), 3);
+        $cells .= workflow_xlsx_cell('E' . $rowNumber, (string) ($item['category'] ?: ''), 3);
+        $cells .= workflow_xlsx_cell('F' . $rowNumber, (string) ($item['storage_summary'] ?: ''), 3);
+        $cells .= workflow_xlsx_cell('G' . $rowNumber, (string) ($item['default_storage_name'] ?: ''), 3);
+        $cells .= workflow_xlsx_cell('H' . $rowNumber, (string) $item['unit'], 3);
+        $cells .= workflow_xlsx_cell('I' . $rowNumber, format_quantity($item['current_quantity']), 3);
+        $cells .= workflow_xlsx_cell('J' . $rowNumber, format_quantity($item['reorder_level']), 3);
+        $cells .= workflow_xlsx_cell('K' . $rowNumber, format_money($item['cost_per_unit']), 3);
+        $cells .= workflow_xlsx_cell('L' . $rowNumber, (int) $item['is_active'] === 1 ? 'Active' : 'Deleted', 3);
+        $cells .= workflow_xlsx_cell('M' . $rowNumber, (string) ($item['last_movement_at'] ?: ''), 3);
+        $cells .= workflow_xlsx_cell('N' . $rowNumber, (string) ($item['notes'] ?: ''), 3);
+        $sheetRows[] = '<row r="' . $rowNumber . '" ht="64" customHeight="1">' . $cells . '</row>';
+        $rowNumber++;
+    }
+
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+    $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
+    $xml .= '<cols>'
+        . '<col min="1" max="1" width="16" customWidth="1"/>'
+        . '<col min="2" max="2" width="26" customWidth="1"/>'
+        . '<col min="3" max="5" width="18" customWidth="1"/>'
+        . '<col min="6" max="7" width="28" customWidth="1"/>'
+        . '<col min="8" max="8" width="10" customWidth="1"/>'
+        . '<col min="9" max="10" width="16" customWidth="1"/>'
+        . '<col min="11" max="11" width="18" customWidth="1"/>'
+        . '<col min="12" max="13" width="18" customWidth="1"/>'
+        . '<col min="14" max="14" width="34" customWidth="1"/>'
+        . '</cols>';
+    $xml .= '<sheetData>' . implode('', $sheetRows) . '</sheetData>';
+    $xml .= '<pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>';
+
+    if ($images) {
+        $xml .= '<drawing r:id="rId1"/>';
+    }
+
+    $xml .= '</worksheet>';
+
+    return $xml;
+}
+
+function item_export_xlsx_payload(array $items): string
+{
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException('ZipArchive is required to generate Excel item exports.');
+    }
+
+    $images = [];
+    $imageSize = ['width' => 72, 'height' => 54];
+
+    foreach ($items as $index => $item) {
+        $image = workflow_xlsx_image_asset($item['image_path'] ?? null, $imageSize);
+
+        if ($image === null) {
+            continue;
+        }
+
+        $image['row'] = 2 + $index;
+        $image['col'] = 0;
+        $image['name'] = 'Item Thumbnail ' . ($index + 1);
+        $images[] = $image;
+    }
+
+    $tmp = tempnam(sys_get_temp_dir(), 'items-xlsx-');
+
+    if ($tmp === false) {
+        throw new RuntimeException('Could not create temporary Excel file.');
+    }
+
+    $zip = new ZipArchive();
+
+    if ($zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        @unlink($tmp);
+        throw new RuntimeException('Could not open temporary Excel archive.');
+    }
+
+    $zip->addFromString('[Content_Types].xml', workflow_xlsx_content_types_xml(array_values($images)));
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>');
+    $zip->addFromString('docProps/app.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Inventory KONA</Application></Properties>');
+    $zip->addFromString('docProps/core.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Item Export</dc:title><dc:creator>Inventory KONA</dc:creator><cp:lastModifiedBy>Inventory KONA</cp:lastModifiedBy><dcterms:created xsi:type="dcterms:W3CDTF">' . gmdate('c') . '</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">' . gmdate('c') . '</dcterms:modified></cp:coreProperties>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Items" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+    $zip->addFromString('xl/styles.xml', workflow_xlsx_styles_xml());
+    $zip->addFromString('xl/worksheets/sheet1.xml', item_export_xlsx_sheet_xml($items, $images));
+
+    if ($images) {
+        $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>');
+        $zip->addFromString('xl/drawings/drawing1.xml', workflow_xlsx_drawing_xml(array_values($images)));
+        $zip->addFromString('xl/drawings/_rels/drawing1.xml.rels', workflow_xlsx_drawing_rels_xml(array_values($images)));
+
+        foreach (array_values($images) as $index => $image) {
+            $zip->addFromString('xl/media/image' . ($index + 1) . '.' . $image['extension'], (string) $image['bytes']);
+        }
+    }
+
+    $zip->close();
+    $bytes = file_get_contents($tmp);
+    @unlink($tmp);
+
+    if ($bytes === false || $bytes === '') {
+        throw new RuntimeException('Could not build Excel item export.');
+    }
+
+    return $bytes;
+}
+
+function handle_export_items_xlsx(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('items.export');
+
+    if (!item_xlsx_thumbnail_export_enabled()) {
+        abort(403, 'Item Excel thumbnail export is disabled in Website Control.');
+    }
+
+    try {
+        export_xlsx('items-export-' . date('Ymd-His') . '.xlsx', item_export_xlsx_payload(item_export_rows(item_filters())));
+    } catch (Throwable $exception) {
+        abort(500, 'Could not export item thumbnails. ' . $exception->getMessage());
+    }
 }
 
 function handle_export_movements(): void

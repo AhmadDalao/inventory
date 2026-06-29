@@ -134,6 +134,9 @@ $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id
             </div>
         </section>
 
-        <button class="primary-button" type="submit">Create Request</button>
+        <div class="form-actions">
+            <button class="ghost-button" type="submit" name="request_action" value="draft">Save Draft</button>
+            <button class="primary-button" type="submit" name="request_action" value="submit">Submit Request</button>
+        </div>
     </form>
 </section>

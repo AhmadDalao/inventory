@@ -142,6 +142,17 @@ function site_setting_schema(): array
                     ],
                     'maxlength' => 1,
                 ],
+                'exports.item_xlsx_thumbnails' => [
+                    'label' => 'Item Excel export with thumbnails',
+                    'default' => '0',
+                    'help' => 'Adds a separate XLSX export button on the Items page with embedded item thumbnails. CSV stays lightweight.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
             ],
         ],
         [
@@ -1664,6 +1675,8 @@ function access_role_for_position(string $position): string
 function request_status_label(string $status): string
 {
     switch ($status) {
+        case 'draft':
+            return 'Draft';
         case 'pending':
             return 'Pending';
         case 'approved':
@@ -3945,6 +3958,11 @@ function item_image_url(?string $imagePath): ?string
     }
 
     return url('/uploads/items/' . rawurlencode(basename($imagePath)));
+}
+
+function item_xlsx_thumbnail_export_enabled(): bool
+{
+    return site_setting('exports.item_xlsx_thumbnails', '0') === '1';
 }
 
 function item_initial(?string $value): string

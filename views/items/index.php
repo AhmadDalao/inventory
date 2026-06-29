@@ -95,7 +95,12 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
             </label>
         </div>
 
-        <a class="ghost-button table-export-button" href="<?= e(url('/exports/items') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+        <div class="button-row">
+            <?php if (item_xlsx_thumbnail_export_enabled()): ?>
+                <a class="ghost-button table-export-button" href="<?= e(url('/exports/items.xlsx') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('items') ?><span>Export Excel</span></a>
+            <?php endif; ?>
+            <a class="ghost-button table-export-button" href="<?= e(url('/exports/items') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+        </div>
     </div>
 
     <div class="table-wrap">

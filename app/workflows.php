@@ -1351,7 +1351,7 @@ function request_filters(): array
 
     return [
         'search' => trim((string) query('search', '')),
-        'status' => in_array($status, ['open', 'pending', 'approved', 'receipt_review', 'completed', 'rejected', 'cancelled', 'all'], true) ? $status : 'all',
+        'status' => in_array($status, ['open', 'draft', 'pending', 'approved', 'receipt_review', 'completed', 'rejected', 'cancelled', 'all'], true) ? $status : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
@@ -1686,6 +1686,41 @@ function request_can_report_receipt(array $request, ?array $user = null): bool
     return Auth::isOwner() || (int) ($request['requester_user_id'] ?? 0) === (int) ($user['id'] ?? 0);
 }
 
+function request_submit_draft_block_reason(array $request, ?array $user = null): ?string
+{
+    $user = $user ?? Auth::user();
+
+    if ($user === null) {
+        return 'Login first.';
+    }
+
+    if (!Auth::hasPermission('requests.create')) {
+        return 'You do not have permission to submit request drafts.';
+    }
+
+    if ((string) ($request['status'] ?? '') !== 'draft') {
+        return 'Only draft requests can be submitted.';
+    }
+
+    $userId = (int) ($user['id'] ?? 0);
+
+    if ((int) ($request['requester_user_id'] ?? 0) !== $userId && !Auth::isOwner()) {
+        return 'Only the requester or owner can submit this draft.';
+    }
+
+    $sourceOwner = storage_owner_record((int) ($request['source_storage_id'] ?? 0));
+
+    if (!$sourceOwner || empty($sourceOwner['owner_user_id']) || (int) ($sourceOwner['owner_is_active'] ?? 0) !== 1) {
+        return 'The source storage needs an active owner admin before this draft can be submitted.';
+    }
+
+    if ((int) ($sourceOwner['owner_user_id'] ?? 0) === (int) ($request['requester_user_id'] ?? 0)) {
+        return 'The requester now owns the source storage, so this draft cannot be submitted as a request.';
+    }
+
+    return null;
+}
+
 function request_receipt_confirm_block_reason(array $request, ?array $user = null): ?string
 {
     $user = $user ?? Auth::user();
@@ -1717,7 +1752,7 @@ function request_cancel_block_reason(array $request, ?array $user = null): ?stri
         return 'Login first.';
     }
 
-    if (!in_array((string) ($request['status'] ?? ''), ['pending', 'approved', 'receipt_review'], true)) {
+    if (!in_array((string) ($request['status'] ?? ''), ['draft', 'pending', 'approved', 'receipt_review'], true)) {
         return 'Only open requests can be cancelled.';
     }
 
@@ -5417,6 +5452,7 @@ function handle_requests_index(): void
 
     [$requestScopeSql, $requestScopeParams] = visible_request_scope('r');
     $counts = [
+        'draft' => (int) Database::scalar("SELECT COUNT(*) FROM item_requests r WHERE r.status = 'draft'" . $requestScopeSql, $requestScopeParams),
         'open' => (int) Database::scalar("SELECT COUNT(*) FROM item_requests r WHERE r.status IN ('pending', 'approved', 'receipt_review')" . $requestScopeSql, $requestScopeParams),
         'completed' => (int) Database::scalar("SELECT COUNT(*) FROM item_requests r WHERE r.status = 'completed'" . $requestScopeSql, $requestScopeParams),
         'rejected' => (int) Database::scalar("SELECT COUNT(*) FROM item_requests r WHERE r.status = 'rejected'" . $requestScopeSql, $requestScopeParams),
@@ -5470,6 +5506,8 @@ function handle_requests_create_submit(): void
     $user = Auth::user();
     $isStaffRequest = Auth::isStaff();
     $requestMode = $isStaffRequest ? 'issue' : 'transfer';
+    $requestAction = (string) input('request_action', 'submit') === 'draft' ? 'draft' : 'submit';
+    $requestStatus = $requestAction === 'draft' ? 'draft' : 'pending';
     [$lines, $lineErrors] = parse_workflow_lines();
     $payload = [
         'source_storage_id' => normalize_entity_id(input('source_storage_id')),
@@ -5585,7 +5623,7 @@ function handle_requests_create_submit(): void
                 :approver_user_id,
                 :source_storage_id,
                 :destination_storage_id,
-                "pending",
+                :status,
                 :needed_by_date,
                 :notes,
                 NULL,
@@ -5607,6 +5645,7 @@ function handle_requests_create_submit(): void
                 'approver_user_id' => (int) $sourceOwner['owner_user_id'],
                 'source_storage_id' => (int) $payload['source_storage_id'],
                 'destination_storage_id' => $payload['destination_storage_id'] ? (int) $payload['destination_storage_id'] : null,
+                'status' => $requestStatus,
                 'needed_by_date' => $payload['needed_by_date'] !== '' ? $payload['needed_by_date'] : null,
                 'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
                 'updated_by' => (int) $user['id'],
@@ -5663,21 +5702,23 @@ function handle_requests_create_submit(): void
         redirect('/requests/create');
     }
 
-    create_notification(
-        (int) $sourceOwner['owner_user_id'],
-        'request_created',
-        'New item request ' . $requestNumber,
-        ($user['name'] ?? 'Someone') . ($requestMode === 'issue'
-            ? ' asked for items to use from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.'
-            : ' requested a storage transfer from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.'),
-        url('/requests/' . $requestId),
-        'request',
-        $requestId,
-        (int) ($user['id'] ?? 0)
-    );
+    if ($requestStatus === 'pending') {
+        create_notification(
+            (int) $sourceOwner['owner_user_id'],
+            'request_created',
+            'New item request ' . $requestNumber,
+            ($user['name'] ?? 'Someone') . ($requestMode === 'issue'
+                ? ' asked for items to use from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.'
+                : ' requested a storage transfer from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.'),
+            url('/requests/' . $requestId),
+            'request',
+            $requestId,
+            (int) ($user['id'] ?? 0)
+        );
+    }
 
     consume_old_input();
-    flash('success', 'Request created.');
+    flash('success', $requestStatus === 'draft' ? 'Request draft saved.' : 'Request submitted.');
     redirect('/requests/' . $requestId);
 }
 
@@ -5707,6 +5748,63 @@ function handle_requests_show(array $params): void
         'lines' => $lines,
         'documents' => workflow_documents('request', (int) $request['id']),
     ]);
+}
+
+function handle_requests_submit_submit(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('requests.create');
+    verify_csrf();
+
+    $request = find_request_or_abort((int) $params['id']);
+    $user = Auth::user();
+    $blockReason = request_submit_draft_block_reason($request, $user);
+
+    if ($blockReason !== null) {
+        flash('danger', $blockReason);
+        redirect('/requests/' . $request['id']);
+    }
+
+    Database::execute(
+        'UPDATE item_requests
+         SET status = "pending",
+             requested_at = NOW(),
+             updated_by = :updated_by,
+             updated_at = NOW()
+         WHERE id = :id',
+        [
+            'updated_by' => (int) ($user['id'] ?? 0),
+            'id' => (int) $request['id'],
+        ]
+    );
+
+    create_notification(
+        (int) $request['approver_user_id'],
+        'request_created',
+        'New item request ' . $request['request_number'],
+        ($user['name'] ?? 'Someone') . ((string) ($request['request_mode'] ?? 'transfer') === 'issue'
+            ? ' asked for items to use from ' . ($request['source_storage_name'] ?? 'your storage') . '.'
+            : ' requested a storage transfer from ' . ($request['source_storage_name'] ?? 'your storage') . '.'),
+        url('/requests/' . $request['id']),
+        'request',
+        (int) $request['id'],
+        (int) ($user['id'] ?? 0)
+    );
+
+    record_activity('request.submitted', 'request', (int) $request['id'], 'Submitted request draft ' . $request['request_number'], [
+        'request_number' => (string) $request['request_number'],
+    ]);
+
+    if (request_wants_json()) {
+        json_response([
+            'ok' => true,
+            'message' => 'Request submitted for approval.',
+            'redirect_url' => url('/requests/' . $request['id']),
+        ]);
+    }
+
+    flash('success', 'Request submitted for approval.');
+    redirect('/requests/' . $request['id']);
 }
 
 function handle_requests_approve_submit(array $params): void

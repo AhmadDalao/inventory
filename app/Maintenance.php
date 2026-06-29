@@ -431,7 +431,7 @@ final class Maintenance
                 source_storage_id BIGINT UNSIGNED NOT NULL,
                 destination_storage_id BIGINT UNSIGNED NULL,
                 request_mode ENUM("issue", "transfer") NOT NULL DEFAULT "transfer",
-                status ENUM("pending", "approved", "receipt_review", "rejected", "completed", "cancelled") NOT NULL DEFAULT "pending",
+                status ENUM("draft", "pending", "approved", "receipt_review", "rejected", "completed", "cancelled") NOT NULL DEFAULT "pending",
                 needed_by_date DATE NULL,
                 notes TEXT NULL,
                 decision_notes TEXT NULL,
@@ -479,7 +479,7 @@ final class Maintenance
         }
 
         self::ensureIndexExists('item_requests', 'idx_item_requests_mode', 'CREATE INDEX `idx_item_requests_mode` ON `item_requests` (`request_mode`)');
-        Database::execute('ALTER TABLE item_requests MODIFY COLUMN status ENUM("pending", "approved", "receipt_review", "rejected", "completed", "cancelled") NOT NULL DEFAULT "pending"');
+        Database::execute('ALTER TABLE item_requests MODIFY COLUMN status ENUM("draft", "pending", "approved", "receipt_review", "rejected", "completed", "cancelled") NOT NULL DEFAULT "pending"');
         Database::execute('UPDATE item_requests SET request_mode = CASE WHEN destination_storage_id IS NULL THEN "issue" ELSE "transfer" END');
 
         $receiptNotesColumnExists = (int) Database::scalar(

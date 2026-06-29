@@ -144,6 +144,9 @@ $router->post('/requests/create', static function (): void {
 $router->get('/requests/{id}', static function (array $params): void {
     handle_requests_show($params);
 });
+$router->post('/requests/{id}/submit', static function (array $params): void {
+    handle_requests_submit_submit($params);
+});
 $router->post('/requests/{id}/approve', static function (array $params): void {
     handle_requests_approve_submit($params);
 });
@@ -332,6 +335,9 @@ $router->get('/reports', static function (): void {
 });
 $router->get('/exports/items', static function (): void {
     handle_export_items();
+});
+$router->get('/exports/items.xlsx', static function (): void {
+    handle_export_items_xlsx();
 });
 $router->get('/exports/movements', static function (): void {
     handle_export_movements();

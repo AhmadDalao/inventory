@@ -33,6 +33,7 @@ $requestFilterUrl = static function (string $status) use ($filters): string {
             <select name="status">
                 <option value="all" <?= selected('all', $filters['status']) ?>>All</option>
                 <option value="open" <?= selected('open', $filters['status']) ?>>Open</option>
+                <option value="draft" <?= selected('draft', $filters['status']) ?>>Draft</option>
                 <option value="pending" <?= selected('pending', $filters['status']) ?>>Pending</option>
                 <option value="approved" <?= selected('approved', $filters['status']) ?>>Approved</option>
                 <option value="receipt_review" <?= selected('receipt_review', $filters['status']) ?>>Receipt Review</option>
@@ -71,7 +72,8 @@ $requestFilterUrl = static function (string $status) use ($filters): string {
     </form>
 
     <div class="chip-row">
-        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($requestFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['open'] + $counts['completed'] + $counts['rejected'] + $counts['cancelled']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'all' ? 'filter-chip-active' : '' ?>" href="<?= e($requestFilterUrl('all')) ?>" data-live-filter-link>All: <?= number_format($counts['draft'] + $counts['open'] + $counts['completed'] + $counts['rejected'] + $counts['cancelled']) ?></a>
+        <a class="stat-chip filter-chip <?= $filters['status'] === 'draft' ? 'filter-chip-active' : '' ?>" href="<?= e($requestFilterUrl('draft')) ?>" data-live-filter-link>Draft: <?= number_format($counts['draft']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'open' ? 'filter-chip-active' : '' ?>" href="<?= e($requestFilterUrl('open')) ?>" data-live-filter-link>Open: <?= number_format($counts['open']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'completed' ? 'filter-chip-active' : '' ?>" href="<?= e($requestFilterUrl('completed')) ?>" data-live-filter-link>Completed: <?= number_format($counts['completed']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'rejected' ? 'filter-chip-active' : '' ?>" href="<?= e($requestFilterUrl('rejected')) ?>" data-live-filter-link>Rejected: <?= number_format($counts['rejected']) ?></a>

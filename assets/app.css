@@ -1373,6 +1373,11 @@ textarea {
     color: #92400e;
 }
 
+.pill-draft {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
 .pill-awaiting_receipt {
     background: #fde68a;
     color: #92400e;

@@ -9,6 +9,7 @@ $excelDocuments = array_slice($excelDocuments, 0, 1);
 $selfDecisionBlocked = Auth::hasPermission('requests.approve')
     && (string) $requestRecord['status'] === 'pending'
     && (int) $requestRecord['requester_user_id'] === (int) ($currentUser['id'] ?? 0);
+$canSubmitDraft = request_submit_draft_block_reason($requestRecord, $currentUser) === null;
 $canApprove = Auth::hasPermission('requests.approve')
     && request_decision_block_reason($requestRecord, $currentUser) === null;
 $canReportReceipt = request_can_report_receipt($requestRecord, $currentUser);
@@ -155,6 +156,13 @@ foreach ($lines as $line) {
                 </div>
             <?php endif; ?>
 
+            <?php if ($canSubmitDraft): ?>
+                <form method="post" action="<?= e(url('/requests/' . $requestRecord['id'] . '/submit')) ?>" data-live-action-form>
+                    <?= csrf_field() ?>
+                    <button class="primary-button" type="submit" data-confirm="Submit this draft request for approval?">Submit Draft</button>
+                </form>
+            <?php endif; ?>
+
             <?php if ($canApprove): ?>
                 <form class="stack-form" method="post" action="<?= e(url('/requests/' . $requestRecord['id'] . '/approve')) ?>" data-live-action-form>
                     <?= csrf_field() ?>
@@ -241,7 +249,7 @@ foreach ($lines as $line) {
             </form>
         <?php endif; ?>
 
-            <?php if (!$canApprove && !$canReportReceipt && !$canConfirmReceipt && !$canCancel && !$canRecoverRequest && !$canVoidRecord): ?>
+            <?php if (!$canSubmitDraft && !$canApprove && !$canReportReceipt && !$canConfirmReceipt && !$canCancel && !$canRecoverRequest && !$canVoidRecord): ?>
                 <p class="empty-state">No action is available on this request right now.</p>
             <?php endif; ?>
         </div>
