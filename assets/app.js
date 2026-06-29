@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const isMobileViewport = () => window.matchMedia('(max-width: 1100px)').matches;
+    const isMobileViewport = () => window.matchMedia('(max-width: 1360px)').matches;
     const setMobileNavigationOpen = (open) => {
       shell.classList.toggle('nav-open', open);
       document.documentElement.classList.toggle('nav-modal-open', open);

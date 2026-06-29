@@ -8984,3 +8984,146 @@ body.theme-official.auth-shell {
 .theme-official .sidebar .nav-links:hover::-webkit-scrollbar-thumb {
     background: rgba(138, 100, 48, 0.48);
 }
+
+/* Tablet/mobile shell fix: collapsed desktop rail must become a drawer. */
+@media (max-width: 1360px) {
+    body.app-shell {
+        overflow-x: hidden;
+    }
+
+    .shell,
+    .shell.nav-collapsed,
+    .theme-clean .shell,
+    .theme-clean .shell.nav-collapsed,
+    .theme-official .shell,
+    .theme-official .shell.nav-collapsed {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        min-height: 100dvh;
+    }
+
+    .sidebar,
+    .theme-clean .sidebar,
+    .theme-official .sidebar,
+    .nav-collapsed .sidebar,
+    .theme-clean .nav-collapsed .sidebar,
+    .theme-official .nav-collapsed .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 40;
+        width: min(88vw, 320px);
+        max-width: 320px;
+        height: 100dvh;
+        max-height: 100dvh;
+        padding: 20px;
+        align-items: stretch;
+        transform: translateX(-105%);
+        transition: transform 180ms ease;
+        overflow: hidden;
+    }
+
+    .shell.nav-open .sidebar,
+    .theme-clean .shell.nav-open .sidebar,
+    .theme-official .shell.nav-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .sidebar-backdrop,
+    .theme-clean .sidebar-backdrop,
+    .theme-official .sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 35;
+        display: block;
+        background: rgba(16, 12, 7, 0.46);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease;
+        backdrop-filter: blur(2px);
+    }
+
+    .shell.nav-open .sidebar-backdrop,
+    .theme-clean .shell.nav-open .sidebar-backdrop,
+    .theme-official .shell.nav-open .sidebar-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .nav-collapsed .sidebar .brand-block > div,
+    .nav-collapsed .sidebar .nav-link > span:not(.ui-icon) {
+        display: block;
+    }
+
+    .has-custom-logo .nav-collapsed .sidebar .brand-logo-official,
+    .theme-official .nav-collapsed .sidebar .brand-logo-official {
+        display: block;
+    }
+
+    .nav-collapsed .sidebar .brand-block,
+    .nav-collapsed .sidebar .sidebar-head {
+        justify-content: space-between;
+    }
+
+    .nav-collapsed .sidebar .nav-link {
+        justify-content: flex-start;
+        padding-inline: 16px;
+    }
+
+    .main-panel,
+    .theme-clean .main-panel,
+    .theme-official .main-panel {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding-inline: clamp(12px, 3vw, 28px);
+    }
+
+    .content,
+    .theme-clean .content,
+    .theme-official .content,
+    .topbar,
+    .theme-clean .topbar,
+    .theme-official .topbar {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        margin-inline: 0;
+    }
+
+    .content,
+    .theme-clean .content,
+    .theme-official .content {
+        padding-inline: 0;
+    }
+
+    .menu-button,
+    .theme-clean .menu-button,
+    .theme-official .menu-button {
+        display: inline-flex;
+    }
+}
+
+@media (max-width: 760px) {
+    .staff-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .staff-item-card,
+    .staff-item-card * {
+        min-width: 0;
+    }
+
+    .staff-item-card-head {
+        grid-template-columns: 48px minmax(0, 1fr);
+    }
+
+    .staff-item-card-head .pill {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+
+    .staff-item-card-metrics span {
+        overflow-wrap: anywhere;
+    }
+}
