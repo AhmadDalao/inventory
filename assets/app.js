@@ -1360,28 +1360,133 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const syncRow = (input) => {
-        const row = input.closest('tr');
-        const returnedField = row ? row.querySelector('[data-handover-returned]') : null;
-        const handed = parseNumber(input.dataset.handoverHanded || '0');
-        const used = Math.max(0, Math.min(parseNumber(input.value), handed));
+      const toggleOtherField = (row) => {
+        const reason = row.querySelector('[data-handover-usage-reason]');
+        const other = row.querySelector('[data-handover-usage-other]');
 
-        input.value = used === 0 && input.value === '' ? '' : formatQuantity(used);
+        if (!(reason instanceof HTMLSelectElement) || !(other instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const isOther = reason.value === 'other';
+        other.hidden = !isOther;
+
+        if (!isOther) {
+          other.value = '';
+        }
+      };
+
+      const syncEditor = (editor) => {
+        const usedField = editor.querySelector('[data-handover-used]');
+        const returnedField = editor.closest('tr')?.querySelector('[data-handover-returned]');
+        const totalLabel = editor.querySelector('[data-handover-used-total]');
+        const warning = editor.querySelector('[data-handover-usage-warning]');
+
+        if (!(usedField instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const handed = parseNumber(usedField.dataset.handoverHanded || '0');
+        let used = 0;
+
+        editor.querySelectorAll('[data-handover-usage-quantity]').forEach((field) => {
+          if (!(field instanceof HTMLInputElement)) {
+            return;
+          }
+
+          used += Math.max(0, parseNumber(field.value));
+        });
+
+        used = Math.round(used * 100) / 100;
+        usedField.value = formatQuantity(used);
+
+        if (totalLabel instanceof HTMLElement) {
+          totalLabel.textContent = formatQuantity(used);
+        }
 
         if (returnedField instanceof HTMLInputElement) {
           returnedField.value = formatQuantity(Math.max(0, handed - used));
         }
+
+        if (warning instanceof HTMLElement) {
+          warning.hidden = used <= handed;
+        }
+      };
+
+      const bindUsageRow = (row, editor) => {
+        if (!(row instanceof HTMLElement)) {
+          return;
+        }
+
+        row.querySelectorAll('input, select').forEach((field) => {
+          field.addEventListener('input', () => syncEditor(editor));
+          field.addEventListener('change', () => {
+            toggleOtherField(row);
+            syncEditor(editor);
+          });
+        });
+
+        const removeButton = row.querySelector('[data-remove-handover-usage]');
+
+        if (removeButton instanceof HTMLButtonElement) {
+          removeButton.addEventListener('click', () => {
+            const rows = Array.from(editor.querySelectorAll('[data-handover-usage-row]'));
+
+            if (rows.length <= 1) {
+              row.querySelectorAll('input').forEach((field) => {
+                if (field instanceof HTMLInputElement) {
+                  field.value = '';
+                }
+              });
+              const reason = row.querySelector('[data-handover-usage-reason]');
+              if (reason instanceof HTMLSelectElement) {
+                reason.value = 'unspecified';
+              }
+              toggleOtherField(row);
+              syncEditor(editor);
+              return;
+            }
+
+            row.remove();
+            syncEditor(editor);
+          });
+        }
+
+        toggleOtherField(row);
       };
 
       form.dataset.handoverBound = 'true';
 
-      form.querySelectorAll('[data-handover-used]').forEach((input) => {
-        if (!(input instanceof HTMLInputElement)) {
+      form.querySelectorAll('[data-handover-usage-editor]').forEach((editor) => {
+        if (!(editor instanceof HTMLElement)) {
           return;
         }
 
-        input.addEventListener('input', () => syncRow(input));
-        syncRow(input);
+        editor.querySelectorAll('[data-handover-usage-row]').forEach((row) => bindUsageRow(row, editor));
+
+        const addButton = editor.querySelector('[data-add-handover-usage]');
+        const template = editor.querySelector('[data-handover-usage-template]');
+        const list = editor.querySelector('[data-handover-usage-list]');
+
+        if (addButton instanceof HTMLButtonElement && template instanceof HTMLTemplateElement && list instanceof HTMLElement) {
+          addButton.addEventListener('click', () => {
+            const fragment = template.content.cloneNode(true);
+            const row = fragment.querySelector('[data-handover-usage-row]');
+            list.appendChild(fragment);
+
+            if (row instanceof HTMLElement) {
+              bindUsageRow(row, editor);
+              const quantity = row.querySelector('[data-handover-usage-quantity]');
+              if (quantity instanceof HTMLInputElement) {
+                quantity.focus();
+              }
+            }
+
+            syncEditor(editor);
+          });
+        }
+
+        syncEditor(editor);
       });
     });
   };

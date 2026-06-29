@@ -1966,6 +1966,62 @@ textarea {
     font-weight: 700;
 }
 
+.handover-usage-editor {
+    min-width: 420px;
+    display: grid;
+    gap: 10px;
+}
+
+.handover-usage-list {
+    display: grid;
+    gap: 8px;
+}
+
+.handover-usage-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(90px, 0.55fr) minmax(130px, 1fr) minmax(130px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.handover-usage-row select,
+.handover-usage-row input {
+    width: 100%;
+    min-width: 0;
+}
+
+.handover-usage-row [hidden] {
+    display: none !important;
+}
+
+.handover-usage-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.danger-copy {
+    color: #b3402f;
+    font-weight: 800;
+}
+
+.compact-button {
+    min-height: 38px;
+    padding: 8px 12px;
+}
+
+@media (max-width: 820px) {
+    .handover-usage-editor {
+        min-width: 0;
+    }
+
+    .handover-usage-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 .filter-panel {
     display: grid;
     gap: 16px;

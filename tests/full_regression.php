@@ -2336,7 +2336,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     $requestSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $requestId]);
     assert_true($requestSignoffDocumentId > 0, 'Request sign-off PDF document was not created.');
     $requestSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestSignoffDocumentId]);
-    assert_true(strpos($requestSignoffStoredName, 'signoff-img-v9') !== false, 'Request sign-off PDF was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestSignoffStoredName, 'signoff-img-v10') !== false, 'Request sign-off PDF was not regenerated with totals sign-off template.');
     $requestSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/download');
     assert_true($requestSignoffDownload['status'] === 200 && strpos($requestSignoffDownload['body'], '%PDF-') === 0, 'Request sign-off PDF could not be downloaded.');
     assert_true(strpos($requestSignoffDownload['body'], 'Barcode:') !== false || strpos($requestSignoffDownload['body'], 'SKU scan:') !== false, 'Request sign-off PDF is missing item scan code text.');
@@ -2347,7 +2347,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     $requestSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $requestId]);
     assert_true($requestSignoffExcelDocumentId > 0, 'Request sign-off Excel sheet document was not created.');
     $requestSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestSignoffExcelDocumentId]);
-    assert_true(strpos($requestSignoffExcelStoredName, 'signoff-sheet-img-v9') !== false, 'Request sign-off XLSX was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestSignoffExcelStoredName, 'signoff-sheet-img-v10') !== false, 'Request sign-off XLSX was not regenerated with totals sign-off template.');
     $requestSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffExcelDocumentId . '/download');
     assert_true($requestSignoffExcelDownload['status'] === 200 && strpos($requestSignoffExcelDownload['body'], 'PK') === 0, 'Request sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestSignoffExcelDownload['body'], 'Request sign-off XLSX is missing embedded item images.');
@@ -2506,7 +2506,7 @@ assert_true($handoverRequestOpen['status'] === 302 && strpos((string) $handoverR
     $requestedHandoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffDocumentId > 0, 'Requested handover sign-off PDF document was not created.');
     $requestedHandoverSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffDocumentId]);
-    assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v9') !== false, 'Requested handover sign-off PDF was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v10') !== false, 'Requested handover sign-off PDF was not regenerated with totals sign-off template.');
     $requestedHandoverSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/download');
     assert_true($requestedHandoverSignoffDownload['status'] === 200 && strpos($requestedHandoverSignoffDownload['body'], '%PDF-') === 0, 'Requested handover sign-off PDF could not be downloaded.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Barcode:') !== false || strpos($requestedHandoverSignoffDownload['body'], 'SKU scan:') !== false, 'Requested handover sign-off PDF is missing item scan code text.');
@@ -2517,7 +2517,7 @@ assert_true($handoverRequestOpen['status'] === 302 && strpos((string) $handoverR
     $requestedHandoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffExcelDocumentId > 0, 'Requested handover sign-off Excel sheet document was not created.');
     $requestedHandoverSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffExcelDocumentId]);
-    assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v9') !== false, 'Requested handover sign-off XLSX was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v10') !== false, 'Requested handover sign-off XLSX was not regenerated with totals sign-off template.');
     $requestedHandoverSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffExcelDocumentId . '/download');
     assert_true($requestedHandoverSignoffExcelDownload['status'] === 200 && strpos($requestedHandoverSignoffExcelDownload['body'], 'PK') === 0, 'Requested handover sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestedHandoverSignoffExcelDownload['body'], 'Requested handover sign-off XLSX is missing embedded item images.');
@@ -2815,6 +2815,17 @@ foreach ($handoverLines as $line) {
 
     foreach ($handoverClosePayload['line_used'] as $lineId => $usedQuantity) {
         $handoverCloseFields['line_used[' . $lineId . ']'] = $usedQuantity;
+        if ((int) $lineId === (int) $handoverLines[0]['id']) {
+            $handoverCloseFields['line_usage_reason[' . $lineId . '][0]'] = 'damage';
+            $handoverCloseFields['line_usage_quantity[' . $lineId . '][0]'] = '1';
+            $handoverCloseFields['line_usage_notes[' . $lineId . '][0]'] = $prefix . ' damaged during event';
+            $handoverCloseFields['line_usage_reason[' . $lineId . '][1]'] = 'online';
+            $handoverCloseFields['line_usage_quantity[' . $lineId . '][1]'] = (string) ((float) $usedQuantity - 1);
+            $handoverCloseFields['line_usage_notes[' . $lineId . '][1]'] = $prefix . ' online guests';
+        } else {
+            $handoverCloseFields['line_usage_reason[' . $lineId . '][0]'] = 'event';
+            $handoverCloseFields['line_usage_quantity[' . $lineId . '][0]'] = $usedQuantity;
+        }
     }
 
 	$handoverClose = http_multipart_request($baseUrl, $staffCookie, '/handovers/' . $handoverId . '/close', $handoverCloseFields, [
@@ -2822,6 +2833,7 @@ foreach ($handoverLines as $line) {
     ]);
 	assert_true($handoverClose['status'] === 302, 'Handover close did not redirect.');
     assert_true((int) Database::scalar('SELECT COUNT(*) FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "proof_image" AND stage = "closeout_report"', ['workflow_id' => $handoverId]) > 0, 'Handover closeout proof image was not stored.');
+    assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => $handoverId]) >= 3, 'Handover usage reason breakdown rows were not stored.');
 
 $handoverPendingRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverPendingRecord['status'] === 'pending_approval', 'Handover did not reach waiting approval status.');
@@ -2850,6 +2862,9 @@ assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Total Ite
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used Total', 'Final handover sign-off XLSX is missing used quantity total.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned Total', 'Final handover sign-off XLSX is missing returned quantity total.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Remaining Total', 'Final handover sign-off XLSX is missing remaining quantity total.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used Breakdown', 'Final handover sign-off XLSX is missing used breakdown column.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage 1', 'Final handover sign-off XLSX is missing damage usage breakdown.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Online 4', 'Final handover sign-off XLSX is missing online usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used:', 'Final handover sign-off XLSX is missing used quantity values.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned:', 'Final handover sign-off XLSX is missing returned quantity values.');
 
@@ -2863,6 +2878,7 @@ $handoverExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/handover
 assert_true($handoverExport['status'] === 200, 'Handover export failed.');
 assert_true(strpos($handoverExport['body'], $handoverRecord['handover_number']) !== false, 'Handover export is missing the created handover.');
 assert_true(strpos($handoverExport['body'], $handoverRequestClosed['handover_number']) !== false, 'Handover export is missing the requested handover.');
+assert_true(strpos($handoverExport['body'], 'Usage Reasons') !== false && strpos($handoverExport['body'], 'Damage 1') !== false, 'Handover export is missing usage reason details.');
 
 $purchaseExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/purchases');
 assert_true($purchaseExport['status'] === 200, 'Purchase export failed.');

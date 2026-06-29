@@ -30,6 +30,7 @@ $canApproveClose = Auth::hasPermission('handovers.approve')
 $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $currentUser) === null;
 $canOverrideHandoverStatus = Auth::isOwner();
 $handoverStatusOptions = handover_status_options();
+$usageReasonOptions = handover_usage_reason_options();
 $handoverRecoveryTargetStatus = Auth::isOwner()
     ? handover_recovery_target_status($handoverRecord, $lines)
     : null;
@@ -367,16 +368,68 @@ foreach ($lines as $line) {
                         <tr>
                             <th>Item</th>
                             <th>Received</th>
-                            <th>Used</th>
+                            <th>Usage Breakdown</th>
                             <th>Returning</th>
                         </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($lines as $line): ?>
+                            <?php
+                            $lineBreakdowns = (array) ($line['usage_breakdowns'] ?? []);
+                            if ($lineBreakdowns === []) {
+                                $lineBreakdowns[] = [
+                                    'reason_code' => 'unspecified',
+                                    'reason_custom' => '',
+                                    'quantity' => '',
+                                    'notes' => '',
+                                ];
+                            }
+                            ?>
                             <tr>
-                                <td><?= e($line['item_name']) ?> <span class="tiny-copy"><?= e($line['item_sku']) ?></span></td>
+                                <td>
+                                    <strong><?= e($line['item_name']) ?></strong>
+                                    <span class="tiny-copy"><?= e($line['item_sku']) ?></span>
+                                </td>
                                 <td><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
-                                <td><input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_used[<?= e((string) $line['id']) ?>]" value="<?= e(format_quantity($line['quantity_used'])) ?>" data-handover-used data-handover-handed="<?= e(format_quantity($line['quantity_received'])) ?>" required></td>
+                                <td>
+                                    <div class="handover-usage-editor" data-handover-usage-editor>
+                                        <input type="hidden" name="line_used[<?= e((string) $line['id']) ?>]" value="<?= e(format_quantity($line['quantity_used'])) ?>" data-handover-used data-handover-handed="<?= e(format_quantity($line['quantity_received'])) ?>">
+                                        <div class="handover-usage-list" data-handover-usage-list>
+                                            <?php foreach ($lineBreakdowns as $breakdown): ?>
+                                                <?php $selectedReason = normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? 'unspecified')); ?>
+                                                <div class="handover-usage-row" data-handover-usage-row>
+                                                    <select name="line_usage_reason[<?= e((string) $line['id']) ?>][]" data-handover-usage-reason>
+                                                        <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
+                                                            <option value="<?= e($reasonCode) ?>" <?= $selectedReason === $reasonCode ? 'selected' : '' ?>><?= e($reasonLabel) ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['quantity'] ?? '')) ?>" placeholder="Qty" data-handover-usage-quantity>
+                                                    <input type="text" name="line_usage_other[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['reason_custom'] ?? '')) ?>" placeholder="Other reason" data-handover-usage-other <?= $selectedReason === 'other' ? '' : 'hidden' ?>>
+                                                    <input type="text" name="line_usage_notes[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['notes'] ?? '')) ?>" placeholder="Optional note">
+                                                    <button class="ghost-button compact-button" type="button" data-remove-handover-usage>Remove</button>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        <div class="handover-usage-summary">
+                                            <span>Used <strong data-handover-used-total><?= e(format_quantity($line['quantity_used'])) ?></strong> <?= e($line['unit']) ?></span>
+                                            <span class="danger-copy" data-handover-usage-warning hidden>Used total is higher than received.</span>
+                                            <button class="ghost-button compact-button" type="button" data-add-handover-usage>Add Usage Reason</button>
+                                        </div>
+                                        <template data-handover-usage-template>
+                                            <div class="handover-usage-row" data-handover-usage-row>
+                                                <select name="line_usage_reason[<?= e((string) $line['id']) ?>][]" data-handover-usage-reason>
+                                                    <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
+                                                        <option value="<?= e($reasonCode) ?>"><?= e($reasonLabel) ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" placeholder="Qty" data-handover-usage-quantity>
+                                                <input type="text" name="line_usage_other[<?= e((string) $line['id']) ?>][]" placeholder="Other reason" data-handover-usage-other hidden>
+                                                <input type="text" name="line_usage_notes[<?= e((string) $line['id']) ?>][]" placeholder="Optional note">
+                                                <button class="ghost-button compact-button" type="button" data-remove-handover-usage>Remove</button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </td>
                                 <td><input type="text" value="<?= e(format_quantity((float) $line['quantity_received'] - (float) $line['quantity_used'])) ?>" data-handover-returned readonly></td>
                             </tr>
                         <?php endforeach; ?>
@@ -424,6 +477,7 @@ foreach ($lines as $line) {
                             <th>Item</th>
                             <th>Received</th>
                             <th>Used</th>
+                            <th>Usage</th>
                             <th>Returning</th>
                         </tr>
                         </thead>
@@ -433,6 +487,7 @@ foreach ($lines as $line) {
                                 <td><?= e($line['item_name']) ?> <span class="tiny-copy"><?= e($line['item_sku']) ?></span></td>
                                 <td><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
                                 <td><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
+                                <td><?= e((string) ($line['usage_reason_summary'] ?? '')) ?: '-' ?></td>
                                 <td><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -623,6 +678,7 @@ foreach ($lines as $line) {
                 <th>Planned</th>
                 <th>Received</th>
                 <th>Used</th>
+                <th>Usage</th>
                 <th>Returned</th>
                 <th>Remaining</th>
             </tr>
@@ -662,6 +718,7 @@ foreach ($lines as $line) {
                     <td data-label="Planned"><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Received"><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
+                    <td data-label="Usage"><?= e((string) ($line['usage_reason_summary'] ?? '')) ?: '-' ?></td>
                     <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Remaining"><?= format_quantity($remaining) ?> <?= e($line['unit']) ?></td>
                 </tr>

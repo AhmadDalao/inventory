@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Maintenance
 {
-    private const SCHEMA_VERSION = '2026-06-28-purchase-ocr-runs';
+    private const SCHEMA_VERSION = '2026-06-28-handover-usage-breakdowns';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -792,6 +792,32 @@ final class Maintenance
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
 
+        Database::execute(
+            'CREATE TABLE IF NOT EXISTS handover_usage_breakdowns (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                handover_id BIGINT UNSIGNED NOT NULL,
+                handover_line_id BIGINT UNSIGNED NOT NULL,
+                item_id BIGINT UNSIGNED NOT NULL,
+                reason_code VARCHAR(40) NOT NULL DEFAULT "unspecified",
+                reason_custom VARCHAR(120) NULL,
+                quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                notes VARCHAR(255) NULL,
+                created_by BIGINT UNSIGNED NULL,
+                updated_by BIGINT UNSIGNED NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                INDEX idx_handover_usage_handover (handover_id),
+                INDEX idx_handover_usage_line (handover_line_id),
+                INDEX idx_handover_usage_item (item_id),
+                INDEX idx_handover_usage_reason (reason_code),
+                CONSTRAINT fk_handover_usage_handover FOREIGN KEY (handover_id) REFERENCES handovers(id) ON DELETE CASCADE,
+                CONSTRAINT fk_handover_usage_line FOREIGN KEY (handover_line_id) REFERENCES handover_lines(id) ON DELETE CASCADE,
+                CONSTRAINT fk_handover_usage_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_handover_usage_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_handover_usage_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
         $handoverReceivedQuantityColumnExists = (int) Database::scalar(
             'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :table_name AND column_name = :column_name',
             [
@@ -1343,6 +1369,7 @@ final class Maintenance
             && self::itemSchemaIsCurrent()
             && self::itemPackageSchemaIsCurrent()
             && self::handoverStatusSchemaIsCurrent()
+            && self::handoverUsageSchemaIsCurrent()
             && self::purchaseSchemaIsCurrent()
             && self::supplierSchemaIsCurrent()
             && self::operationalSchemaIsCurrent()
@@ -1380,6 +1407,15 @@ final class Maintenance
 
         return str_contains($columnType, "'requested'")
             && str_contains($columnType, "'rejected'");
+    }
+
+    private static function handoverUsageSchemaIsCurrent(): bool
+    {
+        return self::tableExists('handover_usage_breakdowns')
+            && self::columnExists('handover_usage_breakdowns', 'handover_line_id')
+            && self::columnExists('handover_usage_breakdowns', 'reason_code')
+            && self::columnExists('handover_usage_breakdowns', 'reason_custom')
+            && self::columnExists('handover_usage_breakdowns', 'quantity');
     }
 
     private static function userSchemaIsCurrent(): bool
