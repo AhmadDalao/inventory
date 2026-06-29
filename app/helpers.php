@@ -153,6 +153,28 @@ function site_setting_schema(): array
                     ],
                     'maxlength' => 1,
                 ],
+                'exports.item_xlsx_thumbnail_size' => [
+                    'label' => 'Item Excel thumbnail size',
+                    'default' => 'medium',
+                    'help' => 'Controls item image size in the optional Excel thumbnail export.',
+                    'type' => 'select',
+                    'options' => item_xlsx_thumbnail_size_options(),
+                    'maxlength' => 20,
+                ],
+                'exports.item_xlsx_thumbnail_custom_width' => [
+                    'label' => 'Custom Excel thumbnail width',
+                    'default' => '120',
+                    'help' => 'Used only when thumbnail size is Custom. Enter pixels, for example 120 or 220.',
+                    'type' => 'number',
+                    'maxlength' => 4,
+                ],
+                'exports.item_xlsx_thumbnail_custom_height' => [
+                    'label' => 'Custom Excel thumbnail height',
+                    'default' => '90',
+                    'help' => 'Used only when thumbnail size is Custom. Enter pixels, for example 90 or 160.',
+                    'type' => 'number',
+                    'maxlength' => 4,
+                ],
             ],
         ],
         [
@@ -1495,6 +1517,17 @@ function workflow_signoff_image_size_options(): array
     ];
 }
 
+function item_xlsx_thumbnail_size_options(): array
+{
+    return [
+        'small' => 'Small - 72 x 54',
+        'medium' => 'Medium - 120 x 90',
+        'large' => 'Large - 180 x 135',
+        'extra_large' => 'Extra Large - 240 x 180',
+        'custom' => 'Custom',
+    ];
+}
+
 function workflow_signoff_template_options(): array
 {
     return [
@@ -1518,6 +1551,36 @@ function workflow_signoff_image_size_presets(): array
         'medium' => ['width' => 90, 'height' => 90],
         'large' => ['width' => 140, 'height' => 110],
         'extra_large' => ['width' => 200, 'height' => 150],
+    ];
+}
+
+function item_xlsx_thumbnail_size_presets(): array
+{
+    return [
+        'small' => ['width' => 72, 'height' => 54],
+        'medium' => ['width' => 120, 'height' => 90],
+        'large' => ['width' => 180, 'height' => 135],
+        'extra_large' => ['width' => 240, 'height' => 180],
+    ];
+}
+
+function item_xlsx_thumbnail_export_size(): array
+{
+    $preset = site_setting('exports.item_xlsx_thumbnail_size', 'medium');
+    $presets = item_xlsx_thumbnail_size_presets();
+
+    if ($preset === 'custom') {
+        $width = (int) site_setting('exports.item_xlsx_thumbnail_custom_width', '120');
+        $height = (int) site_setting('exports.item_xlsx_thumbnail_custom_height', '90');
+    } else {
+        $size = $presets[$preset] ?? $presets['medium'];
+        $width = (int) $size['width'];
+        $height = (int) $size['height'];
+    }
+
+    return [
+        'width' => max(40, min(500, $width)),
+        'height' => max(40, min(400, $height)),
     ];
 }
 

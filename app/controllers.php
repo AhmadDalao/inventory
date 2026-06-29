@@ -2081,6 +2081,14 @@ function normalize_site_settings_payload(array $submitted, array $clearSubmitted
             }
         }
 
+        if (in_array($key, ['exports.item_xlsx_thumbnail_custom_width', 'exports.item_xlsx_thumbnail_custom_height'], true) && $value !== '') {
+            $size = (int) $value;
+
+            if ($size < 40 || $size > 500) {
+                $errors[] = $field['label'] . ' must be between 40 and 500 pixels.';
+            }
+        }
+
         if ($key === 'ocr.max_pdf_pages' && $value !== '') {
             $pageCount = (int) $value;
 
@@ -3812,7 +3820,7 @@ function handle_export_items(): void
     ], $rows);
 }
 
-function item_export_xlsx_sheet_xml(array $items, array $images): string
+function item_export_xlsx_sheet_xml(array $items, array $images, array $imageSize): string
 {
     $headers = [
         'Image',
@@ -3838,6 +3846,11 @@ function item_export_xlsx_sheet_xml(array $items, array $images): string
         $headerCells .= workflow_xlsx_cell(workflow_xlsx_column($index + 1) . '1', $header, 2);
     }
 
+    $imageWidth = max(40, min(500, (int) ($imageSize['width'] ?? 120)));
+    $imageHeight = max(40, min(400, (int) ($imageSize['height'] ?? 90)));
+    $imageColumnWidth = max(14, min(58, (int) ceil(($imageWidth / 7) + 6)));
+    $imageRowHeight = max(54, min(420, $imageHeight + 12));
+
     $sheetRows[] = '<row r="1" ht="24" customHeight="1">' . $headerCells . '</row>';
     $rowNumber = 2;
 
@@ -3857,7 +3870,7 @@ function item_export_xlsx_sheet_xml(array $items, array $images): string
         $cells .= workflow_xlsx_cell('L' . $rowNumber, (int) $item['is_active'] === 1 ? 'Active' : 'Deleted', 3);
         $cells .= workflow_xlsx_cell('M' . $rowNumber, (string) ($item['last_movement_at'] ?: ''), 3);
         $cells .= workflow_xlsx_cell('N' . $rowNumber, (string) ($item['notes'] ?: ''), 3);
-        $sheetRows[] = '<row r="' . $rowNumber . '" ht="64" customHeight="1">' . $cells . '</row>';
+        $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $imageRowHeight . '" customHeight="1">' . $cells . '</row>';
         $rowNumber++;
     }
 
@@ -3865,7 +3878,7 @@ function item_export_xlsx_sheet_xml(array $items, array $images): string
     $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
     $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
     $xml .= '<cols>'
-        . '<col min="1" max="1" width="16" customWidth="1"/>'
+        . '<col min="1" max="1" width="' . $imageColumnWidth . '" customWidth="1"/>'
         . '<col min="2" max="2" width="26" customWidth="1"/>'
         . '<col min="3" max="5" width="18" customWidth="1"/>'
         . '<col min="6" max="7" width="28" customWidth="1"/>'
@@ -3894,7 +3907,7 @@ function item_export_xlsx_payload(array $items): string
     }
 
     $images = [];
-    $imageSize = ['width' => 72, 'height' => 54];
+    $imageSize = item_xlsx_thumbnail_export_size();
 
     foreach ($items as $index => $item) {
         $image = workflow_xlsx_image_asset($item['image_path'] ?? null, $imageSize);
@@ -3929,7 +3942,7 @@ function item_export_xlsx_payload(array $items): string
     $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Items" sheetId="1" r:id="rId1"/></sheets></workbook>');
     $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
     $zip->addFromString('xl/styles.xml', workflow_xlsx_styles_xml());
-    $zip->addFromString('xl/worksheets/sheet1.xml', item_export_xlsx_sheet_xml($items, $images));
+    $zip->addFromString('xl/worksheets/sheet1.xml', item_export_xlsx_sheet_xml($items, $images, $imageSize));
 
     if ($images) {
         $zip->addFromString('xl/worksheets/_rels/sheet1.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>');
