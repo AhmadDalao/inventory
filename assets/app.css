@@ -9127,3 +9127,57 @@ body.theme-official.auth-shell {
         overflow-wrap: anywhere;
     }
 }
+
+/* Desktop collapsed sidebar fix: compact rail overlays, content stays direct. */
+@media (min-width: 1361px) {
+    .shell.nav-collapsed,
+    .theme-clean .shell.nav-collapsed,
+    .theme-official .shell.nav-collapsed {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .shell.nav-collapsed .sidebar,
+    .theme-clean .shell.nav-collapsed .sidebar,
+    .theme-official .shell.nav-collapsed .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 30;
+        width: 92px;
+        max-width: 92px;
+        height: 100dvh;
+        max-height: 100dvh;
+        padding: 28px 18px;
+        align-items: center;
+        transform: none;
+        overflow: hidden;
+    }
+
+    .shell.nav-collapsed .main-panel,
+    .theme-clean .shell.nav-collapsed .main-panel,
+    .theme-official .shell.nav-collapsed .main-panel {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding-left: 112px;
+    }
+
+    .shell.nav-collapsed .content,
+    .theme-clean .shell.nav-collapsed .content,
+    .theme-official .shell.nav-collapsed .content,
+    .shell.nav-collapsed .topbar,
+    .theme-clean .shell.nav-collapsed .topbar,
+    .theme-official .shell.nav-collapsed .topbar {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        margin-inline: 0;
+    }
+
+    .shell.nav-collapsed .sidebar-backdrop,
+    .theme-clean .shell.nav-collapsed .sidebar-backdrop,
+    .theme-official .shell.nav-collapsed .sidebar-backdrop {
+        display: none;
+    }
+}
