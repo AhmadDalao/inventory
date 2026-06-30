@@ -15,10 +15,14 @@ $isLocationScoped = !empty($filters['storage_id']);
     <form class="filter-grid movement-filter-grid" method="get" action="<?= e(url('/movements')) ?>" data-live-filter-form>
         <label class="field">
             <span>Item</span>
-            <select name="item_id">
+            <select name="item_id" data-searchable-select data-searchable-placeholder="Search item, SKU, or barcode">
                 <option value="">All items</option>
                 <?php foreach ($items as $item): ?>
-                    <option value="<?= e((string) $item['id']) ?>" <?= selected((string) $item['id'], (string) ($filters['item_id'] ?? '')) ?>>
+                    <option
+                        value="<?= e((string) $item['id']) ?>"
+                        data-search-text="<?= e(trim((string) $item['name'] . ' ' . (string) $item['sku'] . ' ' . (string) ($item['barcode'] ?? '') . ' ' . (string) ($item['unit'] ?? ''))) ?>"
+                        <?= selected((string) $item['id'], (string) ($filters['item_id'] ?? '')) ?>
+                    >
                         <?= e($item['name']) ?> (<?= e($item['sku']) ?>)
                     </option>
                 <?php endforeach; ?>

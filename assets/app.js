@@ -1090,6 +1090,68 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const initSearchableSelects = (root = document) => {
+    const selects = Array.from(root.querySelectorAll?.('[data-searchable-select]') || []);
+
+    selects.forEach((select) => {
+      if (!(select instanceof HTMLSelectElement) || select.dataset.searchableBound === 'true') {
+        return;
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'searchable-select';
+
+      const search = document.createElement('input');
+      search.type = 'search';
+      search.className = 'searchable-select-input';
+      search.placeholder = select.dataset.searchablePlaceholder || 'Search options...';
+      search.setAttribute('aria-label', `${select.name || 'Select'} search`);
+      search.autocomplete = 'off';
+
+      const empty = document.createElement('p');
+      empty.className = 'searchable-select-empty';
+      empty.hidden = true;
+      empty.textContent = 'No matching options.';
+
+      select.parentNode.insertBefore(wrapper, select);
+      wrapper.append(search, select, empty);
+      select.dataset.searchableBound = 'true';
+
+      const options = Array.from(select.options);
+      const optionText = (option) => `${option.textContent || ''} ${option.value || ''} ${option.dataset.searchText || ''}`.toLowerCase();
+
+      const filterOptions = () => {
+        const query = search.value.trim().toLowerCase();
+        let matches = 0;
+
+        options.forEach((option) => {
+          const isDefaultOption = option.value === '';
+          const isMatch = query === '' || isDefaultOption || optionText(option).includes(query);
+
+          option.hidden = !isMatch;
+          option.disabled = !isMatch && !option.selected;
+
+          if (isMatch && !isDefaultOption) {
+            matches += 1;
+          }
+        });
+
+        empty.hidden = query === '' || matches > 0;
+      };
+
+      search.addEventListener('input', filterOptions);
+      search.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          search.value = '';
+          filterOptions();
+          select.focus();
+        }
+      });
+
+      filterOptions();
+    });
+  };
+
   const notificationToastContainer = () => {
     let container = document.querySelector('[data-notification-toast-container]');
 
@@ -2947,6 +3009,89 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       updatePermissionSummary();
+    });
+  };
+
+  const initSettingsSearch = (root = document) => {
+    root.querySelectorAll('[data-settings-search]').forEach((searchRoot) => {
+      if (searchRoot.dataset.jsBound === 'true') {
+        return;
+      }
+
+      const form = searchRoot.closest('form') || document;
+      const input = searchRoot.querySelector('[data-settings-search-input]');
+      const clearButton = searchRoot.querySelector('[data-settings-search-clear]');
+      const summary = searchRoot.querySelector('[data-settings-search-summary]');
+      const accordion = form.querySelector('[data-settings-accordion]');
+
+      if (!(input instanceof HTMLInputElement) || !accordion) {
+        return;
+      }
+
+      searchRoot.dataset.jsBound = 'true';
+
+      const normalize = (value) => String(value || '').trim().toLowerCase();
+      const panels = Array.from(accordion.querySelectorAll('[data-settings-group]'));
+
+      const filterSettings = () => {
+        const query = normalize(input.value);
+        let visibleFieldCount = 0;
+        let visibleGroupCount = 0;
+
+        panels.forEach((panel) => {
+          const groupText = normalize(panel.dataset.settingsSearchText);
+          const groupMatches = query !== '' && groupText.includes(query);
+          const fields = Array.from(panel.querySelectorAll('[data-setting-field]'));
+          let panelHasMatch = query === '';
+
+          fields.forEach((field) => {
+            const fieldText = normalize(field.dataset.settingsSearchText);
+            const fieldMatches = query === '' || groupMatches || fieldText.includes(query);
+
+            field.classList.toggle('is-setting-search-hidden', !fieldMatches);
+            field.classList.toggle('is-setting-search-match', query !== '' && (groupMatches || fieldText.includes(query)));
+
+            if (fieldMatches) {
+              visibleFieldCount += 1;
+              panelHasMatch = true;
+            }
+          });
+
+          panel.classList.toggle('is-setting-search-hidden', !panelHasMatch);
+
+          if (panelHasMatch) {
+            visibleGroupCount += 1;
+          }
+
+          if (query === '') {
+            panel.open = panel.dataset.settingsDefaultOpen === 'true';
+          } else if (panelHasMatch) {
+            panel.open = true;
+          }
+        });
+
+        if (summary) {
+          if (query === '') {
+            summary.textContent = 'Type to find a control.';
+          } else if (visibleFieldCount === 0) {
+            summary.textContent = 'No settings match that search.';
+          } else {
+            summary.textContent = `${visibleFieldCount} setting${visibleFieldCount === 1 ? '' : 's'} in ${visibleGroupCount} group${visibleGroupCount === 1 ? '' : 's'}.`;
+          }
+        }
+      };
+
+      input.addEventListener('input', filterSettings);
+
+      if (clearButton instanceof HTMLButtonElement) {
+        clearButton.addEventListener('click', () => {
+          input.value = '';
+          filterSettings();
+          input.focus();
+        });
+      }
+
+      filterSettings();
     });
   };
 
@@ -6284,6 +6429,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initWorkflowDocumentSettings(root);
     initImageExpanders(root);
     initGlobalSearch(root);
+    initSearchableSelects(root);
     initNotificationFeed();
     initDataTables(root);
     initLiveActionForms(root);
@@ -6297,6 +6443,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPurchaseBulkImport(root);
     initScanCenter(root);
     initPermissionBuilders(root);
+    initSettingsSearch(root);
     initDocumentationSearch(root);
     initReorderDraftForms(root);
   };

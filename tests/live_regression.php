@@ -297,6 +297,8 @@ if (contains_text($dashboardPage['body'], '/settings/site')) {
     assert_true(contains_text($settingsPage['body'], 'settings[email.workflow_alerts]'), 'Website control form is missing the workflow email alerts switch.');
     assert_true(contains_text($settingsPage['body'], '/settings/email-test'), 'Website control form is missing the test email action.');
     assert_true(contains_text($settingsPage['body'], 'settings-accordion'), 'Website control form is missing the collapsible settings accordion.');
+    assert_true(contains_text($settingsPage['body'], 'data-settings-search'), 'Website control form is missing the settings search panel.');
+    assert_true(contains_text($settingsPage['body'], 'data-settings-search-input'), 'Website control form is missing the settings search input.');
 }
 
 if (contains_text($dashboardPage['body'], '/email-logs')) {

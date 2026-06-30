@@ -84,10 +84,40 @@
     <form class="stack-form" method="post" action="<?= e(url('/settings/site')) ?>">
         <?= csrf_field() ?>
 
-        <div class="settings-accordion">
+        <div class="settings-search-panel" data-settings-search>
+            <label class="field settings-search-field">
+                <span>Search settings</span>
+                <input
+                    type="search"
+                    value="<?= e((string) query('settings_search', '')) ?>"
+                    placeholder="Search barcode, OCR, email, theme, thumbnails..."
+                    data-settings-search-input
+                >
+                <small>Filters this page instantly and opens the matching control group.</small>
+            </label>
+            <button class="ghost-button settings-search-clear" type="button" data-settings-search-clear><?= ui_icon('back') ?><span>Clear</span></button>
+            <p class="settings-search-summary" data-settings-search-summary>Type to find a control.</p>
+        </div>
+
+        <div class="settings-accordion" data-settings-accordion>
             <?php foreach ($settingGroups as $groupIndex => $group): ?>
-                <?php $fieldCount = count($group['fields'] ?? []); ?>
-                <details class="panel settings-panel settings-accordion-panel" <?= $groupIndex < 2 ? 'open' : '' ?>>
+                <?php
+                    $fieldCount = count($group['fields'] ?? []);
+                    $groupDomId = 'settings-group-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($group['id'] ?? $group['title']));
+                    $groupSearchText = trim(implode(' ', [
+                        (string) ($group['id'] ?? ''),
+                        (string) ($group['title'] ?? ''),
+                        (string) ($group['copy'] ?? ''),
+                    ]));
+                ?>
+                <details
+                    id="<?= e($groupDomId) ?>"
+                    class="panel settings-panel settings-accordion-panel"
+                    data-settings-group
+                    data-settings-default-open="<?= $groupIndex < 2 ? 'true' : 'false' ?>"
+                    data-settings-search-text="<?= e($groupSearchText) ?>"
+                    <?= $groupIndex < 2 ? 'open' : '' ?>
+                >
                     <summary class="settings-accordion-summary">
                         <span>
                             <span class="eyebrow">Control Group</span>
@@ -100,7 +130,30 @@
                     <div class="settings-accordion-body">
                         <div class="settings-field-grid">
                             <?php foreach ($group['fields'] as $field): ?>
-                                <label class="field" data-setting-field="<?= e($field['key']) ?>">
+                                <?php
+                                    $optionSearchText = '';
+                                    if (!empty($field['options']) && is_array($field['options'])) {
+                                        $optionSearchText = implode(' ', array_map(
+                                            static fn ($optionValue, $optionLabel): string => (string) $optionValue . ' ' . (string) $optionLabel,
+                                            array_keys($field['options']),
+                                            array_values($field['options'])
+                                        ));
+                                    }
+                                    $fieldDomId = 'setting-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) $field['key']);
+                                    $fieldSearchText = trim(implode(' ', [
+                                        (string) ($field['key'] ?? ''),
+                                        (string) ($field['label'] ?? ''),
+                                        (string) ($field['help'] ?? ''),
+                                        (string) ($field['default'] ?? ''),
+                                        $optionSearchText,
+                                    ]));
+                                ?>
+                                <label
+                                    id="<?= e($fieldDomId) ?>"
+                                    class="field"
+                                    data-setting-field="<?= e($field['key']) ?>"
+                                    data-settings-search-text="<?= e($fieldSearchText) ?>"
+                                >
                                     <span><?= e($field['label']) ?></span>
                                     <?php if (($field['type'] ?? 'text') === 'choice' && !empty($field['options']) && is_array($field['options'])): ?>
                                         <div class="settings-choice-list" role="radiogroup" aria-label="<?= e($field['label']) ?>">

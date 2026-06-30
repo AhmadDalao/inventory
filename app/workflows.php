@@ -514,7 +514,7 @@ function global_search_accessible_pages(string $query): array
         ['title' => site_setting('page.users', 'Admins'), 'group' => 'Pages', 'url' => '/users', 'icon' => 'users', 'terms' => ['admins', 'users', 'roles', 'permissions'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('users.view')],
         ['title' => site_setting('page.audit', 'Audit Log'), 'group' => 'Pages', 'url' => '/audit-log', 'icon' => 'audit', 'terms' => ['audit', 'activity', 'logs'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('audit.view')],
         ['title' => site_setting('page.email_logs', 'Email Logs'), 'group' => 'Pages', 'url' => '/email-logs', 'icon' => 'notification', 'terms' => ['email', 'mailer', 'smtp', 'delivery', 'password reset', 'workflow alerts'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('email_logs.view')],
-        ['title' => site_setting('page.settings', 'Website Control'), 'group' => 'Pages', 'url' => '/settings/site', 'icon' => 'settings', 'terms' => ['website control', 'settings', 'theme', 'labels'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('settings.view')],
+        ['title' => site_setting('page.settings', 'Website Control'), 'group' => 'Pages', 'url' => '/settings/site', 'icon' => 'settings', 'terms' => ['website control', 'settings', 'theme', 'labels', 'barcode', 'ocr', 'openai', 'email', 'smtp', 'logo', 'thumbnail', 'export'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('settings.view')],
     ];
 
     $results = [];
@@ -550,6 +550,64 @@ function global_search_documentation_results(string $query): array
 
         if (count($results) >= 3) {
             break;
+        }
+    }
+
+    return $results;
+}
+
+function global_search_settings_results(string $query): array
+{
+    if (Auth::isStaff() || !Auth::hasPermission('settings.view')) {
+        return [];
+    }
+
+    $results = [];
+    $canSeeSecrets = Auth::hasPermission('settings.secrets');
+
+    foreach (site_setting_schema() as $group) {
+        $groupTitle = (string) ($group['title'] ?? 'Settings');
+        $groupCopy = (string) ($group['copy'] ?? '');
+
+        foreach (($group['fields'] ?? []) as $key => $field) {
+            if (($field['type'] ?? 'text') === 'secret' && !$canSeeSecrets) {
+                continue;
+            }
+
+            $optionsText = '';
+            if (!empty($field['options']) && is_array($field['options'])) {
+                $optionsText = implode(' ', array_map(
+                    static fn ($optionValue, $optionLabel): string => (string) $optionValue . ' ' . (string) $optionLabel,
+                    array_keys($field['options']),
+                    array_values($field['options'])
+                ));
+            }
+
+            if (!global_search_text_matches($query, [
+                $groupTitle,
+                $groupCopy,
+                $key,
+                $field['label'] ?? '',
+                $field['help'] ?? '',
+                $field['default'] ?? '',
+                $optionsText,
+            ])) {
+                continue;
+            }
+
+            $fieldAnchor = 'setting-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) $key);
+            $results[] = global_search_result(
+                'Settings',
+                (string) ($field['label'] ?? $key),
+                $groupTitle . ' · ' . (string) $key,
+                url('/settings/site?settings_search=' . rawurlencode($query) . '#' . $fieldAnchor),
+                'settings',
+                'Setting'
+            );
+
+            if (count($results) >= 6) {
+                return $results;
+            }
         }
     }
 
@@ -1067,7 +1125,7 @@ function global_search_results(string $query): array
         }
     }
 
-    return array_slice(array_merge($results, global_search_documentation_results($query)), 0, 32);
+    return array_slice(array_merge($results, global_search_settings_results($query), global_search_documentation_results($query)), 0, 32);
 }
 
 function handle_global_search(): void

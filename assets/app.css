@@ -722,6 +722,34 @@ textarea {
     gap: 18px;
 }
 
+.searchable-select {
+    display: grid;
+    gap: 8px;
+}
+
+.searchable-select-input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #e7dfd3;
+    border-radius: 16px;
+    padding: 0 14px;
+    background: #fffdfa;
+    color: var(--ink);
+    font: inherit;
+}
+
+.searchable-select-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(229, 179, 79, 0.18);
+    outline: none;
+}
+
+.searchable-select-empty {
+    margin: -2px 0 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
 .copy-context-card {
     display: grid;
     gap: 8px;
@@ -6859,6 +6887,43 @@ body.theme-clean.auth-shell {
     gap: 10px;
 }
 
+.settings-search-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    padding: 16px;
+    border: 1px solid #eadcc9;
+    border-radius: 22px;
+    background: #fbfaf7;
+}
+
+.settings-search-field {
+    gap: 8px;
+}
+
+.settings-search-clear {
+    min-height: 52px;
+}
+
+.settings-search-summary {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.settings-accordion-panel.is-setting-search-hidden,
+.settings-field-grid .field.is-setting-search-hidden {
+    display: none;
+}
+
+.settings-field-grid .field.is-setting-search-match {
+    border-color: rgba(229, 179, 79, 0.7);
+    background: #fffaf0;
+    box-shadow: 0 0 0 4px rgba(229, 179, 79, 0.12);
+}
+
 .settings-accordion-panel {
     padding: 0;
     overflow: hidden;
@@ -7493,6 +7558,14 @@ body.theme-clean.auth-shell {
 
     .movement-form .movement-preview-grid {
         grid-template-columns: 1fr;
+    }
+
+    .settings-search-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .settings-search-clear {
+        width: 100%;
     }
 
     .settings-accordion-summary {

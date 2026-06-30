@@ -1235,6 +1235,8 @@ assert_true(str_contains($storageDetailPage['body'], '/items/create?storage_id='
 $storageMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $locationFilteredStorage['id']);
 assert_true($storageMovementLogPage['status'] === 200, 'Storage-filtered movement log did not load.');
 assert_true(str_contains($storageMovementLogPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Storage-filtered movement log should keep the selected location.');
+assert_true(str_contains($storageMovementLogPage['body'], 'data-searchable-select'), 'Movement Log item filter should be searchable.');
+assert_true(str_contains($storageMovementLogPage['body'], 'data-searchable-placeholder="Search item, SKU, or barcode"'), 'Movement Log item filter should expose item search guidance.');
 $movementScopeDestination = $storages[9];
 $movementScopeReference = $prefix . '-SCOPED-MOVE';
 apply_inventory_movement(
@@ -1491,6 +1493,9 @@ assert_true(strpos($settingsPageForTheme['body'], 'settings[email.workflow_alert
 assert_true(strpos($settingsPageForTheme['body'], 'settings-choice-list') !== false, 'Settings page is missing compact choice controls.');
 assert_true(strpos($settingsPageForTheme['body'], '/settings/email-test') !== false, 'Settings page is missing the test email action.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings-accordion') !== false, 'Settings page is missing the collapsible settings accordion.');
+assert_true(strpos($settingsPageForTheme['body'], 'data-settings-search') !== false, 'Settings page is missing the settings search panel.');
+assert_true(strpos($settingsPageForTheme['body'], 'data-settings-search-input') !== false, 'Settings page is missing the settings search input.');
+assert_true(strpos($settingsPageForTheme['body'], 'id="setting-items-barcode_required"') !== false, 'Settings page is missing stable field anchors for search results.');
 assert_true(strpos($settingsPageForTheme['body'], 'Classic Warm') !== false, 'Settings page is missing the classic UI rollback option.');
 [$ocrKeepPayload, $ocrKeepErrors, $ocrSkippedSecrets] = normalize_site_settings_payload([
     'ocr.openai_api_key' => '',
@@ -1647,6 +1652,11 @@ assert_true($ownerReportsSearch['status'] === 200, 'Owner reports global search 
 $ownerReportsPayload = json_decode($ownerReportsSearch['body'], true);
 $ownerReportsUrls = array_map(static fn (array $result): string => (string) ($result['url'] ?? ''), $ownerReportsPayload['results'] ?? []);
 assert_true(in_array('/reports', $ownerReportsUrls, true), 'Global search is missing the reports page.');
+$ownerSettingsSearch = http_request($baseUrl, $ownerCookie, 'GET', '/global-search?q=barcode', [], $globalSearchHeaders);
+assert_true($ownerSettingsSearch['status'] === 200, 'Owner settings global search failed.');
+$ownerSettingsPayload = json_decode($ownerSettingsSearch['body'], true);
+$ownerSettingsUrls = array_map(static fn (array $result): string => (string) ($result['url'] ?? ''), $ownerSettingsPayload['results'] ?? []);
+assert_true((bool) array_filter($ownerSettingsUrls, static fn (string $url): bool => strpos($url, '/settings/site?settings_search=barcode#setting-items-barcode_required') !== false), 'Global search is missing the barcode setting result.');
 $staffDocumentationPayload = json_decode($staffDocumentationSearch['body'], true);
 assert_true(is_array($staffDocumentationPayload) && !empty($staffDocumentationPayload['ok']), 'Staff documentation global search failed.');
 $staffDocumentationUrls = array_map(static fn (array $result): string => (string) ($result['url'] ?? ''), $staffDocumentationPayload['results'] ?? []);
