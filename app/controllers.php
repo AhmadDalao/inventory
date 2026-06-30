@@ -2295,11 +2295,12 @@ function handle_dashboard_page(): void
         $filters['storage_id'] = null;
     }
 
-    [$movementWhere, $movementParams] = dashboard_movement_scope($filters);
+	[$movementWhere, $movementParams] = dashboard_movement_scope($filters);
+    $assetDashboardEnabled = Auth::hasPermission('assets.view');
 
-    if ($selectedStorage) {
-        $storageParams = ['storage_id' => (int) $selectedStorage['id']];
-        $metrics = [
+	if ($selectedStorage) {
+		$storageParams = ['storage_id' => (int) $selectedStorage['id']];
+		$metrics = [
             'items_total' => (int) Database::scalar(
                 'SELECT COUNT(*)
                  FROM item_storage_balances balances
@@ -2335,33 +2336,67 @@ function handle_dashboard_page(): void
                    AND i.is_active = 1',
                 $storageParams
             ),
-            'used_last_30' => (float) Database::scalar(
-                "SELECT COALESCE(SUM(m.movement_quantity), 0)
-                 FROM inventory_movements m
-                 INNER JOIN items i ON i.id = m.item_id
-                 {$movementWhere}
-                   AND m.movement_type = 'usage'",
-                $movementParams
-            ),
-        ];
-    } else {
-        $metrics = [
+	            'used_last_30' => (float) Database::scalar(
+	                "SELECT COALESCE(SUM(m.movement_quantity), 0)
+	                 FROM inventory_movements m
+	                 INNER JOIN items i ON i.id = m.item_id
+	                 {$movementWhere}
+	                   AND m.movement_type = 'usage'",
+	                $movementParams
+	            ),
+	            'assets_total' => $assetDashboardEnabled ? (int) Database::scalar(
+	                'SELECT COUNT(*)
+	                 FROM company_assets
+	                 WHERE is_active = 1
+	                   AND storage_id = :storage_id',
+	                $storageParams
+	            ) : 0,
+	            'assets_assigned' => $assetDashboardEnabled ? (int) Database::scalar(
+	                "SELECT COUNT(*)
+	                 FROM company_assets
+	                 WHERE is_active = 1
+	                   AND storage_id = :storage_id
+	                   AND status IN ('assigned', 'pending_receipt', 'return_requested')",
+	                $storageParams
+	            ) : 0,
+	            'assets_maintenance' => $assetDashboardEnabled ? (int) Database::scalar(
+	                "SELECT COUNT(*)
+	                 FROM company_assets
+	                 WHERE is_active = 1
+	                   AND storage_id = :storage_id
+	                   AND status IN ('maintenance', 'damaged', 'lost')",
+	                $storageParams
+	            ) : 0,
+	            'assets_value' => $assetDashboardEnabled ? (float) Database::scalar(
+	                'SELECT COALESCE(SUM(purchase_cost), 0)
+	                 FROM company_assets
+	                 WHERE is_active = 1
+	                   AND storage_id = :storage_id',
+	                $storageParams
+	            ) : 0.0,
+	        ];
+	    } else {
+	        $metrics = [
             'items_total' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1'),
             'storages_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0'),
             'warehouses_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0 AND storage_type = "warehouse"'),
             'units_total' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity), 0) FROM items WHERE is_active = 1'),
             'low_stock' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1 AND current_quantity <= reorder_level'),
             'inventory_value' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity * cost_per_unit), 0) FROM items WHERE is_active = 1'),
-            'used_last_30' => (float) Database::scalar(
-                "SELECT COALESCE(SUM(m.movement_quantity), 0)
-                 FROM inventory_movements m
-                 INNER JOIN items i ON i.id = m.item_id
-                 {$movementWhere}
-                   AND m.movement_type = 'usage'",
-                $movementParams
-            ),
-        ];
-    }
+	            'used_last_30' => (float) Database::scalar(
+	                "SELECT COALESCE(SUM(m.movement_quantity), 0)
+	                 FROM inventory_movements m
+	                 INNER JOIN items i ON i.id = m.item_id
+	                 {$movementWhere}
+	                   AND m.movement_type = 'usage'",
+	                $movementParams
+	            ),
+	            'assets_total' => $assetDashboardEnabled ? (int) Database::scalar('SELECT COUNT(*) FROM company_assets WHERE is_active = 1') : 0,
+	            'assets_assigned' => $assetDashboardEnabled ? (int) Database::scalar("SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND status IN ('assigned', 'pending_receipt', 'return_requested')") : 0,
+	            'assets_maintenance' => $assetDashboardEnabled ? (int) Database::scalar("SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND status IN ('maintenance', 'damaged', 'lost')") : 0,
+	            'assets_value' => $assetDashboardEnabled ? (float) Database::scalar('SELECT COALESCE(SUM(purchase_cost), 0) FROM company_assets WHERE is_active = 1') : 0.0,
+	        ];
+	    }
 
     $recentActivity = Database::fetchAll(
         "SELECT m.*,
@@ -3610,6 +3645,37 @@ function handle_scan_lookup(): void
     $like = '%' . addcslashes($query, "\\%_") . '%';
     $exact = mb_strtolower($query);
 
+    if (Auth::hasPermission('assets.view')) {
+        $asset = Database::fetch(
+            'SELECT id, asset_number, name
+             FROM company_assets
+             WHERE is_active = 1
+               AND (
+                    LOWER(asset_number) = :exact_asset_number
+                    OR LOWER(COALESCE(barcode, "")) = :exact_asset_barcode
+                    OR LOWER(COALESCE(serial_number, "")) = :exact_asset_serial
+               )
+             LIMIT 1',
+            [
+                'exact_asset_number' => $exact,
+                'exact_asset_barcode' => $exact,
+                'exact_asset_serial' => $exact,
+            ]
+        );
+
+        if ($asset) {
+            json_response([
+                'ok' => true,
+                'query' => $query,
+                'count' => 0,
+                'items' => [],
+                'open_url' => url('/assets/' . $asset['id']),
+                'open_reference' => $asset['asset_number'],
+                'message' => 'Opening asset ' . $asset['asset_number'] . '.',
+            ]);
+        }
+    }
+
     $items = Database::fetchAll(
         'SELECT i.*,
                 default_storage.name AS default_storage_name,
@@ -3959,17 +4025,26 @@ function report_preset_cards(): array
 
     $groups = [
         'Inventory' => [
-            [
-                'title' => 'Item Catalog',
-                'copy' => 'All active/deleted item records, SKU, barcode, unit, quantity, reorder level, value, and location summary.',
-                'icon' => 'items',
+	            [
+	                'title' => 'Item Catalog',
+	                'copy' => 'All active/deleted item records, SKU, barcode, unit, quantity, reorder level, value, and location summary.',
+	                'icon' => 'items',
                 'permission' => 'items.export',
                 'download_url' => url('/exports/items?status=all'),
                 'source_url' => url('/items'),
-                'badge' => 'Catalog',
-            ],
-            [
-                'title' => 'Storage Value',
+	                'badge' => 'Catalog',
+	            ],
+	            [
+	                'title' => 'Company Assets',
+	                'copy' => 'Durable property with serials, barcode tags, custody, condition, warranty, value, and current holder.',
+	                'icon' => 'assets',
+	                'permission' => 'assets.export',
+	                'download_url' => url('/exports/assets.xlsx?active=all'),
+	                'source_url' => url('/assets?active=all'),
+	                'badge' => 'Assets',
+	            ],
+	            [
+	                'title' => 'Storage Value',
                 'copy' => 'Each storage with every item inside it, remaining quantity, used quantity, and stock value.',
                 'icon' => 'storages',
                 'permission' => 'storages.export',

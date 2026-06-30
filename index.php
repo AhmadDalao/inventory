@@ -4,6 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/controllers.php';
 require __DIR__ . '/app/workflows.php';
+require __DIR__ . '/app/company_assets.php';
 
 $router = new Router();
 
@@ -121,6 +122,52 @@ $router->post('/items/{id}/locations/{storage_id}/remove', static function (arra
 });
 $router->post('/items/{id}/movements', static function (array $params): void {
     handle_item_movement_submit($params);
+});
+
+$router->get('/assets', static function (): void {
+    handle_assets_index();
+});
+$router->get('/assets/create', static function (): void {
+    handle_assets_create_page();
+});
+$router->post('/assets/create', static function (): void {
+    handle_assets_create_submit();
+});
+$router->get('/assets/{id}', static function (array $params): void {
+    handle_assets_show($params);
+});
+$router->get('/assets/{id}/edit', static function (array $params): void {
+    handle_assets_edit_page($params);
+});
+$router->post('/assets/{id}/edit', static function (array $params): void {
+    handle_assets_edit_submit($params);
+});
+$router->post('/assets/{id}/status', static function (array $params): void {
+    handle_assets_status_submit($params);
+});
+$router->post('/assets/{id}/assign', static function (array $params): void {
+    handle_assets_assign_submit($params);
+});
+$router->post('/assets/{id}/confirm-receipt', static function (array $params): void {
+    handle_assets_confirm_receipt_submit($params);
+});
+$router->post('/assets/{id}/request-return', static function (array $params): void {
+    handle_assets_request_return_submit($params);
+});
+$router->post('/assets/{id}/confirm-return', static function (array $params): void {
+    handle_assets_confirm_return_submit($params);
+});
+$router->post('/assets/{id}/maintenance', static function (array $params): void {
+    handle_assets_maintenance_submit($params);
+});
+$router->post('/assets/{id}/maintenance/{maintenance_id}/complete', static function (array $params): void {
+    handle_assets_maintenance_complete_submit($params);
+});
+$router->post('/assets/{id}/override-status', static function (array $params): void {
+    handle_assets_status_override_submit($params);
+});
+$router->post('/assets/{id}/documents', static function (array $params): void {
+    handle_assets_documents_submit($params);
 });
 
 $router->get('/movements', static function (): void {
@@ -341,6 +388,12 @@ $router->get('/exports/items', static function (): void {
 });
 $router->get('/exports/items.xlsx', static function (): void {
     handle_export_items_xlsx();
+});
+$router->get('/exports/assets', static function (): void {
+    handle_export_assets();
+});
+$router->get('/exports/assets.xlsx', static function (): void {
+    handle_export_assets_xlsx();
 });
 $router->get('/exports/movements', static function (): void {
     handle_export_movements();

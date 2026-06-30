@@ -93,6 +93,7 @@ function site_setting_schema(): array
                 'nav.dashboard' => ['label' => 'Dashboard link', 'default' => 'Dashboard', 'maxlength' => 60],
                 'nav.storages' => ['label' => 'Storages link', 'default' => 'Storages', 'maxlength' => 60],
                 'nav.items' => ['label' => 'Items link', 'default' => 'Items', 'maxlength' => 60],
+                'nav.assets' => ['label' => 'Assets link', 'default' => 'Assets', 'maxlength' => 60],
                 'nav.movements' => ['label' => 'Movement log link', 'default' => 'Movement Log', 'maxlength' => 60],
                 'nav.scan' => ['label' => 'Scan link', 'default' => 'Scan Center', 'maxlength' => 60],
                 'nav.requests' => ['label' => 'Requests link', 'default' => 'Requests', 'maxlength' => 60],
@@ -179,6 +180,17 @@ function site_setting_schema(): array
                     'label' => 'Report Excel exports with thumbnails',
                     'default' => '1',
                     'help' => 'Adds XLSX export buttons on Reports summaries with embedded item thumbnails where items are listed.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
+                'exports.asset_xlsx_thumbnails' => [
+                    'label' => 'Asset Excel exports with thumbnails',
+                    'default' => '1',
+                    'help' => 'Adds XLSX export buttons for company assets with embedded asset photos and barcode images.',
                     'type' => 'select',
                     'options' => [
                         '0' => 'No',
@@ -508,6 +520,8 @@ function site_setting_schema(): array
                 'page.storages_eyebrow' => ['label' => 'Storages eyebrow', 'default' => 'Locations', 'maxlength' => 80],
                 'page.items' => ['label' => 'Items page title', 'default' => 'Items', 'maxlength' => 80],
                 'page.items_eyebrow' => ['label' => 'Items eyebrow', 'default' => 'Catalog', 'maxlength' => 80],
+                'page.assets' => ['label' => 'Assets page title', 'default' => 'Assets', 'maxlength' => 80],
+                'page.assets_eyebrow' => ['label' => 'Assets eyebrow', 'default' => 'Company property', 'maxlength' => 80],
                 'page.movements' => ['label' => 'Movement page title', 'default' => 'Movement Log', 'maxlength' => 80],
                 'page.movements_eyebrow' => ['label' => 'Movement eyebrow', 'default' => 'Audit Trail', 'maxlength' => 80],
                 'page.scan' => ['label' => 'Scan page title', 'default' => 'Scan Center', 'maxlength' => 80],
@@ -579,6 +593,9 @@ function site_setting_schema(): array
                 'metric.handovers_open' => ['label' => 'Handovers metric label', 'default' => 'Open Handovers', 'maxlength' => 80],
                 'metric.purchases_open' => ['label' => 'Purchases metric label', 'default' => 'Open Purchases', 'maxlength' => 80],
                 'metric.purchase_receiving' => ['label' => 'Purchase receiving metric label', 'default' => 'Purchases Pending Receiving', 'maxlength' => 80],
+                'metric.assets_total' => ['label' => 'Assets metric label', 'default' => 'Company Assets', 'maxlength' => 80],
+                'metric.assets_assigned' => ['label' => 'Assigned assets metric label', 'default' => 'Assigned Assets', 'maxlength' => 80],
+                'metric.assets_maintenance' => ['label' => 'Maintenance assets metric label', 'default' => 'Assets In Maintenance', 'maxlength' => 80],
                 'dashboard.low_stock' => ['label' => 'Low stock panel title', 'default' => 'Low Stock Watchlist', 'maxlength' => 80],
                 'dashboard.top_usage' => ['label' => 'Top usage panel title', 'default' => 'Most Used Items', 'maxlength' => 80],
                 'dashboard.recent_activity' => ['label' => 'Recent activity panel title', 'default' => 'Recent Activity', 'maxlength' => 80],
@@ -1958,6 +1975,20 @@ function permission_catalog(): array
                 'items.export' => 'Export item reports.',
             ],
         ],
+        'assets' => [
+            'label' => 'Assets',
+            'permissions' => [
+                'assets.view' => 'Open company asset pages and assigned asset cards.',
+                'assets.create' => 'Create individual or bulk company asset records.',
+                'assets.edit' => 'Edit asset profile, serial, barcode, warranty, and purchase details.',
+                'assets.archive' => 'Archive and recover asset records.',
+                'assets.assign' => 'Assign, transfer, receive, and return asset custody.',
+                'assets.maintenance' => 'Create and close asset maintenance records.',
+                'assets.status_override' => 'Override asset status with an audit trail.',
+                'assets.export' => 'Export company asset reports.',
+                'assets.files' => 'Upload and download asset proof, warranty, invoice, and repair files.',
+            ],
+        ],
         'movements' => [
             'label' => 'Movements',
             'permissions' => [
@@ -2153,6 +2184,88 @@ function movement_type_options_for_user(?array $allowedTypes = null): array
     );
 }
 
+function asset_status_options(): array
+{
+    return [
+        'available' => 'Available',
+        'pending_receipt' => 'Pending Receipt',
+        'assigned' => 'Assigned',
+	        'return_requested' => 'Return Requested',
+	        'damaged' => 'Damaged',
+	        'maintenance' => 'Maintenance',
+	        'lost' => 'Lost',
+        'retired' => 'Retired',
+    ];
+}
+
+function asset_status_label(?string $status): string
+{
+    $status = trim((string) $status);
+    $options = asset_status_options();
+
+    return $options[$status] ?? ucwords(str_replace('_', ' ', $status !== '' ? $status : 'available'));
+}
+
+function asset_status_tone(?string $status): string
+{
+    switch ((string) $status) {
+        case 'available':
+            return 'success';
+        case 'pending_receipt':
+        case 'return_requested':
+            return 'warning';
+        case 'assigned':
+            return 'info';
+	        case 'maintenance':
+	            return 'muted';
+	        case 'damaged':
+	        case 'lost':
+	        case 'retired':
+	            return 'danger';
+        default:
+            return 'muted';
+    }
+}
+
+function asset_condition_options(): array
+{
+    return [
+        'new' => 'New',
+        'good' => 'Good',
+        'fair' => 'Fair',
+        'damaged' => 'Damaged',
+        'lost' => 'Lost',
+        'retired' => 'Retired',
+    ];
+}
+
+function asset_condition_label(?string $condition): string
+{
+    $condition = trim((string) $condition);
+    $options = asset_condition_options();
+
+    return $options[$condition] ?? ucwords(str_replace('_', ' ', $condition !== '' ? $condition : 'good'));
+}
+
+function asset_action_type_label(?string $actionType): string
+{
+    $actionType = trim((string) $actionType);
+
+    return [
+        'assign' => 'Assignment',
+        'receive' => 'Receipt',
+        'return_request' => 'Return Request',
+        'return_confirm' => 'Return Confirmed',
+        'transfer' => 'Transfer',
+        'damage' => 'Damage',
+        'lost' => 'Lost',
+        'maintenance_start' => 'Maintenance Started',
+        'maintenance_complete' => 'Maintenance Completed',
+        'retire' => 'Retired',
+        'override' => 'Status Override',
+    ][$actionType] ?? ucwords(str_replace('_', ' ', $actionType !== '' ? $actionType : 'Action'));
+}
+
 function permission_groups_for_form(array $selectedKeys = []): array
 {
     $selectedMap = array_fill_keys($selectedKeys, true);
@@ -2185,6 +2298,7 @@ function default_permissions_for_role(string $role): array
     if ($role === 'staff') {
         return [
             'dashboard.view',
+            'assets.view',
             'requests.view',
             'requests.create',
             'requests.receive',
@@ -2210,6 +2324,13 @@ function default_permissions_for_role(string $role): array
         'items.copy',
         'items.remove_from_storage',
         'items.export',
+        'assets.view',
+        'assets.create',
+        'assets.edit',
+        'assets.assign',
+        'assets.maintenance',
+        'assets.export',
+        'assets.files',
         'movements.view',
         'movements.create',
         'movements.usage',
@@ -2269,6 +2390,9 @@ function default_permissions_for_position(string $position): array
                 'storages.export',
                 'items.view',
                 'items.export',
+                'assets.view',
+                'assets.export',
+                'assets.files',
                 'movements.view',
                 'movements.export',
                 'requests.view',
@@ -2305,6 +2429,9 @@ function default_permissions_for_position(string $position): array
                 'storages.export',
                 'items.view',
                 'items.export',
+                'assets.view',
+                'assets.export',
+                'assets.files',
                 'movements.view',
                 'movements.export',
                 'requests.view',
@@ -2346,6 +2473,14 @@ function default_permissions_for_position(string $position): array
                 'items.copy',
                 'items.remove_from_storage',
                 'items.export',
+                'assets.view',
+                'assets.create',
+                'assets.edit',
+                'assets.archive',
+                'assets.assign',
+                'assets.maintenance',
+                'assets.export',
+                'assets.files',
                 'movements.view',
                 'movements.create',
                 'movements.usage',
@@ -2409,6 +2544,13 @@ function default_permissions_for_position(string $position): array
                 'items.copy',
                 'items.remove_from_storage',
                 'items.export',
+                'assets.view',
+                'assets.create',
+                'assets.edit',
+                'assets.assign',
+                'assets.maintenance',
+                'assets.export',
+                'assets.files',
                 'movements.view',
                 'movements.create',
                 'movements.usage',
@@ -2445,6 +2587,7 @@ function default_permissions_for_position(string $position): array
         case 'reception_staff':
             return [
                 'dashboard.view',
+                'assets.view',
                 'requests.view',
                 'requests.create',
                 'requests.receive',
@@ -3150,6 +3293,7 @@ function reports_can_access(): bool
         'storages.export',
         'requests.export',
         'handovers.export',
+        'assets.export',
         'purchases.export',
         'files.export',
         'stocktakes.export',
@@ -3180,6 +3324,16 @@ function purchase_upload_directory(): string
 function workflow_upload_directory(): string
 {
     return base_path('storage/workflows');
+}
+
+function asset_upload_directory(): string
+{
+    return base_path('uploads/assets');
+}
+
+function asset_document_upload_directory(): string
+{
+    return base_path('storage/assets');
 }
 
 function file_archive_directory(): string
@@ -3661,11 +3815,178 @@ function delete_item_image(?string $imagePath): void
     mark_file_asset_deleted_by_relative_path(file_asset_relative_path('uploads/items', $imagePath), $deletedBy);
 }
 
+function validate_asset_image_upload(?array $file): ?string
+{
+    return validate_item_image_upload($file);
+}
+
+function store_asset_image(array $file, string $assetName): string
+{
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo ? (string) finfo_file($finfo, $tmpName) : '';
+
+    if ($finfo && PHP_VERSION_ID < 80500) {
+        finfo_close($finfo);
+    }
+
+    $extensions = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
+    if (!isset($extensions[$mimeType])) {
+        throw new RuntimeException('Unsupported asset image type.');
+    }
+
+    ensure_directory_exists(asset_upload_directory());
+
+    $filename = date('YmdHis') . '-' . slugify_filename($assetName) . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.' . $extensions[$mimeType];
+    $destination = asset_upload_directory() . '/' . $filename;
+
+    if (!move_uploaded_file($tmpName, $destination)) {
+        throw new RuntimeException('Could not save the asset image.');
+    }
+
+    return $filename;
+}
+
+function delete_asset_image(?string $imagePath): void
+{
+    $imagePath = trim((string) $imagePath);
+
+    if ($imagePath === '') {
+        return;
+    }
+
+    $fullPath = asset_upload_directory() . '/' . basename($imagePath);
+
+    if (is_file($fullPath)) {
+        unlink($fullPath);
+    }
+
+    $deletedBy = class_exists('Auth') && Auth::user() ? (int) Auth::user()['id'] : null;
+    mark_file_asset_deleted_by_relative_path(file_asset_relative_path('uploads/assets', $imagePath), $deletedBy);
+}
+
+function duplicate_asset_image(?string $imagePath, string $assetName): ?string
+{
+    $imagePath = trim((string) $imagePath);
+
+    if ($imagePath === '') {
+        return null;
+    }
+
+    $sourcePath = asset_upload_directory() . '/' . basename($imagePath);
+
+    if (!is_file($sourcePath)) {
+        return null;
+    }
+
+    ensure_directory_exists(asset_upload_directory());
+
+    $extension = strtolower((string) pathinfo($sourcePath, PATHINFO_EXTENSION));
+    $extension = $extension !== '' ? $extension : 'jpg';
+    $filename = date('YmdHis') . '-' . slugify_filename($assetName) . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.' . $extension;
+    $destination = asset_upload_directory() . '/' . $filename;
+
+    if (!copy($sourcePath, $destination)) {
+        throw new RuntimeException('Could not reuse the copied asset image.');
+    }
+
+    return $filename;
+}
+
+function asset_document_mime_extensions(): array
+{
+    return [
+        'application/pdf' => 'pdf',
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+}
+
+function validate_asset_document_upload(?array $file): ?string
+{
+    if ($file === null) {
+        return null;
+    }
+
+    $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($error !== UPLOAD_ERR_OK) {
+        return 'Asset file upload failed. Use PDF, JPG, PNG, or WebP under 15 MB.';
+    }
+
+    $size = (int) ($file['size'] ?? 0);
+
+    if ($size <= 0 || $size > 15 * 1024 * 1024) {
+        return 'Asset file must be smaller than 15 MB.';
+    }
+
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+        return 'Uploaded asset file is invalid.';
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo ? (string) finfo_file($finfo, $tmpName) : '';
+
+    if ($finfo && PHP_VERSION_ID < 80500) {
+        finfo_close($finfo);
+    }
+
+    if (!isset(asset_document_mime_extensions()[$mimeType])) {
+        return 'Asset file must be PDF, JPG, PNG, or WebP.';
+    }
+
+    return null;
+}
+
+function store_asset_document(array $file, string $assetNumber, string $label = 'asset-file'): array
+{
+    $tmpName = (string) ($file['tmp_name'] ?? '');
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = $finfo ? (string) finfo_file($finfo, $tmpName) : '';
+
+    if ($finfo && PHP_VERSION_ID < 80500) {
+        finfo_close($finfo);
+    }
+
+    $extensions = asset_document_mime_extensions();
+
+    if (!isset($extensions[$mimeType])) {
+        throw new RuntimeException('Unsupported asset file type.');
+    }
+
+    ensure_directory_exists(asset_document_upload_directory());
+
+    $originalName = basename((string) ($file['name'] ?? 'asset-file'));
+    $filename = date('YmdHis') . '-' . slugify_filename($assetNumber . '-' . $label . '-' . pathinfo($originalName, PATHINFO_FILENAME)) . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.' . $extensions[$mimeType];
+    $destination = asset_document_upload_directory() . '/' . $filename;
+
+    if (!move_uploaded_file($tmpName, $destination)) {
+        throw new RuntimeException('Could not save the asset file.');
+    }
+
+    return [
+        'original_filename' => $originalName !== '' ? $originalName : 'asset-file.' . $extensions[$mimeType],
+        'stored_filename' => $filename,
+        'mime_type' => $mimeType,
+        'file_size' => (int) ($file['size'] ?? 0),
+    ];
+}
+
 function file_asset_group_options(): array
 {
     return [
         'all' => 'All files',
         'item_image' => 'Item images',
+        'asset_image' => 'Asset images',
+        'asset_file' => 'Asset files',
         'purchase_document' => 'Purchase documents',
         'purchase_line_image' => 'Purchase line images',
         'workflow_proof' => 'Workflow proof images',
@@ -3861,6 +4182,10 @@ function file_asset_source_label(string $sourceType): string
     switch ($sourceType) {
         case 'item_image':
             return 'Item image';
+        case 'asset_image':
+            return 'Asset image';
+        case 'asset_file':
+            return 'Asset file';
         case 'purchase_document':
             return 'Purchase document';
         case 'purchase_line_image':
@@ -3894,6 +4219,10 @@ function file_asset_context_label(array $asset): string
         return trim((string) $asset['item_name'] . (!empty($asset['item_sku']) ? ' · ' . $asset['item_sku'] : ''));
     }
 
+    if (!empty($asset['asset_number'])) {
+        return trim((string) $asset['asset_number'] . (!empty($asset['asset_name']) ? ' · ' . $asset['asset_name'] : ''));
+    }
+
     if (!empty($asset['context_type']) && !empty($asset['context_id'])) {
         return ucwords(str_replace('_', ' ', (string) $asset['context_type'])) . ' #' . (int) $asset['context_id'];
     }
@@ -3919,8 +4248,16 @@ function file_asset_context_url(array $asset): ?string
         return url('/items/' . (int) $asset['context_id']);
     }
 
+    if (($asset['context_type'] ?? '') === 'asset' && !empty($asset['context_id'])) {
+        return url('/assets/' . (int) $asset['context_id']);
+    }
+
     if (($asset['source_type'] ?? '') === 'item_image' && !empty($asset['source_id'])) {
         return url('/items/' . (int) $asset['source_id']);
+    }
+
+    if (($asset['source_type'] ?? '') === 'asset_image' && !empty($asset['source_id'])) {
+        return url('/assets/' . (int) $asset['source_id']);
     }
 
     return null;
@@ -3934,12 +4271,16 @@ function file_asset_preview_url(array $asset): ?string
 
     $relativePath = (string) ($asset['relative_path'] ?? '');
 
-    if (!starts_with($relativePath, 'uploads/items/')) {
+    if (!starts_with($relativePath, 'uploads/items/') && !starts_with($relativePath, 'uploads/assets/')) {
         return null;
     }
 
     if (!file_asset_exists($asset)) {
         return null;
+    }
+
+    if (starts_with($relativePath, 'uploads/assets/')) {
+        return url('/uploads/assets/' . rawurlencode(basename($relativePath)));
     }
 
     return url('/uploads/items/' . rawurlencode(basename($relativePath)));
@@ -4088,6 +4429,62 @@ function register_item_image_asset(int $itemId, string $imagePath, string $displ
     ]);
 }
 
+function register_asset_image_asset(int $assetId, string $imagePath, string $displayName, ?int $userId = null, ?string $createdAt = null): void
+{
+    $filename = basename($imagePath);
+
+    if ($filename === '') {
+        return;
+    }
+
+    $relativePath = file_asset_relative_path('uploads/assets', $filename);
+    $absolutePath = base_path($relativePath);
+
+    register_file_asset([
+        'source_type' => 'asset_image',
+        'source_id' => $assetId,
+        'context_type' => 'asset',
+        'context_id' => $assetId,
+        'display_name' => $displayName !== '' ? $displayName : 'Asset image',
+        'original_filename' => $filename,
+        'stored_filename' => $filename,
+        'relative_path' => $relativePath,
+        'mime_type' => file_asset_mime_type($absolutePath, 'image/jpeg'),
+        'file_size' => file_asset_size($absolutePath),
+        'file_group' => 'asset_image',
+        'uploaded_by' => $userId,
+        'created_at' => $createdAt,
+    ]);
+}
+
+function register_asset_document_asset(int $assetId, string $assetNumber, array $document, ?int $userId = null, ?string $createdAt = null): void
+{
+    $filename = basename((string) ($document['stored_filename'] ?? ''));
+
+    if ($filename === '') {
+        return;
+    }
+
+    $relativePath = file_asset_relative_path('storage/assets', $filename);
+    $absolutePath = base_path($relativePath);
+
+    register_file_asset([
+        'source_type' => 'asset_file',
+        'source_id' => $assetId,
+        'context_type' => 'asset',
+        'context_id' => $assetId,
+        'display_name' => trim($assetNumber . ' · Asset file') ?: 'Asset file',
+        'original_filename' => (string) ($document['original_filename'] ?? $filename),
+        'stored_filename' => $filename,
+        'relative_path' => $relativePath,
+        'mime_type' => (string) ($document['mime_type'] ?? file_asset_mime_type($absolutePath)),
+        'file_size' => (int) ($document['file_size'] ?? file_asset_size($absolutePath)),
+        'file_group' => 'asset_file',
+        'uploaded_by' => $userId,
+        'created_at' => $createdAt,
+    ]);
+}
+
 function register_purchase_line_image_asset(int $lineId, int $purchaseId, string $imagePath, string $displayName, ?int $userId = null, ?string $createdAt = null): void
 {
     $filename = basename($imagePath);
@@ -4226,9 +4623,31 @@ function item_image_url(?string $imagePath): ?string
     return url('/uploads/items/' . rawurlencode(basename($imagePath)));
 }
 
+function asset_image_url(?string $imagePath): ?string
+{
+    $imagePath = trim((string) $imagePath);
+
+    if ($imagePath === '') {
+        return null;
+    }
+
+    $fullPath = asset_upload_directory() . '/' . basename($imagePath);
+
+    if (!is_file($fullPath)) {
+        return null;
+    }
+
+    return url('/uploads/assets/' . rawurlencode(basename($imagePath)));
+}
+
 function item_xlsx_thumbnail_export_enabled(): bool
 {
     return site_setting('exports.item_xlsx_thumbnails', '1') === '1';
+}
+
+function asset_xlsx_thumbnail_export_enabled(): bool
+{
+    return site_setting('exports.asset_xlsx_thumbnails', '1') === '1';
 }
 
 function storage_xlsx_thumbnail_export_enabled(): bool
@@ -4257,6 +4676,17 @@ function item_initial(?string $value): string
 
     if ($value === '') {
         return 'I';
+    }
+
+    return strtoupper(substr($value, 0, 1));
+}
+
+function asset_initial(?string $value): string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return 'A';
     }
 
     return strtoupper(substr($value, 0, 1));
@@ -4375,6 +4805,36 @@ function documentation_sections(): array
                 'Owners can make item barcode mandatory from Website Control > Inventory Controls.',
                 'Category is only a grouping label; it should not control stock behavior.',
                 'Do not archive an item that is still assigned to storages; remove the specific storage assignment first.',
+            ],
+        ],
+        [
+            'slug' => 'assets',
+            'title' => 'Company Assets',
+            'icon' => 'assets',
+            'audience' => 'Owner, Admin, Operations, Storage Managers, Staff',
+            'route' => '/assets',
+            'summary' => 'Track durable company property such as laptops, radios, printers, cameras, tools, tablets, and equipment without affecting inventory item quantities.',
+            'features' => [
+                'Create one asset at a time or bulk-create multiple serialized assets from the same purchase.',
+                'Track asset number, barcode or asset tag, serial number, model, category, condition, status, location, assigned user, supplier, purchase cost, warranty expiry, notes, image, and protected files.',
+                'Assign assets to employees or locations, require receipt confirmation, request returns, confirm returned condition, and keep every custody action in the event timeline.',
+                'Open maintenance tickets with due date, vendor, cost, notes, proof files, and completion status.',
+                'Export assets to CSV or Excel with optional thumbnails and barcode images using the export settings.',
+                'Scan Center and global search can open assets by asset number, barcode, serial number, or QR reference.',
+            ],
+            'steps' => [
+                'Create the asset from Assets > Create Asset and upload an image if available.',
+                'Use bulk quantity when buying many identical durable objects, such as 10 radios; the system creates one record per object.',
+                'Assign the asset to a user or storage and wait for the recipient to confirm receipt.',
+                'When the asset comes back, confirm return, choose the received condition, and upload proof if needed.',
+                'Use Maintenance when the asset is under repair or warranty work.',
+            ],
+            'rules' => [
+                'Assets are individual company property records. They do not change inventory item quantities.',
+                'Staff only see assets assigned to them.',
+                'Owner and super admin can override asset status, but every override is logged.',
+                'QR codes store only the asset reference, so domain changes do not break scanning.',
+                'Deleted assets are soft-deleted and recoverable.',
             ],
         ],
         [
@@ -5105,6 +5565,7 @@ function ui_icon(string $name): string
         'dashboard' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h7V4H4zm9 7h7V11h-7zM4 20h7v-5H4zm9-9h7V4h-7z"/></svg>',
         'storages' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5 12 3l9 4.5-9 4.5z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5 12 21l9-4.5"/></svg>',
         'items' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M12 12 20 7.5"/><path d="M12 12v9"/><path d="M12 12 4 7.5"/></svg>',
+        'assets' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12v12H6z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/><path d="M9 12h6"/><path d="M9 16h4"/></svg>',
         'movements' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11"/><path d="m14 4 4 3-4 3"/><path d="M17 17H6"/><path d="m10 14-4 3 4 3"/></svg>',
         'scan' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M16 4h3a1 1 0 0 1 1 1v3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/><path d="M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/><path d="M9 9v6"/><path d="M12 9v6"/><path d="M15 9v6"/></svg>',
         'requests' => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12"/><path d="M8 12h12"/><path d="M8 18h12"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>',

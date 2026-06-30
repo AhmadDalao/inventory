@@ -9520,6 +9520,79 @@ body.theme-official.auth-shell {
     }
 }
 
+.metric-card-dark {
+    background: #050505;
+    border-color: #050505;
+    color: #fff;
+}
+
+.file-card-grid,
+.timeline-list {
+    display: grid;
+    gap: 14px;
+}
+
+.file-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    margin-top: 18px;
+}
+
+.file-card,
+.timeline-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) - 8px);
+    background: rgba(245, 239, 229, 0.62);
+}
+
+.file-card {
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-direction: column;
+}
+
+.file-card:hover,
+.timeline-card:hover {
+    background: rgba(232, 216, 190, 0.72);
+}
+
+.file-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    background: #f5e8d4;
+    color: #7b5636;
+}
+
+.timeline-card p,
+.timeline-card span,
+.file-card span {
+    color: var(--muted);
+}
+
+.timeline-card form {
+    margin: 0;
+}
+
+.info-card {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: calc(var(--radius) - 8px);
+}
+
+.soft-card {
+    background: rgba(245, 239, 229, 0.62);
+}
+
 /* Desktop collapsed sidebar fix: compact rail overlays, content stays direct. */
 @media (min-width: 1361px) {
     .shell.nav-collapsed,

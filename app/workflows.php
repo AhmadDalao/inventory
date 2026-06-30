@@ -497,6 +497,7 @@ function global_search_accessible_pages(string $query): array
         ['title' => site_setting('page.dashboard', 'Dashboard'), 'group' => 'Pages', 'url' => '/dashboard', 'icon' => 'dashboard', 'terms' => ['dashboard', 'overview', 'metrics'], 'allowed' => Auth::hasPermission('dashboard.view')],
         ['title' => site_setting('page.storages', 'Storages'), 'group' => 'Pages', 'url' => '/storages', 'icon' => 'storages', 'terms' => ['storages', 'warehouses', 'locations'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('storages.view')],
         ['title' => site_setting('page.items', 'Items'), 'group' => 'Pages', 'url' => '/items', 'icon' => 'items', 'terms' => ['items', 'catalog', 'sku', 'stock'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('items.view')],
+        ['title' => site_setting('page.assets', 'Assets'), 'group' => 'Pages', 'url' => '/assets', 'icon' => 'assets', 'terms' => ['assets', 'asset', 'equipment', 'serial', 'property', 'custody', 'maintenance'], 'allowed' => Auth::hasPermission('assets.view')],
         ['title' => site_setting('page.movements', 'Movement Log'), 'group' => 'Pages', 'url' => '/movements', 'icon' => 'movements', 'terms' => ['movement', 'usage', 'restock', 'transfer', 'adjustment'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('movements.view')],
         ['title' => site_setting('page.scan', 'Scan Center'), 'group' => 'Pages', 'url' => '/scan', 'icon' => 'scan', 'terms' => ['scan', 'scanner', 'barcode', 'camera', 'hardware scanner', 'quick usage'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('items.view')],
         ['title' => site_setting('page.requests', 'Requests'), 'group' => 'Pages', 'url' => '/requests', 'icon' => 'requests', 'terms' => ['requests', 'transfers', 'issue'], 'allowed' => Auth::hasPermission('requests.view')],
@@ -635,6 +636,16 @@ function workflow_reference_targets(): array
             'icon' => 'stocktakes',
             'badge' => 'Count',
         ],
+        'asset' => [
+            'table' => 'company_assets',
+            'column' => 'asset_number',
+            'path' => '/assets/',
+            'permission' => 'assets.view',
+            'group' => 'Assets',
+            'icon' => 'assets',
+            'badge' => 'Asset',
+            'staff_column' => 'assigned_user_id',
+        ],
     ];
 }
 
@@ -655,13 +666,18 @@ function workflow_reference_open_target(string $reference, ?array $onlyTypes = n
             continue;
         }
 
-        $row = Database::fetch(
-            'SELECT id, ' . $target['column'] . ' AS reference
-             FROM ' . $target['table'] . '
-             WHERE UPPER(' . $target['column'] . ') = :reference
-             LIMIT 1',
-            ['reference' => $reference]
-        );
+        $sql = 'SELECT id, ' . $target['column'] . ' AS reference
+                FROM ' . $target['table'] . '
+                WHERE UPPER(' . $target['column'] . ') = :reference';
+        $params = ['reference' => $reference];
+
+        if (Auth::isStaff() && !empty($target['staff_column'])) {
+            $sql .= ' AND ' . $target['staff_column'] . ' = :staff_user_id';
+            $params['staff_user_id'] = (int) (Auth::user()['id'] ?? 0);
+        }
+
+        $sql .= ' LIMIT 1';
+        $row = Database::fetch($sql, $params);
 
         if (!$row) {
             continue;
@@ -751,6 +767,37 @@ function global_search_results(string $query): array
                 url('/items/' . $row['id']),
                 'items',
                 $row['category'] ? (string) $row['category'] : 'Item'
+            );
+        }
+    }
+
+    if (Auth::hasPermission('assets.view')) {
+        [$where, $params] = build_asset_where([
+            'search' => $query,
+            'status' => 'all',
+            'condition' => 'all',
+            'storage_id' => null,
+            'assigned_user_id' => null,
+            'active' => Auth::isStaff() ? 'active' : 'all',
+        ], 'a');
+
+        $rows = Database::fetchAll(
+            company_asset_select_sql() . "
+             {$where}
+             ORDER BY a.is_active DESC, a.updated_at DESC, a.id DESC
+             LIMIT 5",
+            $params
+        );
+
+        foreach ($rows as $row) {
+            $holder = $row['assigned_user_name'] ?: ($row['storage_name'] ?: 'No custody');
+            $results[] = global_search_result(
+                'Assets',
+                (string) $row['name'],
+                (string) $row['asset_number'] . ' · ' . asset_status_label((string) $row['status']) . ' · ' . $holder,
+                url('/assets/' . $row['id']),
+                'assets',
+                'Asset'
             );
         }
     }
@@ -11974,6 +12021,10 @@ function build_file_asset_where(array $filters): array
             OR COALESCE(uploader.name, "") LIKE :file_search_uploader
             OR COALESCE(item.name, "") LIKE :file_search_item
             OR COALESCE(item.sku, "") LIKE :file_search_sku
+            OR COALESCE(company_asset.asset_number, "") LIKE :file_search_asset
+            OR COALESCE(company_asset.name, "") LIKE :file_search_asset_name
+            OR COALESCE(company_asset.barcode, "") LIKE :file_search_asset_barcode
+            OR COALESCE(company_asset.serial_number, "") LIKE :file_search_asset_serial
             OR COALESCE(purchase.purchase_number, "") LIKE :file_search_purchase
             OR COALESCE(handover.handover_number, "") LIKE :file_search_handover
             OR COALESCE(request_record.request_number, "") LIKE :file_search_request
@@ -11988,6 +12039,10 @@ function build_file_asset_where(array $filters): array
         $params['file_search_uploader'] = $search;
         $params['file_search_item'] = $search;
         $params['file_search_sku'] = $search;
+        $params['file_search_asset'] = $search;
+        $params['file_search_asset_name'] = $search;
+        $params['file_search_asset_barcode'] = $search;
+        $params['file_search_asset_serial'] = $search;
         $params['file_search_purchase'] = $search;
         $params['file_search_handover'] = $search;
         $params['file_search_request'] = $search;
@@ -12009,6 +12064,10 @@ function file_asset_select_sql(): string
                    deleter.name AS deleted_by_name,
                    item.name AS item_name,
                    item.sku AS item_sku,
+                   company_asset.asset_number AS asset_number,
+                   company_asset.name AS asset_name,
+                   company_asset.barcode AS asset_barcode,
+                   company_asset.serial_number AS asset_serial_number,
                    purchase.purchase_number,
                    purchase.status AS purchase_status,
                    handover.handover_number,
@@ -12021,6 +12080,9 @@ function file_asset_select_sql(): string
             LEFT JOIN items item
                 ON (assets.context_type = "item" AND item.id = assets.context_id)
                 OR (assets.source_type = "item_image" AND item.id = assets.source_id)
+            LEFT JOIN company_assets company_asset
+                ON (assets.context_type = "asset" AND company_asset.id = assets.context_id)
+                OR (assets.source_type = "asset_image" AND company_asset.id = assets.source_id)
             LEFT JOIN purchases purchase
                 ON assets.context_type = "purchase"
                AND purchase.id = assets.context_id
@@ -12033,6 +12095,7 @@ function file_asset_select_sql(): string
                AND request_record.id = assets.context_id
             LEFT JOIN storages storage_location
                 ON storage_location.id = purchase.destination_storage_id
+                OR storage_location.id = company_asset.storage_id
                 OR storage_location.id = handover.source_storage_id
                 OR storage_location.id = request_record.source_storage_id';
 }

@@ -223,6 +223,18 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
             <span class="metric-card-note"><?= number_format((int) ($workflowSnapshot['pending_purchase_approvals'] ?? 0)) ?> waiting approval</span>
         </article>
     <?php endif; ?>
+    <?php if (Auth::hasPermission('assets.view')): ?>
+        <article class="metric-card">
+            <span class="metric-card-icon"><?= ui_icon('assets') ?><span><?= e(site_setting('metric.assets_total', 'Company Assets')) ?></span></span>
+            <strong><?= number_format((int) ($metrics['assets_total'] ?? 0)) ?></strong>
+            <span class="metric-card-note"><?= format_money((float) ($metrics['assets_value'] ?? 0)) ?> value</span>
+        </article>
+        <article class="metric-card">
+            <span class="metric-card-icon"><?= ui_icon('assets') ?><span><?= e(site_setting('metric.assets_assigned', 'Assigned Assets')) ?></span></span>
+            <strong><?= number_format((int) ($metrics['assets_assigned'] ?? 0)) ?></strong>
+            <span class="metric-card-note"><?= number_format((int) ($metrics['assets_maintenance'] ?? 0)) ?> in maintenance/lost/damaged</span>
+        </article>
+    <?php endif; ?>
     <?php if (Auth::hasPermission('stocktakes.view')): ?>
         <article class="metric-card">
             <span class="metric-card-icon"><?= ui_icon('stocktakes') ?><span>Open Stocktakes</span></span>
