@@ -122,6 +122,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
 
                 <?php foreach (($summary['usage_by_item'] ?? []) as $row): ?>
                     <?php $imageUrl = item_image_url($row['image_path'] ?? null); ?>
+                    <?php $usageReasons = (array) ($row['usage_reasons'] ?? []); ?>
                     <article class="summary-item-row">
                         <?php if ($imageUrl): ?>
                             <img class="item-thumb expandable-image" src="<?= e($imageUrl) ?>" alt="<?= e($row['item_name']) ?>" data-expand-image tabindex="0">
@@ -131,6 +132,18 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
                         <div>
                             <strong><?= e((string) $row['item_name']) ?></strong>
                             <span><?= e((string) $row['sku']) ?> · <?= e((string) $row['unit']) ?></span>
+                            <?php if ($usageReasons !== []): ?>
+                                <div class="summary-usage-tags" aria-label="Usage reasons">
+                                    <?php foreach ($usageReasons as $reason): ?>
+                                        <span class="summary-usage-tag">
+                                            Used <?= e((string) $reason['label']) ?> · <?= e(format_quantity($reason['quantity'] ?? 0)) ?> <?= e((string) ($reason['unit'] ?? $row['unit'])) ?>
+                                        </span>
+                                        <?php if (trim((string) ($reason['notes'] ?? '')) !== ''): ?>
+                                            <span class="summary-usage-note">Note: <?= e(truncate_text((string) $reason['notes'], 64)) ?></span>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
                             <small><?= e(truncate_text((string) ($row['users'] ?: 'System'), 70)) ?></small>
                         </div>
                         <em><?= e(format_quantity($row['used_quantity'] ?? 0)) ?></em>

@@ -3740,6 +3740,52 @@ function report_summary_movement_label(string $movementType): string
     return $movementType === '' ? 'All movement types' : ucfirst($movementType);
 }
 
+function report_summary_usage_reason_groups(array $filters): array
+{
+    $usageFilters = $filters;
+    $usageFilters['movement_type'] = 'usage';
+    [$usageWhere, $usageParams] = build_report_summary_where($usageFilters);
+    $reasonWhere = $usageWhere . " AND m.context_type = 'handover'";
+
+    $rows = Database::fetchAll(
+        "SELECT m.item_id,
+                COALESCE(i.unit, 'pcs') AS unit,
+                hub.reason_code,
+                hub.reason_custom,
+                hub.notes,
+                COALESCE(SUM(hub.quantity), 0) AS quantity
+         FROM inventory_movements m
+         INNER JOIN handover_usage_breakdowns hub
+            ON hub.handover_id = m.context_id
+           AND hub.item_id = m.item_id
+         LEFT JOIN items i ON i.id = m.item_id
+         {$reasonWhere}
+         GROUP BY m.item_id, i.unit, hub.reason_code, hub.reason_custom, hub.notes
+         HAVING quantity > 0
+         ORDER BY m.item_id ASC, quantity DESC",
+        $usageParams
+    );
+
+    $groups = [];
+
+    foreach ($rows as $row) {
+        $itemId = (int) ($row['item_id'] ?? 0);
+
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $groups[$itemId][] = [
+            'label' => handover_usage_reason_label((string) ($row['reason_code'] ?? 'unspecified'), (string) ($row['reason_custom'] ?? '')),
+            'quantity' => (float) ($row['quantity'] ?? 0),
+            'unit' => (string) ($row['unit'] ?: 'pcs'),
+            'notes' => trim((string) ($row['notes'] ?? '')),
+        ];
+    }
+
+    return $groups;
+}
+
 function report_summary_data(array $filters): array
 {
     [$where, $params] = build_report_summary_where($filters);
@@ -3786,6 +3832,13 @@ function report_summary_data(array $filters): array
          LIMIT 50",
         $usageParams
     );
+    $usageReasonGroups = report_summary_usage_reason_groups($filters);
+
+    foreach ($usageByItem as &$usageRow) {
+        $usageRow['usage_reasons'] = $usageReasonGroups[(int) ($usageRow['item_id'] ?? 0)] ?? [];
+    }
+
+    unset($usageRow);
 
     $userBreakdown = Database::fetchAll(
         "SELECT COALESCE(u.name, 'System') AS user_name,

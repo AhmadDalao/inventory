@@ -3088,6 +3088,8 @@ assert_true($reportsPage['status'] === 200, 'Reports page did not load for owner
 assert_true(strpos($reportsPage['body'], 'reports-summary-panel') !== false, 'Reports page is missing the daily summary panel.');
 assert_true(strpos($reportsPage['body'], 'Everything That Happened On') !== false, 'Reports page is missing the daily summary title.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'Reports page is missing the daily summary export link.');
+assert_true(strpos($reportsPage['body'], 'summary-usage-tag') !== false && strpos($reportsPage['body'], 'Used Damage') !== false, 'Reports page is missing handover usage reason chips.');
+assert_true(strpos($reportsPage['body'], $prefix . ' damaged during event') !== false, 'Reports page is missing submitted usage notes.');
 assert_true(strpos($reportsPage['body'], 'Who Used Or Moved Stock') !== false, 'Reports page is missing the user movement summary.');
 assert_true(strpos($reportsPage['body'], 'report-preset-card') !== false, 'Reports page is missing preset cards.');
 assert_true(strpos($reportsPage['body'], 'Today Stock Activity') !== false, 'Reports page is missing the today stock activity preset.');
