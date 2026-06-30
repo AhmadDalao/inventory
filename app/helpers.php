@@ -143,9 +143,9 @@ function site_setting_schema(): array
                     'maxlength' => 1,
                 ],
                 'exports.item_xlsx_thumbnails' => [
-                    'label' => 'Item Excel export with thumbnails',
-                    'default' => '0',
-                    'help' => 'Adds a separate XLSX export button on the Items page with embedded item thumbnails. CSV stays lightweight.',
+                    'label' => 'Item Excel exports with thumbnails',
+                    'default' => '1',
+                    'help' => 'Adds XLSX export buttons with embedded item thumbnails where item catalogs are exported. CSV stays lightweight.',
                     'type' => 'select',
                     'options' => [
                         '0' => 'No',
@@ -155,8 +155,19 @@ function site_setting_schema(): array
                 ],
                 'exports.storage_xlsx_thumbnails' => [
                     'label' => 'Storage Excel export with item thumbnails',
-                    'default' => '0',
+                    'default' => '1',
                     'help' => 'Adds a separate XLSX export button on the Storages page with each storage and the items inside it.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
+                'exports.movement_xlsx_thumbnails' => [
+                    'label' => 'Movement Excel export with thumbnails',
+                    'default' => '1',
+                    'help' => 'Adds an XLSX export button on Movement Log with item thumbnails, scan codes, and movement details.',
                     'type' => 'select',
                     'options' => [
                         '0' => 'No',
@@ -4206,12 +4217,17 @@ function item_image_url(?string $imagePath): ?string
 
 function item_xlsx_thumbnail_export_enabled(): bool
 {
-    return site_setting('exports.item_xlsx_thumbnails', '0') === '1';
+    return site_setting('exports.item_xlsx_thumbnails', '1') === '1';
 }
 
 function storage_xlsx_thumbnail_export_enabled(): bool
 {
-    return site_setting('exports.storage_xlsx_thumbnails', '0') === '1';
+    return site_setting('exports.storage_xlsx_thumbnails', '1') === '1';
+}
+
+function movement_xlsx_thumbnail_export_enabled(): bool
+{
+    return site_setting('exports.movement_xlsx_thumbnails', '1') === '1';
 }
 
 function excel_export_barcode_images_enabled(): bool

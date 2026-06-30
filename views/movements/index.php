@@ -91,7 +91,12 @@
         </div>
 
         <?php if (Auth::hasPermission('movements.export')): ?>
-            <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+            <div class="button-row">
+                <?php if (movement_xlsx_thumbnail_export_enabled()): ?>
+                    <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements.xlsx') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('items') ?><span>Export Excel</span></a>
+                <?php endif; ?>
+                <a class="ghost-button table-export-button" href="<?= e(url('/exports/movements') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+            </div>
         <?php endif; ?>
     </div>
 

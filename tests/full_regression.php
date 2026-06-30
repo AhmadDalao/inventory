@@ -1217,6 +1217,9 @@ $emailSettingKeys = [
     'email.workflow_alerts',
     'email.log_only',
     'workflow.handover_line_edits',
+    'exports.item_xlsx_thumbnails',
+    'exports.storage_xlsx_thumbnails',
+    'exports.movement_xlsx_thumbnails',
 ];
 snapshot_site_settings_for_test($emailSettingKeys);
 set_site_setting_for_test('email.enabled', '1');
@@ -1233,6 +1236,9 @@ set_site_setting_for_test('email.password_resets', '1');
 set_site_setting_for_test('email.workflow_alerts', '1');
 set_site_setting_for_test('email.log_only', '1');
 set_site_setting_for_test('workflow.handover_line_edits', '1');
+set_site_setting_for_test('exports.item_xlsx_thumbnails', '1');
+set_site_setting_for_test('exports.storage_xlsx_thumbnails', '1');
+set_site_setting_for_test('exports.movement_xlsx_thumbnails', '1');
 
 $forgotCookie = create_cookie_file();
 $forgotPage = http_request($baseUrl, $forgotCookie, 'GET', '/forgot-password');
@@ -1358,6 +1364,10 @@ assert_true(strpos($settingsPageForTheme['body'], '/settings/logo') !== false, '
 assert_true(strpos($settingsPageForTheme['body'], 'name="brand_logo"') !== false, 'Settings page is missing the brand logo upload field.');
 assert_true(strpos($settingsPageForTheme['body'], 'clear_brand_logo') !== false || strpos($settingsPageForTheme['body'], 'Using built-in KONA logo') !== false, 'Settings page is missing the logo clear/fallback control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[items.barcode_required]') !== false, 'Settings page is missing the item barcode requirement switch.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.item_xlsx_thumbnails]') !== false, 'Settings page is missing the item Excel thumbnail export switch.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.storage_xlsx_thumbnails]') !== false, 'Settings page is missing the storage Excel thumbnail export switch.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.movement_xlsx_thumbnails]') !== false, 'Settings page is missing the movement Excel thumbnail export switch.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.item_xlsx_thumbnail_size]') !== false, 'Settings page is missing the Excel thumbnail size control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_template]') !== false, 'Settings page is missing workflow document template control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.handover_line_edits]') !== false, 'Settings page is missing handover request line edit control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_image_size]') !== false, 'Settings page is missing workflow document image size control.');
@@ -2939,6 +2949,14 @@ $purchaseExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/purchase
 assert_true($purchaseExport['status'] === 200, 'Purchase export failed.');
 assert_true(strpos($purchaseExport['body'], $purchaseCompleted['purchase_number']) !== false, 'Purchase export is missing the completed purchase.');
 assert_true(strpos($purchaseExport['body'], $newPurchaseSku) !== false, 'Purchase export is missing line item details.');
+
+$movementExportXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/movements.xlsx');
+assert_true($movementExportXlsx['status'] === 200, 'Movement Excel export failed.');
+assert_true(str_starts_with($movementExportXlsx['body'], 'PK'), 'Movement Excel export did not return an XLSX archive.');
+assert_xlsx_contains_media($movementExportXlsx['body'], 'Movement Excel export is missing embedded item thumbnails or barcode images.');
+assert_xlsx_contains_text($movementExportXlsx['body'], 'Movement Quantity', 'Movement Excel export is missing movement quantity column.');
+assert_xlsx_contains_text($movementExportXlsx['body'], 'Barcode Image', 'Movement Excel export is missing barcode image column.');
+assert_xlsx_contains_text($movementExportXlsx['body'], (string) $seededItems[0]['sku'], 'Movement Excel export is missing seeded item SKU.');
 
 note('Verifying dashboard and index routes.');
 $dashboard = http_request($baseUrl, $ownerCookie, 'GET', '/dashboard');
