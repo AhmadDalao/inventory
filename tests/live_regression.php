@@ -268,6 +268,7 @@ if (contains_text($dashboardPage['body'], '/settings/site')) {
     assert_true(contains_text($settingsPage['body'], 'settings[app.name]'), 'Website control form is missing the app name field.');
     assert_true(contains_text($settingsPage['body'], 'settings[ui.theme]'), 'Website control form is missing the UI theme switch.');
     assert_true(contains_text($settingsPage['body'], 'settings[items.barcode_required]'), 'Website control form is missing the item barcode requirement switch.');
+    assert_true(contains_text($settingsPage['body'], 'settings[workflow.handover_line_edits]'), 'Website control form is missing the handover request line edit switch.');
     assert_true(contains_text($settingsPage['body'], 'settings[workflow.signoff_image_size]'), 'Website control form is missing the workflow document image size control.');
     assert_true(contains_text($settingsPage['body'], 'settings[workflow.signoff_image_custom_width]'), 'Website control form is missing the workflow document custom image width control.');
     assert_true(contains_text($settingsPage['body'], 'settings[workflow.signoff_image_custom_height]'), 'Website control form is missing the workflow document custom image height control.');

@@ -6,6 +6,15 @@ $excelDocuments = array_values(array_filter($documents, static fn (array $docume
 $proofDocuments = array_values(array_filter($documents, static fn (array $document): bool => (string) $document['document_type'] === 'proof_image'));
 $signoffDocuments = array_slice($signoffDocuments, 0, 1);
 $excelDocuments = array_slice($excelDocuments, 0, 1);
+$canEditHandoverLines = !empty($canEditHandoverLines);
+$sourceStorages = $sourceStorages ?? [];
+$editableLineItems = old('edit_line_items', array_map(static fn (array $line): array => [
+    'item_id' => (string) $line['item_id'],
+    'quantity' => format_quantity($line['quantity_handed']),
+], $lines));
+$editableLineItems = is_array($editableLineItems) && $editableLineItems !== []
+    ? $editableLineItems
+    : [['item_id' => '', 'quantity' => '']];
 $statusLabel = handover_status_label((string) $handoverRecord['status']);
 $isRequestMode = (string) ($handoverRecord['handover_mode'] ?? 'direct') === 'request';
 $isSourceOwner = Auth::isOwner()
@@ -609,6 +618,95 @@ foreach ($lines as $line) {
         <?php endif; ?>
     </article>
 </section>
+
+<?php if ($canEditHandoverLines): ?>
+    <section class="panel form-panel">
+        <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/lines')) ?>">
+            <?= csrf_field() ?>
+
+            <div class="panel-head">
+                <div>
+                    <p class="eyebrow">Before Approval</p>
+                    <h3>Edit Requested Items</h3>
+                    <p class="muted-copy">Use this for typo fixes or adding missing items before the storage owner approves. After approval, create a new handover instead.</p>
+                </div>
+            </div>
+
+            <select class="sr-only" name="source_storage_id" data-workflow-storage aria-hidden="true" tabindex="-1">
+                <?php foreach ($sourceStorages as $storage): ?>
+                    <option value="<?= e((string) $storage['id']) ?>" selected>
+                        <?= e(storage_type_label((string) $storage['storage_type'])) ?> · <?= e((string) $storage['name']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <section
+                class="workflow-line-builder"
+                data-workflow-line-builder
+                data-line-name-item="line_item_id[]"
+                data-line-name-quantity="line_quantity[]"
+                data-storage-catalog="<?= e((string) ($storageCatalogJson ?? '{}')) ?>"
+                data-storage-meta="<?= e((string) ($storageMetaJson ?? '{}')) ?>"
+                data-hide-availability="<?= Auth::isStaff() ? 'true' : 'false' ?>"
+                data-hide-item-quantity="<?= Auth::isStaff() ? 'true' : 'false' ?>"
+            >
+                <div class="panel-head">
+                    <div>
+                        <p class="eyebrow">Line Items</p>
+                        <h3>Requested Stock</h3>
+                    </div>
+                    <button class="ghost-button" type="button" data-add-workflow-line><?= ui_icon('plus') ?><span>Add Item</span></button>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="data-table workflow-line-table">
+                        <thead>
+                        <tr>
+                            <th>Item</th>
+                            <?php if (!Auth::isStaff()): ?>
+                                <th>Available</th>
+                            <?php endif; ?>
+                            <th>Quantity</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody data-workflow-line-body>
+                        <?php foreach ($editableLineItems as $line): ?>
+                            <tr data-workflow-line>
+                                <td>
+                                    <div class="workflow-picker" data-workflow-picker>
+                                        <input type="hidden" name="line_item_id[]" value="<?= e((string) ($line['item_id'] ?? '')) ?>" data-workflow-item-input required>
+                                        <button class="workflow-picker-toggle" type="button" data-workflow-picker-toggle>
+                                            <span class="workflow-picker-toggle-copy" data-workflow-picker-label><?= !empty($line['item_id']) ? 'Saved item' : 'Select source item first' ?></span>
+                                        </button>
+                                        <div class="workflow-picker-panel" data-workflow-picker-panel hidden>
+                                            <input class="workflow-picker-search" type="search" placeholder="Search item" data-workflow-picker-search>
+                                            <div class="workflow-picker-options" data-workflow-picker-options></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <?php if (!Auth::isStaff()): ?>
+                                    <td>
+                                        <span class="tiny-copy" data-workflow-available>-</span>
+                                    </td>
+                                <?php endif; ?>
+                                <td>
+                                    <input type="number" step="0.01" min="0.01" name="line_quantity[]" value="<?= e((string) ($line['quantity'] ?? '')) ?>" required>
+                                </td>
+                                <td>
+                                    <button class="text-button danger-link" type="button" data-remove-workflow-line>Remove</button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <button class="primary-button" type="submit" data-confirm="Update requested handover items before approval?">Save Requested Items</button>
+        </form>
+    </section>
+<?php endif; ?>
 
 <section class="panel workflow-documents-panel">
     <div class="panel-head">

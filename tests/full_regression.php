@@ -1216,6 +1216,7 @@ $emailSettingKeys = [
     'email.password_resets',
     'email.workflow_alerts',
     'email.log_only',
+    'workflow.handover_line_edits',
 ];
 snapshot_site_settings_for_test($emailSettingKeys);
 set_site_setting_for_test('email.enabled', '1');
@@ -1231,6 +1232,7 @@ set_site_setting_for_test('email.smtp_timeout', '12');
 set_site_setting_for_test('email.password_resets', '1');
 set_site_setting_for_test('email.workflow_alerts', '1');
 set_site_setting_for_test('email.log_only', '1');
+set_site_setting_for_test('workflow.handover_line_edits', '1');
 
 $forgotCookie = create_cookie_file();
 $forgotPage = http_request($baseUrl, $forgotCookie, 'GET', '/forgot-password');
@@ -1357,6 +1359,7 @@ assert_true(strpos($settingsPageForTheme['body'], 'name="brand_logo"') !== false
 assert_true(strpos($settingsPageForTheme['body'], 'clear_brand_logo') !== false || strpos($settingsPageForTheme['body'], 'Using built-in KONA logo') !== false, 'Settings page is missing the logo clear/fallback control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[items.barcode_required]') !== false, 'Settings page is missing the item barcode requirement switch.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_template]') !== false, 'Settings page is missing workflow document template control.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.handover_line_edits]') !== false, 'Settings page is missing handover request line edit control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_image_size]') !== false, 'Settings page is missing workflow document image size control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_image_custom_width]') !== false, 'Settings page is missing workflow document custom image width control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[workflow.signoff_image_custom_height]') !== false, 'Settings page is missing workflow document custom image height control.');
@@ -2526,8 +2529,27 @@ assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handov
 $handoverRequestOpen = http_request($baseUrl, $ownerCookie, 'GET', '/open/' . rawurlencode((string) $handoverRequestRecord['handover_number']));
 assert_true($handoverRequestOpen['status'] === 302 && strpos((string) $handoverRequestOpen['location'], '/handovers/' . $handoverRequestId) !== false, 'Handover QR open route did not redirect to the handover detail.');
 
-	$handoverRequestOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
-	assert_true($handoverRequestOwnerPage['status'] === 200, 'Requested handover detail page did not load for owner.');
+$handoverRequestEditPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverRequestId);
+assert_true($handoverRequestEditPage['status'] === 200, 'Requested handover detail page did not load for requester before approval.');
+assert_true(strpos($handoverRequestEditPage['body'], 'Edit Requested Items') !== false, 'Requested handover detail is missing the pre-approval line edit form.');
+$handoverRequestLineEdit = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $handoverRequestId . '/lines', [
+    '_token' => extract_csrf($handoverRequestEditPage['body']),
+    'line_item_id' => [(int) $handoverRequestItems[0]['id'], (int) $handoverRequestItems[1]['id']],
+    'line_quantity' => ['10', '4'],
+]);
+assert_true($handoverRequestLineEdit['status'] === 302, 'Requested handover line edit did not redirect.');
+$handoverRequestEditedLines = handover_lines($handoverRequestId);
+$editedLineOneQuantity = (float) Database::scalar(
+    'SELECT quantity_handed FROM handover_lines WHERE handover_id = :handover_id AND item_id = :item_id LIMIT 1',
+    [
+        'handover_id' => $handoverRequestId,
+        'item_id' => (int) $handoverRequestItems[0]['id'],
+    ]
+);
+assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity === 10.0, 'Requested handover line edit did not update item quantities before approval.');
+
+    $handoverRequestOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
+    assert_true($handoverRequestOwnerPage['status'] === 200, 'Requested handover detail page did not load for owner.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Approve Request') !== false, 'Requested handover detail page is missing request approval controls.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Cancel Request') !== false, 'Owner should be able to cancel a requested handover while approval controls are visible.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Download Sign-Off PDF') !== false, 'Requested handover detail is missing sign-off PDF download.');
@@ -2569,8 +2591,8 @@ $handoverRequestApprove = http_request($baseUrl, $ownerCookie, 'POST', '/handove
 assert_true($handoverRequestApprove['status'] === 302, 'Requested handover approval did not redirect.');
 $handoverRequestApprovedRecord = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestApprovedRecord['status'] === 'awaiting_receipt', 'Requested handover should become awaiting receipt after approval.');
-assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === round($initialHandoverRequestItemOneQuantity - 9, 2), 'Requested handover source balance should reserve stock at approval.');
-assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], system_storage_id('handover_buffer')) === 9.0, 'Requested handover buffer should hold the issued quantity after approval.');
+assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === round($initialHandoverRequestItemOneQuantity - 10, 2), 'Requested handover source balance should reserve the edited stock at approval.');
+assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], system_storage_id('handover_buffer')) === 10.0, 'Requested handover buffer should hold the edited issued quantity after approval.');
 
 	$handoverRequestStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverRequestId);
 	assert_true($handoverRequestStaffPage['status'] === 200, 'Requested handover detail page did not load for staff after approval.');
@@ -2589,7 +2611,7 @@ $handoverRequestReceive = http_request($baseUrl, $staffCookie, 'POST', '/handove
 assert_true($handoverRequestReceive['status'] === 302, 'Requested handover receipt report did not redirect.');
 $handoverRequestReceiptReview = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestReceiptReview['status'] === 'receipt_review', 'Requested handover should move to receipt review after a short receipt report.');
-assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], system_storage_id('handover_buffer')) === 9.0, 'Requested handover buffer should keep the full quantity until the shortage is confirmed.');
+assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], system_storage_id('handover_buffer')) === 10.0, 'Requested handover buffer should keep the full edited quantity until the shortage is confirmed.');
 
 $handoverRequestReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
 assert_true($handoverRequestReviewPage['status'] === 200, 'Requested handover receipt review page did not load for owner.');

@@ -180,6 +180,9 @@ $router->post('/handovers/create', static function (): void {
 $router->get('/handovers/{id}', static function (array $params): void {
     handle_handovers_show($params);
 });
+$router->post('/handovers/{id}/lines', static function (array $params): void {
+    handle_handovers_lines_submit($params);
+});
 $router->post('/handovers/{id}/approve-request', static function (array $params): void {
     handle_handovers_approve_request_submit($params);
 });

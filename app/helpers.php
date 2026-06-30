@@ -212,6 +212,17 @@ function site_setting_schema(): array
                     'options' => workflow_signoff_template_options(),
                     'maxlength' => 20,
                 ],
+                'workflow.handover_line_edits' => [
+                    'label' => 'Edit handover request items before approval',
+                    'default' => '1',
+                    'help' => 'Default enabled. Allows the requester or storage owner to add/remove/change requested handover items only while the request is still waiting approval.',
+                    'type' => 'select',
+                    'options' => [
+                        '1' => 'Enabled',
+                        '0' => 'Disabled',
+                    ],
+                    'maxlength' => 1,
+                ],
                 'workflow.signoff_image_size' => [
                     'label' => 'Sign-off item image size',
                     'default' => 'large',
@@ -1564,6 +1575,11 @@ function workflow_signoff_template(): string
     $options = workflow_signoff_template_options();
 
     return array_key_exists($template, $options) ? $template : 'detailed';
+}
+
+function handover_line_edits_enabled(): bool
+{
+    return site_setting('workflow.handover_line_edits', '1') === '1';
 }
 
 function workflow_signoff_image_size_presets(): array
