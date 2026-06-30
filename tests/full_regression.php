@@ -1152,6 +1152,22 @@ $successfulLoginAudits = (int) Database::scalar(
 );
 assert_true($successfulLoginAudits >= 4, 'Successful login attempts were not audited.');
 
+note('Checking storage-filtered item quantities.');
+$locationFilteredItem = $seededItems[99];
+$locationFilteredStorage = $storages[8];
+persist_item_storage_balance((int) $locationFilteredItem['id'], (int) $locationFilteredStorage['id'], 3.0);
+sync_item_inventory_snapshot((int) $locationFilteredItem['id'], (int) $owner['id']);
+$locationFilteredItemsPage = http_request(
+    $baseUrl,
+    $ownerCookie,
+    'GET',
+    '/items?status=active&storage_id=' . (int) $locationFilteredStorage['id'] . '&search=' . rawurlencode((string) $locationFilteredItem['sku'])
+);
+assert_true($locationFilteredItemsPage['status'] === 200, 'Storage-filtered item quantity page did not load.');
+assert_true(contains_text($locationFilteredItemsPage['body'], '3 pcs'), 'Storage-filtered item quantity page should show the selected storage balance.');
+assert_true(contains_text($locationFilteredItemsPage['body'], 'in ' . (string) $locationFilteredStorage['name']), 'Storage-filtered item quantity page should label the selected location quantity.');
+assert_stock_invariants('after storage-filtered item quantity check', $prefix);
+
 $failedLoginCookie = create_cookie_file();
 $failedLoginPage = http_request($baseUrl, $failedLoginCookie, 'GET', '/login');
 assert_true($failedLoginPage['status'] === 200, 'Failed-login audit probe could not load login page.');
