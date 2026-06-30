@@ -476,7 +476,7 @@ function assert_unique_asset_barcode(string $barcode, ?int $exceptAssetId = null
 
     if ($exists > 0) {
         flash('danger', 'Asset barcode/tag already exists.');
-        redirect_to_referer('/assets');
+        redirect_to_referer('/company-assets');
     }
 }
 
@@ -491,14 +491,14 @@ function handle_assets_create_submit(): void
 
     if ($payload['name'] === '') {
         flash('danger', 'Asset name is required.');
-        redirect('/assets/create');
+        redirect('/company-assets/create');
     }
 
     $imageError = validate_asset_image_upload($_FILES['image'] ?? null);
 
     if ($imageError !== null) {
         flash('danger', $imageError);
-        redirect('/assets/create');
+        redirect('/company-assets/create');
     }
 
     $baseBarcode = (string) $payload['barcode'];
@@ -608,7 +608,7 @@ function handle_assets_create_submit(): void
                     'asset_assigned',
                     'Asset ' . $assetNumber . ' needs receipt confirmation',
                     'Confirm receipt for ' . $payload['name'] . '.',
-                    url('/assets/' . $assetId),
+                    url('/company-assets/' . $assetId),
                     'asset',
                     $assetId,
                     $userId
@@ -620,11 +620,11 @@ function handle_assets_create_submit(): void
     } catch (Throwable $exception) {
         $pdo->rollBack();
         flash('danger', 'Could not create asset records. ' . $exception->getMessage());
-        redirect('/assets/create');
+        redirect('/company-assets/create');
     }
 
     flash('success', $bulkQuantity === 1 ? 'Asset created.' : 'Created ' . $bulkQuantity . ' asset records.');
-    redirect($bulkQuantity === 1 ? '/assets/' . $createdIds[0] : '/assets?search=' . rawurlencode($createdNumbers[0]));
+    redirect($bulkQuantity === 1 ? '/company-assets/' . $createdIds[0] : '/company-assets?search=' . rawurlencode($createdNumbers[0]));
 }
 
 function handle_assets_show(array $params): void
@@ -679,7 +679,7 @@ function handle_assets_edit_submit(array $params): void
 
     if ($payload['name'] === '') {
         flash('danger', 'Asset name is required.');
-        redirect('/assets/' . $asset['id'] . '/edit');
+        redirect('/company-assets/' . $asset['id'] . '/edit');
     }
 
     assert_unique_asset_barcode((string) $payload['barcode'], (int) $asset['id']);
@@ -688,7 +688,7 @@ function handle_assets_edit_submit(array $params): void
 
     if ($imageError !== null) {
         flash('danger', $imageError);
-        redirect('/assets/' . $asset['id'] . '/edit');
+        redirect('/company-assets/' . $asset['id'] . '/edit');
     }
 
     $imagePath = (string) ($asset['image_path'] ?? '');
@@ -744,7 +744,7 @@ function handle_assets_edit_submit(array $params): void
 
     asset_event_log((int) $asset['id'], 'updated', 'Asset ' . $asset['asset_number'] . ' profile updated.');
     flash('success', 'Asset updated.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_status_submit(array $params): void
@@ -769,7 +769,7 @@ function handle_assets_status_submit(array $params): void
 
     asset_event_log((int) $asset['id'], $newActive === 1 ? 'recovered' : 'archived', 'Asset ' . $asset['asset_number'] . ($newActive === 1 ? ' recovered.' : ' archived.'));
     flash('success', $newActive === 1 ? 'Asset recovered.' : 'Asset archived.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_assign_submit(array $params): void
@@ -840,11 +840,11 @@ function handle_assets_assign_submit(array $params): void
     ]);
 
     if ($toUserId) {
-        create_notification($toUserId, 'asset_assigned', 'Asset ' . $asset['asset_number'] . ' needs receipt confirmation', 'Confirm receipt for ' . $asset['name'] . '.', url('/assets/' . $asset['id']), 'asset', (int) $asset['id'], (int) (Auth::user()['id'] ?? 0));
+        create_notification($toUserId, 'asset_assigned', 'Asset ' . $asset['asset_number'] . ' needs receipt confirmation', 'Confirm receipt for ' . $asset['name'] . '.', url('/company-assets/' . $asset['id']), 'asset', (int) $asset['id'], (int) (Auth::user()['id'] ?? 0));
     }
 
     flash('success', $toUserId ? 'Asset assigned and waiting for receipt.' : 'Asset location updated.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_confirm_receipt_submit(array $params): void
@@ -879,7 +879,7 @@ function handle_assets_confirm_receipt_submit(array $params): void
     mark_notifications_for_entity_as_read($currentUserId, 'asset', (int) $asset['id']);
     asset_event_log((int) $asset['id'], 'receipt_confirmed', 'Asset ' . $asset['asset_number'] . ' receipt confirmed.');
     flash('success', 'Asset receipt confirmed.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_request_return_submit(array $params): void
@@ -920,10 +920,10 @@ function handle_assets_request_return_submit(array $params): void
         ]
     );
 
-    create_notifications_for_permission('assets.assign', 'asset_return_requested', 'Asset ' . $asset['asset_number'] . ' return requested', (string) ($asset['assigned_user_name'] ?: 'Holder') . ' requested return for ' . $asset['name'] . '.', url('/assets/' . $asset['id']), 'asset', (int) $asset['id'], $currentUserId);
+    create_notifications_for_permission('assets.assign', 'asset_return_requested', 'Asset ' . $asset['asset_number'] . ' return requested', (string) ($asset['assigned_user_name'] ?: 'Holder') . ' requested return for ' . $asset['name'] . '.', url('/company-assets/' . $asset['id']), 'asset', (int) $asset['id'], $currentUserId);
     asset_event_log((int) $asset['id'], 'return_requested', 'Asset ' . $asset['asset_number'] . ' return requested.');
     flash('success', 'Return requested.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_confirm_return_submit(array $params): void
@@ -996,7 +996,7 @@ function handle_assets_confirm_return_submit(array $params): void
         'storage_id' => $storageId,
     ]);
     flash('success', 'Asset return confirmed.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_maintenance_submit(array $params): void
@@ -1010,7 +1010,7 @@ function handle_assets_maintenance_submit(array $params): void
 
     if ($title === '') {
         flash('danger', 'Maintenance title is required.');
-        redirect('/assets/' . $asset['id']);
+        redirect('/company-assets/' . $asset['id']);
     }
 
     $status = trim((string) input('status', 'open'));
@@ -1049,7 +1049,7 @@ function handle_assets_maintenance_submit(array $params): void
         'title' => $title,
     ]);
     flash('success', 'Maintenance record opened.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_maintenance_complete_submit(array $params): void
@@ -1114,7 +1114,7 @@ function handle_assets_maintenance_complete_submit(array $params): void
         'condition' => $condition,
     ]);
     flash('success', 'Maintenance completed.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_status_override_submit(array $params): void
@@ -1129,12 +1129,12 @@ function handle_assets_status_override_submit(array $params): void
 
     if (!array_key_exists($status, asset_status_options())) {
         flash('danger', 'Invalid asset status.');
-        redirect('/assets/' . $asset['id']);
+        redirect('/company-assets/' . $asset['id']);
     }
 
     if (!array_key_exists($condition, asset_condition_options())) {
         flash('danger', 'Invalid asset condition.');
-        redirect('/assets/' . $asset['id']);
+        redirect('/company-assets/' . $asset['id']);
     }
 
     $assignedUserId = ctype_digit((string) input('assigned_user_id', '')) ? (int) input('assigned_user_id') : null;
@@ -1167,7 +1167,7 @@ function handle_assets_status_override_submit(array $params): void
         'notes' => trim((string) input('notes', '')),
     ]);
     flash('success', 'Asset status overridden.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function handle_assets_documents_submit(array $params): void
@@ -1181,7 +1181,7 @@ function handle_assets_documents_submit(array $params): void
 
     if (!is_array($files) || !isset($files['name']) || !is_array($files['name'])) {
         flash('danger', 'Choose at least one file.');
-        redirect('/assets/' . $asset['id']);
+        redirect('/company-assets/' . $asset['id']);
     }
 
     $uploaded = 0;
@@ -1203,7 +1203,7 @@ function handle_assets_documents_submit(array $params): void
 
         if ($error !== null) {
             flash('danger', $error);
-            redirect('/assets/' . $asset['id']);
+            redirect('/company-assets/' . $asset['id']);
         }
 
         $stored = store_asset_document($file, (string) $asset['asset_number']);
@@ -1213,12 +1213,12 @@ function handle_assets_documents_submit(array $params): void
 
     if ($uploaded === 0) {
         flash('danger', 'Choose at least one file.');
-        redirect('/assets/' . $asset['id']);
+        redirect('/company-assets/' . $asset['id']);
     }
 
     asset_event_log((int) $asset['id'], 'files_uploaded', $uploaded . ' file(s) uploaded for asset ' . $asset['asset_number'] . '.', ['count' => $uploaded]);
     flash('success', $uploaded . ' asset file(s) uploaded.');
-    redirect('/assets/' . $asset['id']);
+    redirect('/company-assets/' . $asset['id']);
 }
 
 function asset_export_rows(array $filters): array

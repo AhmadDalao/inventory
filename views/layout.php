@@ -61,7 +61,7 @@ if (brand_custom_logo_asset() !== null) {
                     <a class="nav-link <?= active_route('/items', true) ?>" href="<?= e(url('/items')) ?>"><?= ui_icon('items') ?><span><?= e(site_setting('nav.items', 'Items')) ?></span></a>
                 <?php endif; ?>
                 <?php if (Auth::hasPermission('assets.view')): ?>
-                    <a class="nav-link <?= active_route('/assets', true) ?>" href="<?= e(url('/assets')) ?>"><?= ui_icon('assets') ?><span><?= e(site_setting('nav.assets', 'Assets')) ?></span></a>
+                    <a class="nav-link <?= active_route('/company-assets', true) ?>" href="<?= e(url('/company-assets')) ?>"><?= ui_icon('assets') ?><span><?= e(site_setting('nav.assets', 'Assets')) ?></span></a>
                 <?php endif; ?>
                 <?php if (!Auth::isStaff() && Auth::hasPermission('movements.view')): ?>
                     <a class="nav-link <?= active_route('/movements') ?>" href="<?= e(url('/movements')) ?>"><?= ui_icon('movements') ?><span><?= e(site_setting('nav.movements', 'Movement Log')) ?></span></a>

@@ -3669,7 +3669,7 @@ function handle_scan_lookup(): void
                 'query' => $query,
                 'count' => 0,
                 'items' => [],
-                'open_url' => url('/assets/' . $asset['id']),
+                'open_url' => url('/company-assets/' . $asset['id']),
                 'open_reference' => $asset['asset_number'],
                 'message' => 'Opening asset ' . $asset['asset_number'] . '.',
             ]);
@@ -4040,7 +4040,7 @@ function report_preset_cards(): array
 	                'icon' => 'assets',
 	                'permission' => 'assets.export',
 	                'download_url' => url('/exports/assets.xlsx?active=all'),
-	                'source_url' => url('/assets?active=all'),
+	                'source_url' => url('/company-assets?active=all'),
 	                'badge' => 'Assets',
 	            ],
 	            [

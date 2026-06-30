@@ -1653,13 +1653,13 @@ $staffDocumentationUrls = array_map(static fn (array $result): string => (string
 assert_true(in_array('/documentation', $staffDocumentationUrls, true), 'Staff global search did not include documentation.');
 
 note('Running company assets workflow over HTTP.');
-$assetCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/assets/create');
+$assetCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/create');
 assert_true($assetCreatePage['status'] === 200, 'Asset create page did not load for owner.');
 assert_true(strpos($assetCreatePage['body'], 'New Asset') !== false, 'Asset create page is missing expected title.');
 $assetName = $prefix . ' Laptop Asset';
 $assetBarcode = $prefix . '-ASSET-001';
 $assetSerial = $prefix . '-SERIAL-001';
-$assetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/assets/create', [
+$assetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/create', [
     '_token' => extract_csrf($assetCreatePage['body'], 'asset create'),
     'name' => $assetName,
     'category' => $prefix . ' IT',
@@ -1683,17 +1683,17 @@ assert_true(is_array($assetRecord), 'Created asset was not found in the database
 assert_true((string) $assetRecord['status'] === 'pending_receipt', 'New assigned asset should wait for receipt confirmation.');
 assert_true((int) $assetRecord['assigned_user_id'] === (int) $staff['id'], 'New asset was not assigned to staff.');
 
-$assetList = http_request($baseUrl, $ownerCookie, 'GET', '/assets?search=' . rawurlencode($assetBarcode) . '&active=all');
+$assetList = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets?search=' . rawurlencode($assetBarcode) . '&active=all');
 assert_true($assetList['status'] === 200, 'Assets list did not load.');
 assert_true(strpos($assetList['body'], $assetName) !== false, 'Assets list is missing the created asset.');
 assert_true(strpos($assetList['body'], $assetBarcode) !== false, 'Assets list is missing the asset barcode.');
-$staffAssetList = http_request($baseUrl, $staffCookie, 'GET', '/assets');
+$staffAssetList = http_request($baseUrl, $staffCookie, 'GET', '/company-assets');
 assert_true($staffAssetList['status'] === 200, 'Staff My Assets page did not load.');
 assert_true(strpos($staffAssetList['body'], $assetName) !== false, 'Staff My Assets page is missing the assigned asset.');
 
-$unrelatedAssetPage = http_request($baseUrl, $ownerCookie, 'GET', '/assets/create');
+$unrelatedAssetPage = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/create');
 $unrelatedBarcode = $prefix . '-ASSET-UNRELATED';
-$unrelatedCreate = http_request($baseUrl, $ownerCookie, 'POST', '/assets/create', [
+$unrelatedCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/create', [
     '_token' => extract_csrf($unrelatedAssetPage['body'], 'unrelated asset create'),
     'name' => $prefix . ' Unrelated Asset',
     'category' => $prefix . ' IT',
@@ -1709,22 +1709,22 @@ $unrelatedCreate = http_request($baseUrl, $ownerCookie, 'POST', '/assets/create'
 assert_true($unrelatedCreate['status'] === 302, 'Unrelated asset create did not redirect.');
 $unrelatedAssetRecord = Database::fetch('SELECT * FROM company_assets WHERE barcode = :barcode LIMIT 1', ['barcode' => $unrelatedBarcode]);
 assert_true(is_array($unrelatedAssetRecord), 'Unrelated asset was not created.');
-$staffUnrelatedAsset = http_request($baseUrl, $staffCookie, 'GET', '/assets/' . (int) $unrelatedAssetRecord['id']);
+$staffUnrelatedAsset = http_request($baseUrl, $staffCookie, 'GET', '/company-assets/' . (int) $unrelatedAssetRecord['id']);
 assert_true($staffUnrelatedAsset['status'] === 404, 'Staff should not open unrelated assets.');
 
-$staffAssetShow = http_request($baseUrl, $staffCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
+$staffAssetShow = http_request($baseUrl, $staffCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
 assert_true($staffAssetShow['status'] === 200, 'Staff could not open assigned asset.');
 assert_true(strpos($staffAssetShow['body'], 'Confirm Receipt') !== false, 'Assigned asset is missing receipt confirmation action.');
-$assetReceipt = http_request($baseUrl, $staffCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/confirm-receipt', [
+$assetReceipt = http_request($baseUrl, $staffCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/confirm-receipt', [
     '_token' => extract_csrf($staffAssetShow['body'], 'asset receipt'),
 ]);
 assert_true($assetReceipt['status'] === 302, 'Asset receipt confirmation did not redirect.');
 $assetAfterReceipt = Database::fetch('SELECT * FROM company_assets WHERE id = :id LIMIT 1', ['id' => (int) $assetRecord['id']]);
 assert_true((string) $assetAfterReceipt['status'] === 'assigned', 'Asset should be assigned after receipt confirmation.');
 
-$staffAssetReceivedShow = http_request($baseUrl, $staffCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
+$staffAssetReceivedShow = http_request($baseUrl, $staffCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
 assert_true(strpos($staffAssetReceivedShow['body'], 'Request Return') !== false, 'Assigned asset is missing return request action.');
-$assetReturnRequest = http_request($baseUrl, $staffCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/request-return', [
+$assetReturnRequest = http_request($baseUrl, $staffCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/request-return', [
     '_token' => extract_csrf($staffAssetReceivedShow['body'], 'asset return request'),
     'notes' => $prefix . ' return requested',
 ]);
@@ -1732,9 +1732,9 @@ assert_true($assetReturnRequest['status'] === 302, 'Asset return request did not
 $assetAfterReturnRequest = Database::fetch('SELECT * FROM company_assets WHERE id = :id LIMIT 1', ['id' => (int) $assetRecord['id']]);
 assert_true((string) $assetAfterReturnRequest['status'] === 'return_requested', 'Asset should be return_requested after staff request.');
 
-$ownerAssetReturnShow = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
+$ownerAssetReturnShow = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
 assert_true(strpos($ownerAssetReturnShow['body'], 'Confirm Return') !== false, 'Owner asset page is missing confirm return action.');
-$assetReturnConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/confirm-return', [
+$assetReturnConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/confirm-return', [
     '_token' => extract_csrf($ownerAssetReturnShow['body'], 'asset return confirm'),
     'storage_id' => (string) $storages[0]['id'],
     'condition_status' => 'good',
@@ -1745,8 +1745,8 @@ $assetAfterReturn = Database::fetch('SELECT * FROM company_assets WHERE id = :id
 assert_true((string) $assetAfterReturn['status'] === 'available', 'Returned asset should become available.');
 assert_true($assetAfterReturn['assigned_user_id'] === null, 'Returned asset should not remain assigned.');
 
-$ownerAssetMaintenanceShow = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
-$assetMaintenanceOpen = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/maintenance', [
+$ownerAssetMaintenanceShow = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+$assetMaintenanceOpen = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/maintenance', [
     '_token' => extract_csrf($ownerAssetMaintenanceShow['body'], 'asset maintenance'),
     'title' => $prefix . ' Screen repair',
     'supplier_id' => '',
@@ -1759,8 +1759,8 @@ $assetMaintenanceRecord = Database::fetch('SELECT * FROM asset_maintenance_recor
 assert_true(is_array($assetMaintenanceRecord), 'Maintenance record was not created.');
 $assetDuringMaintenance = Database::fetch('SELECT * FROM company_assets WHERE id = :id LIMIT 1', ['id' => (int) $assetRecord['id']]);
 assert_true((string) $assetDuringMaintenance['status'] === 'maintenance', 'Asset should enter maintenance status.');
-$ownerAssetMaintenanceCompleteShow = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
-$assetMaintenanceComplete = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/maintenance/' . (int) $assetMaintenanceRecord['id'] . '/complete', [
+$ownerAssetMaintenanceCompleteShow = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+$assetMaintenanceComplete = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/maintenance/' . (int) $assetMaintenanceRecord['id'] . '/complete', [
     '_token' => extract_csrf($ownerAssetMaintenanceCompleteShow['body'], 'asset maintenance complete'),
     'condition_status' => 'good',
     'cost' => '30',
@@ -1770,8 +1770,8 @@ assert_true($assetMaintenanceComplete['status'] === 302, 'Asset maintenance comp
 $assetAfterMaintenance = Database::fetch('SELECT * FROM company_assets WHERE id = :id LIMIT 1', ['id' => (int) $assetRecord['id']]);
 assert_true((string) $assetAfterMaintenance['status'] === 'available', 'Asset should return to available after maintenance completion.');
 
-$assetOverrideShow = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
-$assetOverride = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/override-status', [
+$assetOverrideShow = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+$assetOverride = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/override-status', [
     '_token' => extract_csrf($assetOverrideShow['body'], 'asset status override'),
     'status' => 'lost',
     'condition_status' => 'good',
@@ -1783,8 +1783,8 @@ assert_true($assetOverride['status'] === 302, 'Asset status override did not red
 $assetAfterOverride = Database::fetch('SELECT * FROM company_assets WHERE id = :id LIMIT 1', ['id' => (int) $assetRecord['id']]);
 assert_true((string) $assetAfterOverride['status'] === 'lost', 'Asset status override did not set lost.');
 
-$assetRecoverShow = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
-$assetOverrideBack = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/override-status', [
+$assetRecoverShow = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+$assetOverrideBack = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/override-status', [
     '_token' => extract_csrf($assetRecoverShow['body'], 'asset status override restore'),
     'status' => 'available',
     'condition_status' => 'good',
@@ -1794,15 +1794,15 @@ $assetOverrideBack = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (
 ]);
 assert_true($assetOverrideBack['status'] === 302, 'Asset status restore did not redirect.');
 
-$assetArchiveShow = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
-$assetArchive = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/status', [
+$assetArchiveShow = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+$assetArchive = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/status', [
     '_token' => extract_csrf($assetArchiveShow['body'], 'asset archive'),
 ]);
 assert_true($assetArchive['status'] === 302, 'Asset archive did not redirect.');
 $assetArchived = Database::fetch('SELECT * FROM company_assets WHERE id = :id LIMIT 1', ['id' => (int) $assetRecord['id']]);
 assert_true((int) $assetArchived['is_active'] === 0, 'Asset was not archived.');
-$assetRecoverPage = http_request($baseUrl, $ownerCookie, 'GET', '/assets/' . (int) $assetRecord['id']);
-$assetRecover = http_request($baseUrl, $ownerCookie, 'POST', '/assets/' . (int) $assetRecord['id'] . '/status', [
+$assetRecoverPage = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+$assetRecover = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/' . (int) $assetRecord['id'] . '/status', [
     '_token' => extract_csrf($assetRecoverPage['body'], 'asset recover'),
 ]);
 assert_true($assetRecover['status'] === 302, 'Asset recover did not redirect.');
@@ -1813,11 +1813,11 @@ $assetGlobalSearch = http_request($baseUrl, $ownerCookie, 'GET', '/global-search
 assert_true($assetGlobalSearch['status'] === 200, 'Asset global search failed.');
 $assetGlobalPayload = json_decode($assetGlobalSearch['body'], true);
 $assetGlobalUrls = array_map(static fn (array $result): string => (string) ($result['url'] ?? ''), $assetGlobalPayload['results'] ?? []);
-assert_true(in_array('/assets/' . (int) $assetRecord['id'], $assetGlobalUrls, true), 'Global search did not find created asset.');
+assert_true(in_array('/company-assets/' . (int) $assetRecord['id'], $assetGlobalUrls, true), 'Global search did not find created asset.');
 $assetScanLookup = http_request($baseUrl, $ownerCookie, 'GET', '/scan/lookup?q=' . rawurlencode($assetBarcode), [], $globalSearchHeaders);
 assert_true($assetScanLookup['status'] === 200, 'Asset scan lookup failed.');
 $assetScanPayload = json_decode($assetScanLookup['body'], true);
-assert_true(($assetScanPayload['open_url'] ?? '') === '/assets/' . (int) $assetRecord['id'], 'Asset scan lookup did not return the asset open URL.');
+assert_true(($assetScanPayload['open_url'] ?? '') === '/company-assets/' . (int) $assetRecord['id'], 'Asset scan lookup did not return the asset open URL.');
 
 $assetExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets?search=' . rawurlencode($prefix));
 assert_true($assetExport['status'] === 200, 'Asset CSV export failed.');

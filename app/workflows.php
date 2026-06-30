@@ -497,7 +497,7 @@ function global_search_accessible_pages(string $query): array
         ['title' => site_setting('page.dashboard', 'Dashboard'), 'group' => 'Pages', 'url' => '/dashboard', 'icon' => 'dashboard', 'terms' => ['dashboard', 'overview', 'metrics'], 'allowed' => Auth::hasPermission('dashboard.view')],
         ['title' => site_setting('page.storages', 'Storages'), 'group' => 'Pages', 'url' => '/storages', 'icon' => 'storages', 'terms' => ['storages', 'warehouses', 'locations'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('storages.view')],
         ['title' => site_setting('page.items', 'Items'), 'group' => 'Pages', 'url' => '/items', 'icon' => 'items', 'terms' => ['items', 'catalog', 'sku', 'stock'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('items.view')],
-        ['title' => site_setting('page.assets', 'Assets'), 'group' => 'Pages', 'url' => '/assets', 'icon' => 'assets', 'terms' => ['assets', 'asset', 'equipment', 'serial', 'property', 'custody', 'maintenance'], 'allowed' => Auth::hasPermission('assets.view')],
+        ['title' => site_setting('page.assets', 'Assets'), 'group' => 'Pages', 'url' => '/company-assets', 'icon' => 'assets', 'terms' => ['assets', 'asset', 'equipment', 'serial', 'property', 'custody', 'maintenance'], 'allowed' => Auth::hasPermission('assets.view')],
         ['title' => site_setting('page.movements', 'Movement Log'), 'group' => 'Pages', 'url' => '/movements', 'icon' => 'movements', 'terms' => ['movement', 'usage', 'restock', 'transfer', 'adjustment'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('movements.view')],
         ['title' => site_setting('page.scan', 'Scan Center'), 'group' => 'Pages', 'url' => '/scan', 'icon' => 'scan', 'terms' => ['scan', 'scanner', 'barcode', 'camera', 'hardware scanner', 'quick usage'], 'allowed' => !Auth::isStaff() && Auth::hasPermission('items.view')],
         ['title' => site_setting('page.requests', 'Requests'), 'group' => 'Pages', 'url' => '/requests', 'icon' => 'requests', 'terms' => ['requests', 'transfers', 'issue'], 'allowed' => Auth::hasPermission('requests.view')],
@@ -639,7 +639,7 @@ function workflow_reference_targets(): array
         'asset' => [
             'table' => 'company_assets',
             'column' => 'asset_number',
-            'path' => '/assets/',
+            'path' => '/company-assets/',
             'permission' => 'assets.view',
             'group' => 'Assets',
             'icon' => 'assets',
@@ -795,7 +795,7 @@ function global_search_results(string $query): array
                 'Assets',
                 (string) $row['name'],
                 (string) $row['asset_number'] . ' · ' . asset_status_label((string) $row['status']) . ' · ' . $holder,
-                url('/assets/' . $row['id']),
+                url('/company-assets/' . $row['id']),
                 'assets',
                 'Asset'
             );

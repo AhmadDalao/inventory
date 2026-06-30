@@ -1,6 +1,6 @@
 <?php
 $isEdit = $mode === 'edit';
-$action = $isEdit ? url('/assets/' . $asset['id'] . '/edit') : url('/assets/create');
+$action = $isEdit ? url('/company-assets/' . $asset['id'] . '/edit') : url('/company-assets/create');
 $imageUrl = asset_image_url($asset['image_path'] ?? null);
 $scanCode = asset_scan_code($asset);
 ?>
@@ -11,7 +11,7 @@ $scanCode = asset_scan_code($asset);
         <h3 class="page-head-title"><?= ui_icon('assets') ?><span><?= $isEdit ? 'Edit Asset' : 'New Asset' ?></span></h3>
     </div>
     <div class="page-actions">
-        <a class="ghost-button" href="<?= e($isEdit ? url('/assets/' . $asset['id']) : url('/assets')) ?>"><?= ui_icon('back') ?><span>Back</span></a>
+        <a class="ghost-button" href="<?= e($isEdit ? url('/company-assets/' . $asset['id']) : url('/company-assets')) ?>"><?= ui_icon('back') ?><span>Back</span></a>
     </div>
 </section>
 
@@ -239,7 +239,7 @@ $scanCode = asset_scan_code($asset);
 
         <div class="item-form-actions">
             <button class="primary-button" type="submit"><?= $isEdit ? 'Save Changes' : 'Create Asset' ?></button>
-            <a class="ghost-button" href="<?= e($isEdit ? url('/assets/' . $asset['id']) : url('/assets')) ?>">Cancel</a>
+            <a class="ghost-button" href="<?= e($isEdit ? url('/company-assets/' . $asset['id']) : url('/company-assets')) ?>">Cancel</a>
         </div>
     </form>
 </section>

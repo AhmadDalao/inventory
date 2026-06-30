@@ -4249,7 +4249,7 @@ function file_asset_context_url(array $asset): ?string
     }
 
     if (($asset['context_type'] ?? '') === 'asset' && !empty($asset['context_id'])) {
-        return url('/assets/' . (int) $asset['context_id']);
+        return url('/company-assets/' . (int) $asset['context_id']);
     }
 
     if (($asset['source_type'] ?? '') === 'item_image' && !empty($asset['source_id'])) {
@@ -4257,7 +4257,7 @@ function file_asset_context_url(array $asset): ?string
     }
 
     if (($asset['source_type'] ?? '') === 'asset_image' && !empty($asset['source_id'])) {
-        return url('/assets/' . (int) $asset['source_id']);
+        return url('/company-assets/' . (int) $asset['source_id']);
     }
 
     return null;
@@ -4812,7 +4812,7 @@ function documentation_sections(): array
             'title' => 'Company Assets',
             'icon' => 'assets',
             'audience' => 'Owner, Admin, Operations, Storage Managers, Staff',
-            'route' => '/assets',
+            'route' => '/company-assets',
             'summary' => 'Track durable company property such as laptops, radios, printers, cameras, tools, tablets, and equipment without affecting inventory item quantities.',
             'features' => [
                 'Create one asset at a time or bulk-create multiple serialized assets from the same purchase.',

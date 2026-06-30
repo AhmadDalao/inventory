@@ -6,7 +6,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
     $query = $filters;
     $query['status'] = $status;
 
-    return url('/assets?' . http_build_query(array_filter($query, static fn ($value): bool => $value !== '' && $value !== null)));
+    return url('/company-assets?' . http_build_query(array_filter($query, static fn ($value): bool => $value !== '' && $value !== null)));
 };
 ?>
 
@@ -17,14 +17,14 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
     </div>
     <div class="page-actions">
         <?php if (Auth::hasPermission('assets.create') && !Auth::isStaff()): ?>
-            <a class="primary-button" href="<?= e(url('/assets/create')) ?>"><?= ui_icon('plus') ?><span>Create Asset</span></a>
+            <a class="primary-button" href="<?= e(url('/company-assets/create')) ?>"><?= ui_icon('plus') ?><span>Create Asset</span></a>
         <?php endif; ?>
     </div>
 </section>
 
 <div class="live-filter-region" data-live-filter-region="assets">
     <section class="filter-panel">
-        <form class="filter-grid" method="get" action="<?= e(url('/assets')) ?>" data-live-filter-form>
+        <form class="filter-grid" method="get" action="<?= e(url('/company-assets')) ?>" data-live-filter-form>
             <label class="field">
                 <span>Search</span>
                 <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Asset number, name, barcode, serial">
@@ -87,7 +87,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
 
             <div class="filter-actions">
                 <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
-                <a class="ghost-button" href="<?= e(url('/assets')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
+                <a class="ghost-button" href="<?= e(url('/company-assets')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
             </div>
         </form>
 
@@ -183,7 +183,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                     <?php $imageUrl = asset_image_url($asset['image_path'] ?? null); ?>
                     <tr>
                         <td data-label="Asset">
-                            <a class="item-table-cell cell-link" href="<?= e(url('/assets/' . $asset['id'])) ?>">
+                            <a class="item-table-cell cell-link" href="<?= e(url('/company-assets/' . $asset['id'])) ?>">
                                 <?php if ($imageUrl): ?>
                                     <img class="item-thumb expandable-image" src="<?= e($imageUrl) ?>" alt="<?= e($asset['name']) ?>" data-expand-image tabindex="0">
                                 <?php else: ?>
@@ -206,12 +206,12 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                         <td data-label="Value"><?= e(format_money($asset['purchase_cost'])) ?></td>
                         <td data-label="Actions">
                             <div class="inline-actions">
-                                <a class="text-link" href="<?= e(url('/assets/' . $asset['id'])) ?>">Open</a>
+                                <a class="text-link" href="<?= e(url('/company-assets/' . $asset['id'])) ?>">Open</a>
                                 <?php if (Auth::hasPermission('assets.edit') && !Auth::isStaff()): ?>
-                                    <a class="text-link" href="<?= e(url('/assets/' . $asset['id'] . '/edit')) ?>">Edit</a>
+                                    <a class="text-link" href="<?= e(url('/company-assets/' . $asset['id'] . '/edit')) ?>">Edit</a>
                                 <?php endif; ?>
                                 <?php if (Auth::hasPermission('assets.archive') && !Auth::isStaff()): ?>
-                                    <form method="post" action="<?= e(url('/assets/' . $asset['id'] . '/status')) ?>" data-live-action-form>
+                                    <form method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/status')) ?>" data-live-action-form>
                                         <?= csrf_field() ?>
                                         <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $asset['is_active'] === 1 ? 'Archive this asset?' : 'Recover this asset?' ?>">
                                             <?= (int) $asset['is_active'] === 1 ? 'Archive' : 'Recover' ?>

@@ -14,9 +14,9 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
         <h3 class="page-head-title"><?= ui_icon('assets') ?><span><?= e($asset['asset_number']) ?></span></h3>
     </div>
     <div class="page-actions">
-        <a class="ghost-button" href="<?= e(url('/assets')) ?>"><?= ui_icon('back') ?><span>All Assets</span></a>
+        <a class="ghost-button" href="<?= e(url('/company-assets')) ?>"><?= ui_icon('back') ?><span>All Assets</span></a>
         <?php if (Auth::hasPermission('assets.edit') && !Auth::isStaff()): ?>
-            <a class="primary-button" href="<?= e(url('/assets/' . $asset['id'] . '/edit')) ?>">Edit Asset</a>
+            <a class="primary-button" href="<?= e(url('/company-assets/' . $asset['id'] . '/edit')) ?>">Edit Asset</a>
         <?php endif; ?>
     </div>
 </section>
@@ -94,7 +94,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
 
         <?php if (Auth::hasPermission('assets.archive') && !Auth::isStaff()): ?>
             <div class="item-summary-actions">
-                <form method="post" action="<?= e(url('/assets/' . $asset['id'] . '/status')) ?>">
+                <form method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/status')) ?>">
                     <?= csrf_field() ?>
                     <button class="ghost-button" type="submit" data-confirm="<?= (int) $asset['is_active'] === 1 ? 'Archive this asset?' : 'Recover this asset?' ?>">
                         <?= (int) $asset['is_active'] === 1 ? 'Archive Asset' : 'Recover Asset' ?>
@@ -113,13 +113,13 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
         </div>
 
         <?php if ((string) $asset['status'] === 'pending_receipt' && ($isHolder || $canManage)): ?>
-            <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/confirm-receipt')) ?>">
+            <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/confirm-receipt')) ?>">
                 <?= csrf_field() ?>
                 <p class="tiny-copy">Confirm you received this exact asset and it is now in your custody.</p>
                 <button class="primary-button" type="submit">Confirm Receipt</button>
             </form>
         <?php elseif (in_array((string) $asset['status'], ['assigned'], true) && ($isHolder || $canManage)): ?>
-            <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/request-return')) ?>">
+            <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/request-return')) ?>">
                 <?= csrf_field() ?>
                 <label class="field">
                     <span>Return notes</span>
@@ -128,7 +128,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
                 <button class="primary-button" type="submit">Request Return</button>
             </form>
         <?php elseif ((string) $asset['status'] === 'return_requested' && $canManage): ?>
-            <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/confirm-return')) ?>">
+            <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/confirm-return')) ?>">
                 <?= csrf_field() ?>
                 <div class="field-row">
                     <label class="field">
@@ -163,7 +163,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
         <?php if ($canManage): ?>
             <details class="package-preset-editor">
                 <summary>Assign or move asset</summary>
-                <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/assign')) ?>">
+                <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/assign')) ?>">
                     <?= csrf_field() ?>
                     <label class="field">
                         <span>Assign to user</span>
@@ -199,7 +199,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
         <?php if ($canMaintain): ?>
             <details class="package-preset-editor">
                 <summary>Open maintenance</summary>
-                <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/maintenance')) ?>">
+                <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/maintenance')) ?>">
                     <?= csrf_field() ?>
                     <label class="field">
                         <span>Title</span>
@@ -236,7 +236,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
         <?php if ($canOverride): ?>
             <details class="package-preset-editor">
                 <summary>Owner status override</summary>
-                <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/override-status')) ?>">
+                <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/override-status')) ?>">
                     <?= csrf_field() ?>
                     <div class="field-row">
                         <label class="field">
@@ -301,7 +301,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
     </div>
 
     <?php if (Auth::hasPermission('assets.files') && !Auth::isStaff()): ?>
-        <form class="stack-form" method="post" action="<?= e(url('/assets/' . $asset['id'] . '/documents')) ?>" enctype="multipart/form-data">
+        <form class="stack-form" method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/documents')) ?>" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <label class="field">
                 <span>Upload asset files</span>
@@ -346,7 +346,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
                     </div>
                     <strong><?= e(format_money($record['cost'])) ?></strong>
                     <?php if ($canMaintain && !in_array((string) $record['status'], ['completed', 'cancelled'], true)): ?>
-                        <form method="post" action="<?= e(url('/assets/' . $asset['id'] . '/maintenance/' . $record['id'] . '/complete')) ?>">
+                        <form method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/maintenance/' . $record['id'] . '/complete')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="condition_status" value="<?= e((string) $asset['condition_status']) ?>">
                             <input type="hidden" name="cost" value="<?= e((string) $record['cost']) ?>">

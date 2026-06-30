@@ -124,20 +124,62 @@ $router->post('/items/{id}/movements', static function (array $params): void {
     handle_item_movement_submit($params);
 });
 
-$router->get('/assets', static function (): void {
+$router->get('/company-assets', static function (): void {
     handle_assets_index();
 });
-$router->get('/assets/create', static function (): void {
+$router->get('/company-assets/create', static function (): void {
     handle_assets_create_page();
+});
+$router->post('/company-assets/create', static function (): void {
+    handle_assets_create_submit();
+});
+$router->get('/company-assets/{id}', static function (array $params): void {
+    handle_assets_show($params);
+});
+$router->get('/company-assets/{id}/edit', static function (array $params): void {
+    handle_assets_edit_page($params);
+});
+$router->post('/company-assets/{id}/edit', static function (array $params): void {
+    handle_assets_edit_submit($params);
+});
+$router->post('/company-assets/{id}/status', static function (array $params): void {
+    handle_assets_status_submit($params);
+});
+$router->post('/company-assets/{id}/assign', static function (array $params): void {
+    handle_assets_assign_submit($params);
+});
+$router->post('/company-assets/{id}/confirm-receipt', static function (array $params): void {
+    handle_assets_confirm_receipt_submit($params);
+});
+$router->post('/company-assets/{id}/request-return', static function (array $params): void {
+    handle_assets_request_return_submit($params);
+});
+$router->post('/company-assets/{id}/confirm-return', static function (array $params): void {
+    handle_assets_confirm_return_submit($params);
+});
+$router->post('/company-assets/{id}/maintenance', static function (array $params): void {
+    handle_assets_maintenance_submit($params);
+});
+$router->post('/company-assets/{id}/maintenance/{maintenance_id}/complete', static function (array $params): void {
+    handle_assets_maintenance_complete_submit($params);
+});
+$router->post('/company-assets/{id}/override-status', static function (array $params): void {
+    handle_assets_status_override_submit($params);
+});
+$router->post('/company-assets/{id}/documents', static function (array $params): void {
+    handle_assets_documents_submit($params);
+});
+$router->get('/assets/create', static function (): void {
+    redirect('/company-assets/create');
 });
 $router->post('/assets/create', static function (): void {
     handle_assets_create_submit();
 });
 $router->get('/assets/{id}', static function (array $params): void {
-    handle_assets_show($params);
+    redirect('/company-assets/' . (int) $params['id']);
 });
 $router->get('/assets/{id}/edit', static function (array $params): void {
-    handle_assets_edit_page($params);
+    redirect('/company-assets/' . (int) $params['id'] . '/edit');
 });
 $router->post('/assets/{id}/edit', static function (array $params): void {
     handle_assets_edit_submit($params);
