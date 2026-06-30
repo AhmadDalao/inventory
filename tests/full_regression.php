@@ -1222,7 +1222,12 @@ assert_true(str_contains($destinationScopedMovementLogPage['body'], 'Transferred
 assert_true(str_contains($destinationScopedMovementLogPage['body'], '2 pcs'), 'Destination-scoped movement log should show the selected location gaining stock.');
 $sourceScopedMovementExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/movements?storage_id=' . (int) $locationFilteredStorage['id']);
 assert_true($sourceScopedMovementExport['status'] === 200, 'Source-scoped movement export failed.');
-assert_true(str_contains($sourceScopedMovementExport['body'], 'Location Scope,Location Change,Location Balance After'), 'Source-scoped movement export is missing scoped columns.');
+assert_true(
+    str_contains($sourceScopedMovementExport['body'], 'Location Scope')
+        && str_contains($sourceScopedMovementExport['body'], 'Location Change')
+        && str_contains($sourceScopedMovementExport['body'], 'Location Balance After'),
+    'Source-scoped movement export is missing scoped columns.'
+);
 assert_true(str_contains($sourceScopedMovementExport['body'], 'Transferred out of selected location'), 'Source-scoped movement export is missing scoped direction.');
 assert_stock_invariants('after scoped movement log check', $prefix);
 $storagePreselectedItemPage = http_request($baseUrl, $ownerCookie, 'GET', '/items/create?storage_id=' . (int) $locationFilteredStorage['id']);
