@@ -23,6 +23,7 @@ if (in_array($baseHost, ['inventory.ahmaddalao.com', 'www.inventory.ahmaddalao.c
 
 require dirname(__DIR__) . '/app/bootstrap.php';
 require dirname(__DIR__) . '/app/controllers.php';
+require dirname(__DIR__) . '/app/company_assets.php';
 require dirname(__DIR__) . '/app/workflows.php';
 
 function note(string $message): void
