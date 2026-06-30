@@ -12,6 +12,7 @@
 $summaryCards = $summary['cards'] ?? [];
 $selectedDate = (string) ($summaryFilters['date'] ?? date('Y-m-d'));
 $selectedType = (string) ($summaryFilters['movement_type'] ?? '');
+$isSummaryLocationScoped = !empty($summaryFilters['storage_id']);
 $dateTitle = date('M j, Y', strtotime($selectedDate));
 ?>
 
@@ -184,6 +185,10 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
                     <th>Item</th>
                     <th>Type</th>
                     <th>Qty</th>
+                    <?php if ($isSummaryLocationScoped): ?>
+                        <th>Location Change</th>
+                        <th>Location Balance</th>
+                    <?php endif; ?>
                     <th>From</th>
                     <th>To</th>
                     <th>By</th>
@@ -193,7 +198,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
                 <tbody>
                 <?php if (($summary['timeline'] ?? []) === []): ?>
                     <tr>
-                        <td colspan="8" class="empty-cell">No movement activity found for this date and filter.</td>
+                        <td colspan="<?= $isSummaryLocationScoped ? '10' : '8' ?>" class="empty-cell">No movement activity found for this date and filter.</td>
                     </tr>
                 <?php endif; ?>
                 <?php foreach (($summary['timeline'] ?? []) as $movement): ?>
@@ -210,6 +215,10 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
                         </td>
                         <td data-label="Type"><?= e(ucfirst((string) $movement['movement_type'])) ?></td>
                         <td data-label="Qty"><?= e(format_quantity($movementQuantity)) ?> <?= e((string) $movement['unit']) ?></td>
+                        <?php if ($isSummaryLocationScoped): ?>
+                            <td data-label="Location Change"><?= e(format_quantity($movement['location_change'])) ?> <?= e((string) $movement['unit']) ?></td>
+                            <td data-label="Location Balance"><?= e(format_quantity($movement['location_balance_after'])) ?> <?= e((string) $movement['unit']) ?></td>
+                        <?php endif; ?>
                         <td data-label="From"><?= e((string) ($movement['source_storage_name'] ?: '-')) ?></td>
                         <td data-label="To"><?= e((string) ($movement['destination_storage_name'] ?: '-')) ?></td>
                         <td data-label="By"><?= e((string) $movement['user_name']) ?></td>

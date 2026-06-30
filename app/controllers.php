@@ -190,6 +190,76 @@ function build_movement_where(array $filters, string $alias = 'm', string $itemA
     ];
 }
 
+function movement_absolute_quantity(array $movement): float
+{
+    if (($movement['movement_quantity'] ?? null) !== null && (string) $movement['movement_quantity'] !== '') {
+        return abs((float) $movement['movement_quantity']);
+    }
+
+    return abs((float) ($movement['quantity_delta'] ?? 0));
+}
+
+function movement_scope_for_storage(array $movement, ?int $storageId): array
+{
+    if ($storageId === null) {
+        return [
+            'scope_label' => 'All locations',
+            'location_change' => (float) ($movement['quantity_delta'] ?? 0),
+            'location_balance_after' => (float) ($movement['balance_after'] ?? 0),
+        ];
+    }
+
+    $sourceId = isset($movement['source_storage_id']) ? (int) $movement['source_storage_id'] : null;
+    $destinationId = isset($movement['destination_storage_id']) ? (int) $movement['destination_storage_id'] : null;
+    $quantity = movement_absolute_quantity($movement);
+    $type = (string) ($movement['movement_type'] ?? '');
+
+    if ($sourceId === $storageId) {
+        $change = $type === 'adjustment' ? (float) ($movement['quantity_delta'] ?? 0) : -$quantity;
+
+        return [
+            'scope_label' => match ($type) {
+                'usage' => 'Used from selected location',
+                'transfer' => 'Transferred out of selected location',
+                'adjustment' => 'Adjusted selected location',
+                default => 'Source location',
+            },
+            'location_change' => $change,
+            'location_balance_after' => (float) ($movement['source_balance_after'] ?? $movement['balance_after'] ?? 0),
+        ];
+    }
+
+    if ($destinationId === $storageId) {
+        return [
+            'scope_label' => match ($type) {
+                'restock' => 'Added to selected location',
+                'transfer' => 'Transferred into selected location',
+                default => 'Destination location',
+            },
+            'location_change' => $quantity,
+            'location_balance_after' => (float) ($movement['destination_balance_after'] ?? $movement['balance_after'] ?? 0),
+        ];
+    }
+
+    return [
+        'scope_label' => 'Outside selected location',
+        'location_change' => (float) ($movement['quantity_delta'] ?? 0),
+        'location_balance_after' => (float) ($movement['balance_after'] ?? 0),
+    ];
+}
+
+function movement_apply_filter_scope(array $movement, ?int $storageId): array
+{
+    $scope = movement_scope_for_storage($movement, $storageId);
+
+    return array_merge($movement, [
+        'location_scope_label' => $scope['scope_label'],
+        'location_change' => $scope['location_change'],
+        'location_balance_after' => $scope['location_balance_after'],
+        'is_location_scoped' => $storageId !== null,
+    ]);
+}
+
 function all_items_for_select(): array
 {
     return Database::fetchAll(
@@ -2294,16 +2364,16 @@ function handle_dashboard_page(): void
 
     $recentActivity = Database::fetchAll(
         "SELECT m.*,
-                i.name AS item_name,
-                i.sku,
-                i.unit,
+                COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
+                COALESCE(i.sku, '') AS sku,
+                COALESCE(i.unit, '') AS unit,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
                 destination_storage.name AS destination_storage_name,
                 destination_storage.storage_type AS destination_storage_type,
                 u.name AS user_name
          FROM inventory_movements m
-         INNER JOIN items i ON i.id = m.item_id
+         LEFT JOIN items i ON i.id = m.item_id
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
@@ -2311,6 +2381,10 @@ function handle_dashboard_page(): void
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 10",
         $movementParams
+    );
+    $recentActivity = array_map(
+        static fn (array $movement): array => movement_apply_filter_scope($movement, $filters['storage_id']),
+        $recentActivity
     );
 
     $topUsage = Database::fetchAll(
@@ -3405,16 +3479,16 @@ function handle_movements_index(): void
 
     $movements = Database::fetchAll(
         "SELECT m.*,
-                i.name AS item_name,
-                i.sku,
-                i.unit,
+                COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
+                COALESCE(i.sku, '') AS sku,
+                COALESCE(i.unit, '') AS unit,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
                 destination_storage.name AS destination_storage_name,
                 destination_storage.storage_type AS destination_storage_type,
                 u.name AS user_name
          FROM inventory_movements m
-         INNER JOIN items i ON i.id = m.item_id AND i.is_active = 1
+         LEFT JOIN items i ON i.id = m.item_id
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
@@ -3422,6 +3496,10 @@ function handle_movements_index(): void
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 250",
         $params
+    );
+    $movements = array_map(
+        static fn (array $movement): array => movement_apply_filter_scope($movement, $filters['storage_id']),
+        $movements
     );
 
     View::render('movements/index', [
@@ -3744,6 +3822,10 @@ function report_summary_data(array $filters): array
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 120",
         $params
+    );
+    $timeline = array_map(
+        static fn (array $movement): array => movement_apply_filter_scope($movement, $filters['storage_id'] ?? null),
+        $timeline
     );
 
     $query = array_filter([
@@ -4310,27 +4392,32 @@ function movement_export_rows(array $filters): array
 {
     [$where, $params] = build_movement_where($filters);
 
-    return Database::fetchAll(
+    $movements = Database::fetchAll(
         "SELECT m.*,
-                i.name AS item_name,
-                i.sku,
+                COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
+                COALESCE(i.sku, '') AS sku,
                 i.barcode,
                 i.category,
                 i.image_path,
-                i.unit,
+                COALESCE(i.unit, '') AS unit,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
                 destination_storage.name AS destination_storage_name,
                 destination_storage.storage_type AS destination_storage_type,
                 u.name AS user_name
          FROM inventory_movements m
-         INNER JOIN items i ON i.id = m.item_id AND i.is_active = 1
+         LEFT JOIN items i ON i.id = m.item_id
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
          {$where}
          ORDER BY m.used_at DESC, m.id DESC",
         $params
+    );
+
+    return array_map(
+        static fn (array $movement): array => movement_apply_filter_scope($movement, $filters['storage_id']),
+        $movements
     );
 }
 
@@ -4350,6 +4437,9 @@ function handle_export_movements(): void
             $movement['movement_quantity'] ? format_quantity($movement['movement_quantity']) : '',
             format_quantity($movement['quantity_delta']),
             format_quantity($movement['balance_after']),
+            $movement['is_location_scoped'] ? $movement['location_scope_label'] : 'All locations',
+            format_quantity($movement['location_change']),
+            format_quantity($movement['location_balance_after']),
             $movement['source_storage_name'] ?: '',
             $movement['destination_storage_name'] ?: '',
             $movement['reference_code'] ?: '',
@@ -4366,6 +4456,9 @@ function handle_export_movements(): void
         'Movement Quantity',
         'Quantity Delta',
         'Balance After',
+        'Location Scope',
+        'Location Change',
+        'Location Balance After',
         'Source Location',
         'Destination Location',
         'Reference',
@@ -4403,6 +4496,9 @@ function handle_export_daily_summary(): void
         '',
         '',
         '',
+        '',
+        '',
+        '',
         'Items touched: ' . number_format((int) $cards['item_count']) . '; People: ' . number_format((int) $cards['user_count']),
     ];
 
@@ -4429,6 +4525,9 @@ function handle_export_daily_summary(): void
             '',
             '',
             '',
+            '',
+            '',
+            '',
         ];
     }
 
@@ -4445,6 +4544,9 @@ function handle_export_daily_summary(): void
             'Usage',
             format_quantity($row['used_quantity'] ?? 0),
             (string) $row['movement_count'],
+            '',
+            '',
+            '',
             (string) ($row['locations'] ?: ''),
             '',
             (string) ($row['references_list'] ?: ''),
@@ -4466,6 +4568,9 @@ function handle_export_daily_summary(): void
             'Mixed',
             '',
             (string) $row['movement_count'],
+            '',
+            '',
+            '',
             '',
             '',
             '',
@@ -4495,6 +4600,9 @@ function handle_export_daily_summary(): void
             ucfirst((string) $movement['movement_type']),
             format_quantity($movementQuantity),
             '1',
+            (string) ($movement['is_location_scoped'] ? $movement['location_scope_label'] : 'All locations'),
+            format_quantity($movement['location_change']),
+            format_quantity($movement['location_balance_after']),
             (string) ($movement['source_storage_name'] ?: ''),
             (string) ($movement['destination_storage_name'] ?: ''),
             (string) ($movement['reference_code'] ?: ''),
@@ -4515,6 +4623,9 @@ function handle_export_daily_summary(): void
         'Movement Type',
         'Quantity',
         'Movement Count',
+        'Location Scope',
+        'Location Change',
+        'Location Balance After',
         'Source',
         'Destination',
         'Reference',
@@ -4544,6 +4655,9 @@ function movement_export_xlsx_sheet_xml(array $movements, array $images, array $
         'Movement Quantity',
         'Quantity Delta',
         'Balance After',
+        'Location Scope',
+        'Location Change',
+        'Location Balance After',
         'Source Location',
         'Destination Location',
         'Reference',
@@ -4591,6 +4705,9 @@ function movement_export_xlsx_sheet_xml(array $movements, array $images, array $
             $movementQuantity,
             format_quantity($movement['quantity_delta']),
             format_quantity($movement['balance_after']),
+            (string) ($movement['is_location_scoped'] ? $movement['location_scope_label'] : 'All locations'),
+            format_quantity($movement['location_change']),
+            format_quantity($movement['location_balance_after']),
             (string) ($movement['source_storage_name'] ?: ''),
             (string) ($movement['destination_storage_name'] ?: ''),
             (string) ($movement['reference_code'] ?: ''),
@@ -4628,6 +4745,9 @@ function movement_export_xlsx_sheet_xml(array $movements, array $images, array $
         18,
         18,
         18,
+        28,
+        18,
+        22,
         24,
         24,
         22,

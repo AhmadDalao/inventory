@@ -1197,6 +1197,34 @@ assert_true(str_contains($storageDetailPage['body'], '/items/create?storage_id='
 $storageMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $locationFilteredStorage['id']);
 assert_true($storageMovementLogPage['status'] === 200, 'Storage-filtered movement log did not load.');
 assert_true(str_contains($storageMovementLogPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Storage-filtered movement log should keep the selected location.');
+$movementScopeDestination = $storages[9];
+$movementScopeReference = $prefix . '-SCOPED-MOVE';
+apply_inventory_movement(
+    find_item_or_abort((int) $locationFilteredItem['id']),
+    'transfer',
+    2.0,
+    (int) $locationFilteredStorage['id'],
+    (int) $movementScopeDestination['id'],
+    date('Y-m-d H:i:s'),
+    $movementScopeReference,
+    $prefix . ' scoped movement regression',
+    (int) $owner['id']
+);
+$sourceScopedMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $locationFilteredStorage['id']);
+assert_true($sourceScopedMovementLogPage['status'] === 200, 'Source-scoped movement log did not load.');
+assert_true(str_contains($sourceScopedMovementLogPage['body'], 'Location Change'), 'Source-scoped movement log should show location-specific change heading.');
+assert_true(str_contains($sourceScopedMovementLogPage['body'], 'Transferred out of selected location'), 'Source-scoped movement log should label transfer direction.');
+assert_true(str_contains($sourceScopedMovementLogPage['body'], '-2 pcs'), 'Source-scoped movement log should show the selected location losing stock.');
+assert_true(str_contains($sourceScopedMovementLogPage['body'], '1 pcs'), 'Source-scoped movement log should show the selected location balance after transfer.');
+$destinationScopedMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $movementScopeDestination['id']);
+assert_true($destinationScopedMovementLogPage['status'] === 200, 'Destination-scoped movement log did not load.');
+assert_true(str_contains($destinationScopedMovementLogPage['body'], 'Transferred into selected location'), 'Destination-scoped movement log should label inbound transfer direction.');
+assert_true(str_contains($destinationScopedMovementLogPage['body'], '2 pcs'), 'Destination-scoped movement log should show the selected location gaining stock.');
+$sourceScopedMovementExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/movements?storage_id=' . (int) $locationFilteredStorage['id']);
+assert_true($sourceScopedMovementExport['status'] === 200, 'Source-scoped movement export failed.');
+assert_true(str_contains($sourceScopedMovementExport['body'], 'Location Scope,Location Change,Location Balance After'), 'Source-scoped movement export is missing scoped columns.');
+assert_true(str_contains($sourceScopedMovementExport['body'], 'Transferred out of selected location'), 'Source-scoped movement export is missing scoped direction.');
+assert_stock_invariants('after scoped movement log check', $prefix);
 $storagePreselectedItemPage = http_request($baseUrl, $ownerCookie, 'GET', '/items/create?storage_id=' . (int) $locationFilteredStorage['id']);
 assert_true($storagePreselectedItemPage['status'] === 200, 'Storage-preselected item create page did not load.');
 assert_true(str_contains($storagePreselectedItemPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Item create page should preselect the storage from the quick action.');

@@ -1,4 +1,7 @@
-<?php $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null)); ?>
+<?php
+$exportQuery = http_build_query(array_filter($filters, static fn ($value): bool => $value !== '' && $value !== null));
+$isLocationScoped = !empty($filters['storage_id']);
+?>
 
 <section class="page-head">
     <div class="page-head-copy">
@@ -108,8 +111,11 @@
                 <th>Item</th>
                 <th>Type</th>
                 <th>Quantity</th>
-                <th>Total Change</th>
-                <th>Balance After</th>
+                <th><?= $isLocationScoped ? 'Location Change' : 'Total Change' ?></th>
+                <th><?= $isLocationScoped ? 'Location Balance After' : 'Balance After' ?></th>
+                <?php if ($isLocationScoped): ?>
+                    <th>Location Scope</th>
+                <?php endif; ?>
                 <th>From</th>
                 <th>To</th>
                 <th>Reference</th>
@@ -120,7 +126,7 @@
             <tbody>
             <?php if ($movements === []): ?>
                 <tr>
-                    <td colspan="11" class="empty-cell">No movement records found.</td>
+                    <td colspan="<?= $isLocationScoped ? '12' : '11' ?>" class="empty-cell">No movement records found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($movements as $movement): ?>
@@ -134,8 +140,11 @@
                     </td>
                     <td data-label="Type"><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
                     <td data-label="Quantity"><?= format_quantity($movement['movement_quantity'] ?? abs((float) $movement['quantity_delta'])) ?> <?= e($movement['unit']) ?></td>
-                    <td data-label="Total Change"><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
-                    <td data-label="Balance After"><?= format_quantity($movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
+                    <td data-label="<?= $isLocationScoped ? 'Location Change' : 'Total Change' ?>"><?= format_quantity($isLocationScoped ? $movement['location_change'] : $movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
+                    <td data-label="<?= $isLocationScoped ? 'Location Balance After' : 'Balance After' ?>"><?= format_quantity($isLocationScoped ? $movement['location_balance_after'] : $movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
+                    <?php if ($isLocationScoped): ?>
+                        <td data-label="Location Scope"><?= e($movement['location_scope_label']) ?></td>
+                    <?php endif; ?>
                     <td data-label="From"><?= e($movement['source_storage_name'] ?: '-') ?></td>
                     <td data-label="To"><?= e($movement['destination_storage_name'] ?: '-') ?></td>
                     <td data-label="Reference"><?= e($movement['reference_code'] ?: '-') ?></td>

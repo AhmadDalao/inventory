@@ -58,6 +58,7 @@ if ($chartPoints !== []) {
 $valueMax = max(array_map(static fn (array $row): float => (float) $row['total_value'], $storageValueBreakdown ?: [['total_value' => 1]]));
 $valueTotal = array_reduce($storageValueBreakdown, static fn (float $carry, array $row): float => $carry + (float) $row['total_value'], 0.0);
 $topValueStorage = $storageValueBreakdown[0] ?? null;
+$isDashboardLocationScoped = !empty($filters['storage_id']);
 $movementLogQuery = http_build_query(array_filter([
     'storage_id' => $filters['storage_id'],
     'date_from' => $filters['date_from'],
@@ -592,8 +593,8 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                     <th>Item</th>
                     <th>Type</th>
                     <th>Quantity</th>
-                    <th>Total Change</th>
-                    <th>Balance</th>
+                    <th><?= $isDashboardLocationScoped ? 'Location Change' : 'Total Change' ?></th>
+                    <th><?= $isDashboardLocationScoped ? 'Location Balance' : 'Balance' ?></th>
                     <th>Route</th>
                     <th>By</th>
                 </tr>
@@ -610,11 +611,14 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                         </td>
                         <td data-label="Type"><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
                         <td data-label="Quantity"><?= format_quantity($movement['movement_quantity'] ?? abs((float) $movement['quantity_delta'])) ?> <?= e($movement['unit']) ?></td>
-                        <td data-label="Total Change"><?= format_quantity($movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
-                        <td data-label="Balance"><?= format_quantity($movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
+                        <td data-label="<?= $isDashboardLocationScoped ? 'Location Change' : 'Total Change' ?>"><?= format_quantity($isDashboardLocationScoped ? $movement['location_change'] : $movement['quantity_delta']) ?> <?= e($movement['unit']) ?></td>
+                        <td data-label="<?= $isDashboardLocationScoped ? 'Location Balance' : 'Balance' ?>"><?= format_quantity($isDashboardLocationScoped ? $movement['location_balance_after'] : $movement['balance_after']) ?> <?= e($movement['unit']) ?></td>
                         <td data-label="Route">
                             <?= e($movement['source_storage_name'] ?: '-') ?>
                             <div class="tiny-copy"><?= e($movement['destination_storage_name'] ?: '-') ?></div>
+                            <?php if ($isDashboardLocationScoped): ?>
+                                <div class="tiny-copy"><?= e($movement['location_scope_label']) ?></div>
+                            <?php endif; ?>
                         </td>
                         <td data-label="By"><?= e($movement['user_name'] ?: 'System') ?></td>
                     </tr>
