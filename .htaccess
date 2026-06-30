@@ -1,8 +1,20 @@
 Options -Indexes
 RewriteEngine On
 
-RewriteRule ^(?:app|config|database|storage|views)/ - [F,L,NC]
-RewriteRule ^(?:\.env|README\.md|router\.php)$ - [F,L,NC]
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "same-origin"
+    Header always set X-Permitted-Cross-Domain-Policies "none"
+    Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=()"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+RewriteRule ^(?:app|config|database|storage|views|vendor|tmp|output|docs)/ - [F,L,NC]
+RewriteRule ^\.git(?:/|$) - [F,L,NC]
+RewriteRule ^\.env(?:\..*)?$ - [F,L,NC]
+RewriteRule ^(?:\.DS_Store|composer\.(?:json|lock)|README\.md|router\.php)$ - [F,L,NC]
+RewriteRule \.(?:sql|sqlite|log|bak|backup|tar|gz|zip)$ - [F,L,NC]
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

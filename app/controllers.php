@@ -1243,8 +1243,7 @@ function clone_storage_item_setup_to_location(array $sourceStorage, int $destina
 
 function export_csv(string $filename, array $headers, array $rows): never
 {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    send_download_headers('text/csv; charset=utf-8', $filename, -1);
 
     $output = fopen('php://output', 'wb');
 
@@ -1252,10 +1251,10 @@ function export_csv(string $filename, array $headers, array $rows): never
         abort(500, 'Could not start CSV export.');
     }
 
-    fputcsv($output, $headers, ',', '"', '\\');
+    fputcsv($output, array_map('csv_safe_cell', $headers), ',', '"', '\\');
 
     foreach ($rows as $row) {
-        fputcsv($output, $row, ',', '"', '\\');
+        fputcsv($output, array_map('csv_safe_cell', $row), ',', '"', '\\');
     }
 
     fclose($output);
@@ -1264,9 +1263,7 @@ function export_csv(string $filename, array $headers, array $rows): never
 
 function export_xlsx(string $filename, string $bytes): never
 {
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Content-Length: ' . strlen($bytes));
+    send_download_headers('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $filename, strlen($bytes));
     echo $bytes;
     exit;
 }
@@ -1440,6 +1437,36 @@ function login_attempts_are_limited(string $email, string $ipAddress): bool
     return $failedAttempts >= 8;
 }
 
+function password_reset_requests_are_limited(string $email, string $ipAddress): bool
+{
+    try {
+        $ipRequests = (int) Database::scalar(
+            'SELECT COUNT(*)
+             FROM password_reset_tokens
+             WHERE request_ip = :request_ip
+               AND created_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)',
+            ['request_ip' => $ipAddress]
+        );
+
+        if ($ipRequests >= 5) {
+            return true;
+        }
+
+        $emailRequests = (int) Database::scalar(
+            'SELECT COUNT(*)
+             FROM password_reset_tokens reset_token
+             INNER JOIN users ON users.id = reset_token.user_id
+             WHERE users.email = :email
+               AND reset_token.created_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)',
+            ['email' => $email]
+        );
+
+        return $emailRequests >= 3;
+    } catch (Throwable $exception) {
+        return false;
+    }
+}
+
 function record_login_attempt(string $email, bool $success, ?string $failureReason = null, ?int $userId = null): void
 {
     try {
@@ -1611,6 +1638,7 @@ function handle_forgot_password_submit(): void
     app_ready_or_redirect();
 
     $email = strtolower(trim((string) input('email')));
+    $ipAddress = auth_request_ip();
     flash_old_input(['email' => $email]);
 
     if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -1622,7 +1650,7 @@ function handle_forgot_password_submit(): void
             ['email' => $email]
         );
 
-        if ($user && (int) ($user['is_active'] ?? 0) === 1) {
+        if ($user && (int) ($user['is_active'] ?? 0) === 1 && !password_reset_requests_are_limited($email, $ipAddress)) {
             $token = create_password_reset_token($user);
             $result = send_password_reset_email($user, $token);
 
@@ -1631,6 +1659,10 @@ function handle_forgot_password_submit(): void
                     'email_status' => $result['status'] ?? 'unknown',
                 ]);
             }
+        } elseif ($user && (int) ($user['is_active'] ?? 0) === 1 && function_exists('record_activity')) {
+            record_activity('auth.password_reset_limited', 'user', (int) $user['id'], 'Password reset request throttled for ' . $email, [
+                'ip_address' => $ipAddress,
+            ]);
         }
     }
 
@@ -5331,7 +5363,7 @@ function brand_logo_uploaded_file_meta(array $file): array
 
     $tmpName = (string) ($file['tmp_name'] ?? '');
 
-    if ($tmpName === '' || !is_file($tmpName)) {
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
         throw new RuntimeException('Logo upload could not be read.');
     }
 

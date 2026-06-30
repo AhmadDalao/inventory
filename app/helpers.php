@@ -787,7 +787,7 @@ function absolute_url(string $path): string
     }
 
     $host = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scheme = request_is_secure() ? 'https' : 'http';
 
     if ($host === '') {
         return url($path);
@@ -2498,6 +2498,140 @@ function asset_url(string $path): string
     return $assetUrl . '?v=' . filemtime($assetPath);
 }
 
+function request_is_secure(): bool
+{
+    if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') {
+        return true;
+    }
+
+    $forwardedProto = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+
+    if ($forwardedProto === 'https') {
+        return true;
+    }
+
+    $forwardedSsl = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '')));
+
+    return $forwardedSsl === 'on';
+}
+
+function send_security_headers(): void
+{
+    if (headers_sent()) {
+        return;
+    }
+
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: same-origin');
+    header('X-Permitted-Cross-Domain-Policies: none');
+    header('Cross-Origin-Opener-Policy: same-origin');
+    header('Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()');
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self' blob: https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net blob: data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+
+    if (request_is_secure()) {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
+}
+
+function safe_redirect_target(?string $target, string $fallback = '/'): string
+{
+    $target = preg_replace('/[\x00-\x1F\x7F]+/', '', trim((string) $target));
+
+    if ($target === '') {
+        return $fallback;
+    }
+
+    if (starts_with($target, '//')) {
+        return $fallback;
+    }
+
+    $path = (string) parse_url($target, PHP_URL_PATH);
+    $query = (string) parse_url($target, PHP_URL_QUERY);
+    $fragment = (string) parse_url($target, PHP_URL_FRAGMENT);
+    $host = (string) parse_url($target, PHP_URL_HOST);
+
+    if ($host !== '') {
+        $requestHost = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+
+        if ($requestHost === '' || strtolower($host) !== $requestHost) {
+            return $fallback;
+        }
+    }
+
+    if ($path === '') {
+        $path = '/';
+    }
+
+    $basePath = rtrim((string) app_config('app.base_path', ''), '/');
+
+    if ($basePath !== '' && starts_with($path, $basePath)) {
+        $path = substr($path, strlen($basePath)) ?: '/';
+    }
+
+    $safe = '/' . ltrim($path, '/');
+
+    if ($query !== '') {
+        $safe .= '?' . $query;
+    }
+
+    if ($fragment !== '') {
+        $safe .= '#' . $fragment;
+    }
+
+    return $safe;
+}
+
+function safe_download_filename(string $filename, string $fallback = 'download'): string
+{
+    $filename = basename(str_replace('\\', '/', $filename));
+    $filename = trim((string) preg_replace('/[\x00-\x1F\x7F]+/', '', $filename));
+    $filename = str_replace(['"', "'", ';'], '', $filename);
+
+    if ($filename === '' || $filename === '.' || $filename === '..') {
+        $filename = $fallback;
+    }
+
+    return substr($filename, 0, 180);
+}
+
+function content_disposition_attachment(string $filename): string
+{
+    $filename = safe_download_filename($filename);
+    $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename) ?: 'download';
+
+    return 'attachment; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($filename);
+}
+
+function send_download_headers(string $mimeType, string $filename, int $contentLength): void
+{
+    header('Content-Type: ' . ($mimeType !== '' ? $mimeType : 'application/octet-stream'));
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: ' . content_disposition_attachment($filename));
+    header('Content-Transfer-Encoding: binary');
+    header('Cache-Control: private, no-store, max-age=0');
+    header('Pragma: no-cache');
+
+    if ($contentLength >= 0) {
+        header('Content-Length: ' . $contentLength);
+    }
+}
+
+function csv_safe_cell($value): string
+{
+    if ($value === null) {
+        return '';
+    }
+
+    $text = (string) $value;
+
+    if ($text !== '' && preg_match('/^[=+\-@\t\r\n]/', $text) === 1) {
+        return "'" . $text;
+    }
+
+    return $text;
+}
+
 function redirect(string $path = '/'): never
 {
     $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
@@ -2531,8 +2665,9 @@ function redirect(string $path = '/'): never
 function redirect_to_referer(string $fallback = '/'): never
 {
     $referer = $_SERVER['HTTP_REFERER'] ?? '';
+    $target = safe_redirect_target($referer, $fallback);
 
-    if ($referer !== '') {
+    if ($target !== $fallback) {
         $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
 
         if (strpos($accept, 'application/json') !== false) {
@@ -2553,11 +2688,11 @@ function redirect_to_referer(string $fallback = '/'): never
                 'ok' => !$hasDanger,
                 'message' => $lastFlash['message'] ?? ($hasDanger ? 'Action failed.' : 'Saved.'),
                 'messages' => $flashes,
-                'redirect_url' => $referer,
+                'redirect_url' => url($target),
             ], $hasDanger ? 422 : 200);
         }
 
-        header('Location: ' . $referer);
+        header('Location: ' . url($target));
         exit;
     }
 
@@ -3139,6 +3274,10 @@ function validate_purchase_document_upload(?array $file): ?string
         return 'Purchase documents must be PDF, JPG, PNG, or WebP.';
     }
 
+    if (starts_with($mimeType, 'image/') && @getimagesize($tmpName) === false) {
+        return 'Uploaded purchase image is invalid.';
+    }
+
     return null;
 }
 
@@ -3255,6 +3394,10 @@ function validate_workflow_proof_upload(?array $file): ?string
 
     if (!in_array($mimeType, ['image/jpeg', 'image/png', 'image/webp'], true)) {
         return 'Proof image must be JPG, PNG, or WebP.';
+    }
+
+    if (@getimagesize($tmpName) === false) {
+        return 'Uploaded proof image is invalid.';
     }
 
     return null;

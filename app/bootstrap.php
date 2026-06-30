@@ -16,11 +16,22 @@ $appConfig = require base_path('config/app.php');
 
 date_default_timezone_set((string) app_config('app.timezone', 'UTC'));
 
+if ((bool) app_config('app.debug', false)) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+} else {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+}
+
+send_security_headers();
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_name('inventory_session');
     session_set_cookie_params([
         'httponly' => true,
-        'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'secure' => request_is_secure() || starts_with((string) app_config('app.url', ''), 'https://'),
         'samesite' => 'Lax',
         'path' => url('/'),
     ]);

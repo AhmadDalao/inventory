@@ -15,7 +15,7 @@
         <div class="field-row">
             <label class="field">
                 <span>Storage to count</span>
-                <select name="storage_id" required onchange="if (this.value) window.location='<?= e(url('/stocktakes/create?storage_id=')) ?>' + encodeURIComponent(this.value)">
+                <select name="storage_id" required data-stocktake-storage-select data-stocktake-create-base="<?= e(url('/stocktakes/create?storage_id=')) ?>">
                     <option value="">Pick a storage</option>
                     <?php foreach ($storages as $storage): ?>
                         <option value="<?= e((string) $storage['id']) ?>" <?= selected((string) $storage['id'], (string) ($storageId ?? '')) ?>>

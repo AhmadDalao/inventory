@@ -638,6 +638,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const initStocktakeStorageSelects = (root = document) => {
+    root.querySelectorAll('[data-stocktake-storage-select]').forEach((select) => {
+      if (select.dataset.jsBound === 'true') {
+        return;
+      }
+
+      select.dataset.jsBound = 'true';
+      select.addEventListener('change', () => {
+        const baseUrl = select.getAttribute('data-stocktake-create-base') || '';
+
+        if (!select.value || !baseUrl) {
+          return;
+        }
+
+        window.location.href = `${baseUrl}${encodeURIComponent(select.value)}`;
+      });
+    });
+  };
+
   const code39Patterns = {
     '0': 'nnnwwnwnn',
     '1': 'wnnwnnnnw',
@@ -6258,6 +6277,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const initInteractiveUi = (root = document) => {
     initConfirmButtons(root);
     initUnitSelectors(root);
+    initStocktakeStorageSelects(root);
     initItemCodePreview(root);
     initSupplierTypeOtherFields(root);
     initWorkflowDocumentSettings(root);

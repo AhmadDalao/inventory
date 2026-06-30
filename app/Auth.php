@@ -60,7 +60,8 @@ final class Auth
     {
         self::$cachedUser = null;
         self::$cachedPermissions = false;
-        unset($_SESSION['user_id']);
+
+        $_SESSION = [];
         session_regenerate_id(true);
     }
 

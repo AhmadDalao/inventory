@@ -11547,9 +11547,7 @@ function handle_purchase_document_download(array $params): void
         ob_end_clean();
     }
 
-    header('Content-Type: ' . $document['mime_type']);
-    header('Content-Length: ' . filesize($path));
-    header('Content-Disposition: attachment; filename="' . addslashes((string) $document['original_filename']) . '"');
+    send_download_headers((string) $document['mime_type'], (string) $document['original_filename'], (int) filesize($path));
     readfile($path);
     exit;
 }
@@ -11902,9 +11900,7 @@ function handle_file_download(array $params): void
         ob_end_clean();
     }
 
-    header('Content-Type: ' . (string) $asset['mime_type']);
-    header('Content-Length: ' . filesize($path));
-    header('Content-Disposition: attachment; filename="' . addslashes((string) $asset['original_filename']) . '"');
+    send_download_headers((string) $asset['mime_type'], (string) $asset['original_filename'], (int) filesize($path));
     readfile($path);
     exit;
 }
@@ -11954,9 +11950,7 @@ function handle_workflow_document_download(array $params): void
         ob_end_clean();
     }
 
-    header('Content-Type: ' . (string) $document['mime_type']);
-    header('Content-Length: ' . filesize($path));
-    header('Content-Disposition: attachment; filename="' . addslashes((string) $document['original_filename']) . '"');
+    send_download_headers((string) $document['mime_type'], (string) $document['original_filename'], (int) filesize($path));
     readfile($path);
     exit;
 }
