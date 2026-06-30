@@ -1168,6 +1168,19 @@ assert_true(str_contains($locationFilteredItemsPage['body'], '3 pcs'), 'Storage-
 assert_true(str_contains($locationFilteredItemsPage['body'], 'in ' . (string) $locationFilteredStorage['name']), 'Storage-filtered item quantity page should label the selected location quantity.');
 assert_stock_invariants('after storage-filtered item quantity check', $prefix);
 
+note('Checking storage quick actions.');
+$storageDetailPage = http_request($baseUrl, $ownerCookie, 'GET', '/storages/' . (int) $locationFilteredStorage['id']);
+assert_true($storageDetailPage['status'] === 200, 'Storage detail page did not load.');
+assert_true(str_contains($storageDetailPage['body'], 'storage-action-card'), 'Storage detail page is missing quick action cards.');
+assert_true(str_contains($storageDetailPage['body'], '/movements?storage_id=' . (int) $locationFilteredStorage['id']), 'Storage detail page is missing the filtered movement log action.');
+assert_true(str_contains($storageDetailPage['body'], '/items/create?storage_id=' . (int) $locationFilteredStorage['id']), 'Storage detail page is missing the preselected add-item action.');
+$storageMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $locationFilteredStorage['id']);
+assert_true($storageMovementLogPage['status'] === 200, 'Storage-filtered movement log did not load.');
+assert_true(str_contains($storageMovementLogPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Storage-filtered movement log should keep the selected location.');
+$storagePreselectedItemPage = http_request($baseUrl, $ownerCookie, 'GET', '/items/create?storage_id=' . (int) $locationFilteredStorage['id']);
+assert_true($storagePreselectedItemPage['status'] === 200, 'Storage-preselected item create page did not load.');
+assert_true(str_contains($storagePreselectedItemPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Item create page should preselect the storage from the quick action.');
+
 $failedLoginCookie = create_cookie_file();
 $failedLoginPage = http_request($baseUrl, $failedLoginCookie, 'GET', '/login');
 assert_true($failedLoginPage['status'] === 200, 'Failed-login audit probe could not load login page.');

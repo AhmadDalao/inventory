@@ -1294,16 +1294,17 @@ function export_xlsx(string $filename, string $bytes): never
     exit;
 }
 
-function default_item_payload(?array $sourceItem = null): array
+function default_item_payload(?array $sourceItem = null, ?int $defaultStorageId = null): array
 {
     $sourceUnit = item_unit_form_state($sourceItem['unit'] ?? 'pcs');
+    $storageId = $sourceItem ? '' : ($defaultStorageId ? (string) $defaultStorageId : '');
 
     return [
         'name' => old('name', (string) ($sourceItem['name'] ?? '')),
         'sku' => old('sku', (string) ($sourceItem['sku'] ?? '')),
         'barcode' => old('barcode', (string) ($sourceItem['barcode'] ?? '')),
         'category' => old('category', (string) ($sourceItem['category'] ?? '')),
-        'storage_id' => old('storage_id', ''),
+        'storage_id' => old('storage_id', $storageId),
         'unit' => old('unit', $sourceUnit['unit']),
         'custom_unit' => old('custom_unit', $sourceUnit['custom_unit']),
         'reorder_level' => old('reorder_level', $sourceItem ? format_quantity((float) $sourceItem['reorder_level']) : '0'),
@@ -2474,13 +2475,18 @@ function handle_items_create_page(): void
     app_ready_or_redirect();
     Auth::requirePermission('items.create');
     $copySource = requested_item_copy_source();
+    $defaultStorageId = normalize_entity_id(query('storage_id', ''));
+
+    if ($defaultStorageId !== null && !storage_exists_for_assignment($defaultStorageId)) {
+        $defaultStorageId = null;
+    }
 
     View::render('items/form', [
         'title' => 'Create Item',
         'mode' => 'create',
-        'item' => default_item_payload($copySource),
+        'item' => default_item_payload($copySource, $defaultStorageId),
         'copySource' => $copySource,
-        'storages' => all_storages_for_select(),
+        'storages' => all_storages_for_select($defaultStorageId),
     ]);
 }
 

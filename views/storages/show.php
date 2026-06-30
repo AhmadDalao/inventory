@@ -103,25 +103,37 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
             </div>
         </div>
 
-        <div class="mini-list">
-            <a class="mini-row" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">
-                <div>
-                    <strong>Filter Items By This Location</strong>
-                    <span>See the catalog narrowed to <?= e($storage['name']) ?>.</span>
-                </div>
-            </a>
-            <a class="mini-row" href="<?= e(url('/movements?storage_id=' . $storage['id'])) ?>">
-                <div>
-                    <strong>Open Location Movement Log</strong>
-                    <span>Track everything moved in, out, and used here.</span>
-                </div>
-            </a>
+        <div class="storage-action-list">
+            <?php if (Auth::hasPermission('items.view')): ?>
+                <a class="storage-action-card" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">
+                    <span class="storage-action-icon"><?= ui_icon('items') ?></span>
+                    <span class="storage-action-copy">
+                        <strong>Filter Items</strong>
+                        <span>Open only items assigned to <?= e($storage['name']) ?>.</span>
+                    </span>
+                    <span class="storage-action-cta">Open</span>
+                </a>
+            <?php endif; ?>
+
+            <?php if (Auth::hasPermission('movements.view')): ?>
+                <a class="storage-action-card" href="<?= e(url('/movements?storage_id=' . $storage['id'])) ?>">
+                    <span class="storage-action-icon"><?= ui_icon('movements') ?></span>
+                    <span class="storage-action-copy">
+                        <strong>Location Log</strong>
+                        <span>Open movements filtered to this location.</span>
+                    </span>
+                    <span class="storage-action-cta">Open</span>
+                </a>
+            <?php endif; ?>
+
             <?php if (Auth::hasPermission('items.create')): ?>
-                <a class="mini-row" href="<?= e(url('/items/create')) ?>">
-                    <div>
-                        <strong>Add Another Item</strong>
-                        <span>Create a new item and land its initial stock in this location.</span>
-                    </div>
+                <a class="storage-action-card" href="<?= e(url('/items/create?storage_id=' . $storage['id'])) ?>">
+                    <span class="storage-action-icon"><?= ui_icon('plus') ?></span>
+                    <span class="storage-action-copy">
+                        <strong>Add Item Here</strong>
+                        <span>Create an item with this location preselected.</span>
+                    </span>
+                    <span class="storage-action-cta">Create</span>
                 </a>
             <?php endif; ?>
         </div>
