@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-$options = getopt('', ['base-url:', 'prefix::', 'password::', 'allow-live']);
+$options = getopt('', ['base-url:', 'prefix::', 'password::', 'allow-live', 'cleanup-only']);
 
 if (!isset($options['base-url'])) {
-    fwrite(STDERR, "Usage: php tests/full_regression.php --base-url=http://127.0.0.1:8080 [--prefix=ZZFULL...] [--password=...] [--allow-live]\n");
+    fwrite(STDERR, "Usage: php tests/full_regression.php --base-url=http://127.0.0.1:8080 [--prefix=ZZFULL...] [--password=...] [--allow-live] [--cleanup-only]\n");
     fwrite(STDERR, "Refusing to default to production. Pass --allow-live only after a backup when targeting inventory.ahmaddalao.com.\n");
     exit(1);
 }
@@ -1054,7 +1054,27 @@ function balance_quantity(int $itemId, int $storageId): float
     return $balance ? round((float) $balance['quantity'], 2) : 0.0;
 }
 
+if (array_key_exists('cleanup-only', $options)) {
+    cleanup_prefix_data($prefix);
+    note('Cleanup complete for ' . $prefix . '.');
+    exit(0);
+}
+
 cleanup_prefix_data($prefix);
+$cleanupOnShutdown = true;
+
+register_shutdown_function(static function () use (&$cleanupOnShutdown, $prefix): void {
+    if (!$cleanupOnShutdown) {
+        return;
+    }
+
+    try {
+        cleanup_prefix_data($prefix);
+    } catch (Throwable $exception) {
+        fwrite(STDERR, '[full-regression] Cleanup warning for ' . $prefix . ': ' . $exception->getMessage() . PHP_EOL);
+    }
+});
+
 note('Creating temporary users.');
 
 $ownerEmail = build_email($prefix, 'owner');
@@ -2950,7 +2970,7 @@ assert_true($purchaseExport['status'] === 200, 'Purchase export failed.');
 assert_true(strpos($purchaseExport['body'], $purchaseCompleted['purchase_number']) !== false, 'Purchase export is missing the completed purchase.');
 assert_true(strpos($purchaseExport['body'], $newPurchaseSku) !== false, 'Purchase export is missing line item details.');
 
-$movementExportXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/movements.xlsx');
+$movementExportXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/movements.xlsx?item_id=' . (int) $seededItems[0]['id']);
 assert_true($movementExportXlsx['status'] === 200, 'Movement Excel export failed.');
 assert_true(str_starts_with($movementExportXlsx['body'], 'PK'), 'Movement Excel export did not return an XLSX archive.');
 assert_xlsx_contains_media($movementExportXlsx['body'], 'Movement Excel export is missing embedded item thumbnails or barcode images.');
@@ -3046,6 +3066,7 @@ assert_stock_invariants('before cleanup', $prefix);
 
 note('Cleaning up regression data.');
 cleanup_prefix_data($prefix);
+$cleanupOnShutdown = false;
 
 note('PASS');
 note('Users created: 4');
