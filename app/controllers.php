@@ -164,8 +164,9 @@ function build_movement_where(array $filters, string $alias = 'm', string $itemA
     }
 
     if ($filters['storage_id']) {
-        $conditions[] = "({$alias}.source_storage_id = :storage_id OR {$alias}.destination_storage_id = :storage_id)";
-        $params['storage_id'] = $filters['storage_id'];
+        $conditions[] = "({$alias}.source_storage_id = :movement_source_storage_id OR {$alias}.destination_storage_id = :movement_destination_storage_id)";
+        $params['movement_source_storage_id'] = $filters['storage_id'];
+        $params['movement_destination_storage_id'] = $filters['storage_id'];
     }
 
     if ($filters['movement_type'] !== '') {
