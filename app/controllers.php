@@ -216,26 +216,27 @@ function movement_scope_for_storage(array $movement, ?int $storageId): array
 
     if ($sourceId === $storageId) {
         $change = $type === 'adjustment' ? (float) ($movement['quantity_delta'] ?? 0) : -$quantity;
+        $sourceLabels = [
+            'usage' => 'Used from selected location',
+            'transfer' => 'Transferred out of selected location',
+            'adjustment' => 'Adjusted selected location',
+        ];
 
         return [
-            'scope_label' => match ($type) {
-                'usage' => 'Used from selected location',
-                'transfer' => 'Transferred out of selected location',
-                'adjustment' => 'Adjusted selected location',
-                default => 'Source location',
-            },
+            'scope_label' => $sourceLabels[$type] ?? 'Source location',
             'location_change' => $change,
             'location_balance_after' => (float) ($movement['source_balance_after'] ?? $movement['balance_after'] ?? 0),
         ];
     }
 
     if ($destinationId === $storageId) {
+        $destinationLabels = [
+            'restock' => 'Added to selected location',
+            'transfer' => 'Transferred into selected location',
+        ];
+
         return [
-            'scope_label' => match ($type) {
-                'restock' => 'Added to selected location',
-                'transfer' => 'Transferred into selected location',
-                default => 'Destination location',
-            },
+            'scope_label' => $destinationLabels[$type] ?? 'Destination location',
             'location_change' => $quantity,
             'location_balance_after' => (float) ($movement['destination_balance_after'] ?? $movement['balance_after'] ?? 0),
         ];
