@@ -2972,7 +2972,7 @@ assert_true(strpos($purchaseExport['body'], $newPurchaseSku) !== false, 'Purchas
 
 $movementExportXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/movements.xlsx?item_id=' . (int) $seededItems[0]['id']);
 assert_true($movementExportXlsx['status'] === 200, 'Movement Excel export failed.');
-assert_true(str_starts_with($movementExportXlsx['body'], 'PK'), 'Movement Excel export did not return an XLSX archive.');
+assert_true(substr($movementExportXlsx['body'], 0, 2) === 'PK', 'Movement Excel export did not return an XLSX archive.');
 assert_xlsx_contains_media($movementExportXlsx['body'], 'Movement Excel export is missing embedded item thumbnails or barcode images.');
 assert_xlsx_contains_text($movementExportXlsx['body'], 'Movement Quantity', 'Movement Excel export is missing movement quantity column.');
 assert_xlsx_contains_text($movementExportXlsx['body'], 'Barcode Image', 'Movement Excel export is missing barcode image column.');
