@@ -3592,6 +3592,192 @@ function handle_scan_lookup(): void
     ]);
 }
 
+function report_summary_filters(): array
+{
+    $date = trim((string) query('date', date('Y-m-d')));
+    $type = trim((string) query('movement_type', ''));
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $date = date('Y-m-d');
+    }
+
+    return [
+        'date' => $date,
+        'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
+        'movement_type' => in_array($type, ['restock', 'usage', 'adjustment', 'transfer'], true) ? $type : '',
+    ];
+}
+
+function report_summary_quantity_expression(string $alias = 'm'): string
+{
+    return "ABS(COALESCE(NULLIF({$alias}.movement_quantity, 0), {$alias}.quantity_delta, 0))";
+}
+
+function build_report_summary_where(array $filters, string $alias = 'm'): array
+{
+    $conditions = [
+        "{$alias}.used_at >= :summary_date_from",
+        "{$alias}.used_at <= :summary_date_to",
+    ];
+    $params = [
+        'summary_date_from' => $filters['date'] . ' 00:00:00',
+        'summary_date_to' => $filters['date'] . ' 23:59:59',
+    ];
+
+    if (!empty($filters['storage_id'])) {
+        $conditions[] = "({$alias}.source_storage_id = :summary_source_storage_id OR {$alias}.destination_storage_id = :summary_destination_storage_id)";
+        $params['summary_source_storage_id'] = (int) $filters['storage_id'];
+        $params['summary_destination_storage_id'] = (int) $filters['storage_id'];
+    }
+
+    if (($filters['movement_type'] ?? '') !== '') {
+        $conditions[] = "{$alias}.movement_type = :summary_movement_type";
+        $params['summary_movement_type'] = (string) $filters['movement_type'];
+    }
+
+    return ['WHERE ' . implode(' AND ', $conditions), $params];
+}
+
+function report_summary_storage_label(?int $storageId): string
+{
+    if ($storageId === null) {
+        return 'All locations';
+    }
+
+    $storage = Database::fetch(
+        'SELECT name, storage_type FROM storages WHERE id = :id LIMIT 1',
+        ['id' => $storageId]
+    );
+
+    if (!$storage) {
+        return 'Unknown location';
+    }
+
+    return storage_type_label((string) $storage['storage_type']) . ' · ' . (string) $storage['name'];
+}
+
+function report_summary_movement_label(string $movementType): string
+{
+    return $movementType === '' ? 'All movement types' : ucfirst($movementType);
+}
+
+function report_summary_data(array $filters): array
+{
+    [$where, $params] = build_report_summary_where($filters);
+    $quantity = report_summary_quantity_expression();
+
+    $cards = Database::fetch(
+        "SELECT COUNT(*) AS movement_count,
+                COUNT(DISTINCT m.item_id) AS item_count,
+                COUNT(DISTINCT m.performed_by) AS user_count,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'usage' THEN {$quantity} ELSE 0 END), 0) AS used_units,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'restock' THEN {$quantity} ELSE 0 END), 0) AS restocked_units,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'transfer' THEN {$quantity} ELSE 0 END), 0) AS transferred_units,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'adjustment' THEN {$quantity} ELSE 0 END), 0) AS adjusted_units
+         FROM inventory_movements m
+         {$where}",
+        $params
+    ) ?: [];
+
+    $usageFilters = $filters;
+    $usageFilters['movement_type'] = 'usage';
+    [$usageWhere, $usageParams] = build_report_summary_where($usageFilters);
+    $usageQuantity = report_summary_quantity_expression();
+
+    $usageByItem = Database::fetchAll(
+        "SELECT m.item_id,
+                COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
+                COALESCE(i.sku, '') AS sku,
+                COALESCE(i.unit, '') AS unit,
+                i.image_path,
+                COALESCE(SUM({$usageQuantity}), 0) AS used_quantity,
+                COUNT(*) AS movement_count,
+                GROUP_CONCAT(DISTINCT COALESCE(u.name, 'System') ORDER BY COALESCE(u.name, 'System') SEPARATOR ', ') AS users,
+                GROUP_CONCAT(DISTINCT COALESCE(source_storage.name, destination_storage.name, 'Unassigned') ORDER BY COALESCE(source_storage.name, destination_storage.name, 'Unassigned') SEPARATOR ', ') AS locations,
+                MAX(m.used_at) AS last_activity_at,
+                GROUP_CONCAT(DISTINCT NULLIF(m.reference_code, '') ORDER BY m.reference_code SEPARATOR ', ') AS references_list
+         FROM inventory_movements m
+         LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
+         LEFT JOIN users u ON u.id = m.performed_by
+         {$usageWhere}
+         GROUP BY m.item_id, i.name, i.sku, i.unit, i.image_path
+         ORDER BY used_quantity DESC, item_name ASC
+         LIMIT 50",
+        $usageParams
+    );
+
+    $userBreakdown = Database::fetchAll(
+        "SELECT COALESCE(u.name, 'System') AS user_name,
+                COUNT(*) AS movement_count,
+                COUNT(DISTINCT m.item_id) AS item_count,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'usage' THEN {$quantity} ELSE 0 END), 0) AS used_units,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'restock' THEN {$quantity} ELSE 0 END), 0) AS restocked_units,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'transfer' THEN {$quantity} ELSE 0 END), 0) AS transferred_units,
+                COALESCE(SUM(CASE WHEN m.movement_type = 'adjustment' THEN {$quantity} ELSE 0 END), 0) AS adjusted_units,
+                MAX(m.used_at) AS last_activity_at
+         FROM inventory_movements m
+         LEFT JOIN users u ON u.id = m.performed_by
+         {$where}
+         GROUP BY COALESCE(u.name, 'System')
+         ORDER BY movement_count DESC, user_name ASC
+         LIMIT 30",
+        $params
+    );
+
+    $timeline = Database::fetchAll(
+        "SELECT m.*,
+                COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
+                COALESCE(i.sku, '') AS sku,
+                COALESCE(i.unit, '') AS unit,
+                i.image_path,
+                source_storage.name AS source_storage_name,
+                destination_storage.name AS destination_storage_name,
+                COALESCE(u.name, 'System') AS user_name
+         FROM inventory_movements m
+         LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
+         LEFT JOIN users u ON u.id = m.performed_by
+         {$where}
+         ORDER BY m.used_at DESC, m.id DESC
+         LIMIT 120",
+        $params
+    );
+
+    $query = array_filter([
+        'date' => $filters['date'],
+        'storage_id' => $filters['storage_id'] ?? null,
+        'movement_type' => $filters['movement_type'] ?? '',
+    ], static fn ($value): bool => $value !== '' && $value !== null);
+
+    $movementQuery = array_filter([
+        'date_from' => $filters['date'],
+        'date_to' => $filters['date'],
+        'storage_id' => $filters['storage_id'] ?? null,
+        'movement_type' => $filters['movement_type'] ?? '',
+    ], static fn ($value): bool => $value !== '' && $value !== null);
+
+    return [
+        'cards' => [
+            'movement_count' => (int) ($cards['movement_count'] ?? 0),
+            'item_count' => (int) ($cards['item_count'] ?? 0),
+            'user_count' => (int) ($cards['user_count'] ?? 0),
+            'used_units' => (float) ($cards['used_units'] ?? 0),
+            'restocked_units' => (float) ($cards['restocked_units'] ?? 0),
+            'transferred_units' => (float) ($cards['transferred_units'] ?? 0),
+            'adjusted_units' => (float) ($cards['adjusted_units'] ?? 0),
+        ],
+        'usage_by_item' => $usageByItem,
+        'user_breakdown' => $userBreakdown,
+        'timeline' => $timeline,
+        'storage_label' => report_summary_storage_label($filters['storage_id'] ?? null),
+        'export_url' => url('/exports/daily-summary' . ($query ? '?' . http_build_query($query) : '')),
+        'movement_url' => url('/movements' . ($movementQuery ? '?' . http_build_query($movementQuery) : '')),
+    ];
+}
+
 function report_preset_cards(): array
 {
     $today = date('Y-m-d');
@@ -3811,9 +3997,16 @@ function handle_reports_index(): void
         abort(403, 'You do not have access to report presets.');
     }
 
+    $summaryFilters = report_summary_filters();
+    $canViewDailySummary = Auth::hasPermission('movements.view') || Auth::hasPermission('movements.export');
+
     View::render('reports/index', [
         'title' => site_setting('page.reports', 'Reports'),
         'groups' => report_preset_cards(),
+        'summaryFilters' => $summaryFilters,
+        'summary' => $canViewDailySummary ? report_summary_data($summaryFilters) : null,
+        'storages' => all_storages_for_select($summaryFilters['storage_id']),
+        'canViewDailySummary' => $canViewDailySummary,
     ]);
 }
 
@@ -4177,6 +4370,155 @@ function handle_export_movements(): void
         'Destination Location',
         'Reference',
         'Performed By',
+        'Notes',
+    ], $rows);
+}
+
+function handle_export_daily_summary(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('movements.export');
+
+    $filters = report_summary_filters();
+    $summary = report_summary_data($filters);
+    $cards = $summary['cards'];
+    $date = (string) $filters['date'];
+    $storageLabel = (string) $summary['storage_label'];
+    $movementLabel = report_summary_movement_label((string) ($filters['movement_type'] ?? ''));
+    $rows = [];
+
+    $rows[] = [
+        'Overall',
+        $date,
+        $storageLabel,
+        $movementLabel,
+        'Movements',
+        '',
+        '',
+        '',
+        'All',
+        '',
+        (string) $cards['movement_count'],
+        '',
+        '',
+        '',
+        '',
+        'Items touched: ' . number_format((int) $cards['item_count']) . '; People: ' . number_format((int) $cards['user_count']),
+    ];
+
+    foreach ([
+        'Used Units' => 'used_units',
+        'Restocked Units' => 'restocked_units',
+        'Transferred Units' => 'transferred_units',
+        'Adjusted Units' => 'adjusted_units',
+    ] as $label => $key) {
+        $rows[] = [
+            'Overall',
+            $date,
+            $storageLabel,
+            $movementLabel,
+            $label,
+            '',
+            '',
+            '',
+            'Summary',
+            format_quantity($cards[$key] ?? 0),
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+        ];
+    }
+
+    foreach ($summary['usage_by_item'] as $row) {
+        $rows[] = [
+            'Usage By Item',
+            $date,
+            $storageLabel,
+            $movementLabel,
+            (string) $row['item_name'],
+            (string) $row['sku'],
+            (string) $row['unit'],
+            (string) ($row['users'] ?: ''),
+            'Usage',
+            format_quantity($row['used_quantity'] ?? 0),
+            (string) $row['movement_count'],
+            (string) ($row['locations'] ?: ''),
+            '',
+            (string) ($row['references_list'] ?: ''),
+            (string) ($row['last_activity_at'] ?: ''),
+            '',
+        ];
+    }
+
+    foreach ($summary['user_breakdown'] as $row) {
+        $rows[] = [
+            'Who Did What',
+            $date,
+            $storageLabel,
+            $movementLabel,
+            '',
+            '',
+            '',
+            (string) $row['user_name'],
+            'Mixed',
+            '',
+            (string) $row['movement_count'],
+            '',
+            '',
+            '',
+            (string) ($row['last_activity_at'] ?: ''),
+            'Items: ' . number_format((int) $row['item_count'])
+                . '; Used: ' . format_quantity($row['used_units'] ?? 0)
+                . '; Restocked: ' . format_quantity($row['restocked_units'] ?? 0)
+                . '; Transferred: ' . format_quantity($row['transferred_units'] ?? 0)
+                . '; Adjusted: ' . format_quantity($row['adjusted_units'] ?? 0),
+        ];
+    }
+
+    foreach ($summary['timeline'] as $movement) {
+        $movementQuantity = $movement['movement_quantity'] !== null && $movement['movement_quantity'] !== ''
+            ? $movement['movement_quantity']
+            : abs((float) ($movement['quantity_delta'] ?? 0));
+
+        $rows[] = [
+            'Timeline',
+            $date,
+            $storageLabel,
+            $movementLabel,
+            (string) $movement['item_name'],
+            (string) $movement['sku'],
+            (string) $movement['unit'],
+            (string) $movement['user_name'],
+            ucfirst((string) $movement['movement_type']),
+            format_quantity($movementQuantity),
+            '1',
+            (string) ($movement['source_storage_name'] ?: ''),
+            (string) ($movement['destination_storage_name'] ?: ''),
+            (string) ($movement['reference_code'] ?: ''),
+            (string) $movement['used_at'],
+            (string) ($movement['notes'] ?: ''),
+        ];
+    }
+
+    export_csv('daily-summary-' . str_replace('-', '', $date) . '-' . date('His') . '.csv', [
+        'Section',
+        'Date',
+        'Storage',
+        'Movement Filter',
+        'Item',
+        'SKU',
+        'Unit',
+        'User',
+        'Movement Type',
+        'Quantity',
+        'Movement Count',
+        'Source',
+        'Destination',
+        'Reference',
+        'Used At',
         'Notes',
     ], $rows);
 }

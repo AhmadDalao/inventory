@@ -4517,8 +4517,9 @@ function documentation_sections(): array
             'icon' => 'reports',
             'audience' => 'Owner, CFO, Accountant, Operations, Admin',
             'route' => '/reports',
-            'summary' => 'Report presets are shortcuts to the CSV exports the business uses most often.',
+            'summary' => 'Reports shows a daily operations summary plus export presets for the business reports used most often.',
             'features' => [
+                'Daily summary answers what happened on one date: used quantities, touched items, users, locations, and movement timeline.',
                 'Groups export shortcuts by Inventory, Workflow, Finance, Supplier, Files, and Audit.',
                 'Keeps reports permission-aware so users only see presets they can export.',
                 'Provides date, status, and storage preset links where the underlying module supports filters.',
@@ -4526,12 +4527,15 @@ function documentation_sections(): array
             ],
             'steps' => [
                 'Open Reports from the sidebar.',
+                'Use the Daily Operations filter to pick a date, location, and movement type.',
+                'Review usage by item, who moved stock, and the activity timeline.',
+                'Export Summary when you need a day-end CSV.',
                 'Pick the report card that matches the question.',
                 'Use Download CSV for the preset export or Open Source Page to review records first.',
                 'Use the target module filters when you need a more specific report.',
             ],
             'rules' => [
-                'Report presets do not create new data; they reuse existing exports.',
+                'Reports do not create new data; they reuse existing movements and exports.',
                 'Movement logs remain the source of truth for stock history.',
                 'CSV exports are permission-checked the same way as the source pages.',
             ],
