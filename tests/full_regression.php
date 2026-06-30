@@ -2795,8 +2795,12 @@ $handoverDeliveredRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverDeliveredRecord['status'] === 'delivered', 'Handover should become delivered after receipt review confirmation.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 18, 2), 'Handover source balance is wrong after receipt review confirmation.');
 
+$handoverClosePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
+assert_true(strpos($handoverClosePage['body'], 'Used By Reason') !== false, 'Handover closeout page is missing the visible usage breakdown guidance.');
+assert_true(strpos($handoverClosePage['body'], 'Add Usage Reason') !== false, 'Handover closeout page is missing the add usage reason action.');
+
 $handoverClosePayload = [
-    '_token' => extract_csrf(http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId)['body']),
+    '_token' => extract_csrf($handoverClosePage['body']),
     'closed_notes' => $prefix . ' handover submitted',
     'line_used' => [],
 ];

@@ -1397,7 +1397,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const syncEditor = (editor) => {
         const usedField = editor.querySelector('[data-handover-used]');
-        const returnedField = editor.closest('tr')?.querySelector('[data-handover-returned]');
+        const closeLine = editor.closest('[data-handover-close-line]') || editor.closest('tr');
+        const returnedField = closeLine?.querySelector('[data-handover-returned]');
         const totalLabel = editor.querySelector('[data-handover-used-total]');
         const warning = editor.querySelector('[data-handover-usage-warning]');
 
