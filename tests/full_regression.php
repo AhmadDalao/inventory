@@ -1164,8 +1164,8 @@ $locationFilteredItemsPage = http_request(
     '/items?status=active&storage_id=' . (int) $locationFilteredStorage['id'] . '&search=' . rawurlencode((string) $locationFilteredItem['sku'])
 );
 assert_true($locationFilteredItemsPage['status'] === 200, 'Storage-filtered item quantity page did not load.');
-assert_true(contains_text($locationFilteredItemsPage['body'], '3 pcs'), 'Storage-filtered item quantity page should show the selected storage balance.');
-assert_true(contains_text($locationFilteredItemsPage['body'], 'in ' . (string) $locationFilteredStorage['name']), 'Storage-filtered item quantity page should label the selected location quantity.');
+assert_true(str_contains($locationFilteredItemsPage['body'], '3 pcs'), 'Storage-filtered item quantity page should show the selected storage balance.');
+assert_true(str_contains($locationFilteredItemsPage['body'], 'in ' . (string) $locationFilteredStorage['name']), 'Storage-filtered item quantity page should label the selected location quantity.');
 assert_stock_invariants('after storage-filtered item quantity check', $prefix);
 
 $failedLoginCookie = create_cookie_file();
