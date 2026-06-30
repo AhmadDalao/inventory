@@ -114,6 +114,32 @@ function build_item_where(array $filters, string $alias = 'i'): array
     ];
 }
 
+function item_filtered_storage_quantity_select(array $filters, array &$params, string $paramName = 'item_filtered_storage_id'): string
+{
+    if (empty($filters['storage_id'])) {
+        return 'NULL AS filtered_storage_quantity';
+    }
+
+    $params[$paramName] = (int) $filters['storage_id'];
+
+    return "(
+        SELECT filtered_balance.quantity
+        FROM item_storage_balances filtered_balance
+        WHERE filtered_balance.item_id = i.id
+          AND filtered_balance.storage_id = :{$paramName}
+        LIMIT 1
+    ) AS filtered_storage_quantity";
+}
+
+function item_display_quantity(array $item): float
+{
+    if (array_key_exists('filtered_storage_quantity', $item) && $item['filtered_storage_quantity'] !== null) {
+        return (float) $item['filtered_storage_quantity'];
+    }
+
+    return (float) ($item['current_quantity'] ?? 0);
+}
+
 function movement_filters(): array
 {
     $type = (string) query('movement_type', '');
@@ -2392,6 +2418,7 @@ function handle_items_index(): void
 
     $filters = item_filters();
     [$where, $params] = build_item_where($filters);
+    $filteredStorageQuantitySelect = item_filtered_storage_quantity_select($filters, $params);
     $storages = all_storages_for_select($filters['storage_id']);
     $selectedStorage = null;
 
@@ -2406,6 +2433,7 @@ function handle_items_index(): void
 
     $items = Database::fetchAll(
         "SELECT i.*,
+                {$filteredStorageQuantitySelect},
                 default_storage.name AS default_storage_name,
                 (
                     SELECT COUNT(*)
@@ -3785,9 +3813,11 @@ function handle_reports_index(): void
 function item_export_rows(array $filters): array
 {
     [$where, $params] = build_item_where($filters);
+    $filteredStorageQuantitySelect = item_filtered_storage_quantity_select($filters, $params);
 
     return Database::fetchAll(
         "SELECT i.*,
+                {$filteredStorageQuantitySelect},
                 default_storage.name AS default_storage_name,
                 (
                     SELECT COUNT(*)
@@ -3826,7 +3856,7 @@ function handle_export_items(): void
             $item['storage_summary'] ?: '',
             $item['default_storage_name'] ?: '',
             $item['unit'],
-            format_quantity($item['current_quantity']),
+            format_quantity(item_display_quantity($item)),
             format_quantity($item['reorder_level']),
             format_money($item['cost_per_unit']),
             (int) $item['is_active'] === 1 ? 'Active' : 'Deleted',
@@ -3915,7 +3945,7 @@ function item_export_xlsx_sheet_xml(array $items, array $images, array $imageSiz
             (string) ($item['storage_summary'] ?: ''),
             (string) ($item['default_storage_name'] ?: ''),
             (string) $item['unit'],
-            format_quantity($item['current_quantity']),
+            format_quantity(item_display_quantity($item)),
             format_quantity($item['reorder_level']),
             format_money($item['cost_per_unit']),
             (int) $item['is_active'] === 1 ? 'Active' : 'Deleted',

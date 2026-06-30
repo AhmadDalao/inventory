@@ -125,7 +125,8 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
                 </tr>
             <?php endif; ?>
             <?php foreach ($items as $item): ?>
-                <?php $isLow = (float) $item['current_quantity'] <= (float) $item['reorder_level']; ?>
+                <?php $currentQuantity = item_display_quantity($item); ?>
+                <?php $isLow = $currentQuantity <= (float) $item['reorder_level']; ?>
                 <?php $imageUrl = item_image_url($item['image_path'] ?? null); ?>
                 <tr>
                     <td data-label="Item">
@@ -165,7 +166,10 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
                         <?php endif; ?>
                     </td>
                     <td class="<?= $isLow ? 'danger-text' : '' ?>" data-label="Current">
-                        <?= format_quantity($item['current_quantity']) ?> <?= e($item['unit']) ?>
+                        <?= format_quantity($currentQuantity) ?> <?= e($item['unit']) ?>
+                        <?php if ($selectedStorage): ?>
+                            <div class="tiny-copy">in <?= e($selectedStorage['name']) ?></div>
+                        <?php endif; ?>
                     </td>
                     <td data-label="Reorder"><?= format_quantity($item['reorder_level']) ?> <?= e($item['unit']) ?></td>
                     <td data-label="Status">

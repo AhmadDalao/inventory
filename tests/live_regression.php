@@ -582,6 +582,7 @@ $itemFilteredToSecondStorage = request($baseUrl, $cookieFile, 'GET', '/items?sta
 assert_true($itemFilteredToSecondStorage['status'] === 200, 'Storage-filtered item list did not load.');
 assert_true(contains_text($itemFilteredToSecondStorage['body'], 'Remove Here'), 'Storage-filtered item list is missing the local remove action.');
 assert_true(contains_text($itemFilteredToSecondStorage['body'], '/items/' . $firstItemId . '/locations/' . $thirdStorageId . '/remove'), 'Storage-filtered item list local remove action points at the wrong location.');
+assert_true(contains_text($itemFilteredToSecondStorage['body'], '3 pcs'), 'Storage-filtered item list should show the selected storage quantity instead of the global item total.');
 
 note('Assigning the existing SKU to another storage with zero quantity.');
 $zeroAssignStoragePage = request($baseUrl, $cookieFile, 'GET', '/storages/create');
