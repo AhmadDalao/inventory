@@ -3088,6 +3088,8 @@ assert_true($reportsPage['status'] === 200, 'Reports page did not load for owner
 assert_true(strpos($reportsPage['body'], 'reports-summary-panel') !== false, 'Reports page is missing the daily summary panel.');
 assert_true(strpos($reportsPage['body'], 'Everything That Happened On') !== false, 'Reports page is missing the daily summary title.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'Reports page is missing the daily summary export link.');
+assert_true(strpos($reportsPage['body'], '/exports/daily-summary.xlsx') !== false, 'Reports page is missing the daily summary XLSX export link.');
+assert_true(strpos($reportsPage['body'], 'name="item_status"') !== false && strpos($reportsPage['body'], 'Deleted items') !== false, 'Reports page is missing the item status filter.');
 assert_true(strpos($reportsPage['body'], 'summary-usage-tag') !== false && strpos($reportsPage['body'], 'Used Damage') !== false, 'Reports page is missing handover usage reason chips.');
 assert_true(strpos($reportsPage['body'], $prefix . ' damaged during event') !== false, 'Reports page is missing submitted usage notes.');
 assert_true(strpos($reportsPage['body'], 'Who Used Or Moved Stock') !== false, 'Reports page is missing the user movement summary.');
@@ -3098,6 +3100,14 @@ assert_true(strpos($reportsPage['body'], 'Purchase Receiving Queue') !== false, 
 $dailySummaryExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?date=' . rawurlencode(date('Y-m-d')));
 assert_true($dailySummaryExport['status'] === 200, 'Daily summary export failed.');
 assert_true(strpos($dailySummaryExport['body'], 'Section,Date,Storage') !== false, 'Daily summary export is missing the CSV header.');
+assert_true(strpos($dailySummaryExport['body'], 'Item Status') !== false, 'Daily summary export is missing the item status column.');
+$dailySummaryXlsxExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?date=' . rawurlencode(date('Y-m-d')) . '&item_status=active');
+assert_true($dailySummaryXlsxExport['status'] === 200, 'Daily summary XLSX export failed.');
+assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Usage By Item', 'Daily summary XLSX export is missing usage rows.');
+assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Scan Code', 'Daily summary XLSX export is missing scan code details.');
+assert_xlsx_contains_media($dailySummaryXlsxExport['body'], 'Daily summary XLSX export is missing embedded item thumbnails.');
+assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/reports?item_status=active')['status'] === 200, 'Reports active item-status filter failed.');
+assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/reports?item_status=deleted')['status'] === 200, 'Reports deleted item-status filter failed.');
 $staffReportsPage = http_request($baseUrl, $staffCookie, 'GET', '/reports');
 assert_true($staffReportsPage['status'] === 403, 'Staff should not open reports.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/requests?status=open')['status'] === 200, 'Requests index filter failed.');

@@ -351,6 +351,9 @@ $router->get('/exports/movements.xlsx', static function (): void {
 $router->get('/exports/daily-summary', static function (): void {
     handle_export_daily_summary();
 });
+$router->get('/exports/daily-summary.xlsx', static function (): void {
+    handle_export_daily_summary_xlsx();
+});
 $router->get('/exports/storages', static function (): void {
     handle_export_storages();
 });

@@ -12,6 +12,7 @@
 $summaryCards = $summary['cards'] ?? [];
 $selectedDate = (string) ($summaryFilters['date'] ?? date('Y-m-d'));
 $selectedType = (string) ($summaryFilters['movement_type'] ?? '');
+$selectedItemStatus = (string) ($summaryFilters['item_status'] ?? 'all');
 $isSummaryLocationScoped = !empty($summaryFilters['storage_id']);
 $dateTitle = date('M j, Y', strtotime($selectedDate));
 ?>
@@ -27,7 +28,10 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
         <div class="report-summary-actions">
             <a class="ghost-button" href="<?= e((string) $summary['movement_url']) ?>"><?= ui_icon('movements') ?><span>Open Movement Log</span></a>
             <?php if (Auth::hasPermission('movements.export')): ?>
-                <a class="primary-button" href="<?= e((string) $summary['export_url']) ?>"><?= ui_icon('export') ?><span>Export Summary</span></a>
+                <a class="ghost-button" href="<?= e((string) $summary['export_url']) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+                <?php if (report_xlsx_thumbnail_export_enabled()): ?>
+                    <a class="primary-button" href="<?= e((string) $summary['export_xlsx_url']) ?>"><?= ui_icon('items') ?><span>Export Excel</span></a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
@@ -61,6 +65,15 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
             </select>
         </label>
 
+        <label class="field">
+            <span>Item Status</span>
+            <select name="item_status">
+                <option value="all" <?= selected('all', $selectedItemStatus) ?>>All items</option>
+                <option value="active" <?= selected('active', $selectedItemStatus) ?>>Active items</option>
+                <option value="deleted" <?= selected('deleted', $selectedItemStatus) ?>>Deleted items</option>
+            </select>
+        </label>
+
         <div class="filter-actions">
             <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
             <a class="ghost-button" href="<?= e(url('/reports')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
@@ -70,6 +83,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
     <div class="reports-summary-context">
         <span><?= e((string) $summary['storage_label']) ?></span>
         <span><?= e(report_summary_movement_label($selectedType)) ?></span>
+        <span><?= e(report_summary_item_status_label($selectedItemStatus)) ?></span>
     </div>
 
     <div class="metric-grid reports-summary-metrics">

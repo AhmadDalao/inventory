@@ -175,6 +175,17 @@ function site_setting_schema(): array
                     ],
                     'maxlength' => 1,
                 ],
+                'exports.report_xlsx_thumbnails' => [
+                    'label' => 'Report Excel exports with thumbnails',
+                    'default' => '1',
+                    'help' => 'Adds XLSX export buttons on Reports summaries with embedded item thumbnails where items are listed.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
                 'exports.excel_barcode_images' => [
                     'label' => 'Excel exports with scannable barcode images',
                     'default' => '1',
@@ -4228,6 +4239,11 @@ function storage_xlsx_thumbnail_export_enabled(): bool
 function movement_xlsx_thumbnail_export_enabled(): bool
 {
     return site_setting('exports.movement_xlsx_thumbnails', '1') === '1';
+}
+
+function report_xlsx_thumbnail_export_enabled(): bool
+{
+    return site_setting('exports.report_xlsx_thumbnails', '1') === '1';
 }
 
 function excel_export_barcode_images_enabled(): bool
