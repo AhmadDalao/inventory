@@ -33,18 +33,31 @@ function build_asset_where(array $filters, string $alias = 'a'): array
     $search = trim((string) ($filters['search'] ?? ''));
 
     if ($search !== '') {
+        $searchLike = '%' . $search . '%';
         $conditions[] = "(
-            {$alias}.asset_number LIKE :asset_search
-            OR {$alias}.name LIKE :asset_search
-            OR COALESCE({$alias}.category, '') LIKE :asset_search
-            OR COALESCE({$alias}.model, '') LIKE :asset_search
-            OR COALESCE({$alias}.serial_number, '') LIKE :asset_search
-            OR COALESCE({$alias}.barcode, '') LIKE :asset_search
-            OR EXISTS (SELECT 1 FROM storages asset_search_storage WHERE asset_search_storage.id = {$alias}.storage_id AND asset_search_storage.name LIKE :asset_search)
-            OR EXISTS (SELECT 1 FROM users asset_search_user WHERE asset_search_user.id = {$alias}.assigned_user_id AND asset_search_user.name LIKE :asset_search)
-            OR EXISTS (SELECT 1 FROM suppliers asset_search_supplier WHERE asset_search_supplier.id = {$alias}.supplier_id AND asset_search_supplier.name LIKE :asset_search)
+            {$alias}.asset_number LIKE :asset_search_number
+            OR {$alias}.name LIKE :asset_search_name
+            OR COALESCE({$alias}.category, '') LIKE :asset_search_category
+            OR COALESCE({$alias}.model, '') LIKE :asset_search_model
+            OR COALESCE({$alias}.serial_number, '') LIKE :asset_search_serial
+            OR COALESCE({$alias}.barcode, '') LIKE :asset_search_barcode
+            OR EXISTS (SELECT 1 FROM storages asset_search_storage WHERE asset_search_storage.id = {$alias}.storage_id AND asset_search_storage.name LIKE :asset_search_storage)
+            OR EXISTS (SELECT 1 FROM users asset_search_user WHERE asset_search_user.id = {$alias}.assigned_user_id AND asset_search_user.name LIKE :asset_search_user)
+            OR EXISTS (SELECT 1 FROM suppliers asset_search_supplier WHERE asset_search_supplier.id = {$alias}.supplier_id AND asset_search_supplier.name LIKE :asset_search_supplier)
         )";
-        $params['asset_search'] = '%' . $search . '%';
+        foreach ([
+            'asset_search_number',
+            'asset_search_name',
+            'asset_search_category',
+            'asset_search_model',
+            'asset_search_serial',
+            'asset_search_barcode',
+            'asset_search_storage',
+            'asset_search_user',
+            'asset_search_supplier',
+        ] as $paramName) {
+            $params[$paramName] = $searchLike;
+        }
     }
 
     if (($filters['status'] ?? 'all') !== 'all') {

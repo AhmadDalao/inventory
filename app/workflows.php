@@ -584,9 +584,9 @@ function workflow_reference_normalize(string $reference): string
     $path = (string) (parse_url($reference, PHP_URL_PATH) ?: '');
 
     if ($path !== '') {
-        if (preg_match('#/open/([^/?#]+)#i', $path, $matches)) {
+        if (preg_match('~/open/([^/?#]+)~i', $path, $matches)) {
             $reference = rawurldecode((string) $matches[1]);
-        } elseif (preg_match('#/(HDO|REQ|PO|STK)-[A-Z0-9-]+$#i', $path, $matches)) {
+        } elseif (preg_match('~/(HDO|REQ|PO|STK|AST)-[A-Z0-9-]+$~i', $path, $matches)) {
             $reference = ltrim((string) $matches[0], '/');
         }
     }
