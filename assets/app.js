@@ -6205,38 +6205,54 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const initWorkflowDocumentSettings = (root = document) => {
-    root.querySelectorAll('[name="settings[workflow.signoff_image_size]"]').forEach((select) => {
-      if (!(select instanceof HTMLSelectElement) || select.dataset.workflowImageSettingBound === 'true') {
-        return;
-      }
+    const bindCustomSizeFields = (selectName, widthKey, heightKey, boundKey) => {
+      root.querySelectorAll(`[name="${selectName}"]`).forEach((select) => {
+        if (!(select instanceof HTMLSelectElement) || select.dataset[boundKey] === 'true') {
+          return;
+        }
 
-      select.dataset.workflowImageSettingBound = 'true';
+        select.dataset[boundKey] = 'true';
 
-      const widthField = document.querySelector('[data-setting-field="workflow.signoff_image_custom_width"]');
-      const heightField = document.querySelector('[data-setting-field="workflow.signoff_image_custom_height"]');
-      const widthInput = widthField?.querySelector('input');
-      const heightInput = heightField?.querySelector('input');
+        const widthField = document.querySelector(`[data-setting-field="${widthKey}"]`);
+        const heightField = document.querySelector(`[data-setting-field="${heightKey}"]`);
+        const widthInput = widthField?.querySelector('input');
+        const heightInput = heightField?.querySelector('input');
 
-      const sync = () => {
-        const isCustom = select.value === 'custom';
+        const sync = () => {
+          const isCustom = select.value === 'custom';
 
-        [widthField, heightField].forEach((field) => {
-          if (field instanceof HTMLElement) {
-            field.hidden = !isCustom;
-          }
-        });
+          [widthField, heightField].forEach((field) => {
+            if (field instanceof HTMLElement) {
+              field.hidden = !isCustom;
+            }
+          });
 
-        [widthInput, heightInput].forEach((input) => {
-          if (input instanceof HTMLInputElement) {
-            input.disabled = !isCustom;
-            input.required = isCustom;
-          }
-        });
-      };
+          [widthInput, heightInput].forEach((input) => {
+            if (input instanceof HTMLInputElement) {
+              input.disabled = !isCustom;
+              input.required = isCustom;
+            }
+          });
+        };
 
-      select.addEventListener('change', sync);
-      sync();
-    });
+        select.addEventListener('change', sync);
+        sync();
+      });
+    };
+
+    bindCustomSizeFields(
+      'settings[workflow.signoff_image_size]',
+      'workflow.signoff_image_custom_width',
+      'workflow.signoff_image_custom_height',
+      'workflowImageSettingBound',
+    );
+
+    bindCustomSizeFields(
+      'settings[exports.item_xlsx_thumbnail_size]',
+      'exports.item_xlsx_thumbnail_custom_width',
+      'exports.item_xlsx_thumbnail_custom_height',
+      'itemExportImageSettingBound',
+    );
   };
 
   const initInteractiveUi = (root = document) => {

@@ -153,6 +153,28 @@ function site_setting_schema(): array
                     ],
                     'maxlength' => 1,
                 ],
+                'exports.storage_xlsx_thumbnails' => [
+                    'label' => 'Storage Excel export with item thumbnails',
+                    'default' => '0',
+                    'help' => 'Adds a separate XLSX export button on the Storages page with each storage and the items inside it.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
+                'exports.excel_barcode_images' => [
+                    'label' => 'Excel exports with scannable barcode images',
+                    'default' => '1',
+                    'help' => 'Adds a barcode image beside the barcode/scan code in supported Excel exports. If an item has no barcode, the SKU is used as the scan code.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
                 'exports.item_xlsx_thumbnail_size' => [
                     'label' => 'Item Excel thumbnail size',
                     'default' => 'medium',
@@ -4026,6 +4048,16 @@ function item_image_url(?string $imagePath): ?string
 function item_xlsx_thumbnail_export_enabled(): bool
 {
     return site_setting('exports.item_xlsx_thumbnails', '0') === '1';
+}
+
+function storage_xlsx_thumbnail_export_enabled(): bool
+{
+    return site_setting('exports.storage_xlsx_thumbnails', '0') === '1';
+}
+
+function excel_export_barcode_images_enabled(): bool
+{
+    return site_setting('exports.excel_barcode_images', '1') === '1';
 }
 
 function item_initial(?string $value): string

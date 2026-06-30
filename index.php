@@ -345,6 +345,9 @@ $router->get('/exports/movements', static function (): void {
 $router->get('/exports/storages', static function (): void {
     handle_export_storages();
 });
+$router->get('/exports/storages.xlsx', static function (): void {
+    handle_export_storages_xlsx();
+});
 $router->get('/exports/requests', static function (): void {
     handle_export_requests();
 });
