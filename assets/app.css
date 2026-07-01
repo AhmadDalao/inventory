@@ -1958,6 +1958,48 @@ textarea {
     text-align: center;
 }
 
+.handover-expected-usage {
+    margin-top: 10px;
+    border: 1px solid #eee3d4;
+    border-radius: 18px;
+    background: #fffaf2;
+    padding: 10px 12px;
+    white-space: normal;
+}
+
+.handover-expected-usage summary {
+    cursor: pointer;
+    color: var(--accent-strong);
+    font-weight: 900;
+}
+
+.handover-expected-usage .tiny-copy {
+    margin: 8px 0;
+}
+
+.handover-expected-usage-list {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.handover-expected-usage-row {
+    display: grid;
+    grid-template-columns: minmax(130px, 0.9fr) minmax(100px, 0.65fr) minmax(130px, 1fr) minmax(150px, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.handover-expected-usage-row select,
+.handover-expected-usage-row input {
+    width: 100%;
+    min-width: 0;
+}
+
+.handover-expected-usage-row [hidden] {
+    display: none !important;
+}
+
 .workflow-owner-field {
     align-content: start;
 }
@@ -10271,6 +10313,7 @@ body.app-shell {
     .app-shell .handover-value-strip,
     .app-shell .handover-compact-grid,
     .app-shell .handover-usage-row,
+    .app-shell .handover-expected-usage-row,
     .app-shell .access-summary-card,
     .app-shell .access-summary-stats,
     .app-shell .permission-grid,

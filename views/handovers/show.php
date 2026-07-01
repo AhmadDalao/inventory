@@ -380,6 +380,7 @@ foreach ($lines as $line) {
                     <?php foreach ($lines as $lineIndex => $line): ?>
                         <?php
                         $lineBreakdowns = (array) ($line['usage_breakdowns'] ?? []);
+                        $expectedUsageSummary = trim((string) ($line['expected_usage_reason_summary'] ?? ''));
                         $lineHasExistingUsage = round((float) ($line['quantity_used'] ?? 0), 2) > 0;
                         $lineReturningQuantity = round((float) $line['quantity_received'] - (float) $line['quantity_used'], 2);
 
@@ -414,6 +415,9 @@ foreach ($lines as $line) {
                             </summary>
 
                             <div class="handover-close-card-body">
+                                <?php if ($expectedUsageSummary !== ''): ?>
+                                    <div class="handover-usage-summary-chip">Expected: <?= e($expectedUsageSummary) ?></div>
+                                <?php endif; ?>
                                 <div class="handover-close-card-head">
                                     <div class="handover-close-metric">
                                         <span>Received</span>
@@ -515,6 +519,7 @@ foreach ($lines as $line) {
                             $receivedQuantity = round((float) ($line['quantity_received'] ?? 0), 2);
                             $usedQuantity = round((float) ($line['quantity_used'] ?? 0), 2);
                             $returnedQuantity = round((float) ($line['quantity_returned'] ?? max(0, $receivedQuantity - $usedQuantity)), 2);
+                            $expectedUsageSummary = trim((string) ($line['expected_usage_reason_summary'] ?? ''));
                             $usageSummary = trim((string) ($line['usage_reason_summary'] ?? ''));
                         ?>
                         <section class="handover-approval-card" data-handover-approval-line>
@@ -523,11 +528,8 @@ foreach ($lines as $line) {
                                     <strong><?= e($line['item_name']) ?></strong>
                                     <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
                                 </div>
-                                <?php if ($usageSummary !== ''): ?>
-                                    <span class="handover-usage-summary-chip"><?= e($usageSummary) ?></span>
-                                <?php else: ?>
-                                    <span class="handover-usage-summary-chip is-muted">No reason submitted</span>
-                                <?php endif; ?>
+                                <span class="handover-usage-summary-chip <?= $expectedUsageSummary === '' ? 'is-muted' : '' ?>">Expected: <?= $expectedUsageSummary !== '' ? e($expectedUsageSummary) : 'No plan' ?></span>
+                                <span class="handover-usage-summary-chip <?= $usageSummary === '' ? 'is-muted' : '' ?>">Actual: <?= $usageSummary !== '' ? e($usageSummary) : 'No reason submitted' ?></span>
                             </div>
 
                             <div class="handover-approval-metrics">
@@ -836,6 +838,7 @@ foreach ($lines as $line) {
                 <th>SKU</th>
                 <th>Planned</th>
                 <th>Received</th>
+                <th>Expected Usage</th>
                 <th>Used</th>
                 <th>Usage</th>
                 <th>Returned</th>
@@ -876,6 +879,7 @@ foreach ($lines as $line) {
                     <td data-label="SKU"><?= e($line['item_sku']) ?></td>
                     <td data-label="Planned"><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Received"><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
+                    <td data-label="Expected Usage"><?= e((string) ($line['expected_usage_reason_summary'] ?? '')) ?: '-' ?></td>
                     <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Usage"><?= e((string) ($line['usage_reason_summary'] ?? '')) ?: '-' ?></td>
                     <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>

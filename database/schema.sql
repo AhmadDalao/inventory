@@ -372,6 +372,54 @@ CREATE TABLE IF NOT EXISTS handover_lines (
     CONSTRAINT fk_handover_lines_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS handover_usage_breakdowns (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    handover_id BIGINT UNSIGNED NOT NULL,
+    handover_line_id BIGINT UNSIGNED NOT NULL,
+    item_id BIGINT UNSIGNED NOT NULL,
+    reason_code VARCHAR(40) NOT NULL DEFAULT 'unspecified',
+    reason_custom VARCHAR(120) NULL,
+    quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    notes VARCHAR(255) NULL,
+    created_by BIGINT UNSIGNED NULL,
+    updated_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_handover_usage_handover (handover_id),
+    INDEX idx_handover_usage_line (handover_line_id),
+    INDEX idx_handover_usage_item (item_id),
+    INDEX idx_handover_usage_reason (reason_code),
+    CONSTRAINT fk_handover_usage_handover FOREIGN KEY (handover_id) REFERENCES handovers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_handover_usage_line FOREIGN KEY (handover_line_id) REFERENCES handover_lines(id) ON DELETE CASCADE,
+    CONSTRAINT fk_handover_usage_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_handover_usage_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_handover_usage_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS handover_expected_usage_breakdowns (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    handover_id BIGINT UNSIGNED NOT NULL,
+    handover_line_id BIGINT UNSIGNED NOT NULL,
+    item_id BIGINT UNSIGNED NOT NULL,
+    reason_code VARCHAR(40) NOT NULL DEFAULT 'unspecified',
+    reason_custom VARCHAR(120) NULL,
+    quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    notes VARCHAR(255) NULL,
+    created_by BIGINT UNSIGNED NULL,
+    updated_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_handover_expected_usage_handover (handover_id),
+    INDEX idx_handover_expected_usage_line (handover_line_id),
+    INDEX idx_handover_expected_usage_item (item_id),
+    INDEX idx_handover_expected_usage_reason (reason_code),
+    CONSTRAINT fk_handover_expected_usage_handover FOREIGN KEY (handover_id) REFERENCES handovers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_handover_expected_usage_line FOREIGN KEY (handover_line_id) REFERENCES handover_lines(id) ON DELETE CASCADE,
+    CONSTRAINT fk_handover_expected_usage_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_handover_expected_usage_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_handover_expected_usage_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS workflow_documents (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     workflow_type ENUM('handover', 'request') NOT NULL,

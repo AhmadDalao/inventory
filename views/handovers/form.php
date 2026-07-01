@@ -1,6 +1,37 @@
 <?php
 $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id' => '', 'quantity' => '']];
 $isStaffRequest = !empty($isStaffRequest);
+$usageReasonOptions = is_array($usageReasonOptions ?? null) ? $usageReasonOptions : handover_usage_reason_options();
+$oldExpectedUsage = [
+    'reason' => old('expected_usage_reason', []),
+    'quantity' => old('expected_usage_quantity', []),
+    'other' => old('expected_usage_other', []),
+    'notes' => old('expected_usage_notes', []),
+];
+$expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage): array {
+    $rows = [];
+    $reasons = is_array($oldExpectedUsage['reason'][$lineIndex] ?? null) ? $oldExpectedUsage['reason'][$lineIndex] : [];
+    $quantities = is_array($oldExpectedUsage['quantity'][$lineIndex] ?? null) ? $oldExpectedUsage['quantity'][$lineIndex] : [];
+    $others = is_array($oldExpectedUsage['other'][$lineIndex] ?? null) ? $oldExpectedUsage['other'][$lineIndex] : [];
+    $notes = is_array($oldExpectedUsage['notes'][$lineIndex] ?? null) ? $oldExpectedUsage['notes'][$lineIndex] : [];
+    $keys = array_unique(array_merge(array_keys($reasons), array_keys($quantities), array_keys($others), array_keys($notes)));
+
+    foreach ($keys as $key) {
+        $rows[] = [
+            'reason' => (string) ($reasons[$key] ?? 'unspecified'),
+            'quantity' => (string) ($quantities[$key] ?? ''),
+            'other' => (string) ($others[$key] ?? ''),
+            'notes' => (string) ($notes[$key] ?? ''),
+        ];
+    }
+
+    return $rows !== [] ? $rows : [[
+        'reason' => 'unspecified',
+        'quantity' => '',
+        'other' => '',
+        'notes' => '',
+    ]];
+};
 ?>
 
 <section class="page-head">
@@ -103,6 +134,8 @@ $isStaffRequest = !empty($isStaffRequest);
             data-hide-availability="<?= $isStaffRequest ? 'true' : 'false' ?>"
             data-hide-item-quantity="<?= $isStaffRequest ? 'true' : 'false' ?>"
             data-locked-owner-id="<?= e(!empty($lockedRequestOwner) ? (string) $lockedRequestOwner['id'] : '') ?>"
+            data-expected-usage="true"
+            data-usage-reasons="<?= e(json_encode($usageReasonOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
         >
             <div class="panel-head">
                 <div>
@@ -125,7 +158,7 @@ $isStaffRequest = !empty($isStaffRequest);
                     </tr>
                     </thead>
                     <tbody data-workflow-line-body>
-                    <?php foreach ($lineItems as $line): ?>
+                    <?php foreach ($lineItems as $lineIndex => $line): ?>
                         <tr data-workflow-line>
                             <td>
                                 <div class="workflow-picker" data-workflow-picker>
@@ -138,6 +171,28 @@ $isStaffRequest = !empty($isStaffRequest);
                                         <div class="workflow-picker-options" data-workflow-picker-options></div>
                                     </div>
                                 </div>
+                                <details class="handover-expected-usage" data-expected-usage-editor>
+                                    <summary>Expected usage plan</summary>
+                                    <p class="tiny-copy">Optional: split what you expect to use before the handover, like Online 250 and Walk-in 30.</p>
+                                    <div class="handover-expected-usage-list" data-expected-usage-list>
+                                        <?php foreach ($expectedRowsForIndex((int) $lineIndex) as $expectedRow): ?>
+                                            <div class="handover-expected-usage-row" data-expected-usage-row>
+                                                <select data-expected-usage-reason data-expected-usage-name="expected_usage_reason" name="expected_usage_reason[<?= (int) $lineIndex ?>][]">
+                                                    <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
+                                                        <option value="<?= e((string) $reasonCode) ?>" <?= selected((string) $reasonCode, (string) ($expectedRow['reason'] ?? 'unspecified')) ?>>
+                                                            <?= e((string) $reasonLabel) ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <input type="number" step="0.01" min="0" placeholder="Expected qty" data-expected-usage-name="expected_usage_quantity" name="expected_usage_quantity[<?= (int) $lineIndex ?>][]" value="<?= e((string) ($expectedRow['quantity'] ?? '')) ?>">
+                                                <input type="text" placeholder="Other reason" data-expected-usage-other data-expected-usage-name="expected_usage_other" name="expected_usage_other[<?= (int) $lineIndex ?>][]" value="<?= e((string) ($expectedRow['other'] ?? '')) ?>" <?= (string) ($expectedRow['reason'] ?? '') === 'other' ? '' : 'hidden' ?>>
+                                                <input type="text" placeholder="Optional note" data-expected-usage-name="expected_usage_notes" name="expected_usage_notes[<?= (int) $lineIndex ?>][]" value="<?= e((string) ($expectedRow['notes'] ?? '')) ?>">
+                                                <button class="text-button danger-link" type="button" data-remove-expected-usage>Remove</button>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <button class="ghost-button small-button" type="button" data-add-expected-usage>Add Expected Usage</button>
+                                </details>
                             </td>
                             <?php if (!$isStaffRequest): ?>
                                 <td>

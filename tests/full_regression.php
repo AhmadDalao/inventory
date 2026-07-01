@@ -3165,11 +3165,24 @@ $handoverCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/creat
     'notes' => $prefix . ' handover workflow',
     'line_item_id' => [(int) $handoverItems[0]['id'], (int) $handoverItems[1]['id']],
     'line_quantity' => ['20', '15'],
+    'expected_usage_reason' => [
+        ['online', 'walkin'],
+        ['event'],
+    ],
+    'expected_usage_quantity' => [
+        ['12', '6'],
+        ['10'],
+    ],
+    'expected_usage_notes' => [
+        [$prefix . ' expected online use', $prefix . ' expected walk-in use'],
+        [$prefix . ' expected event use'],
+    ],
 ]);
 assert_true($handoverCreate['status'] === 302, 'Handover create did not redirect.');
 $handoverId = first_redirect_id($handoverCreate['location'], '/handovers');
 $handoverCreatedRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverCreatedRecord['status'] === 'awaiting_receipt', 'Handover should wait for receipt confirmation after creation.');
+assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_expected_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => $handoverId]) === 3, 'Handover expected usage breakdown rows were not stored.');
 $handoverOpen = http_request($baseUrl, $ownerCookie, 'GET', '/open/' . rawurlencode((string) $handoverCreatedRecord['handover_number']));
 assert_true($handoverOpen['status'] === 302 && strpos((string) $handoverOpen['location'], '/handovers/' . $handoverId) !== false, 'Direct handover QR open route did not redirect to the handover detail.');
 
@@ -3196,6 +3209,8 @@ assert_true(strpos($staffDashboard['body'], 'metric-grid') === false, 'Staff das
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Total Items', 'Handover sign-off XLSX is missing total item quantity.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Used Total', 'Handover sign-off XLSX is missing used quantity total.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Returned Total', 'Handover sign-off XLSX is missing returned quantity total.');
+    assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Expected Usage', 'Handover sign-off XLSX is missing expected usage fields.');
+    assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Online 12', 'Handover sign-off XLSX is missing expected online usage.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Barcode / Scan Code', 'Handover sign-off XLSX is missing barcode column.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Reported / Final Qty', 'Handover sign-off XLSX is missing actual quantity column.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], (string) $handoverCreatedRecord['handover_number'], 'Handover sign-off XLSX is missing the scannable reference.');
@@ -3357,6 +3372,8 @@ assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Total Ite
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used Total', 'Final handover sign-off XLSX is missing used quantity total.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned Total', 'Final handover sign-off XLSX is missing returned quantity total.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Remaining Total', 'Final handover sign-off XLSX is missing remaining quantity total.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Expected Usage', 'Final handover sign-off XLSX is missing expected usage column.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Walk-in 6', 'Final handover sign-off XLSX is missing expected walk-in usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used Breakdown', 'Final handover sign-off XLSX is missing used breakdown column.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage 1', 'Final handover sign-off XLSX is missing damage usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Online 4', 'Final handover sign-off XLSX is missing online usage breakdown.');
@@ -3375,6 +3392,7 @@ assert_true($handoverExport['status'] === 200, 'Handover export failed.');
 assert_true(strpos($handoverExport['body'], $handoverRecord['handover_number']) !== false, 'Handover export is missing the created handover.');
 assert_true(strpos($handoverExport['body'], $handoverRequestClosed['handover_number']) !== false, 'Handover export is missing the requested handover.');
 assert_true(strpos($handoverExport['body'], 'Usage Reasons') !== false && strpos($handoverExport['body'], 'Damage 1') !== false, 'Handover export is missing usage reason details.');
+assert_true(strpos($handoverExport['body'], 'Expected Usage Reasons') !== false && strpos($handoverExport['body'], 'Online 12') !== false, 'Handover export is missing expected usage details.');
 
 $purchaseExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/purchases');
 assert_true($purchaseExport['status'] === 200, 'Purchase export failed.');

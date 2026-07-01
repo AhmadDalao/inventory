@@ -2475,6 +2475,17 @@ document.addEventListener('DOMContentLoaded', () => {
       const hideItemQuantity = builder.dataset.hideItemQuantity === 'true';
       const ownerName = form.querySelector('[data-request-owner-name]');
       const ownerCopy = form.querySelector('[data-request-owner-copy]');
+      const hasExpectedUsage = builder.dataset.expectedUsage === 'true';
+      let usageReasons = {
+        unspecified: 'Unspecified',
+        walkin: 'Walk-in',
+        online: 'Online',
+        event: 'Event',
+        damage: 'Damage',
+        sport: 'Sport',
+        school: 'School',
+        other: 'Other'
+      };
 
       try {
         catalog = JSON.parse(builder.dataset.storageCatalog || '{}');
@@ -2488,9 +2499,89 @@ document.addEventListener('DOMContentLoaded', () => {
         storageMeta = {};
       }
 
+      try {
+        usageReasons = JSON.parse(builder.dataset.usageReasons || '{}') || usageReasons;
+      } catch (error) {
+        usageReasons = {
+          unspecified: 'Unspecified',
+          walkin: 'Walk-in',
+          online: 'Online',
+          event: 'Event',
+          damage: 'Damage',
+          sport: 'Sport',
+          school: 'School',
+          other: 'Other'
+        };
+      }
+
       const currentItems = () => catalog[String(storageSelect.value)] || [];
 
       const findSelectedItem = (itemId) => currentItems().find((item) => String(item.id) === String(itemId || '')) || null;
+
+      const usageReasonOptionsMarkup = (selected = 'unspecified') => Object.entries(usageReasons).map(([value, label]) => (
+        `<option value="${escapeHtml(value)}"${String(value) === String(selected) ? ' selected' : ''}>${escapeHtml(label)}</option>`
+      )).join('');
+
+      const expectedUsageRowMarkup = () => `
+        <div class="handover-expected-usage-row" data-expected-usage-row>
+          <select data-expected-usage-reason data-expected-usage-name="expected_usage_reason">
+            ${usageReasonOptionsMarkup()}
+          </select>
+          <input type="number" step="0.01" min="0" placeholder="Expected qty" data-expected-usage-name="expected_usage_quantity">
+          <input type="text" placeholder="Other reason" data-expected-usage-other data-expected-usage-name="expected_usage_other" hidden>
+          <input type="text" placeholder="Optional note" data-expected-usage-name="expected_usage_notes">
+          <button class="text-button danger-link" type="button" data-remove-expected-usage>Remove</button>
+        </div>
+      `;
+
+      const expectedUsageEditorMarkup = () => {
+        if (!hasExpectedUsage) {
+          return '';
+        }
+
+        return `
+          <details class="handover-expected-usage" data-expected-usage-editor>
+            <summary>Expected usage plan</summary>
+            <p class="tiny-copy">Optional: split what you expect to use before the handover, like Online 250 and Walk-in 30.</p>
+            <div class="handover-expected-usage-list" data-expected-usage-list>
+              ${expectedUsageRowMarkup()}
+            </div>
+            <button class="ghost-button small-button" type="button" data-add-expected-usage>Add Expected Usage</button>
+          </details>
+        `;
+      };
+
+      const toggleExpectedOtherField = (row) => {
+        const reason = row.querySelector('[data-expected-usage-reason]');
+        const other = row.querySelector('[data-expected-usage-other]');
+
+        if (!(reason instanceof HTMLSelectElement) || !(other instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const isOther = reason.value === 'other';
+        other.hidden = !isOther;
+
+        if (!isOther) {
+          other.value = '';
+        }
+      };
+
+      const renumberExpectedUsageFields = () => {
+        body.querySelectorAll('[data-workflow-line]').forEach((line, lineIndex) => {
+          line.querySelectorAll('[data-expected-usage-name]').forEach((field) => {
+            if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement)) {
+              return;
+            }
+
+            const baseName = field.getAttribute('data-expected-usage-name');
+
+            if (baseName) {
+              field.name = `${baseName}[${lineIndex}][]`;
+            }
+          });
+        });
+      };
 
       const closePanels = (exceptPanel = null) => {
         body.querySelectorAll('[data-workflow-picker-panel]').forEach((panel) => {
@@ -2696,6 +2787,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="workflow-picker-options" data-workflow-picker-options></div>
               </div>
             </div>
+            ${expectedUsageEditorMarkup()}
           </td>
           ${hideAvailability ? '' : '<td><span class="tiny-copy" data-workflow-available>-</span></td>'}
           <td>
@@ -2706,6 +2798,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </td>
         `;
         body.appendChild(row);
+        renumberExpectedUsageFields();
         syncLine(row);
       };
 
@@ -2754,10 +2847,78 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      body.addEventListener('change', (event) => {
+        const target = event.target;
+
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        if (target.matches('[data-expected-usage-reason]')) {
+          const usageRow = target.closest('[data-expected-usage-row]');
+
+          if (usageRow instanceof HTMLElement) {
+            toggleExpectedOtherField(usageRow);
+          }
+        }
+      });
+
       body.addEventListener('click', (event) => {
         const target = event.target;
 
         if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const addExpectedUsageButton = target.closest('[data-add-expected-usage]');
+
+        if (addExpectedUsageButton) {
+          const editor = addExpectedUsageButton.closest('[data-expected-usage-editor]');
+          const list = editor ? editor.querySelector('[data-expected-usage-list]') : null;
+
+          if (list instanceof HTMLElement) {
+            list.insertAdjacentHTML('beforeend', expectedUsageRowMarkup());
+            const lastRow = list.querySelector('[data-expected-usage-row]:last-child');
+            if (lastRow instanceof HTMLElement) {
+              toggleExpectedOtherField(lastRow);
+              const qty = lastRow.querySelector('[data-expected-usage-name="expected_usage_quantity"]');
+              if (qty instanceof HTMLInputElement) {
+                qty.focus();
+              }
+            }
+            renumberExpectedUsageFields();
+          }
+
+          return;
+        }
+
+        const removeExpectedUsageButton = target.closest('[data-remove-expected-usage]');
+
+        if (removeExpectedUsageButton) {
+          const usageRow = removeExpectedUsageButton.closest('[data-expected-usage-row]');
+          const list = usageRow?.closest('[data-expected-usage-list]');
+
+          if (usageRow instanceof HTMLElement && list instanceof HTMLElement) {
+            const rows = Array.from(list.querySelectorAll('[data-expected-usage-row]'));
+
+            if (rows.length <= 1) {
+              usageRow.querySelectorAll('input').forEach((field) => {
+                if (field instanceof HTMLInputElement) {
+                  field.value = '';
+                }
+              });
+              const reason = usageRow.querySelector('[data-expected-usage-reason]');
+              if (reason instanceof HTMLSelectElement) {
+                reason.value = 'unspecified';
+              }
+              toggleExpectedOtherField(usageRow);
+            } else {
+              usageRow.remove();
+            }
+
+            renumberExpectedUsageFields();
+          }
+
           return;
         }
 
@@ -2820,6 +2981,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         ensureOneLine();
+        renumberExpectedUsageFields();
       });
 
       document.addEventListener('click', (event) => {
@@ -2839,6 +3001,12 @@ document.addEventListener('DOMContentLoaded', () => {
       ensureOneLine();
       filterStorageOptions();
       syncOwnerCard();
+      body.querySelectorAll('[data-expected-usage-row]').forEach((row) => {
+        if (row instanceof HTMLElement) {
+          toggleExpectedOtherField(row);
+        }
+      });
+      renumberExpectedUsageFields();
       body.querySelectorAll('[data-workflow-line]').forEach((line) => syncLine(line));
     });
   };

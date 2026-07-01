@@ -1704,6 +1704,94 @@ function parse_workflow_lines(): array
     return [$normalized, $errors];
 }
 
+function parse_handover_expected_usage_by_item(array $lines): array
+{
+    $itemIds = input('line_item_id', []);
+    $reasons = input('expected_usage_reason', []);
+    $quantities = input('expected_usage_quantity', []);
+    $customReasons = input('expected_usage_other', []);
+    $notes = input('expected_usage_notes', []);
+
+    if (!is_array($itemIds)) {
+        return [[], []];
+    }
+
+    $lineQuantityByItem = [];
+
+    foreach ($lines as $line) {
+        $itemId = (int) ($line['item_id'] ?? 0);
+
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $lineQuantityByItem[$itemId] = round(($lineQuantityByItem[$itemId] ?? 0.0) + (float) ($line['quantity'] ?? 0), 2);
+    }
+
+    $breakdownsByItem = [];
+    $errors = [];
+
+    foreach ($itemIds as $lineIndex => $rawItemId) {
+        $itemId = normalize_entity_id($rawItemId);
+
+        if ($itemId === null || !isset($lineQuantityByItem[$itemId])) {
+            continue;
+        }
+
+        $lineReasons = is_array($reasons[$lineIndex] ?? null) ? $reasons[$lineIndex] : [];
+        $lineQuantities = is_array($quantities[$lineIndex] ?? null) ? $quantities[$lineIndex] : [];
+        $lineCustomReasons = is_array($customReasons[$lineIndex] ?? null) ? $customReasons[$lineIndex] : [];
+        $lineNotes = is_array($notes[$lineIndex] ?? null) ? $notes[$lineIndex] : [];
+        $rowKeys = array_unique(array_merge(
+            array_keys($lineReasons),
+            array_keys($lineQuantities),
+            array_keys($lineCustomReasons),
+            array_keys($lineNotes)
+        ));
+
+        foreach ($rowKeys as $rowKey) {
+            $rawQuantity = $lineQuantities[$rowKey] ?? '';
+            $rawReason = (string) ($lineReasons[$rowKey] ?? 'unspecified');
+            $rawCustomReason = trim((string) ($lineCustomReasons[$rowKey] ?? ''));
+            $rawNotes = trim((string) ($lineNotes[$rowKey] ?? ''));
+            $hasAnyInput = trim((string) $rawQuantity) !== ''
+                || trim($rawReason) !== ''
+                || $rawCustomReason !== ''
+                || $rawNotes !== '';
+
+            if (!$hasAnyInput || (trim((string) $rawQuantity) === '' && $rawCustomReason === '' && $rawNotes === '')) {
+                continue;
+            }
+
+            if (!is_numeric_value($rawQuantity) || quantity_value($rawQuantity) <= 0) {
+                $errors[] = 'Expected usage rows need a quantity greater than zero.';
+                continue;
+            }
+
+            $breakdownsByItem[$itemId][] = [
+                'reason_code' => normalize_handover_usage_reason($rawReason),
+                'reason_custom' => $rawCustomReason,
+                'quantity' => quantity_value($rawQuantity),
+                'notes' => $rawNotes,
+            ];
+        }
+    }
+
+    foreach ($breakdownsByItem as $itemId => $breakdowns) {
+        $expectedTotal = round(array_reduce(
+            $breakdowns,
+            static fn (float $carry, array $breakdown): float => $carry + (float) ($breakdown['quantity'] ?? 0),
+            0.0
+        ), 2);
+
+        if ($expectedTotal > round((float) ($lineQuantityByItem[$itemId] ?? 0), 2)) {
+            $errors[] = 'Expected usage cannot be greater than the planned handover quantity.';
+        }
+    }
+
+    return [$breakdownsByItem, $errors];
+}
+
 function next_workflow_number(string $prefix, string $table, string $column): string
 {
     do {
@@ -2243,6 +2331,43 @@ function handover_usage_breakdowns_for_lines(array $lineIds): array
     return $grouped;
 }
 
+function handover_expected_usage_breakdowns_for_lines(array $lineIds): array
+{
+    $lineIds = array_values(array_unique(array_filter(array_map('intval', $lineIds), static fn (int $lineId): bool => $lineId > 0)));
+
+    if ($lineIds === []) {
+        return [];
+    }
+
+    $params = [];
+    $placeholders = [];
+
+    foreach ($lineIds as $index => $lineId) {
+        $key = 'line_id_' . $index;
+        $placeholders[] = ':' . $key;
+        $params[$key] = $lineId;
+    }
+
+    $rows = Database::fetchAll(
+        'SELECT *
+         FROM handover_expected_usage_breakdowns
+         WHERE handover_line_id IN (' . implode(', ', $placeholders) . ')
+         ORDER BY handover_line_id ASC, id ASC',
+        $params
+    );
+    $grouped = [];
+
+    foreach ($rows as $row) {
+        $lineId = (int) $row['handover_line_id'];
+        $row['reason_code'] = normalize_handover_usage_reason((string) ($row['reason_code'] ?? ''));
+        $row['reason_label'] = handover_usage_reason_label((string) $row['reason_code'], (string) ($row['reason_custom'] ?? ''));
+        $row['quantity'] = round((float) ($row['quantity'] ?? 0), 2);
+        $grouped[$lineId][] = $row;
+    }
+
+    return $grouped;
+}
+
 function hydrate_handover_lines_usage_breakdowns(array $lines): array
 {
     $groups = handover_usage_breakdowns_for_lines(array_column($lines, 'id'));
@@ -2266,6 +2391,21 @@ function hydrate_handover_lines_usage_breakdowns(array $lines): array
 
         $line['usage_breakdowns'] = $breakdowns;
         $line['usage_reason_summary'] = handover_usage_reason_summary($breakdowns, (string) ($line['unit'] ?? 'pcs'));
+    }
+    unset($line);
+
+    return $lines;
+}
+
+function hydrate_handover_lines_expected_usage_breakdowns(array $lines): array
+{
+    $groups = handover_expected_usage_breakdowns_for_lines(array_column($lines, 'id'));
+
+    foreach ($lines as &$line) {
+        $lineId = (int) ($line['id'] ?? 0);
+        $breakdowns = $groups[$lineId] ?? [];
+        $line['expected_usage_breakdowns'] = $breakdowns;
+        $line['expected_usage_reason_summary'] = handover_usage_reason_summary($breakdowns, (string) ($line['unit'] ?? 'pcs'));
     }
     unset($line);
 
@@ -2913,7 +3053,7 @@ function handover_lines(int $handoverId): array
         ['handover_id' => $handoverId]
     );
 
-    return hydrate_handover_lines_usage_breakdowns($lines);
+    return hydrate_handover_lines_expected_usage_breakdowns(hydrate_handover_lines_usage_breakdowns($lines));
 }
 
 function workflow_documents(string $workflowType, int $workflowId): array
@@ -3094,6 +3234,7 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
             $returned = round((float) ($line['quantity_returned'] ?? 0), 2);
             $remainingBase = $received > 0 ? $received : $quantity;
             $remaining = max(0, round($remainingBase - $used - $returned, 2));
+            $expectedUsageSummary = handover_usage_reason_summary((array) ($line['expected_usage_breakdowns'] ?? []), $unit);
             $usageSummary = handover_usage_reason_summary((array) ($line['usage_breakdowns'] ?? []), $unit);
             $quantityLines = [
                 'Planned: ' . format_quantity($quantity) . ' ' . $unit,
@@ -3103,10 +3244,15 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
                 'Remaining: ' . format_quantity($remaining) . ' ' . $unit,
             ];
 
+            if ($expectedUsageSummary !== '') {
+                $quantityLines[] = 'Expected: ' . $expectedUsageSummary;
+            }
+
             if ($usageSummary !== '') {
                 $quantityLines[] = 'Usage: ' . $usageSummary;
             }
         } else {
+            $expectedUsageSummary = '';
             $usageSummary = '';
             $approved = round((float) ($line['quantity_approved'] ?? 0), 2);
             $received = round((float) ($line['quantity_received'] ?? 0), 2);
@@ -3134,6 +3280,8 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
             'returned_quantity' => $workflowType === 'handover' ? round((float) ($line['quantity_returned'] ?? 0), 2) : 0.0,
             'remaining_quantity' => $workflowType === 'handover' ? $remaining : 0.0,
             'approved_quantity' => $workflowType === 'request' ? round((float) ($line['quantity_approved'] ?? 0), 2) : 0.0,
+            'expected_usage_breakdowns' => $workflowType === 'handover' ? (array) ($line['expected_usage_breakdowns'] ?? []) : [],
+            'expected_usage_reason_summary' => $expectedUsageSummary,
             'usage_breakdowns' => $workflowType === 'handover' ? (array) ($line['usage_breakdowns'] ?? []) : [],
             'usage_reason_summary' => $usageSummary,
             'quantity_label' => format_quantity($quantity) . ' ' . $unit,
@@ -3179,14 +3327,14 @@ function workflow_signoff_format_grouped_total(array $totals): string
     return implode(' + ', $parts);
 }
 
-function workflow_signoff_usage_reason_totals(array $rows): string
+function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey = 'usage_breakdowns'): string
 {
     $totals = [];
 
     foreach ($rows as $row) {
         $unit = (string) ($row['unit'] ?? 'pcs');
 
-        foreach ((array) ($row['usage_breakdowns'] ?? []) as $breakdown) {
+        foreach ((array) ($row[$breakdownKey] ?? []) as $breakdown) {
             $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
 
             if ($quantity <= 0) {
@@ -3236,6 +3384,8 @@ function workflow_signoff_totals(string $workflowType, array $rows): array
             'tertiary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'returned_quantity')),
             'quaternary_label' => 'Remaining Total',
             'quaternary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'remaining_quantity')),
+            'expected_usage_reason_label' => 'Expected Usage',
+            'expected_usage_reason_value' => workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
             'usage_reason_label' => 'Usage By Reason',
             'usage_reason_value' => workflow_signoff_usage_reason_totals($rows),
         ];
@@ -4230,8 +4380,8 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         . workflow_xlsx_cell('G4', $meta['target_value'], 3)
         . workflow_xlsx_cell('H4', (string) ($totals['total_label'] ?? 'Total Items'), 4)
         . workflow_xlsx_cell('I4', (string) ($totals['total_value'] ?? ''), 3)
-        . workflow_xlsx_cell('J4', (string) ($totals['usage_reason_label'] ?? ''), 4)
-        . workflow_xlsx_cell('K4', (string) ($totals['usage_reason_value'] ?? ''), 3)
+        . workflow_xlsx_cell('J4', (string) ($totals['expected_usage_reason_label'] ?? ''), 4)
+        . workflow_xlsx_cell('K4', (string) ($totals['expected_usage_reason_value'] ?? ''), 3)
         . '</row>';
     $sheetRows[] = '<row r="5">'
         . workflow_xlsx_cell('A5', $meta['mode_label'], 4)
@@ -4242,9 +4392,11 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         . workflow_xlsx_cell('G5', (string) ($totals['tertiary_value'] ?? ''), 3)
         . workflow_xlsx_cell('H5', (string) ($totals['quaternary_label'] ?? ''), 4)
         . workflow_xlsx_cell('I5', (string) ($totals['quaternary_value'] ?? ''), 3)
+        . workflow_xlsx_cell('J5', (string) ($totals['usage_reason_label'] ?? ''), 4)
+        . workflow_xlsx_cell('K5', (string) ($totals['usage_reason_value'] ?? ''), 3)
         . '</row>';
 
-    $headers = ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Expected Qty', 'Reported / Final Qty', 'Used Breakdown', 'Returned', 'Remaining', 'Notes'];
+    $headers = ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Expected Qty', 'Reported / Final Qty', 'Expected Usage', 'Used Breakdown', 'Returned', 'Remaining', 'Notes'];
     $headerCells = '';
 
     foreach ($headers as $index => $header) {
@@ -4263,10 +4415,11 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $cells .= workflow_xlsx_cell('E' . $rowNumber, (string) $row['unit'], 3);
         $cells .= workflow_xlsx_cell('F' . $rowNumber, (string) $row['quantity_label'], 3);
         $cells .= workflow_xlsx_cell('G' . $rowNumber, (string) ($row['quantity_summary'] ?? ''), 3);
-        $cells .= workflow_xlsx_cell('H' . $rowNumber, (string) ($row['usage_reason_summary'] ?? ''), 3);
-        $cells .= workflow_xlsx_cell('I' . $rowNumber, ((float) ($row['returned_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['returned_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
-        $cells .= workflow_xlsx_cell('J' . $rowNumber, ((float) ($row['remaining_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['remaining_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
-        $cells .= workflow_xlsx_cell('K' . $rowNumber, '', 3);
+        $cells .= workflow_xlsx_cell('H' . $rowNumber, (string) ($row['expected_usage_reason_summary'] ?? ''), 3);
+        $cells .= workflow_xlsx_cell('I' . $rowNumber, (string) ($row['usage_reason_summary'] ?? ''), 3);
+        $cells .= workflow_xlsx_cell('J' . $rowNumber, ((float) ($row['returned_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['returned_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
+        $cells .= workflow_xlsx_cell('K' . $rowNumber, ((float) ($row['remaining_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['remaining_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
+        $cells .= workflow_xlsx_cell('L' . $rowNumber, '', 3);
         $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $rowHeight . '" customHeight="1">' . $cells . '</row>';
         $rowNumber++;
     }
@@ -4278,7 +4431,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
     $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
     $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
-    $xml .= '<cols><col min="1" max="1" width="' . number_format($imageColumnWidth, 1, '.', '') . '" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="28" customWidth="1"/><col min="5" max="5" width="10" customWidth="1"/><col min="6" max="7" width="18" customWidth="1"/><col min="8" max="8" width="28" customWidth="1"/><col min="9" max="10" width="16" customWidth="1"/><col min="11" max="11" width="20" customWidth="1"/></cols>';
+    $xml .= '<cols><col min="1" max="1" width="' . number_format($imageColumnWidth, 1, '.', '') . '" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="28" customWidth="1"/><col min="5" max="5" width="10" customWidth="1"/><col min="6" max="7" width="18" customWidth="1"/><col min="8" max="9" width="28" customWidth="1"/><col min="10" max="11" width="16" customWidth="1"/><col min="12" max="12" width="20" customWidth="1"/></cols>';
     $xml .= '<sheetData>' . implode('', $sheetRows) . '</sheetData>';
     $xml .= '<mergeCells count="5"><mergeCell ref="B1:H1"/><mergeCell ref="B2:H2"/><mergeCell ref="B4:C4"/><mergeCell ref="B' . $signatureRow . ':C' . $signatureRow . '"/><mergeCell ref="E' . $signatureRow . ':H' . $signatureRow . '"/></mergeCells>';
     $xml .= '<pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>';
@@ -4475,7 +4628,12 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
     $pdfImageSize = workflow_signoff_effective_image_size('pdf');
     $pdfImageWidth = (int) $pdfImageSize['width'];
     $pdfImageHeight = (int) $pdfImageSize['height'];
-    $rowHeight = max(96, $pdfImageHeight + 24);
+    $maxQuantityLines = array_reduce(
+        $rows,
+        static fn (int $carry, array $row): int => max($carry, count((array) ($row['quantity_lines'] ?? []))),
+        0
+    );
+    $rowHeight = max(96, $pdfImageHeight + 24, 40 + ($maxQuantityLines * 11));
     $firstPageRows = max(1, min(6, (int) floor(420 / $rowHeight)));
     $regularPageRows = max(1, min(7, (int) floor(500 / $rowHeight)));
     $pages = [];
@@ -4569,8 +4727,14 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         if (!empty($totals['quaternary_label'])) {
             $commands .= workflow_pdf_text($totals['quaternary_label'] . ': ' . truncate_text((string) ($totals['quaternary_value'] ?? ''), 14), 8, 464, 608, 'F2');
         }
+        $summaryY = 594;
+        if (!empty($totals['expected_usage_reason_value'])) {
+            $commands .= workflow_pdf_text('Expected Usage: ' . truncate_text((string) $totals['expected_usage_reason_value'], 72), 7, 56, $summaryY, 'F2');
+            $summaryY -= 10;
+        }
         if (!empty($totals['usage_reason_value'])) {
-            $commands .= workflow_pdf_text('Usage By Reason: ' . truncate_text((string) $totals['usage_reason_value'], 72), 7, 56, 594, 'F2');
+            $commands .= workflow_pdf_text('Usage By Reason: ' . truncate_text((string) $totals['usage_reason_value'], 72), 7, 56, $summaryY, 'F2');
+            $summaryY -= 10;
         }
         if (!empty($meta['open_reference'])) {
             $commands .= workflow_pdf_text('Scan/Search Ref', 8, 404, 716, 'F2');
@@ -4578,7 +4742,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_qr_code((string) $meta['open_reference'], 500, 686, 62);
         }
 
-        $tableY = 566;
+        $tableY = $summaryY < 594 ? 552 : 566;
         $imageX = 54;
         $detailsX = min(330, $imageX + $pdfImageWidth + 14);
         $quantityX = 430;
@@ -4710,6 +4874,14 @@ function workflow_signoff_revision_timestamp(array $record, array $lines): int
         }
 
         foreach ((array) ($line['usage_breakdowns'] ?? []) as $breakdown) {
+            $breakdownUpdated = (string) ($breakdown['updated_at'] ?? '');
+
+            if ($breakdownUpdated !== '') {
+                $timestamps[] = strtotime($breakdownUpdated) ?: 0;
+            }
+        }
+
+        foreach ((array) ($line['expected_usage_breakdowns'] ?? []) as $breakdown) {
             $breakdownUpdated = (string) ($breakdown['updated_at'] ?? '');
 
             if ($breakdownUpdated !== '') {
@@ -5397,6 +5569,80 @@ function save_handover_usage_breakdowns(int $handoverId, array $lineUpdates, int
     }
 }
 
+function save_handover_expected_usage_breakdowns(int $handoverId, array $lineUpdates, int $performedBy): void
+{
+    $lineIds = array_values(array_unique(array_filter(array_map(static fn (array $update): int => (int) ($update['line_id'] ?? 0), $lineUpdates))));
+
+    if ($lineIds === []) {
+        return;
+    }
+
+    $params = ['handover_id' => $handoverId];
+    $placeholders = [];
+
+    foreach ($lineIds as $index => $lineId) {
+        $key = 'line_id_' . $index;
+        $placeholders[] = ':' . $key;
+        $params[$key] = $lineId;
+    }
+
+    Database::execute(
+        'DELETE FROM handover_expected_usage_breakdowns
+         WHERE handover_id = :handover_id
+           AND handover_line_id IN (' . implode(', ', $placeholders) . ')',
+        $params
+    );
+
+    foreach ($lineUpdates as $update) {
+        foreach (($update['breakdowns'] ?? []) as $breakdown) {
+            $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
+
+            if ($quantity <= 0) {
+                continue;
+            }
+
+            Database::execute(
+                'INSERT INTO handover_expected_usage_breakdowns (
+                    handover_id,
+                    handover_line_id,
+                    item_id,
+                    reason_code,
+                    reason_custom,
+                    quantity,
+                    notes,
+                    created_by,
+                    updated_by,
+                    created_at,
+                    updated_at
+                 ) VALUES (
+                    :handover_id,
+                    :handover_line_id,
+                    :item_id,
+                    :reason_code,
+                    :reason_custom,
+                    :quantity,
+                    :notes,
+                    :created_by,
+                    :updated_by,
+                    NOW(),
+                    NOW()
+                 )',
+                [
+                    'handover_id' => $handoverId,
+                    'handover_line_id' => (int) $update['line_id'],
+                    'item_id' => (int) $update['item_id'],
+                    'reason_code' => normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? '')),
+                    'reason_custom' => trim((string) ($breakdown['reason_custom'] ?? '')) !== '' ? trim((string) ($breakdown['reason_custom'] ?? '')) : null,
+                    'quantity' => $quantity,
+                    'notes' => trim((string) ($breakdown['notes'] ?? '')) !== '' ? trim((string) ($breakdown['notes'] ?? '')) : null,
+                    'created_by' => $performedBy,
+                    'updated_by' => $performedBy,
+                ]
+            );
+        }
+    }
+}
+
 function issue_handover_inventory(array $handover, array $lines, int $performedBy): void
 {
     $bufferStorageId = system_storage_id('handover_buffer');
@@ -5740,6 +5986,7 @@ function handle_requests_create_page(): void
         'sourceStorages' => $sourceStorages,
         'destinationStorages' => $destinationStorages,
         'isStaffRequest' => Auth::isStaff(),
+        'usageReasonOptions' => handover_usage_reason_options(),
         'storageCatalogJson' => json_encode(workflow_storage_item_catalog(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'storageMetaJson' => json_encode(workflow_storage_meta($sourceStorages), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
@@ -6944,6 +7191,7 @@ function handle_handovers_create_submit(): void
     $user = Auth::user();
     $isStaffRequest = Auth::isStaff();
     [$lines, $lineErrors] = parse_workflow_lines();
+    [$expectedUsageByItem, $expectedUsageErrors] = parse_handover_expected_usage_by_item($lines);
     $payload = [
         'source_storage_id' => normalize_entity_id(input('source_storage_id')),
         'request_owner_user_id' => normalize_entity_id(input('request_owner_user_id')),
@@ -6964,9 +7212,13 @@ function handle_handovers_create_submit(): void
             'item_id' => (string) $line['item_id'],
             'quantity' => format_quantity($line['quantity']),
         ], $lines),
+        'expected_usage_reason' => input('expected_usage_reason', []),
+        'expected_usage_quantity' => input('expected_usage_quantity', []),
+        'expected_usage_other' => input('expected_usage_other', []),
+        'expected_usage_notes' => input('expected_usage_notes', []),
     ]);
 
-    $errors = $lineErrors;
+    $errors = array_merge($lineErrors, $expectedUsageErrors);
 
     if (!$payload['source_storage_id'] || !storage_exists_for_assignment($payload['source_storage_id'])) {
         $errors[] = 'Pick a valid source storage.';
@@ -7127,6 +7379,7 @@ function handle_handovers_create_submit(): void
         );
 
         $handoverId = Database::lastInsertId();
+        $expectedUsageUpdates = [];
 
         foreach ($lines as $line) {
             $item = $itemsById[(int) $line['item_id']];
@@ -7167,7 +7420,19 @@ function handle_handovers_create_submit(): void
                     'quantity_received' => $payload['recipient_user_id'] ? 0 : $line['quantity'],
                 ]
             );
+
+            $lineId = Database::lastInsertId();
+
+            if (!empty($expectedUsageByItem[(int) $item['id']])) {
+                $expectedUsageUpdates[] = [
+                    'line_id' => $lineId,
+                    'item_id' => (int) $item['id'],
+                    'breakdowns' => $expectedUsageByItem[(int) $item['id']],
+                ];
+            }
         }
+
+        save_handover_expected_usage_breakdowns($handoverId, $expectedUsageUpdates, (int) $user['id']);
 
         if (!$isStaffRequest) {
             issue_handover_inventory([
@@ -8563,6 +8828,7 @@ function handle_export_handovers(): void
                 format_quantity($line['quantity_used']),
                 format_quantity($line['quantity_returned']),
                 format_quantity($remainingQuantity),
+                (string) ($line['expected_usage_reason_summary'] ?? ''),
                 (string) ($line['usage_reason_summary'] ?? ''),
                 $handover['notes'] ?: '',
                 $handover['request_decision_notes'] ?: '',
@@ -8592,6 +8858,7 @@ function handle_export_handovers(): void
         'Used Quantity',
         'Returned Quantity',
         'Remaining Quantity',
+        'Expected Usage Reasons',
         'Usage Reasons',
         'Notes',
         'Request Decision Notes',
