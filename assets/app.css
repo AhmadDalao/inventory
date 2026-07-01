@@ -9719,3 +9719,346 @@ body.theme-official.auth-shell {
         display: none;
     }
 }
+
+/* Mobile flow hardening: one final layer that wins over older theme passes. */
+body.app-shell {
+    overflow-x: hidden;
+}
+
+.app-shell .shell,
+.app-shell .main-panel,
+.app-shell .content,
+.app-shell .topbar,
+.app-shell .panel,
+.app-shell .filter-panel,
+.app-shell .data-table-shell,
+.app-shell .live-filter-region,
+.app-shell .table-wrap,
+.app-shell .data-table-toolbar,
+.app-shell .table-toolbar-group,
+.app-shell .page-head,
+.app-shell .panel-head,
+.app-shell .filter-grid,
+.app-shell .field-row,
+.app-shell .page-actions,
+.app-shell .filter-actions,
+.app-shell .inline-actions,
+.app-shell .chip-row,
+.app-shell .metric-grid,
+.app-shell .panel-grid,
+.app-shell .detail-grid,
+.app-shell .dashboard-graph-grid,
+.app-shell .settings-grid,
+.app-shell .workflow-panel-grid,
+.app-shell .movement-filter-grid,
+.app-shell .movement-preview-grid,
+.app-shell .reports-summary-filter,
+.app-shell .reports-summary-metrics,
+.app-shell .reports-summary-columns,
+.app-shell .scan-workspace,
+.app-shell .scan-entry-panel,
+.app-shell .scan-batch-panel,
+.app-shell .purchase-line-card,
+.app-shell .handover-close-card,
+.app-shell .access-form-panel,
+.app-shell .item-form-shell,
+.app-shell .item-form,
+.app-shell .item-form-section,
+.app-shell .item-form-grid,
+.app-shell .item-form-actions,
+.app-shell .item-form-barcode-preview,
+.app-shell .file-card-grid,
+.app-shell .timeline-list,
+.app-shell .notification-filter-grid,
+.app-shell .notification-card-grid,
+.app-shell .report-preset-card,
+.app-shell .summary-card,
+.app-shell .summary-list {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.app-shell input,
+.app-shell select,
+.app-shell textarea,
+.app-shell button,
+.app-shell img,
+.app-shell canvas,
+.app-shell video,
+.app-shell svg {
+    max-width: 100%;
+}
+
+.app-shell .nav-link,
+.app-shell .global-search,
+.app-shell .global-search label,
+.app-shell .topbar-actions,
+.app-shell .topbar-user-menu,
+.app-shell .topbar-user-trigger,
+.app-shell .cell-link,
+.app-shell .cell-link-compact,
+.app-shell .item-table-cell,
+.app-shell .status-pill,
+.app-shell .pill,
+.app-shell .role-chip,
+.app-shell .table-shell-copy,
+.app-shell .muted-copy,
+.app-shell .tiny-copy {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.app-shell .sidebar {
+    max-width: 100vw;
+}
+
+.app-shell .sidebar .nav-links {
+    width: 100%;
+}
+
+@media (max-width: 1360px) {
+    .app-shell .shell,
+    .app-shell .shell.nav-collapsed,
+    .theme-clean.app-shell .shell,
+    .theme-clean.app-shell .shell.nav-collapsed,
+    .theme-official.app-shell .shell,
+    .theme-official.app-shell .shell.nav-collapsed {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .app-shell .shell.nav-collapsed .main-panel,
+    .theme-clean.app-shell .shell.nav-collapsed .main-panel,
+    .theme-official.app-shell .shell.nav-collapsed .main-panel {
+        padding-left: clamp(12px, 3vw, 28px);
+    }
+
+    .app-shell .sidebar,
+    .app-shell .shell.nav-collapsed .sidebar,
+    .theme-clean.app-shell .sidebar,
+    .theme-clean.app-shell .shell.nav-collapsed .sidebar,
+    .theme-official.app-shell .sidebar,
+    .theme-official.app-shell .shell.nav-collapsed .sidebar {
+        left: 0;
+        right: auto;
+        width: min(88vw, 320px);
+        max-width: min(88vw, 320px);
+        transform: translateX(-105%);
+        pointer-events: none;
+    }
+
+    .app-shell .shell.nav-open .sidebar,
+    .theme-clean.app-shell .shell.nav-open .sidebar,
+    .theme-official.app-shell .shell.nav-open .sidebar {
+        transform: translateX(0);
+        pointer-events: auto;
+    }
+
+    .app-shell .content,
+    .theme-clean.app-shell .content,
+    .theme-official.app-shell .content,
+    .app-shell .topbar,
+    .theme-clean.app-shell .topbar,
+    .theme-official.app-shell .topbar {
+        width: 100%;
+        max-width: 100%;
+        margin-inline: 0;
+        padding-inline: 0;
+    }
+}
+
+@media (max-width: 900px) {
+    .app-shell .topbar,
+    .theme-clean.app-shell .topbar,
+    .theme-official.app-shell .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 24;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 0;
+    }
+
+    .app-shell .global-search,
+    .theme-clean.app-shell .global-search,
+    .theme-official.app-shell .global-search {
+        grid-column: 1 / -1;
+        order: 3;
+        width: 100%;
+        max-width: none;
+    }
+
+    .app-shell .topbar-actions {
+        justify-content: flex-end;
+    }
+
+    .app-shell .table-wrap,
+    .app-shell .data-table-scroll,
+    .app-shell .table-scroll,
+    .app-shell .summary-table-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-shell .main-panel,
+    .theme-clean.app-shell .main-panel,
+    .theme-official.app-shell .main-panel {
+        width: 100%;
+        padding: 10px 12px calc(28px + env(safe-area-inset-bottom));
+    }
+
+    .app-shell .content,
+    .theme-clean.app-shell .content,
+    .theme-official.app-shell .content {
+        gap: 14px;
+    }
+
+    .app-shell .panel,
+    .app-shell .filter-panel,
+    .theme-clean.app-shell .panel,
+    .theme-clean.app-shell .filter-panel,
+    .theme-official.app-shell .panel,
+    .theme-official.app-shell .filter-panel {
+        padding: 16px;
+        border-radius: 22px;
+        overflow: hidden;
+    }
+
+    .app-shell .page-head,
+    .app-shell .panel-head,
+    .app-shell .table-shell-head,
+    .app-shell .data-table-toolbar,
+    .app-shell .filter-grid,
+    .app-shell .filter-actions,
+    .app-shell .page-actions,
+    .app-shell .button-row,
+    .app-shell .inline-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        text-align: left;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .app-shell .filter-grid > *,
+    .app-shell .filter-actions > *,
+    .app-shell .page-actions > *,
+    .app-shell .button-row > *,
+    .app-shell .inline-actions > *,
+    .app-shell .data-table-toolbar > *,
+    .app-shell .table-toolbar-group > * {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .app-shell .primary-button,
+    .app-shell .ghost-button,
+    .app-shell .danger-button,
+    .app-shell .table-export-button {
+        justify-content: center;
+        white-space: normal;
+    }
+
+    .app-shell .metric-grid,
+    .app-shell .compact-grid,
+    .app-shell .panel-grid,
+    .app-shell .detail-grid,
+    .app-shell .dashboard-graph-grid,
+    .app-shell .settings-grid,
+    .app-shell .workflow-panel-grid,
+    .app-shell .movement-filter-grid,
+    .app-shell .movement-preview-grid,
+    .app-shell .reports-summary-filter,
+    .app-shell .reports-summary-metrics,
+    .app-shell .reports-summary-columns,
+    .app-shell .scan-workspace,
+    .app-shell .scan-entry-panel,
+    .app-shell .scan-batch-panel,
+    .app-shell .purchase-line-core,
+    .app-shell .purchase-line-detail-grid,
+    .app-shell .handover-detail-grid,
+    .app-shell .handover-value-strip,
+    .app-shell .handover-compact-grid,
+    .app-shell .handover-usage-row,
+    .app-shell .access-summary-card,
+    .app-shell .access-summary-stats,
+    .app-shell .permission-grid,
+    .app-shell .file-card-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .app-shell .item-form-section-head,
+    .app-shell .item-form-actions,
+    .app-shell .item-form-barcode-preview,
+    .app-shell .notification-filter-grid,
+    .app-shell .notification-card-grid,
+    .app-shell .report-preset-card,
+    .app-shell .summary-card-head {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .app-shell .data-table-mobile td {
+        grid-template-columns: minmax(84px, 32%) minmax(0, 1fr);
+    }
+
+    .app-shell .data-table-mobile td > *,
+    .app-shell .data-table-mobile .item-table-cell,
+    .app-shell .data-table-mobile .cell-link,
+    .app-shell .data-table-mobile .cell-link-compact {
+        min-width: 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .app-shell .notification-panel,
+    .app-shell .topbar-user-panel,
+    .app-shell .global-search-panel,
+    .theme-clean.app-shell .notification-panel,
+    .theme-clean.app-shell .topbar-user-panel,
+    .theme-clean.app-shell .global-search-panel,
+    .theme-official.app-shell .notification-panel,
+    .theme-official.app-shell .topbar-user-panel,
+    .theme-official.app-shell .global-search-panel {
+        position: fixed;
+        top: 76px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+        max-height: calc(100dvh - 96px);
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-shell .summary-list,
+    .app-shell .workflow-card-list,
+    .app-shell .dashboard-notification-list,
+    .app-shell .latest-updates,
+    .app-shell [data-dashboard-notifications] {
+        max-height: min(420px, 58dvh);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 420px) {
+    .app-shell .data-table-mobile td {
+        grid-template-columns: 1fr;
+    }
+
+    .app-shell .data-table-mobile td::before {
+        margin-bottom: 4px;
+    }
+}
