@@ -1573,6 +1573,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const initHandoverApprovalForms = (root = document) => {
+    root.querySelectorAll('[data-handover-approval-form]').forEach((form) => {
+      if (form.dataset.handoverApprovalBound === 'true') {
+        return;
+      }
+
+      const syncLine = (line) => {
+        const returnedField = line.querySelector('[data-handover-approval-returned]');
+        const usedLabel = line.querySelector('[data-handover-approval-used]');
+        const warning = line.querySelector('[data-handover-approval-warning]');
+
+        if (!(returnedField instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const received = Math.max(0, parseNumber(returnedField.dataset.handoverReceived || '0'));
+        const returned = parseNumber(returnedField.value);
+        const isInvalid = returned < 0 || returned > received;
+        const used = Math.max(0, received - Math.max(0, returned));
+
+        if (usedLabel instanceof HTMLElement) {
+          usedLabel.textContent = formatQuantity(Math.round(used * 100) / 100);
+        }
+
+        if (warning instanceof HTMLElement) {
+          warning.hidden = !isInvalid;
+        }
+
+        returnedField.classList.toggle('is-invalid', isInvalid);
+      };
+
+      form.dataset.handoverApprovalBound = 'true';
+
+      form.querySelectorAll('[data-handover-approval-line]').forEach((line) => {
+        if (!(line instanceof HTMLElement)) {
+          return;
+        }
+
+        const returnedField = line.querySelector('[data-handover-approval-returned]');
+
+        if (returnedField instanceof HTMLInputElement) {
+          returnedField.addEventListener('input', () => syncLine(line));
+          returnedField.addEventListener('change', () => syncLine(line));
+        }
+
+        syncLine(line);
+      });
+    });
+  };
+
   const initTableShell = (shellElement) => {
     if (shellElement.dataset.jsBound === 'true') {
       return;
@@ -6434,6 +6484,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDataTables(root);
     initLiveActionForms(root);
     initHandoverCloseForms(root);
+    initHandoverApprovalForms(root);
     initMovementForm(root);
     initLiveFilters(root);
     initLabelPrintSelection(root);

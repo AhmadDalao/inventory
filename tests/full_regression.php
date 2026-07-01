@@ -3202,15 +3202,49 @@ assert_true($handoverPageForOwner['status'] === 200, 'Handover detail page did n
 $handoverPreApprovalSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverId]);
 assert_true($handoverPreApprovalSignoffExcelDocumentId > $handoverSignoffExcelDocumentId, 'Handover sign-off XLSX was not regenerated after staff submitted used quantities.');
 $handoverApproveToken = extract_csrf($handoverPageForOwner['body']);
-$handoverApprove = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/approve', [
+$handoverPendingLines = handover_lines($handoverId);
+$handoverApproveFields = [
     '_token' => $handoverApproveToken,
     'closed_notes' => $prefix . ' handover approved',
-]);
+];
+$ownerAdjustedLineId = 0;
+$ownerAdjustedExpectedUsed = 0.0;
+$ownerAdjustedExpectedReturned = 0.0;
+
+foreach ($handoverPendingLines as $line) {
+    $lineId = (int) $line['id'];
+    $returned = round((float) $line['quantity_returned'], 2);
+
+    if ((int) $line['item_id'] === (int) $handoverItems[0]['id']) {
+        $returned = round(max(0, $returned - 1), 2);
+        $ownerAdjustedLineId = $lineId;
+        $ownerAdjustedExpectedReturned = $returned;
+        $ownerAdjustedExpectedUsed = round((float) $line['quantity_received'] - $returned, 2);
+    }
+
+    $handoverApproveFields['line_returned[' . $lineId . ']'] = format_quantity($returned);
+}
+
+assert_true($ownerAdjustedLineId > 0, 'Test setup did not find the owner-adjusted handover line.');
+$handoverApprove = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/approve', $handoverApproveFields);
 assert_true($handoverApprove['status'] === 302, 'Handover approve did not redirect.');
 
 $handoverRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverRecord['status'] === 'closed', 'Handover did not reach closed status.');
-assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 5, 2), 'Handover source balance is wrong for the first item.');
+$handoverClosedLines = handover_lines($handoverId);
+$ownerAdjustedClosedLine = null;
+
+foreach ($handoverClosedLines as $line) {
+    if ((int) $line['id'] === $ownerAdjustedLineId) {
+        $ownerAdjustedClosedLine = $line;
+        break;
+    }
+}
+
+assert_true(is_array($ownerAdjustedClosedLine), 'Owner-adjusted handover line was not found after approval.');
+assert_true(round((float) $ownerAdjustedClosedLine['quantity_used'], 2) === $ownerAdjustedExpectedUsed, 'Owner approval correction did not update final used quantity.');
+assert_true(round((float) $ownerAdjustedClosedLine['quantity_returned'], 2) === $ownerAdjustedExpectedReturned, 'Owner approval correction did not update final returned quantity.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - $ownerAdjustedExpectedUsed, 2), 'Handover source balance is wrong for the first item after owner correction.');
 $handoverPageAfterApproval = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
 assert_true($handoverPageAfterApproval['status'] === 200, 'Handover detail page did not load after approval.');
 $handoverFinalSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverId]);
@@ -3224,6 +3258,7 @@ assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Remaining
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used Breakdown', 'Final handover sign-off XLSX is missing used breakdown column.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage 1', 'Final handover sign-off XLSX is missing damage usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Online 4', 'Final handover sign-off XLSX is missing online usage breakdown.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Unspecified 1', 'Final handover sign-off XLSX is missing owner approval adjustment usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used:', 'Final handover sign-off XLSX is missing used quantity values.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned:', 'Final handover sign-off XLSX is missing returned quantity values.');
 

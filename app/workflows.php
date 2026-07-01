@@ -5216,6 +5216,112 @@ function build_handover_close_updates(array $lines, $usedInput, array $usageInpu
     return [$updates, $errors];
 }
 
+function handover_adjust_breakdowns_for_approval(array $line, float $confirmedUsed): array
+{
+    $existing = array_values(array_filter((array) ($line['usage_breakdowns'] ?? []), static function (array $breakdown): bool {
+        return round((float) ($breakdown['quantity'] ?? 0), 2) > 0;
+    }));
+    $existingTotal = round(array_reduce($existing, static function (float $carry, array $breakdown): float {
+        return $carry + round((float) ($breakdown['quantity'] ?? 0), 2);
+    }, 0.0), 2);
+
+    if (abs($existingTotal - $confirmedUsed) < 0.01) {
+        return $existing;
+    }
+
+    if ($confirmedUsed <= 0) {
+        return [];
+    }
+
+    $adjustmentNote = 'Owner approval adjustment after confirming returned quantity.';
+
+    if ($existingTotal <= 0) {
+        return [[
+            'reason_code' => 'unspecified',
+            'reason_custom' => '',
+            'quantity' => $confirmedUsed,
+            'notes' => $adjustmentNote,
+        ]];
+    }
+
+    if ($confirmedUsed > $existingTotal) {
+        $existing[] = [
+            'reason_code' => 'unspecified',
+            'reason_custom' => '',
+            'quantity' => round($confirmedUsed - $existingTotal, 2),
+            'notes' => $adjustmentNote,
+        ];
+
+        return $existing;
+    }
+
+    $remaining = $confirmedUsed;
+    $trimmed = [];
+
+    foreach ($existing as $breakdown) {
+        if ($remaining <= 0) {
+            break;
+        }
+
+        $originalQuantity = round((float) ($breakdown['quantity'] ?? 0), 2);
+        $quantity = min($originalQuantity, $remaining);
+
+        if ($quantity <= 0) {
+            continue;
+        }
+
+        $breakdown['quantity'] = round($quantity, 2);
+
+        if ($quantity < $originalQuantity) {
+            $notes = trim((string) ($breakdown['notes'] ?? ''));
+            $breakdown['notes'] = $notes !== '' ? $notes . ' ' . $adjustmentNote : $adjustmentNote;
+        }
+
+        $trimmed[] = $breakdown;
+        $remaining = round($remaining - $quantity, 2);
+    }
+
+    return $trimmed;
+}
+
+function build_handover_approval_updates(array $lines, $returnedInput): array
+{
+    $errors = [];
+    $updates = [];
+
+    foreach ($lines as $line) {
+        $lineId = (int) $line['id'];
+        $received = handover_active_quantity($line);
+        $returnedRaw = is_array($returnedInput)
+            ? ($returnedInput[$lineId] ?? $returnedInput[(string) $lineId] ?? $line['quantity_returned'])
+            : $line['quantity_returned'];
+
+        if (!is_numeric_value($returnedRaw) || quantity_value($returnedRaw) < 0) {
+            $errors[] = $line['item_name'] . ' must have a valid confirmed return quantity.';
+            continue;
+        }
+
+        $returned = round(quantity_value($returnedRaw), 2);
+
+        if ($returned > $received) {
+            $errors[] = $line['item_name'] . ' cannot return more than the confirmed received quantity.';
+            continue;
+        }
+
+        $used = round($received - $returned, 2);
+
+        $updates[] = [
+            'line_id' => $lineId,
+            'item_id' => (int) $line['item_id'],
+            'used' => $used,
+            'returned' => $returned,
+            'breakdowns' => handover_adjust_breakdowns_for_approval($line, $used),
+        ];
+    }
+
+    return [$updates, $errors];
+}
+
 function save_handover_usage_breakdowns(int $handoverId, array $lineUpdates, int $performedBy): void
 {
     $lineIds = array_values(array_unique(array_filter(array_map(static fn (array $update): int => (int) ($update['line_id'] ?? 0), $lineUpdates))));
@@ -8319,20 +8425,40 @@ function handle_handovers_approve_submit(array $params): void
 
     $closedNotes = trim((string) input('closed_notes', (string) ($handover['closed_notes'] ?? '')));
     $lines = handover_lines((int) $handover['id']);
-    $lineUpdates = array_map(static function (array $line): array {
-        return [
-            'line_id' => (int) $line['id'],
-            'item_id' => (int) $line['item_id'],
-            'used' => round((float) $line['quantity_used'], 2),
-            'returned' => round((float) $line['quantity_returned'], 2),
-            'breakdowns' => (array) ($line['usage_breakdowns'] ?? []),
-        ];
-    }, $lines);
+    [$lineUpdates, $errors] = build_handover_approval_updates($lines, input('line_returned', []));
+
+    if ($errors !== []) {
+        if (request_wants_json()) {
+            json_response([
+                'ok' => false,
+                'message' => $errors[0],
+            ], 422);
+        }
+
+        flash_errors($errors);
+        redirect('/handovers/' . $handover['id']);
+    }
 
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
     try {
+        foreach ($lineUpdates as $update) {
+            Database::execute(
+                'UPDATE handover_lines
+                 SET quantity_used = :quantity_used,
+                     quantity_returned = :quantity_returned,
+                     updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'quantity_used' => $update['used'],
+                    'quantity_returned' => $update['returned'],
+                    'id' => $update['line_id'],
+                ]
+            );
+        }
+
+        save_handover_usage_breakdowns((int) $handover['id'], $lineUpdates, (int) $user['id']);
         finalize_handover_inventory($handover, $lineUpdates, (int) $user['id']);
 
         Database::execute(
@@ -8363,6 +8489,13 @@ function handle_handovers_approve_submit(array $params): void
 
         flash('danger', $exception->getMessage());
         redirect('/handovers/' . $handover['id']);
+    }
+
+    try {
+        $updatedHandover = find_handover_or_abort((int) $handover['id']);
+        ensure_workflow_signoff_pdf('handover', $updatedHandover, handover_lines((int) $handover['id']));
+    } catch (Throwable $exception) {
+        // Attachment regeneration should not block an already approved closeout.
     }
 
     if (!empty($handover['recipient_user_id'])) {

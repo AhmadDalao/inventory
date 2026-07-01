@@ -481,32 +481,67 @@ foreach ($lines as $line) {
                 </form>
             <?php endif; ?>
         <?php elseif ($canApproveClose): ?>
-            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/approve')) ?>" data-live-action-form>
+            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/approve')) ?>" data-live-action-form data-handover-approval-form>
                 <?= csrf_field() ?>
 
-                <div class="table-wrap">
-                    <table class="data-table workflow-close-table">
-                        <thead>
-                        <tr>
-                            <th>Item</th>
-                            <th>Received</th>
-                            <th>Used</th>
-                            <th>Usage</th>
-                            <th>Returning</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($lines as $line): ?>
-                            <tr>
-                                <td><?= e($line['item_name']) ?> <span class="tiny-copy"><?= e($line['item_sku']) ?></span></td>
-                                <td><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
-                                <td><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
-                                <td><?= e((string) ($line['usage_reason_summary'] ?? '')) ?: '-' ?></td>
-                                <td><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                <div class="copy-context-card">
+                    <strong>Confirm what actually came back</strong>
+                    <p>Edit the returned quantity if the physical count is different. Used quantity updates automatically from received minus returned.</p>
+                </div>
+
+                <div class="handover-approval-cards">
+                    <?php foreach ($lines as $line): ?>
+                        <?php
+                            $receivedQuantity = round((float) ($line['quantity_received'] ?? 0), 2);
+                            $usedQuantity = round((float) ($line['quantity_used'] ?? 0), 2);
+                            $returnedQuantity = round((float) ($line['quantity_returned'] ?? max(0, $receivedQuantity - $usedQuantity)), 2);
+                            $usageSummary = trim((string) ($line['usage_reason_summary'] ?? ''));
+                        ?>
+                        <section class="handover-approval-card" data-handover-approval-line>
+                            <div class="handover-approval-card-head">
+                                <div>
+                                    <strong><?= e($line['item_name']) ?></strong>
+                                    <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
+                                </div>
+                                <?php if ($usageSummary !== ''): ?>
+                                    <span class="handover-usage-summary-chip"><?= e($usageSummary) ?></span>
+                                <?php else: ?>
+                                    <span class="handover-usage-summary-chip is-muted">No reason submitted</span>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="handover-approval-metrics">
+                                <span><strong><?= format_quantity($receivedQuantity) ?></strong> received</span>
+                                <span><strong><?= format_quantity($usedQuantity) ?></strong> staff used</span>
+                                <span><strong><?= format_quantity($returnedQuantity) ?></strong> staff returning</span>
+                            </div>
+
+                            <div class="handover-approval-confirm-grid">
+                                <label class="field">
+                                    <span>Confirmed Returned</span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="<?= e(format_quantity($receivedQuantity)) ?>"
+                                        name="line_returned[<?= e((string) $line['id']) ?>]"
+                                        value="<?= e(format_quantity($returnedQuantity)) ?>"
+                                        data-handover-approval-returned
+                                        data-handover-received="<?= e(format_quantity($receivedQuantity)) ?>"
+                                    >
+                                    <small>If they returned 20 instead of 28, write 20 here.</small>
+                                </label>
+
+                                <div class="handover-approval-final">
+                                    <span>Final Used</span>
+                                    <strong data-handover-approval-used><?= format_quantity(max(0, $receivedQuantity - $returnedQuantity)) ?></strong>
+                                    <small><?= e($line['unit']) ?></small>
+                                </div>
+                            </div>
+
+                            <p class="danger-copy" data-handover-approval-warning hidden>Returned quantity cannot be more than received.</p>
+                        </section>
+                    <?php endforeach; ?>
                 </div>
 
                 <label class="field">

@@ -2112,6 +2112,108 @@ textarea {
     gap: 8px;
 }
 
+.handover-approval-cards {
+    display: grid;
+    gap: 12px;
+}
+
+.handover-approval-card {
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: #fffdfa;
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+}
+
+.handover-approval-card-head,
+.handover-approval-metrics,
+.handover-approval-confirm-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.handover-approval-card-head {
+    grid-template-columns: minmax(160px, 1fr) auto;
+    align-items: start;
+}
+
+.handover-approval-card-head strong,
+.handover-approval-card-head small {
+    display: block;
+}
+
+.handover-approval-card-head small {
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+.handover-usage-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: #fff1c9;
+    color: var(--accent-strong);
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.handover-usage-summary-chip.is-muted {
+    background: #f4efe6;
+    color: var(--muted);
+}
+
+.handover-approval-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.handover-approval-metrics span,
+.handover-approval-final {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: #fbf7ef;
+    padding: 12px 14px;
+}
+
+.handover-approval-metrics strong,
+.handover-approval-final strong {
+    color: var(--ink);
+}
+
+.handover-approval-confirm-grid {
+    grid-template-columns: minmax(200px, 1fr) minmax(140px, 180px);
+    align-items: stretch;
+}
+
+.handover-approval-final {
+    display: grid;
+    align-content: center;
+    gap: 4px;
+}
+
+.handover-approval-final span,
+.handover-approval-final small {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.handover-approval-final strong {
+    font-size: clamp(1.4rem, 2.4vw, 2rem);
+    line-height: 1;
+}
+
+.handover-approval-card input.is-invalid {
+    border-color: #b3402f;
+    background: #fff7f4;
+}
+
 .danger-copy {
     color: #b3402f;
     font-weight: 800;
@@ -2124,7 +2226,10 @@ textarea {
 
 @media (max-width: 820px) {
     .handover-close-card-head,
-    .handover-usage-title {
+    .handover-usage-title,
+    .handover-approval-card-head,
+    .handover-approval-metrics,
+    .handover-approval-confirm-grid {
         grid-template-columns: 1fr;
         display: grid;
         align-items: stretch;
