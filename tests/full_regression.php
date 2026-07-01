@@ -1853,7 +1853,7 @@ snapshot_site_settings_for_test(['exports.asset_xlsx_thumbnails']);
 set_site_setting_for_test('exports.asset_xlsx_thumbnails', '0');
 $assetExportXlsxDisabled = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets.xlsx?search=' . rawurlencode($prefix));
 assert_true($assetExportXlsxDisabled['status'] === 403, 'Asset XLSX export should be blocked when thumbnail export setting is disabled.');
-restore_site_settings_after_test();
+restore_site_settings_for_test();
 
 note('Running supplier purchase workflow over HTTP.');
 $purchaseCreatePage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/create');
