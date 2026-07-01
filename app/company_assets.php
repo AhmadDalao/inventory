@@ -374,13 +374,21 @@ function asset_category_rows(bool $includeInactive = true, array $filters = []):
 
     if ($search !== '') {
         $conditions[] = '(
-            category.name LIKE :search
-            OR COALESCE(category.code, "") LIKE :search
-            OR COALESCE(category.description, "") LIKE :search
-            OR parent.name LIKE :search
-            OR COALESCE(parent.code, "") LIKE :search
+            category.name LIKE :asset_category_search_name
+            OR COALESCE(category.code, "") LIKE :asset_category_search_code
+            OR COALESCE(category.description, "") LIKE :asset_category_search_description
+            OR parent.name LIKE :asset_category_search_parent_name
+            OR COALESCE(parent.code, "") LIKE :asset_category_search_parent_code
         )';
-        $params['search'] = '%' . $search . '%';
+        foreach ([
+            'asset_category_search_name',
+            'asset_category_search_code',
+            'asset_category_search_description',
+            'asset_category_search_parent_name',
+            'asset_category_search_parent_code',
+        ] as $paramName) {
+            $params[$paramName] = '%' . $search . '%';
+        }
     }
 
     return Database::fetchAll(
