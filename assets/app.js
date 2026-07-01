@@ -1461,6 +1461,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const usedField = editor.querySelector('[data-handover-used]');
         const closeLine = editor.closest('[data-handover-close-line]') || editor.closest('tr');
         const returnedField = closeLine?.querySelector('[data-handover-returned]');
+        const cardUsedLabel = closeLine?.querySelector('[data-handover-card-used]');
+        const cardReturnedLabel = closeLine?.querySelector('[data-handover-card-returned]');
         const totalLabel = editor.querySelector('[data-handover-used-total]');
         const warning = editor.querySelector('[data-handover-usage-warning]');
 
@@ -1480,14 +1482,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         used = Math.round(used * 100) / 100;
+        const returned = Math.max(0, handed - used);
         usedField.value = formatQuantity(used);
 
         if (totalLabel instanceof HTMLElement) {
           totalLabel.textContent = formatQuantity(used);
         }
 
+        if (cardUsedLabel instanceof HTMLElement) {
+          cardUsedLabel.textContent = formatQuantity(used);
+        }
+
+        if (cardReturnedLabel instanceof HTMLElement) {
+          cardReturnedLabel.textContent = formatQuantity(returned);
+        }
+
         if (returnedField instanceof HTMLInputElement) {
-          returnedField.value = formatQuantity(Math.max(0, handed - used));
+          returnedField.value = formatQuantity(returned);
         }
 
         if (warning instanceof HTMLElement) {
