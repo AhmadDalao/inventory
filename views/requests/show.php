@@ -268,6 +268,7 @@ foreach ($lines as $line) {
                     <a class="ghost-button" href="<?= e(url('/workflow-documents/' . $excelDocuments[0]['id'] . '/download')) ?>"><?= ui_icon('export') ?><span>Download Excel Sheet</span></a>
                 <?php endif; ?>
                 <?php if ($signoffDocuments): ?>
+                    <a class="ghost-button" href="<?= e(url('/workflow-documents/' . $signoffDocuments[0]['id'] . '/view')) ?>" target="_blank" rel="noopener"><?= ui_icon('document') ?><span>View Sign-Off PDF</span></a>
                     <a class="ghost-button" href="<?= e(url('/workflow-documents/' . $signoffDocuments[0]['id'] . '/download')) ?>"><?= ui_icon('document') ?><span>Download Sign-Off PDF</span></a>
                 <?php endif; ?>
             </div>
@@ -288,11 +289,11 @@ foreach ($lines as $line) {
 
         <?php if ($signoffDocuments): ?>
             <?php foreach ($signoffDocuments as $document): ?>
-                <a class="workflow-document-card" href="<?= e(url('/workflow-documents/' . $document['id'] . '/download')) ?>">
+                <a class="workflow-document-card" href="<?= e(url('/workflow-documents/' . $document['id'] . '/view')) ?>" target="_blank" rel="noopener">
                     <span><?= ui_icon('document') ?></span>
                     <strong>Request sign-off PDF</strong>
                     <small><?= e($document['original_filename']) ?></small>
-                    <em>Download, print, sign, and upload a signed photo if needed.</em>
+                    <em>Preview in browser, print, sign, or download if needed.</em>
                 </a>
             <?php endforeach; ?>
         <?php endif; ?>

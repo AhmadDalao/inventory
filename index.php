@@ -392,6 +392,9 @@ $router->get('/files', static function (): void {
 $router->get('/files/{id}/download', static function (array $params): void {
     handle_file_download($params);
 });
+$router->get('/workflow-documents/{id}/view', static function (array $params): void {
+    handle_workflow_document_view($params);
+});
 $router->get('/workflow-documents/{id}/download', static function (array $params): void {
     handle_workflow_document_download($params);
 });

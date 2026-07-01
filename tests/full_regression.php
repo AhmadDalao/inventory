@@ -44,6 +44,14 @@ function assert_true(bool $condition, string $message): void
     }
 }
 
+function assert_pdf_preview_response(array $response, string $message): void
+{
+    $disposition = strtolower((string) ($response['headers']['content-disposition'][0] ?? ''));
+
+    assert_true($response['status'] === 200 && strpos((string) $response['body'], '%PDF-') === 0, $message);
+    assert_true(strpos($disposition, 'inline') !== false, $message . ' Content-Disposition should be inline.');
+}
+
 function assert_stock_invariants(string $context, ?string $itemNamePrefix = null): void
 {
     $where = 'WHERE item.is_active IN (0, 1)';
@@ -158,10 +166,16 @@ function http_request(string $baseUrl, string $cookieFile, string $method, strin
     $headerText = substr($rawResponse, 0, $headerSize);
     $body = substr($rawResponse, $headerSize);
     $location = null;
+    $responseHeaders = [];
 
     foreach (preg_split("/\r\n|\n|\r/", trim($headerText)) ?: [] as $line) {
         if (stripos($line, 'Location:') === 0) {
             $location = trim(substr($line, 9));
+        }
+
+        if (strpos($line, ':') !== false) {
+            [$name, $value] = explode(':', $line, 2);
+            $responseHeaders[strtolower(trim($name))][] = trim($value);
         }
     }
 
@@ -169,6 +183,8 @@ function http_request(string $baseUrl, string $cookieFile, string $method, strin
         'status' => $status,
         'body' => $body,
         'location' => $location,
+        'headers' => $responseHeaders,
+        'header_text' => $headerText,
     ];
 }
 
@@ -2667,6 +2683,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
 
 	$requestPageForOwner = http_request($baseUrl, $ownerCookie, 'GET', '/requests/' . $requestId);
 	assert_true($requestPageForOwner['status'] === 200, 'Issue request detail page did not load for owner.');
+    assert_true(strpos($requestPageForOwner['body'], 'View Sign-Off PDF') !== false, 'Request detail is missing sign-off PDF preview.');
     assert_true(strpos($requestPageForOwner['body'], 'Download Sign-Off PDF') !== false, 'Request detail is missing sign-off PDF download.');
     assert_true(strpos($requestPageForOwner['body'], 'Download Excel Sheet') !== false, 'Request detail is missing sign-off Excel sheet download.');
     $requestSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $requestId]);
@@ -2675,6 +2692,8 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     assert_true(strpos($requestSignoffStoredName, 'signoff-img-v10') !== false, 'Request sign-off PDF was not regenerated with totals sign-off template.');
     $requestSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/download');
     assert_true($requestSignoffDownload['status'] === 200 && strpos($requestSignoffDownload['body'], '%PDF-') === 0, 'Request sign-off PDF could not be downloaded.');
+    $requestSignoffPreview = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/view');
+    assert_pdf_preview_response($requestSignoffPreview, 'Request sign-off PDF could not be previewed inline.');
     assert_true(strpos($requestSignoffDownload['body'], 'Barcode:') !== false || strpos($requestSignoffDownload['body'], 'SKU scan:') !== false, 'Request sign-off PDF is missing item scan code text.');
     assert_true(strpos($requestSignoffDownload['body'], 'Total Items') !== false, 'Request sign-off PDF is missing total item quantity.');
     assert_true(strpos($requestSignoffDownload['body'], 'Approved Total') !== false, 'Request sign-off PDF is missing approved quantity total.');
@@ -2856,6 +2875,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_true($handoverRequestOwnerPage['status'] === 200, 'Requested handover detail page did not load for owner.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Approve Request') !== false, 'Requested handover detail page is missing request approval controls.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Cancel Request') !== false, 'Owner should be able to cancel a requested handover while approval controls are visible.');
+    assert_true(strpos($handoverRequestOwnerPage['body'], 'View Sign-Off PDF') !== false, 'Requested handover detail is missing sign-off PDF preview.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Download Sign-Off PDF') !== false, 'Requested handover detail is missing sign-off PDF download.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Download Excel Sheet') !== false, 'Requested handover detail is missing sign-off Excel sheet download.');
     $requestedHandoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $handoverRequestId]);
@@ -2864,6 +2884,8 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v10') !== false, 'Requested handover sign-off PDF was not regenerated with totals sign-off template.');
     $requestedHandoverSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/download');
     assert_true($requestedHandoverSignoffDownload['status'] === 200 && strpos($requestedHandoverSignoffDownload['body'], '%PDF-') === 0, 'Requested handover sign-off PDF could not be downloaded.');
+    $requestedHandoverSignoffPreview = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/view');
+    assert_pdf_preview_response($requestedHandoverSignoffPreview, 'Requested handover sign-off PDF could not be previewed inline.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Barcode:') !== false || strpos($requestedHandoverSignoffDownload['body'], 'SKU scan:') !== false, 'Requested handover sign-off PDF is missing item scan code text.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Total Items') !== false, 'Requested handover sign-off PDF is missing total item quantity.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Used Total') !== false, 'Requested handover sign-off PDF is missing used quantity total.');
@@ -3083,9 +3105,14 @@ assert_true(strpos($staffDashboard['body'], 'metric-grid') === false, 'Staff das
 
 	$handoverPageForStaff = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
 	assert_true($handoverPageForStaff['status'] === 200, 'Handover detail page did not load for staff.');
+    assert_true(strpos($handoverPageForStaff['body'], 'View Sign-Off PDF') !== false, 'Handover detail is missing sign-off PDF preview.');
     assert_true(strpos($handoverPageForStaff['body'], 'Download Sign-Off PDF') !== false, 'Handover detail is missing sign-off PDF download.');
     assert_true(strpos($handoverPageForStaff['body'], 'Download Excel Sheet') !== false, 'Handover detail is missing sign-off Excel sheet download.');
     assert_true(strpos($handoverPageForStaff['body'], 'Proof Image Optional') !== false, 'Handover receipt form is missing optional proof image upload.');
+    $handoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $handoverId]);
+    assert_true($handoverSignoffDocumentId > 0, 'Handover sign-off PDF document was not created.');
+    $handoverSignoffPreview = http_request($baseUrl, $staffCookie, 'GET', '/workflow-documents/' . $handoverSignoffDocumentId . '/view');
+    assert_pdf_preview_response($handoverSignoffPreview, 'Handover sign-off PDF could not be previewed inline.');
     $handoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $handoverId]);
     assert_true($handoverSignoffExcelDocumentId > 0, 'Handover sign-off Excel sheet document was not created.');
     $handoverSignoffExcelDownload = http_request($baseUrl, $staffCookie, 'GET', '/workflow-documents/' . $handoverSignoffExcelDocumentId . '/download');

@@ -2784,11 +2784,33 @@ function content_disposition_attachment(string $filename): string
     return 'attachment; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($filename);
 }
 
+function content_disposition_inline(string $filename): string
+{
+    $filename = safe_download_filename($filename);
+    $ascii = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename) ?: 'preview';
+
+    return 'inline; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($filename);
+}
+
 function send_download_headers(string $mimeType, string $filename, int $contentLength): void
 {
     header('Content-Type: ' . ($mimeType !== '' ? $mimeType : 'application/octet-stream'));
     header('X-Content-Type-Options: nosniff');
     header('Content-Disposition: ' . content_disposition_attachment($filename));
+    header('Content-Transfer-Encoding: binary');
+    header('Cache-Control: private, no-store, max-age=0');
+    header('Pragma: no-cache');
+
+    if ($contentLength >= 0) {
+        header('Content-Length: ' . $contentLength);
+    }
+}
+
+function send_inline_file_headers(string $mimeType, string $filename, int $contentLength): void
+{
+    header('Content-Type: ' . ($mimeType !== '' ? $mimeType : 'application/octet-stream'));
+    header('X-Content-Type-Options: nosniff');
+    header('Content-Disposition: ' . content_disposition_inline($filename));
     header('Content-Transfer-Encoding: binary');
     header('Cache-Control: private, no-store, max-age=0');
     header('Pragma: no-cache');

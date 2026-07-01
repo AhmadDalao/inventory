@@ -12415,12 +12415,9 @@ function workflow_document_find_or_abort(int $documentId): array
     return $document;
 }
 
-function handle_workflow_document_download(array $params): void
+function workflow_document_authorized_file(int $documentId): array
 {
-    app_ready_or_redirect();
-    Auth::requireLogin();
-
-    $document = workflow_document_find_or_abort((int) $params['id']);
+    $document = workflow_document_find_or_abort($documentId);
     $workflowType = (string) $document['workflow_type'];
 
     if ($workflowType === 'handover') {
@@ -12436,6 +12433,46 @@ function handle_workflow_document_download(array $params): void
     if (!is_file($path)) {
         abort(404, 'The workflow document file is missing.');
     }
+
+    return [$document, $path];
+}
+
+function handle_workflow_document_view(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    [$document, $path] = workflow_document_authorized_file((int) $params['id']);
+    $mimeType = (string) $document['mime_type'];
+    $filename = (string) $document['original_filename'];
+    $previewableMimeTypes = [
+        'application/pdf',
+        'image/gif',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
+
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    if (in_array($mimeType, $previewableMimeTypes, true)) {
+        send_inline_file_headers($mimeType, $filename, (int) filesize($path));
+    } else {
+        send_download_headers($mimeType, $filename, (int) filesize($path));
+    }
+
+    readfile($path);
+    exit;
+}
+
+function handle_workflow_document_download(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requireLogin();
+
+    [$document, $path] = workflow_document_authorized_file((int) $params['id']);
 
     while (ob_get_level() > 0) {
         ob_end_clean();
