@@ -16,6 +16,9 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
         <h3 class="page-head-title"><?= ui_icon('assets') ?><span><?= e($pageTitle) ?></span></h3>
     </div>
     <div class="page-actions">
+        <?php if (can_manage_asset_categories()): ?>
+            <a class="ghost-button" href="<?= e(url('/company-assets/categories')) ?>"><?= ui_icon('settings') ?><span>Categories</span></a>
+        <?php endif; ?>
         <?php if (Auth::hasPermission('assets.create') && !Auth::isStaff()): ?>
             <a class="primary-button" href="<?= e(url('/company-assets/create')) ?>"><?= ui_icon('plus') ?><span>Create Asset</span></a>
         <?php endif; ?>
@@ -51,6 +54,22 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
             </label>
 
             <?php if (!Auth::isStaff()): ?>
+                <label class="field">
+                    <span>Category</span>
+                    <select name="category_id" data-searchable-select data-searchable-placeholder="Search category, subcategory, or code">
+                        <option value="">All categories</option>
+                        <?php foreach ($categories as $category): ?>
+                            <option
+                                value="<?= e((string) $category['id']) ?>"
+                                data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                                <?= selected((string) $category['id'], (string) ($filters['category_id'] ?? '')) ?>
+                            >
+                                <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+
                 <label class="field">
                     <span>Location</span>
                     <select name="storage_id">
@@ -194,6 +213,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                                 <div>
                                     <strong><?= e($asset['name']) ?></strong>
                                     <div class="tiny-copy"><?= e($asset['asset_number']) ?><?= $asset['model'] ? ' - ' . e($asset['model']) : '' ?></div>
+                                    <div class="tiny-copy"><?= e(asset_category_display($asset)) ?></div>
                                 </div>
                             </a>
                         </td>

@@ -133,6 +133,21 @@ $router->get('/company-assets/create', static function (): void {
 $router->post('/company-assets/create', static function (): void {
     handle_assets_create_submit();
 });
+$router->get('/company-assets/categories', static function (): void {
+    handle_asset_categories_index();
+});
+$router->post('/company-assets/categories/create', static function (): void {
+    handle_asset_categories_create_submit();
+});
+$router->post('/company-assets/categories/reorder', static function (): void {
+    handle_asset_categories_reorder_submit();
+});
+$router->post('/company-assets/categories/{id}/edit', static function (array $params): void {
+    handle_asset_categories_edit_submit($params);
+});
+$router->post('/company-assets/categories/{id}/status', static function (array $params): void {
+    handle_asset_categories_status_submit($params);
+});
 $router->get('/company-assets/{id}', static function (array $params): void {
     handle_assets_show($params);
 });
@@ -180,6 +195,21 @@ $router->get('/assets/create', static function (): void {
 });
 $router->post('/assets/create', static function (): void {
     handle_assets_create_submit();
+});
+$router->get('/assets/categories', static function (): void {
+    handle_asset_categories_index();
+});
+$router->post('/assets/categories/create', static function (): void {
+    handle_asset_categories_create_submit();
+});
+$router->post('/assets/categories/reorder', static function (): void {
+    handle_asset_categories_reorder_submit();
+});
+$router->post('/assets/categories/{id}/edit', static function (array $params): void {
+    handle_asset_categories_edit_submit($params);
+});
+$router->post('/assets/categories/{id}/status', static function (array $params): void {
+    handle_asset_categories_status_submit($params);
 });
 $router->get('/assets/{id}', static function (array $params): void {
     redirect('/company-assets/' . (int) $params['id']);

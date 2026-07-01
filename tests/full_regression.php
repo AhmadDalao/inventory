@@ -620,12 +620,26 @@ function cleanup_prefix_data(string $prefix): void
             'barcode' => $prefix . '%',
         ]
     );
+    $assetCategoryRows = Database::fetchAll(
+        'SELECT id
+         FROM asset_categories
+         WHERE name LIKE :name
+            OR code LIKE :code
+            OR COALESCE(description, "") LIKE :description
+         ORDER BY id DESC',
+        [
+            'name' => $prefix . '%',
+            'code' => $prefix . '%',
+            'description' => '%' . $prefix . '%',
+        ]
+    );
 
     $storageIds = array_map(static fn (array $row): int => (int) $row['id'], $storageRows);
     $itemIds = array_map(static fn (array $row): int => (int) $row['id'], $itemRows);
     $userIds = array_map(static fn (array $row): int => (int) $row['id'], $userRows);
     $supplierIds = array_map(static fn (array $row): int => (int) $row['id'], $supplierRows);
     $assetIds = array_map(static fn (array $row): int => (int) $row['id'], $assetRows);
+    $assetCategoryIds = array_map(static fn (array $row): int => (int) $row['id'], $assetCategoryRows);
 
     $requestRows = [];
     $handoverRows = [];
@@ -860,6 +874,15 @@ function cleanup_prefix_data(string $prefix): void
         Database::execute('DELETE FROM asset_events WHERE asset_id IN (' . implode(',', $assetIds) . ')');
         Database::execute('DELETE FROM asset_maintenance_records WHERE asset_id IN (' . implode(',', $assetIds) . ')');
         Database::execute('DELETE FROM company_assets WHERE id IN (' . implode(',', $assetIds) . ')');
+    }
+
+    if ($assetCategoryIds !== []) {
+        Database::execute('UPDATE company_assets SET category_id = NULL WHERE category_id IN (' . implode(',', $assetCategoryIds) . ')');
+        Database::execute('DELETE FROM activity_logs WHERE entity_type = "asset_category" AND entity_id IN (' . implode(',', $assetCategoryIds) . ')');
+
+        foreach ($assetCategoryIds as $assetCategoryId) {
+            Database::execute('DELETE FROM asset_categories WHERE id = :id', ['id' => $assetCategoryId]);
+        }
     }
 
     if ($userIds !== []) {
@@ -1679,6 +1702,50 @@ $staffDocumentationUrls = array_map(static fn (array $result): string => (string
 assert_true(in_array('/documentation', $staffDocumentationUrls, true), 'Staff global search did not include documentation.');
 
 note('Running company assets workflow over HTTP.');
+$assetCategoriesPage = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/categories');
+assert_true($assetCategoriesPage['status'] === 200, 'Asset categories page did not load for owner.');
+assert_true(strpos($assetCategoriesPage['body'], 'Asset Categories') !== false, 'Asset categories page is missing expected title.');
+$assetParentCategoryName = $prefix . ' IT Categories';
+$assetChildCategoryName = $prefix . ' Laptops';
+$assetParentCategoryCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/categories/create', [
+    '_token' => extract_csrf($assetCategoriesPage['body'], 'asset category create'),
+    'name' => $assetParentCategoryName,
+    'code' => $prefix . '-IT-001',
+    'parent_id' => '',
+    'description' => $prefix . ' parent asset category',
+]);
+assert_true($assetParentCategoryCreate['status'] === 302, 'Asset parent category create did not redirect.');
+$assetParentCategory = Database::fetch('SELECT * FROM asset_categories WHERE name = :name LIMIT 1', ['name' => $assetParentCategoryName]);
+assert_true(is_array($assetParentCategory), 'Asset parent category was not created.');
+$assetCategoryReload = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/categories');
+$assetChildCategoryCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/categories/create', [
+    '_token' => extract_csrf($assetCategoryReload['body'], 'asset child category create'),
+    'name' => $assetChildCategoryName,
+    'code' => $prefix . '-LAP-001',
+    'parent_id' => (string) $assetParentCategory['id'],
+    'description' => $prefix . ' child asset category',
+]);
+assert_true($assetChildCategoryCreate['status'] === 302, 'Asset child category create did not redirect.');
+$assetChildCategory = Database::fetch('SELECT * FROM asset_categories WHERE name = :name LIMIT 1', ['name' => $assetChildCategoryName]);
+assert_true(is_array($assetChildCategory), 'Asset child category was not created.');
+$assetCategorySearch = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/categories?search=' . rawurlencode($prefix . '-LAP-001') . '&status=all');
+assert_true($assetCategorySearch['status'] === 200 && strpos($assetCategorySearch['body'], $assetChildCategoryName) !== false, 'Asset category search did not find the child category.');
+$assetCategoryReorder = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/categories/reorder', [
+    '_token' => extract_csrf($assetCategorySearch['body'], 'asset category reorder'),
+    'category_id' => (string) $assetChildCategory['id'],
+    'parent_id' => (string) $assetParentCategory['id'],
+    'ordered_ids' => [(string) $assetChildCategory['id']],
+], [
+    'Accept: application/json',
+    'X-Requested-With: XMLHttpRequest',
+]);
+assert_true($assetCategoryReorder['status'] === 200, 'Asset category reorder did not return OK.');
+$assetCategoryGlobalSearch = http_request($baseUrl, $ownerCookie, 'GET', '/global-search?q=' . rawurlencode('asset categories'), [], $globalSearchHeaders);
+assert_true($assetCategoryGlobalSearch['status'] === 200, 'Asset category global search failed.');
+$assetCategoryGlobalPayload = json_decode($assetCategoryGlobalSearch['body'], true);
+$assetCategoryGlobalUrls = array_map(static fn (array $result): string => (string) ($result['url'] ?? ''), $assetCategoryGlobalPayload['results'] ?? []);
+assert_true(in_array('/company-assets/categories', $assetCategoryGlobalUrls, true), 'Global search is missing asset categories page.');
+
 $assetCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/create');
 assert_true($assetCreatePage['status'] === 200, 'Asset create page did not load for owner.');
 assert_true(strpos($assetCreatePage['body'], 'New Asset') !== false, 'Asset create page is missing expected title.');
@@ -1688,6 +1755,7 @@ $assetSerial = $prefix . '-SERIAL-001';
 $assetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/create', [
     '_token' => extract_csrf($assetCreatePage['body'], 'asset create'),
     'name' => $assetName,
+    'category_id' => (string) $assetChildCategory['id'],
     'category' => $prefix . ' IT',
     'model' => $prefix . ' Model A',
     'serial_number' => $assetSerial,
@@ -1708,11 +1776,16 @@ $assetRecord = Database::fetch('SELECT * FROM company_assets WHERE barcode = :ba
 assert_true(is_array($assetRecord), 'Created asset was not found in the database.');
 assert_true((string) $assetRecord['status'] === 'pending_receipt', 'New assigned asset should wait for receipt confirmation.');
 assert_true((int) $assetRecord['assigned_user_id'] === (int) $staff['id'], 'New asset was not assigned to staff.');
+assert_true((int) ($assetRecord['category_id'] ?? 0) === (int) $assetChildCategory['id'], 'New asset was not assigned to the managed child category.');
 
 $assetList = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets?search=' . rawurlencode($assetBarcode) . '&active=all');
 assert_true($assetList['status'] === 200, 'Assets list did not load.');
 assert_true(strpos($assetList['body'], $assetName) !== false, 'Assets list is missing the created asset.');
 assert_true(strpos($assetList['body'], $assetBarcode) !== false, 'Assets list is missing the asset barcode.');
+$assetParentFilteredList = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets?category_id=' . (int) $assetParentCategory['id'] . '&active=all');
+assert_true($assetParentFilteredList['status'] === 200, 'Assets parent category filter did not load.');
+assert_true(strpos($assetParentFilteredList['body'], $assetName) !== false, 'Parent asset category filter did not include child category asset.');
+assert_true(strpos($assetParentFilteredList['body'], $assetParentCategoryName . ' / ' . $assetChildCategoryName) !== false, 'Asset list did not show the managed category hierarchy path.');
 $staffAssetList = http_request($baseUrl, $staffCookie, 'GET', '/company-assets');
 assert_true($staffAssetList['status'] === 200, 'Staff My Assets page did not load.');
 assert_true(strpos($staffAssetList['body'], $assetName) !== false, 'Staff My Assets page is missing the assigned asset.');
@@ -1860,11 +1933,13 @@ assert_true(($assetScanPayload['open_url'] ?? '') === '/company-assets/' . (int)
 $assetExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets?search=' . rawurlencode($prefix));
 assert_true($assetExport['status'] === 200, 'Asset CSV export failed.');
 assert_true(strpos($assetExport['body'], $assetBarcode) !== false, 'Asset CSV export is missing the created asset.');
+assert_true(strpos($assetExport['body'], $assetParentCategoryName . ' / ' . $assetChildCategoryName) !== false, 'Asset CSV export is missing category hierarchy path.');
 $assetExportXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets.xlsx?search=' . rawurlencode($prefix));
 assert_true($assetExportXlsx['status'] === 200, 'Asset XLSX export failed.');
 assert_true(substr($assetExportXlsx['body'], 0, 2) === 'PK', 'Asset XLSX export did not return an XLSX archive.');
 assert_xlsx_contains_text($assetExportXlsx['body'], 'Asset Number', 'Asset XLSX export is missing asset number column.');
 assert_xlsx_contains_text($assetExportXlsx['body'], $assetBarcode, 'Asset XLSX export is missing the created asset barcode.');
+assert_xlsx_contains_text($assetExportXlsx['body'], $assetParentCategoryName . ' / ' . $assetChildCategoryName, 'Asset XLSX export is missing category hierarchy path.');
 snapshot_site_settings_for_test(['exports.asset_xlsx_thumbnails']);
 set_site_setting_for_test('exports.asset_xlsx_thumbnails', '0');
 $assetExportXlsxDisabled = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets.xlsx?search=' . rawurlencode($prefix));

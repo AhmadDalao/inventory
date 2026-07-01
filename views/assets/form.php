@@ -35,8 +35,27 @@ $scanCode = asset_scan_code($asset);
                 </label>
 
                 <label class="field">
-                    <span>Category</span>
-                    <input type="text" name="category" value="<?= e((string) $asset['category']) ?>" placeholder="IT, equipment, tool">
+                    <span>Category / subcategory</span>
+                    <select name="category_id" data-searchable-select data-searchable-placeholder="Search category, subcategory, or code">
+                        <option value="">No managed category</option>
+                        <?php foreach ($categories as $category): ?>
+                            <option
+                                value="<?= e((string) $category['id']) ?>"
+                                data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                                <?= selected((string) $category['id'], (string) ($asset['category_id'] ?? '')) ?>
+                            >
+                                <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if (can_manage_asset_categories()): ?>
+                        <small class="item-form-help"><a class="text-link" href="<?= e(url('/company-assets/categories')) ?>">Manage category hierarchy</a></small>
+                    <?php endif; ?>
+                </label>
+
+                <label class="field">
+                    <span>Fallback category label</span>
+                    <input type="text" name="category" value="<?= e((string) $asset['category']) ?>" placeholder="Only used if no managed category is selected">
                 </label>
 
                 <label class="field">

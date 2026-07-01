@@ -34,7 +34,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
                 <div class="item-summary-copy">
                     <span class="pill <?= e(asset_status_tone((string) $asset['status'])) ?>"><?= e(asset_status_label((string) $asset['status'])) ?></span>
                     <h4><?= e($asset['name']) ?></h4>
-                    <p><?= e($asset['category'] ?: 'No category') ?><?= $asset['model'] ? ' - ' . e($asset['model']) : '' ?></p>
+                    <p><?= e(asset_category_display($asset)) ?><?= $asset['model'] ? ' - ' . e($asset['model']) : '' ?></p>
                     <p class="tiny-copy">
                         Serial: <?= e($asset['serial_number'] ?: 'Not set') ?>
                         - Condition: <?= e(asset_condition_label((string) $asset['condition_status'])) ?>
@@ -83,6 +83,7 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
             <summary>Asset details</summary>
             <dl class="detail-list item-summary-detail-list">
                 <div><dt>Barcode / Tag</dt><dd><?= e($asset['barcode'] ?: 'Uses asset number') ?></dd></div>
+                <div><dt>Category</dt><dd><?= e(asset_category_display($asset)) ?></dd></div>
                 <div><dt>Supplier</dt><dd><?= e($asset['supplier_name'] ?: 'Not linked') ?></dd></div>
                 <div><dt>Purchase</dt><dd><?= e($asset['purchase_number'] ?: 'Not linked') ?></dd></div>
                 <div><dt>Purchase Date</dt><dd><?= e($asset['purchase_date'] ?: 'Not set') ?></dd></div>

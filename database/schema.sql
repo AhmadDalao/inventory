@@ -520,10 +520,32 @@ CREATE TABLE IF NOT EXISTS purchase_ocr_runs (
     CONSTRAINT fk_purchase_ocr_runs_processed_by FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS asset_categories (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    parent_id BIGINT UNSIGNED NULL,
+    name VARCHAR(160) NOT NULL,
+    code VARCHAR(40) NULL,
+    description TEXT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_by BIGINT UNSIGNED NULL,
+    updated_by BIGINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_asset_categories_parent (parent_id, sort_order),
+    INDEX idx_asset_categories_name (name),
+    INDEX idx_asset_categories_code (code),
+    INDEX idx_asset_categories_active (is_active),
+    CONSTRAINT fk_asset_categories_parent FOREIGN KEY (parent_id) REFERENCES asset_categories(id) ON DELETE SET NULL,
+    CONSTRAINT fk_asset_categories_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_asset_categories_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS company_assets (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     asset_number VARCHAR(40) NOT NULL,
     name VARCHAR(160) NOT NULL,
+    category_id BIGINT UNSIGNED NULL,
     category VARCHAR(120) NULL,
     model VARCHAR(160) NULL,
     serial_number VARCHAR(160) NULL,
@@ -549,9 +571,11 @@ CREATE TABLE IF NOT EXISTS company_assets (
     INDEX idx_company_assets_name (name),
     INDEX idx_company_assets_serial (serial_number),
     INDEX idx_company_assets_status (status, is_active),
+    INDEX idx_company_assets_category (category_id),
     INDEX idx_company_assets_storage (storage_id),
     INDEX idx_company_assets_assigned_user (assigned_user_id),
     INDEX idx_company_assets_supplier (supplier_id),
+    CONSTRAINT fk_company_assets_category FOREIGN KEY (category_id) REFERENCES asset_categories(id) ON DELETE SET NULL,
     CONSTRAINT fk_company_assets_storage FOREIGN KEY (storage_id) REFERENCES storages(id) ON DELETE SET NULL,
     CONSTRAINT fk_company_assets_assigned_user FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_company_assets_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,

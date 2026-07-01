@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Maintenance
 {
-    private const SCHEMA_VERSION = '2026-06-30-company-assets-v2';
+    private const SCHEMA_VERSION = '2026-07-01-asset-categories-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -1003,10 +1003,34 @@ final class Maintenance
         );
 
         Database::execute(
+            'CREATE TABLE IF NOT EXISTS asset_categories (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                parent_id BIGINT UNSIGNED NULL,
+                name VARCHAR(160) NOT NULL,
+                code VARCHAR(40) NULL,
+                description TEXT NULL,
+                sort_order INT NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_by BIGINT UNSIGNED NULL,
+                updated_by BIGINT UNSIGNED NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                INDEX idx_asset_categories_parent (parent_id, sort_order),
+                INDEX idx_asset_categories_name (name),
+                INDEX idx_asset_categories_code (code),
+                INDEX idx_asset_categories_active (is_active),
+                CONSTRAINT fk_asset_categories_parent FOREIGN KEY (parent_id) REFERENCES asset_categories(id) ON DELETE SET NULL,
+                CONSTRAINT fk_asset_categories_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_asset_categories_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
             'CREATE TABLE IF NOT EXISTS company_assets (
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 asset_number VARCHAR(40) NOT NULL,
                 name VARCHAR(160) NOT NULL,
+                category_id BIGINT UNSIGNED NULL,
                 category VARCHAR(120) NULL,
                 model VARCHAR(160) NULL,
                 serial_number VARCHAR(160) NULL,
@@ -1032,9 +1056,11 @@ final class Maintenance
                 INDEX idx_company_assets_name (name),
                 INDEX idx_company_assets_serial (serial_number),
                 INDEX idx_company_assets_status (status, is_active),
+                INDEX idx_company_assets_category (category_id),
                 INDEX idx_company_assets_storage (storage_id),
                 INDEX idx_company_assets_assigned_user (assigned_user_id),
                 INDEX idx_company_assets_supplier (supplier_id),
+                CONSTRAINT fk_company_assets_category FOREIGN KEY (category_id) REFERENCES asset_categories(id) ON DELETE SET NULL,
                 CONSTRAINT fk_company_assets_storage FOREIGN KEY (storage_id) REFERENCES storages(id) ON DELETE SET NULL,
                 CONSTRAINT fk_company_assets_assigned_user FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_company_assets_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL,
@@ -1045,6 +1071,13 @@ final class Maintenance
 	        );
 
 	        Database::execute('ALTER TABLE company_assets MODIFY COLUMN status ENUM("available", "pending_receipt", "assigned", "return_requested", "damaged", "maintenance", "lost", "retired") NOT NULL DEFAULT "available"');
+
+        if (!self::columnExists('company_assets', 'category_id')) {
+            Database::execute('ALTER TABLE company_assets ADD COLUMN category_id BIGINT UNSIGNED NULL AFTER name');
+        }
+
+        self::ensureIndexExists('company_assets', 'idx_company_assets_category', 'CREATE INDEX `idx_company_assets_category` ON `company_assets` (`category_id`)');
+        self::ensureForeignKeyExists('company_assets', 'fk_company_assets_category', 'ALTER TABLE `company_assets` ADD CONSTRAINT `fk_company_assets_category` FOREIGN KEY (`category_id`) REFERENCES `asset_categories` (`id`) ON DELETE SET NULL');
 
         Database::execute(
             'CREATE TABLE IF NOT EXISTS asset_custody_actions (
@@ -1494,7 +1527,14 @@ final class Maintenance
             && self::supplierSchemaIsCurrent()
             && self::operationalSchemaIsCurrent()
             && self::fileSchemaIsCurrent()
-            && self::workflowDocumentSchemaIsCurrent();
+            && self::workflowDocumentSchemaIsCurrent()
+            && self::assetCategorySchemaIsCurrent();
+    }
+
+    private static function assetCategorySchemaIsCurrent(): bool
+    {
+        return self::tableExists('asset_categories')
+            && self::columnExists('company_assets', 'category_id');
     }
 
     private static function markSchemaCurrent(): void
@@ -2042,7 +2082,7 @@ final class Maintenance
 
     private static function seedAdminAssetPermissions(): void
     {
-        $settingKey = 'maintenance.seed_admin_asset_permissions_v1';
+        $settingKey = 'maintenance.seed_admin_asset_permissions_v2';
 
         if (self::maintenanceSettingExists($settingKey)) {
             return;
@@ -2052,6 +2092,7 @@ final class Maintenance
             'assets.view',
             'assets.create',
             'assets.edit',
+            'assets.categories',
             'assets.assign',
             'assets.maintenance',
             'assets.export',

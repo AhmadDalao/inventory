@@ -6,6 +6,7 @@ function asset_filters(): array
     $status = trim((string) query('status', 'all'));
     $condition = trim((string) query('condition', 'all'));
     $active = trim((string) query('active', 'all'));
+    $categoryId = ctype_digit((string) query('category_id', '')) ? (int) query('category_id') : null;
 
     $validStatuses = array_keys(asset_status_options());
     $validConditions = array_keys(asset_condition_options());
@@ -16,6 +17,7 @@ function asset_filters(): array
         'condition' => in_array($condition, array_merge(['all'], $validConditions), true) ? $condition : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'assigned_user_id' => ctype_digit((string) query('assigned_user_id', '')) ? (int) query('assigned_user_id') : null,
+        'category_id' => $categoryId !== null && $categoryId > 0 ? $categoryId : null,
         'active' => in_array($active, ['all', 'active', 'archived'], true) ? $active : 'all',
     ];
 }
@@ -38,6 +40,8 @@ function build_asset_where(array $filters, string $alias = 'a'): array
             {$alias}.asset_number LIKE :asset_search_number
             OR {$alias}.name LIKE :asset_search_name
             OR COALESCE({$alias}.category, '') LIKE :asset_search_category
+            OR EXISTS (SELECT 1 FROM asset_categories asset_search_category_record WHERE asset_search_category_record.id = {$alias}.category_id AND (asset_search_category_record.name LIKE :asset_search_category_record OR COALESCE(asset_search_category_record.code, '') LIKE :asset_search_category_code))
+            OR EXISTS (SELECT 1 FROM asset_categories asset_search_parent_category WHERE asset_search_parent_category.id = (SELECT parent_id FROM asset_categories asset_search_direct_category WHERE asset_search_direct_category.id = {$alias}.category_id LIMIT 1) AND (asset_search_parent_category.name LIKE :asset_search_parent_category OR COALESCE(asset_search_parent_category.code, '') LIKE :asset_search_parent_category_code))
             OR COALESCE({$alias}.model, '') LIKE :asset_search_model
             OR COALESCE({$alias}.serial_number, '') LIKE :asset_search_serial
             OR COALESCE({$alias}.barcode, '') LIKE :asset_search_barcode
@@ -49,6 +53,10 @@ function build_asset_where(array $filters, string $alias = 'a'): array
             'asset_search_number',
             'asset_search_name',
             'asset_search_category',
+            'asset_search_category_record',
+            'asset_search_category_code',
+            'asset_search_parent_category',
+            'asset_search_parent_category_code',
             'asset_search_model',
             'asset_search_serial',
             'asset_search_barcode',
@@ -80,6 +88,24 @@ function build_asset_where(array $filters, string $alias = 'a'): array
         $params['asset_assigned_user_id'] = (int) $filters['assigned_user_id'];
     }
 
+    if (!empty($filters['category_id'])) {
+        $categoryIds = asset_category_descendant_ids((int) $filters['category_id']);
+
+        if ($categoryIds === []) {
+            $conditions[] = '0 = 1';
+        } else {
+            $placeholders = [];
+
+            foreach ($categoryIds as $index => $categoryId) {
+                $paramName = 'asset_category_id_' . $index;
+                $placeholders[] = ':' . $paramName;
+                $params[$paramName] = $categoryId;
+            }
+
+            $conditions[] = "{$alias}.category_id IN (" . implode(',', $placeholders) . ')';
+        }
+    }
+
     if (($filters['active'] ?? 'all') === 'active') {
         $conditions[] = "{$alias}.is_active = 1";
     } elseif (($filters['active'] ?? 'all') === 'archived') {
@@ -92,6 +118,9 @@ function build_asset_where(array $filters, string $alias = 'a'): array
 function company_asset_select_sql(): string
 {
     return 'SELECT a.*,
+                   asset_category.name AS category_name,
+                   asset_category.code AS category_code,
+                   asset_category.parent_id AS category_parent_id,
                    storage.name AS storage_name,
                    storage.storage_type AS storage_type,
                    assigned_user.name AS assigned_user_name,
@@ -101,6 +130,7 @@ function company_asset_select_sql(): string
                    creator.name AS creator_name,
                    updater.name AS updater_name
             FROM company_assets a
+            LEFT JOIN asset_categories asset_category ON asset_category.id = a.category_id
             LEFT JOIN storages storage ON storage.id = a.storage_id
             LEFT JOIN users assigned_user ON assigned_user.id = a.assigned_user_id
             LEFT JOIN suppliers supplier ON supplier.id = a.supplier_id
@@ -190,6 +220,7 @@ function asset_form_payload(?array $asset = null): array
         'id' => null,
         'asset_number' => '',
         'name' => '',
+        'category_id' => null,
         'category' => '',
         'model' => '',
         'serial_number' => '',
@@ -305,6 +336,507 @@ function purchases_for_asset_select(?int $selectedId = null): array
     );
 }
 
+function can_manage_asset_categories(): bool
+{
+    return !Auth::isStaff() && (Auth::hasPermission('assets.categories') || Auth::hasPermission('assets.edit'));
+}
+
+function asset_category_filters(): array
+{
+    $status = trim((string) query('status', 'active'));
+
+    return [
+        'search' => mb_substr(trim((string) query('search', '')), 0, 120),
+        'status' => in_array($status, ['all', 'active', 'deleted'], true) ? $status : 'active',
+    ];
+}
+
+function asset_category_normalize_code(string $code): string
+{
+    $code = strtoupper(trim($code));
+    $code = preg_replace('/[^A-Z0-9_.-]+/', '-', $code) ?? '';
+
+    return mb_substr(trim($code, '-'), 0, 40);
+}
+
+function asset_category_rows(bool $includeInactive = true, array $filters = []): array
+{
+    $conditions = ['1 = 1'];
+    $params = [];
+    $search = trim((string) ($filters['search'] ?? ''));
+    $status = (string) ($filters['status'] ?? ($includeInactive ? 'all' : 'active'));
+
+    if (!$includeInactive || $status === 'active') {
+        $conditions[] = 'category.is_active = 1';
+    } elseif ($status === 'deleted') {
+        $conditions[] = 'category.is_active = 0';
+    }
+
+    if ($search !== '') {
+        $conditions[] = '(
+            category.name LIKE :search
+            OR COALESCE(category.code, "") LIKE :search
+            OR COALESCE(category.description, "") LIKE :search
+            OR parent.name LIKE :search
+            OR COALESCE(parent.code, "") LIKE :search
+        )';
+        $params['search'] = '%' . $search . '%';
+    }
+
+    return Database::fetchAll(
+        'SELECT category.*,
+                parent.name AS parent_name,
+                parent.code AS parent_code,
+                (
+                    SELECT COUNT(*)
+                    FROM company_assets asset
+                    WHERE asset.category_id = category.id
+                ) AS asset_count
+         FROM asset_categories category
+         LEFT JOIN asset_categories parent ON parent.id = category.parent_id
+         WHERE ' . implode(' AND ', $conditions) . '
+         ORDER BY COALESCE(category.parent_id, 0) ASC,
+                  category.sort_order ASC,
+                  category.name ASC',
+        $params
+    );
+}
+
+function asset_category_rows_for_select(?int $selectedId = null): array
+{
+    $conditions = ['is_active = 1'];
+    $params = [];
+
+    if ($selectedId !== null && $selectedId > 0) {
+        $conditions[] = 'id = :selected_id';
+        $params['selected_id'] = $selectedId;
+    }
+
+    $rows = Database::fetchAll(
+        'SELECT *
+         FROM asset_categories
+         WHERE ' . implode(' OR ', $conditions) . '
+         ORDER BY COALESCE(parent_id, 0) ASC, sort_order ASC, name ASC',
+        $params
+    );
+
+    $paths = asset_category_path_map($rows);
+    foreach ($rows as &$row) {
+        $row['path_label'] = $paths[(int) $row['id']] ?? (string) $row['name'];
+    }
+    unset($row);
+
+    usort($rows, static function (array $left, array $right): int {
+        return strcasecmp((string) ($left['path_label'] ?? $left['name']), (string) ($right['path_label'] ?? $right['name']));
+    });
+
+    return $rows;
+}
+
+function asset_category_tree(array $rows): array
+{
+    $byParent = [];
+    $ids = [];
+    foreach ($rows as $row) {
+        $ids[(int) $row['id']] = true;
+    }
+
+    foreach ($rows as $row) {
+        $parentId = $row['parent_id'] !== null ? (int) $row['parent_id'] : 0;
+        if ($parentId > 0 && !isset($ids[$parentId])) {
+            $parentId = 0;
+        }
+        $byParent[$parentId][] = $row;
+    }
+
+    $build = static function (int $parentId) use (&$build, &$byParent): array {
+        $branch = [];
+        foreach ($byParent[$parentId] ?? [] as $row) {
+            $row['children'] = $build((int) $row['id']);
+            $branch[] = $row;
+        }
+
+        return $branch;
+    };
+
+    return $build(0);
+}
+
+function asset_category_path_map(?array $rows = null): array
+{
+    $rows = $rows ?? asset_category_rows(true, ['status' => 'all']);
+    $byId = [];
+    foreach ($rows as $row) {
+        $byId[(int) $row['id']] = $row;
+    }
+
+    $resolve = static function (int $id) use (&$resolve, &$byId): string {
+        if (!isset($byId[$id])) {
+            return '';
+        }
+
+        $row = $byId[$id];
+        $name = (string) $row['name'];
+        $parentId = $row['parent_id'] !== null ? (int) $row['parent_id'] : 0;
+
+        if ($parentId <= 0 || !isset($byId[$parentId])) {
+            return $name;
+        }
+
+        $parentPath = $resolve($parentId);
+
+        return $parentPath !== '' ? $parentPath . ' / ' . $name : $name;
+    };
+
+    $paths = [];
+    foreach (array_keys($byId) as $id) {
+        $paths[(int) $id] = $resolve((int) $id);
+    }
+
+    return $paths;
+}
+
+function asset_category_path_by_id(?int $id, ?array $rows = null): string
+{
+    if ($id === null || $id <= 0) {
+        return '';
+    }
+
+    $paths = asset_category_path_map($rows);
+
+    return $paths[$id] ?? '';
+}
+
+function asset_category_display(array $asset): string
+{
+    $categoryId = isset($asset['category_id']) ? (int) $asset['category_id'] : 0;
+    if ($categoryId > 0) {
+        $path = asset_category_path_by_id($categoryId);
+        if ($path !== '') {
+            return $path;
+        }
+    }
+
+    return trim((string) ($asset['category'] ?? '')) !== '' ? (string) $asset['category'] : 'Not set';
+}
+
+function asset_category_descendant_ids(int $categoryId): array
+{
+    if ($categoryId <= 0) {
+        return [];
+    }
+
+    $rows = Database::fetchAll('SELECT id, parent_id FROM asset_categories');
+    $children = [];
+    foreach ($rows as $row) {
+        $parentId = $row['parent_id'] !== null ? (int) $row['parent_id'] : 0;
+        $children[$parentId][] = (int) $row['id'];
+    }
+
+    $ids = [];
+    $walk = static function (int $id) use (&$walk, &$children, &$ids): void {
+        $ids[] = $id;
+        foreach ($children[$id] ?? [] as $childId) {
+            $walk($childId);
+        }
+    };
+
+    $walk($categoryId);
+
+    return array_values(array_unique($ids));
+}
+
+function find_asset_category_or_abort(int $id): array
+{
+    $category = Database::fetch(
+        'SELECT category.*,
+                parent.name AS parent_name,
+                parent.code AS parent_code,
+                (
+                    SELECT COUNT(*)
+                    FROM company_assets asset
+                    WHERE asset.category_id = category.id
+                ) AS asset_count
+         FROM asset_categories category
+         LEFT JOIN asset_categories parent ON parent.id = category.parent_id
+         WHERE category.id = :id
+         LIMIT 1',
+        ['id' => $id]
+    );
+
+    if (!$category) {
+        abort(404, 'Asset category not found.');
+    }
+
+    return $category;
+}
+
+function asset_category_next_sort_order(?int $parentId): int
+{
+    return ((int) Database::scalar(
+        'SELECT COALESCE(MAX(sort_order), 0)
+         FROM asset_categories
+         WHERE ' . ($parentId === null ? 'parent_id IS NULL' : 'parent_id = :parent_id'),
+        $parentId === null ? [] : ['parent_id' => $parentId]
+    )) + 10;
+}
+
+function asset_category_parent_would_cycle(int $categoryId, ?int $parentId): bool
+{
+    if ($parentId === null || $parentId <= 0) {
+        return false;
+    }
+
+    if ($parentId === $categoryId) {
+        return true;
+    }
+
+    $currentParentId = $parentId;
+    while ($currentParentId !== null && $currentParentId > 0) {
+        if ($currentParentId === $categoryId) {
+            return true;
+        }
+
+        $nextParentId = Database::scalar('SELECT parent_id FROM asset_categories WHERE id = :id LIMIT 1', ['id' => $currentParentId]);
+        $currentParentId = $nextParentId !== null ? (int) $nextParentId : null;
+    }
+
+    return false;
+}
+
+function asset_category_save_payload(?int $categoryId = null): array
+{
+    $name = mb_substr(trim((string) input('name', '')), 0, 120);
+    $code = asset_category_normalize_code((string) input('code', ''));
+    $parentId = ctype_digit((string) input('parent_id', '')) ? (int) input('parent_id') : null;
+
+    if ($parentId !== null && $parentId <= 0) {
+        $parentId = null;
+    }
+
+    if ($name === '') {
+        flash('danger', 'Category name is required.');
+        redirect_to_referer('/company-assets/categories');
+    }
+
+    if ($categoryId !== null && asset_category_parent_would_cycle($categoryId, $parentId)) {
+        flash('danger', 'A category cannot be moved under itself or its child.');
+        redirect_to_referer('/company-assets/categories');
+    }
+
+    if ($parentId !== null) {
+        find_asset_category_or_abort($parentId);
+    }
+
+    return [
+        'name' => $name,
+        'code' => $code !== '' ? $code : null,
+        'parent_id' => $parentId,
+        'description' => trim((string) input('description', '')) ?: null,
+    ];
+}
+
+function handle_asset_categories_index(): void
+{
+    app_ready_or_redirect();
+
+    if (!can_manage_asset_categories()) {
+        abort(403, 'You cannot manage asset categories.');
+    }
+
+    $filters = asset_category_filters();
+    $rows = asset_category_rows(true, $filters);
+    $editCategory = null;
+
+    if (ctype_digit((string) query('edit', ''))) {
+        $editCategory = find_asset_category_or_abort((int) query('edit'));
+    }
+
+    View::render('assets/categories', [
+        'title' => 'Asset Categories',
+        'filters' => $filters,
+        'categories' => $rows,
+        'categoryTree' => asset_category_tree($rows),
+        'categoryPaths' => asset_category_path_map($rows),
+        'selectCategories' => asset_category_rows_for_select($editCategory !== null ? (int) $editCategory['parent_id'] : null),
+        'editCategory' => $editCategory,
+    ]);
+}
+
+function handle_asset_categories_create_submit(): void
+{
+    app_ready_or_redirect();
+
+    if (!can_manage_asset_categories()) {
+        abort(403, 'You cannot create asset categories.');
+    }
+
+    verify_csrf();
+    $payload = asset_category_save_payload();
+    $userId = Auth::user()['id'] ?? null;
+
+    Database::execute(
+        'INSERT INTO asset_categories (
+            parent_id, name, code, description, sort_order, is_active, created_by, updated_by, created_at, updated_at
+         ) VALUES (
+            :parent_id, :name, :code, :description, :sort_order, 1, :created_by, :updated_by, NOW(), NOW()
+         )',
+        [
+            'parent_id' => $payload['parent_id'],
+            'name' => $payload['name'],
+            'code' => $payload['code'],
+            'description' => $payload['description'],
+            'sort_order' => asset_category_next_sort_order($payload['parent_id']),
+            'created_by' => $userId,
+            'updated_by' => $userId,
+        ]
+    );
+
+    record_activity('asset_category.created', 'asset_category', Database::lastInsertId(), 'Asset category created: ' . $payload['name'], $payload);
+    flash('success', 'Asset category created.');
+    redirect('/company-assets/categories');
+}
+
+function handle_asset_categories_edit_submit(array $params): void
+{
+    app_ready_or_redirect();
+
+    if (!can_manage_asset_categories()) {
+        abort(403, 'You cannot edit asset categories.');
+    }
+
+    verify_csrf();
+    $category = find_asset_category_or_abort((int) ($params['id'] ?? 0));
+    $payload = asset_category_save_payload((int) $category['id']);
+
+    Database::execute(
+        'UPDATE asset_categories
+         SET parent_id = :parent_id,
+             name = :name,
+             code = :code,
+             description = :description,
+             updated_by = :updated_by,
+             updated_at = NOW()
+         WHERE id = :id',
+        [
+            'id' => (int) $category['id'],
+            'parent_id' => $payload['parent_id'],
+            'name' => $payload['name'],
+            'code' => $payload['code'],
+            'description' => $payload['description'],
+            'updated_by' => Auth::user()['id'] ?? null,
+        ]
+    );
+
+    record_activity('asset_category.updated', 'asset_category', (int) $category['id'], 'Asset category updated: ' . $payload['name'], $payload);
+    flash('success', 'Asset category updated.');
+    redirect('/company-assets/categories');
+}
+
+function handle_asset_categories_status_submit(array $params): void
+{
+    app_ready_or_redirect();
+
+    if (!can_manage_asset_categories()) {
+        abort(403, 'You cannot archive asset categories.');
+    }
+
+    verify_csrf();
+    $category = find_asset_category_or_abort((int) ($params['id'] ?? 0));
+    $newActive = (int) $category['is_active'] === 1 ? 0 : 1;
+
+    Database::execute(
+        'UPDATE asset_categories
+         SET is_active = :is_active, updated_by = :updated_by, updated_at = NOW()
+         WHERE id = :id',
+        [
+            'id' => (int) $category['id'],
+            'is_active' => $newActive,
+            'updated_by' => Auth::user()['id'] ?? null,
+        ]
+    );
+
+    record_activity($newActive === 1 ? 'asset_category.recovered' : 'asset_category.archived', 'asset_category', (int) $category['id'], 'Asset category ' . ($newActive === 1 ? 'recovered: ' : 'archived: ') . $category['name']);
+    flash('success', $newActive === 1 ? 'Asset category recovered.' : 'Asset category archived.');
+    redirect('/company-assets/categories?status=all');
+}
+
+function handle_asset_categories_reorder_submit(): void
+{
+    app_ready_or_redirect();
+
+    if (!can_manage_asset_categories()) {
+        json_response(['ok' => false, 'message' => 'You cannot reorder asset categories.'], 403);
+    }
+
+    verify_csrf();
+    $categoryId = ctype_digit((string) input('category_id', '')) ? (int) input('category_id') : 0;
+    $parentId = ctype_digit((string) input('parent_id', '')) ? (int) input('parent_id') : null;
+    $orderedIds = input('ordered_ids', []);
+
+    if ($parentId !== null && $parentId <= 0) {
+        $parentId = null;
+    }
+
+    if ($categoryId <= 0) {
+        json_response(['ok' => false, 'message' => 'Missing category.'], 422);
+    }
+
+    find_asset_category_or_abort($categoryId);
+
+    if ($parentId !== null) {
+        find_asset_category_or_abort($parentId);
+    }
+
+    if (asset_category_parent_would_cycle($categoryId, $parentId)) {
+        json_response(['ok' => false, 'message' => 'A category cannot be moved under itself or its child.'], 422);
+    }
+
+    Database::execute(
+        'UPDATE asset_categories
+         SET parent_id = :parent_id,
+             updated_by = :updated_by,
+             updated_at = NOW()
+         WHERE id = :id',
+        [
+            'id' => $categoryId,
+            'parent_id' => $parentId,
+            'updated_by' => Auth::user()['id'] ?? null,
+        ]
+    );
+
+    if (is_array($orderedIds)) {
+        $sort = 10;
+        foreach ($orderedIds as $id) {
+            if (!ctype_digit((string) $id)) {
+                continue;
+            }
+
+            Database::execute(
+                'UPDATE asset_categories
+                 SET sort_order = :sort_order,
+                     updated_by = :updated_by,
+                     updated_at = NOW()
+                 WHERE id = :id
+                   AND ' . ($parentId === null ? 'parent_id IS NULL' : 'parent_id = :parent_id'),
+                array_filter([
+                    'id' => (int) $id,
+                    'sort_order' => $sort,
+                    'updated_by' => Auth::user()['id'] ?? null,
+                    'parent_id' => $parentId,
+                ], static fn ($value): bool => $value !== null)
+            );
+            $sort += 10;
+        }
+    }
+
+    record_activity('asset_category.reordered', 'asset_category', $categoryId, 'Asset category hierarchy reordered.', [
+        'parent_id' => $parentId,
+    ]);
+
+    json_response(['ok' => true]);
+}
+
 function asset_event_log(int $assetId, string $eventType, string $summary, array $metadata = [], ?int $userId = null): void
 {
     $userId = $userId ?? (Auth::user()['id'] ?? null);
@@ -401,6 +933,7 @@ function handle_assets_index(): void
         'counts' => asset_counts($filters),
         'storages' => all_storages_for_select($filters['storage_id']),
         'users' => active_users_for_asset_select($filters['assigned_user_id']),
+        'categories' => asset_category_rows_for_select($filters['category_id']),
     ]);
 }
 
@@ -417,6 +950,7 @@ function handle_assets_create_page(): void
         'users' => active_users_for_asset_select(),
         'suppliers' => suppliers_for_asset_select(),
         'purchases' => purchases_for_asset_select(),
+        'categories' => asset_category_rows_for_select(),
     ]);
 }
 
@@ -430,14 +964,30 @@ function asset_valid_date_or_null(string $value): ?string
 function asset_form_input_payload(): array
 {
     $condition = trim((string) input('condition_status', 'good'));
+    $categoryId = ctype_digit((string) input('category_id', '')) ? (int) input('category_id') : null;
 
     if (!array_key_exists($condition, asset_condition_options())) {
         $condition = 'good';
     }
 
+    if ($categoryId !== null && $categoryId <= 0) {
+        $categoryId = null;
+    }
+
+    $categoryLabel = mb_substr(trim((string) input('category', '')), 0, 120);
+
+    if ($categoryId !== null) {
+        find_asset_category_or_abort($categoryId);
+        $managedPath = asset_category_path_by_id($categoryId);
+        if ($managedPath !== '') {
+            $categoryLabel = mb_substr($managedPath, 0, 120);
+        }
+    }
+
     return [
         'name' => mb_substr(trim((string) input('name', '')), 0, 160),
-        'category' => mb_substr(trim((string) input('category', '')), 0, 120),
+        'category_id' => $categoryId,
+        'category' => $categoryLabel,
         'model' => mb_substr(trim((string) input('model', '')), 0, 160),
         'serial_number' => mb_substr(trim((string) input('serial_number', '')), 0, 160),
         'barcode' => mb_substr(normalize_item_barcode(input('barcode', '')), 0, 160),
@@ -538,12 +1088,12 @@ function handle_assets_create_submit(): void
 
             Database::execute(
                 'INSERT INTO company_assets (
-                    asset_number, name, category, model, serial_number, barcode, image_path,
+                    asset_number, name, category_id, category, model, serial_number, barcode, image_path,
                     condition_status, status, storage_id, assigned_user_id, supplier_id, purchase_id,
                     purchase_date, purchase_cost, warranty_expires_at, notes, is_active,
                     created_by, updated_by, created_at, updated_at
                  ) VALUES (
-                    :asset_number, :name, :category, :model, :serial_number, :barcode, :image_path,
+                    :asset_number, :name, :category_id, :category, :model, :serial_number, :barcode, :image_path,
                     :condition_status, :status, :storage_id, :assigned_user_id, :supplier_id, :purchase_id,
                     :purchase_date, :purchase_cost, :warranty_expires_at, :notes, 1,
                     :created_by, :updated_by, NOW(), NOW()
@@ -551,6 +1101,7 @@ function handle_assets_create_submit(): void
                 [
                     'asset_number' => $assetNumber,
                     'name' => $payload['name'],
+                    'category_id' => $payload['category_id'],
                     'category' => $payload['category'] ?: null,
                     'model' => $payload['model'] ?: null,
                     'serial_number' => $payload['serial_number'] ?: null,
@@ -645,6 +1196,7 @@ function handle_assets_show(array $params): void
         'storages' => all_storages_for_select($asset['storage_id'] !== null ? (int) $asset['storage_id'] : null),
         'users' => active_users_for_asset_select($asset['assigned_user_id'] !== null ? (int) $asset['assigned_user_id'] : null),
         'suppliers' => suppliers_for_asset_select($asset['supplier_id'] !== null ? (int) $asset['supplier_id'] : null),
+        'categories' => asset_category_rows_for_select($asset['category_id'] !== null ? (int) $asset['category_id'] : null),
     ]);
 }
 
@@ -663,6 +1215,7 @@ function handle_assets_edit_page(array $params): void
         'users' => active_users_for_asset_select($asset['assigned_user_id'] !== null ? (int) $asset['assigned_user_id'] : null),
         'suppliers' => suppliers_for_asset_select($asset['supplier_id'] !== null ? (int) $asset['supplier_id'] : null),
         'purchases' => purchases_for_asset_select($asset['purchase_id'] !== null ? (int) $asset['purchase_id'] : null),
+        'categories' => asset_category_rows_for_select($asset['category_id'] !== null ? (int) $asset['category_id'] : null),
     ]);
 }
 
@@ -704,6 +1257,7 @@ function handle_assets_edit_submit(array $params): void
     Database::execute(
         'UPDATE company_assets
          SET name = :name,
+             category_id = :category_id,
              category = :category,
              model = :model,
              serial_number = :serial_number,
@@ -724,6 +1278,7 @@ function handle_assets_edit_submit(array $params): void
         [
             'id' => (int) $asset['id'],
             'name' => $payload['name'],
+            'category_id' => $payload['category_id'],
             'category' => $payload['category'] ?: null,
             'model' => $payload['model'] ?: null,
             'serial_number' => $payload['serial_number'] ?: null,
@@ -1243,7 +1798,7 @@ function handle_export_assets(): void
         return [
             $asset['asset_number'],
             $asset['name'],
-            $asset['category'] ?: '',
+            asset_category_display($asset),
             $asset['model'] ?: '',
             $asset['serial_number'] ?: '',
             asset_scan_code($asset),
@@ -1404,7 +1959,7 @@ function asset_export_xlsx_sheet_xml(array $assets, array $images, array $imageS
         $rowValues = array_merge($rowValues, [
             (string) $asset['asset_number'],
             (string) $asset['name'],
-            (string) ($asset['category'] ?: ''),
+            asset_category_display($asset),
             (string) ($asset['model'] ?: ''),
             (string) ($asset['serial_number'] ?: ''),
             $scanCode,
@@ -1577,7 +2132,7 @@ function asset_signoff_field_pairs(array $asset): array
     return [
         ['Asset Name', (string) ($asset['name'] ?? '')],
         ['Asset Number', (string) ($asset['asset_number'] ?? '')],
-        ['Category', (string) ($asset['category'] ?: 'Not set')],
+        ['Category', asset_category_display($asset)],
         ['Model', (string) ($asset['model'] ?: 'Not set')],
         ['Serial Number', (string) ($asset['serial_number'] ?: 'Not set')],
         ['Barcode / Tag', (string) ($asset['barcode'] ?: 'Uses asset number')],
