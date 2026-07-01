@@ -294,6 +294,28 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
 <section class="panel">
     <div class="table-shell-head">
         <div class="table-heading">
+            <strong><?= ui_icon('files') ?><span>Signed Proof Sheets</span></strong>
+        </div>
+        <p class="table-shell-copy">Download a current asset custody sheet with image, serial, barcode, QR reference, condition, holder, and signature lines.</p>
+    </div>
+
+    <div class="file-card-grid">
+        <a class="file-card" href="<?= e(url('/company-assets/' . $asset['id'] . '/signoff.xlsx')) ?>">
+            <span class="file-card-icon"><?= ui_icon('export') ?></span>
+            <strong>Excel asset sign-off sheet</strong>
+            <span>Editable XLSX with asset photo, QR reference, scan barcode, and custody fields.</span>
+        </a>
+        <a class="file-card" href="<?= e(url('/company-assets/' . $asset['id'] . '/signoff.pdf')) ?>">
+            <span class="file-card-icon"><?= ui_icon('files') ?></span>
+            <strong>PDF asset sign-off sheet</strong>
+            <span>Print, sign, scan, or attach as proof for asset custody.</span>
+        </a>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="table-shell-head">
+        <div class="table-heading">
             <strong><?= ui_icon('files') ?><span>Files And Proof</span></strong>
             <span class="table-count-badge"><?= number_format(count($files)) ?></span>
         </div>

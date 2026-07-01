@@ -1701,6 +1701,18 @@ $staffAssetList = http_request($baseUrl, $staffCookie, 'GET', '/company-assets')
 assert_true($staffAssetList['status'] === 200, 'Staff My Assets page did not load.');
 assert_true(strpos($staffAssetList['body'], $assetName) !== false, 'Staff My Assets page is missing the assigned asset.');
 
+$ownerAssetShowForProof = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
+assert_true($ownerAssetShowForProof['status'] === 200, 'Owner asset detail did not load for sign-off proof.');
+assert_true(strpos($ownerAssetShowForProof['body'], 'Signed Proof Sheets') !== false, 'Asset detail is missing sign-off proof sheet links.');
+$assetSignoffPdf = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id'] . '/signoff.pdf');
+assert_true($assetSignoffPdf['status'] === 200, 'Asset sign-off PDF failed.');
+assert_true(substr($assetSignoffPdf['body'], 0, 5) === '%PDF-', 'Asset sign-off PDF did not return a PDF.');
+$assetSignoffXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id'] . '/signoff.xlsx');
+assert_true($assetSignoffXlsx['status'] === 200, 'Asset sign-off XLSX failed.');
+assert_true(substr($assetSignoffXlsx['body'], 0, 2) === 'PK', 'Asset sign-off XLSX did not return an XLSX archive.');
+assert_xlsx_contains_text($assetSignoffXlsx['body'], 'Asset Sign-Off Sheet', 'Asset sign-off XLSX is missing title.');
+assert_xlsx_contains_text($assetSignoffXlsx['body'], $assetBarcode, 'Asset sign-off XLSX is missing the scan barcode.');
+
 $unrelatedAssetPage = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/create');
 $unrelatedBarcode = $prefix . '-ASSET-UNRELATED';
 $unrelatedCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/create', [
@@ -1837,6 +1849,11 @@ assert_true($assetExportXlsx['status'] === 200, 'Asset XLSX export failed.');
 assert_true(substr($assetExportXlsx['body'], 0, 2) === 'PK', 'Asset XLSX export did not return an XLSX archive.');
 assert_xlsx_contains_text($assetExportXlsx['body'], 'Asset Number', 'Asset XLSX export is missing asset number column.');
 assert_xlsx_contains_text($assetExportXlsx['body'], $assetBarcode, 'Asset XLSX export is missing the created asset barcode.');
+snapshot_site_settings_for_test(['exports.asset_xlsx_thumbnails']);
+set_site_setting_for_test('exports.asset_xlsx_thumbnails', '0');
+$assetExportXlsxDisabled = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets.xlsx?search=' . rawurlencode($prefix));
+assert_true($assetExportXlsxDisabled['status'] === 403, 'Asset XLSX export should be blocked when thumbnail export setting is disabled.');
+restore_site_settings_after_test();
 
 note('Running supplier purchase workflow over HTTP.');
 $purchaseCreatePage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/create');

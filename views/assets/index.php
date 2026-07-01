@@ -153,7 +153,9 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
 
             <?php if (Auth::hasPermission('assets.export') && !Auth::isStaff()): ?>
                 <div class="button-row">
-                    <a class="ghost-button table-export-button" href="<?= e(url('/exports/assets.xlsx') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('items') ?><span>Export Excel</span></a>
+                    <?php if (asset_xlsx_thumbnail_export_enabled()): ?>
+                        <a class="ghost-button table-export-button" href="<?= e(url('/exports/assets.xlsx') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('items') ?><span>Export Excel</span></a>
+                    <?php endif; ?>
                     <a class="ghost-button table-export-button" href="<?= e(url('/exports/assets') . ($exportQuery ? '?' . $exportQuery : '')) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
                 </div>
             <?php endif; ?>

@@ -136,6 +136,12 @@ $router->post('/company-assets/create', static function (): void {
 $router->get('/company-assets/{id}', static function (array $params): void {
     handle_assets_show($params);
 });
+$router->get('/company-assets/{id}/signoff.pdf', static function (array $params): void {
+    handle_asset_signoff_pdf_download($params);
+});
+$router->get('/company-assets/{id}/signoff.xlsx', static function (array $params): void {
+    handle_asset_signoff_excel_download($params);
+});
 $router->get('/company-assets/{id}/edit', static function (array $params): void {
     handle_assets_edit_page($params);
 });
@@ -177,6 +183,12 @@ $router->post('/assets/create', static function (): void {
 });
 $router->get('/assets/{id}', static function (array $params): void {
     redirect('/company-assets/' . (int) $params['id']);
+});
+$router->get('/assets/{id}/signoff.pdf', static function (array $params): void {
+    handle_asset_signoff_pdf_download($params);
+});
+$router->get('/assets/{id}/signoff.xlsx', static function (array $params): void {
+    handle_asset_signoff_excel_download($params);
 });
 $router->get('/assets/{id}/edit', static function (array $params): void {
     redirect('/company-assets/' . (int) $params['id'] . '/edit');
