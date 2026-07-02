@@ -400,18 +400,26 @@ foreach ($lines as $line) {
                             }
                         }
                         ?>
-                        <details class="handover-close-card" data-handover-close-line <?= $lineIndex === 0 || $lineHasExistingUsage ? 'open' : '' ?>>
+                        <details class="handover-close-card" data-handover-close-line open>
                             <summary class="handover-close-card-summary">
-                                <div>
-                                    <strong><?= e($line['item_name']) ?></strong>
-                                    <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
+                                <div class="handover-close-summary-title">
+                                    <?= ui_icon('items') ?>
+                                    <div>
+                                        <strong><?= e($line['item_name']) ?></strong>
+                                        <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
+                                    </div>
                                 </div>
 
                                 <div class="handover-close-summary-stats">
-                                    <span><strong><?= format_quantity($line['quantity_received']) ?></strong> received</span>
-                                    <span><strong data-handover-card-used><?= format_quantity($line['quantity_used']) ?></strong> used</span>
-                                    <span><strong data-handover-card-returned><?= format_quantity($lineReturningQuantity) ?></strong> returning</span>
+                                    <span class="handover-close-chip"><?= ui_icon('items') ?><strong><?= format_quantity($line['quantity_received']) ?></strong> received</span>
+                                    <span class="handover-close-chip"><?= ui_icon('movements') ?><strong data-handover-card-used><?= format_quantity($line['quantity_used']) ?></strong> used</span>
+                                    <span class="handover-close-chip"><?= ui_icon('handover') ?><strong data-handover-card-returned><?= format_quantity($lineReturningQuantity) ?></strong> returning</span>
                                 </div>
+
+                                <span class="handover-close-toggle" aria-hidden="true">
+                                    <span class="toggle-open">Collapse</span>
+                                    <span class="toggle-closed">Open</span>
+                                </span>
                             </summary>
 
                             <div class="handover-close-card-body">
@@ -420,11 +428,11 @@ foreach ($lines as $line) {
                                 <?php endif; ?>
                                 <div class="handover-close-card-head">
                                     <div class="handover-close-metric">
-                                        <span>Received</span>
+                                        <span><?= ui_icon('items') ?>Received</span>
                                         <strong><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></strong>
                                     </div>
                                     <label class="field handover-return-field">
-                                        <span>Returning / Remaining</span>
+                                        <span><?= ui_icon('handover') ?>Returning / Remaining</span>
                                         <input type="text" value="<?= e(format_quantity($lineReturningQuantity)) ?>" data-handover-returned readonly>
                                     </label>
                                 </div>
@@ -432,41 +440,65 @@ foreach ($lines as $line) {
                                 <div class="handover-usage-editor" data-handover-usage-editor>
                                     <input type="hidden" name="line_used[<?= e((string) $line['id']) ?>]" value="<?= e(format_quantity($line['quantity_used'])) ?>" data-handover-used data-handover-handed="<?= e(format_quantity($line['quantity_received'])) ?>">
                                     <div class="handover-usage-title">
-                                        <strong>Usage Breakdown</strong>
-                                        <small>Pick a reason and enter the used quantity. Add more rows when the same item was used for different reasons.</small>
+                                        <strong><?= ui_icon('reports') ?>Usage Breakdown</strong>
+                                        <small>Pick a reason, enter used quantity, and add a note only when it matters.</small>
                                     </div>
                                     <div class="handover-usage-list" data-handover-usage-list>
                                         <?php foreach ($lineBreakdowns as $breakdown): ?>
                                             <?php $selectedReason = normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? 'unspecified')); ?>
                                             <div class="handover-usage-row" data-handover-usage-row>
-                                                <select name="line_usage_reason[<?= e((string) $line['id']) ?>][]" aria-label="Usage reason" data-handover-usage-reason>
-                                                    <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
-                                                        <option value="<?= e($reasonCode) ?>" <?= $selectedReason === $reasonCode ? 'selected' : '' ?>><?= e($reasonLabel) ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['quantity'] ?? '')) ?>" placeholder="Used qty" aria-label="Used quantity" data-handover-usage-quantity>
-                                                <input type="text" name="line_usage_other[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['reason_custom'] ?? '')) ?>" placeholder="Other reason" aria-label="Other usage reason" data-handover-usage-other <?= $selectedReason === 'other' ? '' : 'hidden' ?>>
-                                                <input type="text" name="line_usage_notes[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['notes'] ?? '')) ?>" placeholder="Optional note" aria-label="Usage note">
-                                                <button class="ghost-button compact-button" type="button" data-remove-handover-usage>Remove</button>
+                                                <label class="handover-usage-field handover-usage-field-reason">
+                                                    <span><?= ui_icon('filter') ?>Reason</span>
+                                                    <select name="line_usage_reason[<?= e((string) $line['id']) ?>][]" aria-label="Usage reason" data-handover-usage-reason>
+                                                        <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
+                                                            <option value="<?= e($reasonCode) ?>" <?= $selectedReason === $reasonCode ? 'selected' : '' ?>><?= e($reasonLabel) ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </label>
+                                                <label class="handover-usage-field handover-usage-field-quantity">
+                                                    <span><?= ui_icon('movements') ?>Used Qty</span>
+                                                    <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['quantity'] ?? '')) ?>" placeholder="0" aria-label="Used quantity" data-handover-usage-quantity>
+                                                </label>
+                                                <label class="handover-usage-field handover-usage-other-field" data-handover-usage-other-field <?= $selectedReason === 'other' ? '' : 'hidden' ?>>
+                                                    <span><?= ui_icon('edit') ?>Other Reason</span>
+                                                    <input type="text" name="line_usage_other[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['reason_custom'] ?? '')) ?>" placeholder="Type reason" aria-label="Other usage reason" data-handover-usage-other <?= $selectedReason === 'other' ? '' : 'hidden' ?>>
+                                                </label>
+                                                <label class="handover-usage-field handover-usage-field-note">
+                                                    <span><?= ui_icon('document') ?>Note</span>
+                                                    <input type="text" name="line_usage_notes[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['notes'] ?? '')) ?>" placeholder="Optional note" aria-label="Usage note">
+                                                </label>
+                                                <button class="ghost-button compact-button handover-usage-remove" type="button" data-remove-handover-usage><span>Remove</span></button>
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
                                     <div class="handover-usage-summary">
-                                        <span>Used <strong data-handover-used-total><?= e(format_quantity($line['quantity_used'])) ?></strong> <?= e($line['unit']) ?></span>
+                                        <span class="handover-used-total-pill">Used <strong data-handover-used-total><?= e(format_quantity($line['quantity_used'])) ?></strong> <?= e($line['unit']) ?></span>
                                         <span class="danger-copy" data-handover-usage-warning hidden>Used total is higher than received.</span>
-                                        <button class="ghost-button compact-button" type="button" data-add-handover-usage>Add Usage Reason</button>
+                                        <button class="ghost-button compact-button handover-add-usage" type="button" data-add-handover-usage><?= ui_icon('plus') ?><span>Add Usage Reason</span></button>
                                     </div>
                                     <template data-handover-usage-template>
                                         <div class="handover-usage-row" data-handover-usage-row>
-                                            <select name="line_usage_reason[<?= e((string) $line['id']) ?>][]" aria-label="Usage reason" data-handover-usage-reason>
-                                                <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
-                                                    <option value="<?= e($reasonCode) ?>"><?= e($reasonLabel) ?></option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" placeholder="Used qty" aria-label="Used quantity" data-handover-usage-quantity>
-                                            <input type="text" name="line_usage_other[<?= e((string) $line['id']) ?>][]" placeholder="Other reason" aria-label="Other usage reason" data-handover-usage-other hidden>
-                                            <input type="text" name="line_usage_notes[<?= e((string) $line['id']) ?>][]" placeholder="Optional note" aria-label="Usage note">
-                                            <button class="ghost-button compact-button" type="button" data-remove-handover-usage>Remove</button>
+                                            <label class="handover-usage-field handover-usage-field-reason">
+                                                <span><?= ui_icon('filter') ?>Reason</span>
+                                                <select name="line_usage_reason[<?= e((string) $line['id']) ?>][]" aria-label="Usage reason" data-handover-usage-reason>
+                                                    <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
+                                                        <option value="<?= e($reasonCode) ?>"><?= e($reasonLabel) ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </label>
+                                            <label class="handover-usage-field handover-usage-field-quantity">
+                                                <span><?= ui_icon('movements') ?>Used Qty</span>
+                                                <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" placeholder="0" aria-label="Used quantity" data-handover-usage-quantity>
+                                            </label>
+                                            <label class="handover-usage-field handover-usage-other-field" data-handover-usage-other-field hidden>
+                                                <span><?= ui_icon('edit') ?>Other Reason</span>
+                                                <input type="text" name="line_usage_other[<?= e((string) $line['id']) ?>][]" placeholder="Type reason" aria-label="Other usage reason" data-handover-usage-other hidden>
+                                            </label>
+                                            <label class="handover-usage-field handover-usage-field-note">
+                                                <span><?= ui_icon('document') ?>Note</span>
+                                                <input type="text" name="line_usage_notes[<?= e((string) $line['id']) ?>][]" placeholder="Optional note" aria-label="Usage note">
+                                            </label>
+                                            <button class="ghost-button compact-button handover-usage-remove" type="button" data-remove-handover-usage><span>Remove</span></button>
                                         </div>
                                     </template>
                                 </div>

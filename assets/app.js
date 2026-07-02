@@ -1444,6 +1444,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const toggleOtherField = (row) => {
         const reason = row.querySelector('[data-handover-usage-reason]');
         const other = row.querySelector('[data-handover-usage-other]');
+        const otherWrapper = row.querySelector('[data-handover-usage-other-field]');
 
         if (!(reason instanceof HTMLSelectElement) || !(other instanceof HTMLInputElement)) {
           return;
@@ -1451,6 +1452,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isOther = reason.value === 'other';
         other.hidden = !isOther;
+
+        if (otherWrapper instanceof HTMLElement) {
+          otherWrapper.hidden = !isOther;
+        }
 
         if (!isOther) {
           other.value = '';
