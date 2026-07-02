@@ -6,6 +6,8 @@ $isHolder = (int) ($asset['assigned_user_id'] ?? 0) === $currentUserId;
 $canManage = Auth::hasPermission('assets.assign') && !Auth::isStaff();
 $canMaintain = Auth::hasPermission('assets.maintenance') && !Auth::isStaff();
 $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff();
+$financials = asset_financials($asset);
+$warrantyStatus = asset_warranty_status($asset);
 ?>
 
 <section class="page-head">
@@ -42,8 +44,8 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
                 </div>
             </div>
             <div class="align-right item-summary-stock">
-                <strong class="stock-number"><?= e(format_money($asset['purchase_cost'])) ?></strong>
-                <span>asset value</span>
+                <strong class="stock-number"><?= e(format_money($financials['book_value'])) ?></strong>
+                <span>current book value</span>
                 <span class="tiny-copy"><?= (int) $asset['is_active'] === 1 ? 'Active record' : 'Deleted record' ?></span>
             </div>
         </div>
@@ -54,16 +56,16 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
                 <strong><?= e(asset_status_label((string) $asset['status'])) ?></strong>
             </article>
             <article class="item-summary-stat">
-                <span>Holder</span>
-                <strong><?= e($asset['assigned_user_name'] ?: 'None') ?></strong>
+                <span>Depreciated</span>
+                <strong><?= e(format_money($financials['depreciated_value'])) ?></strong>
             </article>
             <article class="item-summary-stat">
-                <span>Location</span>
-                <strong><?= e($asset['storage_name'] ?: 'Not set') ?></strong>
+                <span>Remaining Life</span>
+                <strong><?= e(number_format($financials['remaining_months'])) ?> mo</strong>
             </article>
             <article class="item-summary-stat">
                 <span>Warranty</span>
-                <strong><?= e($asset['warranty_expires_at'] ?: 'Not set') ?></strong>
+                <strong><?= e($warrantyStatus['label']) ?></strong>
             </article>
         </div>
 
@@ -84,9 +86,19 @@ $canOverride = Auth::hasPermission('assets.status_override') && !Auth::isStaff()
             <dl class="detail-list item-summary-detail-list">
                 <div><dt>Barcode / Tag</dt><dd><?= e($asset['barcode'] ?: 'Uses asset number') ?></dd></div>
                 <div><dt>Category</dt><dd><?= e(asset_category_display($asset)) ?></dd></div>
+                <div><dt>Holder</dt><dd><?= e($asset['assigned_user_name'] ?: 'None') ?></dd></div>
+                <div><dt>Location</dt><dd><?= e($asset['storage_name'] ?: 'Not set') ?></dd></div>
                 <div><dt>Supplier</dt><dd><?= e($asset['supplier_name'] ?: 'Not linked') ?></dd></div>
                 <div><dt>Purchase</dt><dd><?= e($asset['purchase_number'] ?: 'Not linked') ?></dd></div>
                 <div><dt>Purchase Date</dt><dd><?= e($asset['purchase_date'] ?: 'Not set') ?></dd></div>
+                <div><dt>Purchase Cost</dt><dd><?= e(format_money($financials['cost'])) ?></dd></div>
+                <div><dt>Current Book Value</dt><dd><?= e(format_money($financials['book_value'])) ?></dd></div>
+                <div><dt>Depreciated Value</dt><dd><?= e(format_money($financials['depreciated_value'])) ?></dd></div>
+                <div><dt>Useful Life</dt><dd><?= e(number_format($financials['useful_life_months'])) ?> months</dd></div>
+                <div><dt>Remaining Life</dt><dd><?= e(number_format($financials['remaining_months'])) ?> months</dd></div>
+                <div><dt>Salvage Value</dt><dd><?= e(format_money($financials['salvage_value'])) ?></dd></div>
+                <div><dt>Depreciation Start</dt><dd><?= e($asset['depreciation_start_date'] ?: 'Not set') ?></dd></div>
+                <div><dt>Warranty Expiry</dt><dd><?= e($asset['warranty_expires_at'] ?: 'Not set') ?></dd></div>
                 <div><dt>Created By</dt><dd><?= e($asset['creator_name'] ?: 'Unknown') ?></dd></div>
                 <div><dt>Updated By</dt><dd><?= e($asset['updater_name'] ?: 'Unknown') ?></dd></div>
                 <div class="item-summary-notes"><dt>Notes</dt><dd><?= nl2br(e($asset['notes'] ?: 'No notes.')) ?></dd></div>

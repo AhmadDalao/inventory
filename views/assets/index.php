@@ -56,19 +56,40 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
             <?php if (!Auth::isStaff()): ?>
                 <label class="field">
                     <span>Category</span>
-                    <select name="category_id" data-searchable-select data-searchable-placeholder="Search category, subcategory, or code">
+                    <select name="category_parent_id" data-searchable-select data-searchable-placeholder="Search main category">
                         <option value="">All categories</option>
-                        <?php foreach ($categories as $category): ?>
+                        <?php foreach ($parentCategories as $category): ?>
                             <option
                                 value="<?= e((string) $category['id']) ?>"
                                 data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
-                                <?= selected((string) $category['id'], (string) ($filters['category_id'] ?? '')) ?>
+                                <?= selected((string) $category['id'], (string) ($selectedParentCategoryId ?? '')) ?>
                             >
                                 <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <small class="item-form-help">Picking a parent includes every asset inside its subcategories.</small>
                 </label>
+
+                <?php if ((int) ($selectedParentCategoryId ?? 0) > 0): ?>
+                    <label class="field">
+                        <span>Subcategory</span>
+                        <select name="category_id" data-searchable-select data-searchable-placeholder="Search subcategory">
+                            <option value="">All subcategories</option>
+                            <?php foreach ($childCategories as $category): ?>
+                                <option
+                                    value="<?= e((string) $category['id']) ?>"
+                                    data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                                    <?= selected((string) $category['id'], (string) ($filters['category_id'] ?? '')) ?>
+                                >
+                                    <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                <?php else: ?>
+                    <input type="hidden" name="category_id" value="">
+                <?php endif; ?>
 
                 <label class="field">
                     <span>Location</span>
@@ -115,7 +136,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
             <a class="stat-chip filter-chip <?= $filters['status'] === 'available' ? 'filter-chip-active' : '' ?>" href="<?= e($assetFilterUrl('available')) ?>" data-live-filter-link>Available: <?= number_format($counts['available']) ?></a>
             <a class="stat-chip filter-chip <?= $filters['status'] === 'assigned' ? 'filter-chip-active' : '' ?>" href="<?= e($assetFilterUrl('assigned')) ?>" data-live-filter-link>Assigned: <?= number_format($counts['assigned']) ?></a>
             <span class="stat-chip">Maintenance: <?= number_format($counts['maintenance']) ?></span>
-            <span class="stat-chip">Value: <?= e(format_money($counts['value'])) ?></span>
+            <span class="stat-chip">Book Value: <?= e(format_money($counts['value'])) ?></span>
         </div>
     </section>
 
@@ -148,7 +169,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                 <strong><?= ui_icon('assets') ?><span><?= e($pageTitle) ?></span></strong>
                 <span class="table-count-badge" data-table-total><?= number_format(count($assets)) ?></span>
             </div>
-            <p class="table-shell-copy">Track serials, custody, condition, warranty, files, and maintenance.</p>
+            <p class="table-shell-copy">Track serials, custody, condition, book value, warranty, files, and maintenance.</p>
         </div>
 
         <div class="data-table-toolbar">
@@ -190,7 +211,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                     <th>Custody</th>
                     <th>Status</th>
                     <th>Condition</th>
-                    <th>Value</th>
+                    <th>Book Value</th>
                     <th></th>
                 </tr>
                 </thead>
@@ -201,7 +222,10 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                     </tr>
                 <?php endif; ?>
                 <?php foreach ($assets as $asset): ?>
-                    <?php $imageUrl = asset_image_url($asset['image_path'] ?? null); ?>
+                    <?php
+                    $imageUrl = asset_image_url($asset['image_path'] ?? null);
+                    $financials = asset_financials($asset);
+                    ?>
                     <tr>
                         <td data-label="Asset">
                             <a class="item-table-cell cell-link" href="<?= e(url('/company-assets/' . $asset['id'])) ?>">
@@ -225,7 +249,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                         </td>
                         <td data-label="Status"><span class="pill <?= e(asset_status_tone((string) $asset['status'])) ?>"><?= e(asset_status_label((string) $asset['status'])) ?></span></td>
                         <td data-label="Condition"><?= e(asset_condition_label((string) $asset['condition_status'])) ?></td>
-                        <td data-label="Value"><?= e(format_money($asset['purchase_cost'])) ?></td>
+                        <td data-label="Book Value"><?= e(format_money($financials['book_value'])) ?></td>
                         <td data-label="Actions">
                             <div class="inline-actions">
                                 <a class="text-link" href="<?= e(url('/company-assets/' . $asset['id'])) ?>">Open</a>

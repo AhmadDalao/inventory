@@ -237,6 +237,24 @@ $scanCode = asset_scan_code($asset);
                 </label>
 
                 <label class="field">
+                    <span>Depreciation start</span>
+                    <input type="date" name="depreciation_start_date" value="<?= e((string) ($asset['depreciation_start_date'] ?? '')) ?>">
+                    <small class="item-form-help">Blank uses the purchase date, then creation date.</small>
+                </label>
+
+                <label class="field">
+                    <span>Useful life (months)</span>
+                    <input type="number" min="1" max="1200" step="1" name="useful_life_months" value="<?= e((string) ($asset['useful_life_months'] ?? 60)) ?>">
+                    <small class="item-form-help">Default is 60 months.</small>
+                </label>
+
+                <label class="field">
+                    <span>Salvage value</span>
+                    <input type="number" min="0" step="0.01" name="salvage_value" value="<?= e((string) ($asset['salvage_value'] ?? '0.00')) ?>">
+                    <small class="item-form-help">Book value will not depreciate below this value.</small>
+                </label>
+
+                <label class="field">
                     <span>Warranty expiry</span>
                     <input type="date" name="warranty_expires_at" value="<?= e((string) ($asset['warranty_expires_at'] ?? '')) ?>">
                 </label>

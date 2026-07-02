@@ -63,8 +63,9 @@ $renderCategoryNode = static function (array $category) use (&$renderCategoryNod
     </div>
 </section>
 
+<div class="live-filter-region" data-live-filter-region="asset-categories">
 <section class="filter-panel">
-    <form class="filter-grid" method="get" action="<?= e(url('/company-assets/categories')) ?>">
+    <form class="filter-grid" method="get" action="<?= e(url('/company-assets/categories')) ?>" data-live-filter-form>
         <label class="field">
             <span>Search</span>
             <input type="search" name="search" value="<?= e((string) $filters['search']) ?>" placeholder="Category, subcategory, code, notes">
@@ -79,7 +80,7 @@ $renderCategoryNode = static function (array $category) use (&$renderCategoryNod
         </label>
         <div class="filter-actions">
             <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
-            <a class="ghost-button" href="<?= e(url('/company-assets/categories')) ?>"><?= ui_icon('back') ?><span>Reset</span></a>
+            <a class="ghost-button" href="<?= e(url('/company-assets/categories')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
         </div>
     </form>
     <div class="chip-row">
@@ -161,3 +162,4 @@ $renderCategoryNode = static function (array $category) use (&$renderCategoryNod
         </div>
     </article>
 </section>
+</div>

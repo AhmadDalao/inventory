@@ -17,6 +17,7 @@ $isSummaryLocationScoped = !empty($summaryFilters['storage_id']);
 $dateTitle = date('M j, Y', strtotime($selectedDate));
 ?>
 
+<div class="live-filter-region" data-live-filter-region="reports-summary">
 <?php if (!empty($canViewDailySummary) && $summary !== null): ?>
 <section class="panel reports-summary-panel">
     <div class="reports-summary-head">
@@ -258,6 +259,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
     </section>
 </section>
 <?php endif; ?>
+</div>
 
 <section class="panel reports-hero-panel">
     <div>

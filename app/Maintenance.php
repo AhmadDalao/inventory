@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Maintenance
 {
-    private const SCHEMA_VERSION = '2026-07-01-handover-expected-usage-v1';
+    private const SCHEMA_VERSION = '2026-07-02-assets-depreciation-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -1070,6 +1070,10 @@ final class Maintenance
                 purchase_id BIGINT UNSIGNED NULL,
                 purchase_date DATE NULL,
                 purchase_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                depreciation_start_date DATE NULL,
+                useful_life_months INT UNSIGNED NOT NULL DEFAULT 60,
+                salvage_value DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                depreciation_method ENUM("straight_line") NOT NULL DEFAULT "straight_line",
                 warranty_expires_at DATE NULL,
                 notes TEXT NULL,
                 is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -1100,6 +1104,22 @@ final class Maintenance
 
         if (!self::columnExists('company_assets', 'category_id')) {
             Database::execute('ALTER TABLE company_assets ADD COLUMN category_id BIGINT UNSIGNED NULL AFTER name');
+        }
+
+        if (!self::columnExists('company_assets', 'depreciation_start_date')) {
+            Database::execute('ALTER TABLE company_assets ADD COLUMN depreciation_start_date DATE NULL AFTER purchase_cost');
+        }
+
+        if (!self::columnExists('company_assets', 'useful_life_months')) {
+            Database::execute('ALTER TABLE company_assets ADD COLUMN useful_life_months INT UNSIGNED NOT NULL DEFAULT 60 AFTER depreciation_start_date');
+        }
+
+        if (!self::columnExists('company_assets', 'salvage_value')) {
+            Database::execute('ALTER TABLE company_assets ADD COLUMN salvage_value DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER useful_life_months');
+        }
+
+        if (!self::columnExists('company_assets', 'depreciation_method')) {
+            Database::execute('ALTER TABLE company_assets ADD COLUMN depreciation_method ENUM("straight_line") NOT NULL DEFAULT "straight_line" AFTER salvage_value');
         }
 
         self::ensureIndexExists('company_assets', 'idx_company_assets_category', 'CREATE INDEX `idx_company_assets_category` ON `company_assets` (`category_id`)');
@@ -1560,7 +1580,11 @@ final class Maintenance
     private static function assetCategorySchemaIsCurrent(): bool
     {
         return self::tableExists('asset_categories')
-            && self::columnExists('company_assets', 'category_id');
+            && self::columnExists('company_assets', 'category_id')
+            && self::columnExists('company_assets', 'depreciation_start_date')
+            && self::columnExists('company_assets', 'useful_life_months')
+            && self::columnExists('company_assets', 'salvage_value')
+            && self::columnExists('company_assets', 'depreciation_method');
     }
 
     private static function markSchemaCurrent(): void

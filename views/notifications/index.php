@@ -13,8 +13,9 @@
     </div>
 </section>
 
+<div class="live-filter-region" data-live-filter-region="notifications">
 <section class="filter-panel notification-filter-panel">
-    <form class="filter-grid notification-filter-grid" method="get" action="<?= e(url('/notifications')) ?>">
+    <form class="filter-grid notification-filter-grid" method="get" action="<?= e(url('/notifications')) ?>" data-live-filter-form>
         <label class="field">
             <span>Search</span>
             <input type="text" name="search" value="<?= e((string) ($filters['search'] ?? '')) ?>" placeholder="Title, message, user, or link">
@@ -43,7 +44,7 @@
 
         <div class="filter-actions">
             <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
-            <a class="ghost-button" href="<?= e(url('/notifications')) ?>"><?= ui_icon('back') ?><span>Reset</span></a>
+            <a class="ghost-button" href="<?= e(url('/notifications')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
         </div>
     </form>
 
@@ -107,3 +108,4 @@
         </div>
     <?php endif; ?>
 </section>
+</div>

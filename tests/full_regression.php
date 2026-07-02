@@ -1730,6 +1730,8 @@ $assetChildCategory = Database::fetch('SELECT * FROM asset_categories WHERE name
 assert_true(is_array($assetChildCategory), 'Asset child category was not created.');
 $assetCategorySearch = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/categories?search=' . rawurlencode($prefix . '-LAP-001') . '&status=all');
 assert_true($assetCategorySearch['status'] === 200 && strpos($assetCategorySearch['body'], $assetChildCategoryName) !== false, 'Asset category search did not find the child category.');
+assert_true(strpos($assetCategorySearch['body'], 'data-live-filter-region="asset-categories"') !== false, 'Asset categories page is missing live filter region.');
+assert_true(strpos($assetCategorySearch['body'], 'data-live-filter-form') !== false, 'Asset categories page is missing live filter form.');
 $assetCategoryReorder = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/categories/reorder', [
     '_token' => extract_csrf($assetCategorySearch['body'], 'asset category reorder'),
     'category_id' => (string) $assetChildCategory['id'],
@@ -1768,6 +1770,9 @@ $assetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/cre
     'purchase_id' => '',
     'purchase_date' => date('Y-m-d'),
     'purchase_cost' => '1234.50',
+    'depreciation_start_date' => date('Y-m-d'),
+    'useful_life_months' => '60',
+    'salvage_value' => '100.00',
     'warranty_expires_at' => date('Y-m-d', strtotime('+1 year')),
     'notes' => $prefix . ' asset workflow test',
 ]);
@@ -1777,15 +1782,22 @@ assert_true(is_array($assetRecord), 'Created asset was not found in the database
 assert_true((string) $assetRecord['status'] === 'pending_receipt', 'New assigned asset should wait for receipt confirmation.');
 assert_true((int) $assetRecord['assigned_user_id'] === (int) $staff['id'], 'New asset was not assigned to staff.');
 assert_true((int) ($assetRecord['category_id'] ?? 0) === (int) $assetChildCategory['id'], 'New asset was not assigned to the managed child category.');
+$assetFinancials = asset_financials($assetRecord);
+assert_true((int) $assetFinancials['useful_life_months'] === 60, 'Asset useful life months were not saved.');
+assert_true(abs((float) $assetFinancials['salvage_value'] - 100.00) < 0.01, 'Asset salvage value was not saved.');
+assert_true(abs((float) $assetFinancials['book_value'] - 1234.50) < 0.01, 'New asset book value should equal purchase cost at depreciation start.');
 
 $assetList = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets?search=' . rawurlencode($assetBarcode) . '&active=all');
 assert_true($assetList['status'] === 200, 'Assets list did not load.');
 assert_true(strpos($assetList['body'], $assetName) !== false, 'Assets list is missing the created asset.');
 assert_true(strpos($assetList['body'], $assetBarcode) !== false, 'Assets list is missing the asset barcode.');
-$assetParentFilteredList = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets?category_id=' . (int) $assetParentCategory['id'] . '&active=all');
+$assetParentFilteredList = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets?category_parent_id=' . (int) $assetParentCategory['id'] . '&active=all');
 assert_true($assetParentFilteredList['status'] === 200, 'Assets parent category filter did not load.');
 assert_true(strpos($assetParentFilteredList['body'], $assetName) !== false, 'Parent asset category filter did not include child category asset.');
 assert_true(strpos($assetParentFilteredList['body'], $assetParentCategoryName . ' / ' . $assetChildCategoryName) !== false, 'Asset list did not show the managed category hierarchy path.');
+assert_true(strpos($assetParentFilteredList['body'], 'name="category_parent_id"') !== false, 'Assets list is missing parent category filter control.');
+assert_true(strpos($assetParentFilteredList['body'], 'name="category_id"') !== false, 'Assets list is missing subcategory filter after parent selection.');
+assert_true(strpos($assetParentFilteredList['body'], 'Book Value') !== false, 'Assets list is missing book value label.');
 $staffAssetList = http_request($baseUrl, $staffCookie, 'GET', '/company-assets');
 assert_true($staffAssetList['status'] === 200, 'Staff My Assets page did not load.');
 assert_true(strpos($staffAssetList['body'], $assetName) !== false, 'Staff My Assets page is missing the assigned asset.');
@@ -1793,6 +1805,8 @@ assert_true(strpos($staffAssetList['body'], $assetName) !== false, 'Staff My Ass
 $ownerAssetShowForProof = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id']);
 assert_true($ownerAssetShowForProof['status'] === 200, 'Owner asset detail did not load for sign-off proof.');
 assert_true(strpos($ownerAssetShowForProof['body'], 'Signed Proof Sheets') !== false, 'Asset detail is missing sign-off proof sheet links.');
+assert_true(strpos($ownerAssetShowForProof['body'], 'Current Book Value') !== false, 'Asset detail is missing current book value.');
+assert_true(strpos($ownerAssetShowForProof['body'], 'Remaining Life') !== false, 'Asset detail is missing remaining life.');
 $assetSignoffPdf = http_request($baseUrl, $ownerCookie, 'GET', '/company-assets/' . (int) $assetRecord['id'] . '/signoff.pdf');
 assert_true($assetSignoffPdf['status'] === 200, 'Asset sign-off PDF failed.');
 assert_true(substr($assetSignoffPdf['body'], 0, 5) === '%PDF-', 'Asset sign-off PDF did not return a PDF.');
@@ -1934,10 +1948,12 @@ $assetExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets?sear
 assert_true($assetExport['status'] === 200, 'Asset CSV export failed.');
 assert_true(strpos($assetExport['body'], $assetBarcode) !== false, 'Asset CSV export is missing the created asset.');
 assert_true(strpos($assetExport['body'], $assetParentCategoryName . ' / ' . $assetChildCategoryName) !== false, 'Asset CSV export is missing category hierarchy path.');
+assert_true(strpos($assetExport['body'], 'Current Book Value') !== false, 'Asset CSV export is missing current book value column.');
 $assetExportXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets.xlsx?search=' . rawurlencode($prefix));
 assert_true($assetExportXlsx['status'] === 200, 'Asset XLSX export failed.');
 assert_true(substr($assetExportXlsx['body'], 0, 2) === 'PK', 'Asset XLSX export did not return an XLSX archive.');
 assert_xlsx_contains_text($assetExportXlsx['body'], 'Asset Number', 'Asset XLSX export is missing asset number column.');
+assert_xlsx_contains_text($assetExportXlsx['body'], 'Current Book Value', 'Asset XLSX export is missing current book value column.');
 assert_xlsx_contains_text($assetExportXlsx['body'], $assetBarcode, 'Asset XLSX export is missing the created asset barcode.');
 assert_xlsx_contains_text($assetExportXlsx['body'], $assetParentCategoryName . ' / ' . $assetChildCategoryName, 'Asset XLSX export is missing category hierarchy path.');
 snapshot_site_settings_for_test(['exports.asset_xlsx_thumbnails']);
@@ -3419,6 +3435,8 @@ $notificationsPage = http_request($baseUrl, $ownerCookie, 'GET', '/notifications
 assert_true($notificationsPage['status'] === 200, 'Notifications page did not load.');
 assert_true(strpos($notificationsPage['body'], 'notification-card-grid') !== false, 'Notifications page is missing card grid.');
 assert_true(strpos($notificationsPage['body'], 'Complete Log') !== false, 'Notifications page is missing complete log heading.');
+assert_true(strpos($notificationsPage['body'], 'data-live-filter-region="notifications"') !== false, 'Notifications page is missing live filter region.');
+assert_true(strpos($notificationsPage['body'], 'data-live-filter-form') !== false, 'Notifications page is missing live filter form.');
 $emailLogsPage = http_request($baseUrl, $ownerCookie, 'GET', '/email-logs?status=all');
 assert_true($emailLogsPage['status'] === 200, 'Email logs page did not load.');
 assert_true(strpos($emailLogsPage['body'], 'Email Settings') !== false, 'Email logs page is missing the settings shortcut.');
@@ -3482,6 +3500,8 @@ assert_true($staffScanPage['status'] === 302 && location_matches($staffScanPage[
 $reportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
 assert_true($reportsPage['status'] === 200, 'Reports page did not load for owner.');
 assert_true(strpos($reportsPage['body'], 'reports-summary-panel') !== false, 'Reports page is missing the daily summary panel.');
+assert_true(strpos($reportsPage['body'], 'data-live-filter-region="reports-summary"') !== false, 'Reports page is missing live filter region.');
+assert_true(strpos($reportsPage['body'], 'data-live-filter-form') !== false, 'Reports page is missing live filter form.');
 assert_true(strpos($reportsPage['body'], 'Everything That Happened On') !== false, 'Reports page is missing the daily summary title.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'Reports page is missing the daily summary export link.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary.xlsx') !== false, 'Reports page is missing the daily summary XLSX export link.');

@@ -7,6 +7,7 @@ function asset_filters(): array
     $condition = trim((string) query('condition', 'all'));
     $active = trim((string) query('active', 'all'));
     $categoryId = ctype_digit((string) query('category_id', '')) ? (int) query('category_id') : null;
+    $categoryParentId = ctype_digit((string) query('category_parent_id', '')) ? (int) query('category_parent_id') : null;
 
     $validStatuses = array_keys(asset_status_options());
     $validConditions = array_keys(asset_condition_options());
@@ -17,6 +18,7 @@ function asset_filters(): array
         'condition' => in_array($condition, array_merge(['all'], $validConditions), true) ? $condition : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'assigned_user_id' => ctype_digit((string) query('assigned_user_id', '')) ? (int) query('assigned_user_id') : null,
+        'category_parent_id' => $categoryParentId !== null && $categoryParentId > 0 ? $categoryParentId : null,
         'category_id' => $categoryId !== null && $categoryId > 0 ? $categoryId : null,
         'active' => in_array($active, ['all', 'active', 'archived'], true) ? $active : 'all',
     ];
@@ -88,8 +90,12 @@ function build_asset_where(array $filters, string $alias = 'a'): array
         $params['asset_assigned_user_id'] = (int) $filters['assigned_user_id'];
     }
 
-    if (!empty($filters['category_id'])) {
-        $categoryIds = asset_category_descendant_ids((int) $filters['category_id']);
+    $effectiveCategoryId = !empty($filters['category_id'])
+        ? (int) $filters['category_id']
+        : (!empty($filters['category_parent_id']) ? (int) $filters['category_parent_id'] : 0);
+
+    if ($effectiveCategoryId > 0) {
+        $categoryIds = asset_category_descendant_ids($effectiveCategoryId);
 
         if ($categoryIds === []) {
             $conditions[] = '0 = 1';
@@ -164,6 +170,7 @@ function asset_counts(array $filters): array
 
     [$where, $params] = build_asset_where($countFilters, 'a');
 
+    $bookValueSql = asset_book_value_sql('a');
     $row = Database::fetch(
         "SELECT COUNT(*) AS total,
                 SUM(CASE WHEN a.is_active = 1 THEN 1 ELSE 0 END) AS active_count,
@@ -172,7 +179,7 @@ function asset_counts(array $filters): array
                 SUM(CASE WHEN a.status IN ('assigned', 'pending_receipt', 'return_requested') AND a.is_active = 1 THEN 1 ELSE 0 END) AS assigned_count,
 	                SUM(CASE WHEN a.status IN ('maintenance', 'damaged') AND a.is_active = 1 THEN 1 ELSE 0 END) AS maintenance_count,
                 SUM(CASE WHEN a.status IN ('lost', 'retired') AND a.is_active = 1 THEN 1 ELSE 0 END) AS unavailable_count,
-                COALESCE(SUM(CASE WHEN a.is_active = 1 THEN a.purchase_cost ELSE 0 END), 0) AS total_value
+                COALESCE(SUM(CASE WHEN a.is_active = 1 THEN {$bookValueSql} ELSE 0 END), 0) AS total_value
          FROM company_assets a
          {$where}",
         $params
@@ -234,6 +241,10 @@ function asset_form_payload(?array $asset = null): array
         'purchase_id' => null,
         'purchase_date' => '',
         'purchase_cost' => '0.00',
+        'depreciation_start_date' => '',
+        'useful_life_months' => 60,
+        'salvage_value' => '0.00',
+        'depreciation_method' => 'straight_line',
         'warranty_expires_at' => '',
         'notes' => '',
         'bulk_quantity' => 1,
@@ -271,6 +282,100 @@ function asset_scan_code(array $asset): string
     $barcode = normalize_item_barcode($asset['barcode'] ?? '');
 
     return $barcode !== '' ? $barcode : (string) ($asset['asset_number'] ?? '');
+}
+
+function asset_book_value_sql(string $alias = 'a'): string
+{
+    $cost = "COALESCE({$alias}.purchase_cost, 0)";
+    $salvage = "LEAST(COALESCE({$alias}.salvage_value, 0), {$cost})";
+    $life = "GREATEST(COALESCE({$alias}.useful_life_months, 60), 1)";
+    $startDate = "COALESCE({$alias}.depreciation_start_date, {$alias}.purchase_date, DATE({$alias}.created_at), CURDATE())";
+    $elapsed = "LEAST(GREATEST(TIMESTAMPDIFF(MONTH, {$startDate}, CURDATE()), 0), {$life})";
+    $depreciable = "GREATEST({$cost} - {$salvage}, 0)";
+
+    return "ROUND(GREATEST({$salvage}, {$cost} - (({$depreciable} / {$life}) * {$elapsed})), 2)";
+}
+
+function asset_depreciation_months_elapsed(array $asset, ?DateTimeImmutable $today = null): int
+{
+    $today = $today ?? new DateTimeImmutable('today');
+    $start = trim((string) ($asset['depreciation_start_date'] ?? ''));
+    $start = $start !== '' ? $start : trim((string) ($asset['purchase_date'] ?? ''));
+    $start = $start !== '' ? $start : substr((string) ($asset['created_at'] ?? ''), 0, 10);
+
+    if ($start === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) {
+        return 0;
+    }
+
+    try {
+        $startDate = new DateTimeImmutable($start);
+    } catch (Throwable) {
+        return 0;
+    }
+
+    if ($startDate > $today) {
+        return 0;
+    }
+
+    $diff = $startDate->diff($today);
+    $months = ($diff->y * 12) + $diff->m;
+
+    return max(0, $months);
+}
+
+function asset_financials(array $asset): array
+{
+    $cost = max(0.0, (float) ($asset['purchase_cost'] ?? 0));
+    $salvage = max(0.0, min($cost, (float) ($asset['salvage_value'] ?? 0)));
+    $life = max(1, (int) ($asset['useful_life_months'] ?? 60));
+    $elapsed = min($life, asset_depreciation_months_elapsed($asset));
+    $depreciable = max(0.0, $cost - $salvage);
+    $depreciated = round(($depreciable / $life) * $elapsed, 2);
+    $bookValue = round(max($salvage, $cost - $depreciated), 2);
+
+    if ($cost <= 0) {
+        $depreciated = 0.0;
+        $bookValue = 0.0;
+    }
+
+    return [
+        'method' => 'straight_line',
+        'cost' => $cost,
+        'salvage_value' => $salvage,
+        'useful_life_months' => $life,
+        'elapsed_months' => $elapsed,
+        'remaining_months' => max(0, $life - $elapsed),
+        'depreciated_value' => $depreciated,
+        'book_value' => $bookValue,
+    ];
+}
+
+function asset_warranty_status(array $asset): array
+{
+    $expiry = trim((string) ($asset['warranty_expires_at'] ?? ''));
+
+    if ($expiry === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiry)) {
+        return ['label' => 'No warranty date', 'tone' => 'pill-muted'];
+    }
+
+    try {
+        $today = new DateTimeImmutable('today');
+        $expiryDate = new DateTimeImmutable($expiry);
+    } catch (Throwable) {
+        return ['label' => 'Warranty date invalid', 'tone' => 'badge-warning'];
+    }
+
+    if ($expiryDate < $today) {
+        return ['label' => 'Expired', 'tone' => 'badge-danger'];
+    }
+
+    $days = (int) $today->diff($expiryDate)->format('%a');
+
+    if ($days <= 30) {
+        return ['label' => 'Expires in ' . $days . ' days', 'tone' => 'badge-warning'];
+    }
+
+    return ['label' => 'Active', 'tone' => 'badge-success'];
 }
 
 function asset_upload_has_file(?array $file): bool
@@ -439,6 +544,74 @@ function asset_category_rows_for_select(?int $selectedId = null): array
     });
 
     return $rows;
+}
+
+function asset_category_row_by_id(?int $id): ?array
+{
+    if ($id === null || $id <= 0) {
+        return null;
+    }
+
+    $row = Database::fetch('SELECT * FROM asset_categories WHERE id = :id LIMIT 1', ['id' => $id]);
+
+    return is_array($row) ? $row : null;
+}
+
+function asset_category_parent_for_filter(?int $categoryId, ?int $parentId): ?int
+{
+    if ($parentId !== null && $parentId > 0) {
+        return $parentId;
+    }
+
+    $category = asset_category_row_by_id($categoryId);
+
+    if ($category === null) {
+        return null;
+    }
+
+    return $category['parent_id'] !== null ? (int) $category['parent_id'] : (int) $category['id'];
+}
+
+function asset_top_category_rows_for_select(?int $selectedId = null): array
+{
+    $conditions = ['(parent_id IS NULL AND is_active = 1)'];
+    $params = [];
+
+    if ($selectedId !== null && $selectedId > 0) {
+        $conditions[] = 'id = :selected_id';
+        $params['selected_id'] = $selectedId;
+    }
+
+    return Database::fetchAll(
+        'SELECT *
+         FROM asset_categories
+         WHERE ' . implode(' OR ', $conditions) . '
+         ORDER BY sort_order ASC, name ASC',
+        $params
+    );
+}
+
+function asset_child_category_rows_for_select(?int $parentId, ?int $selectedId = null): array
+{
+    if ($parentId === null || $parentId <= 0) {
+        return [];
+    }
+
+    $conditions = ['(parent_id = :parent_id AND is_active = 1)'];
+    $params = ['parent_id' => $parentId];
+
+    if ($selectedId !== null && $selectedId > 0) {
+        $conditions[] = 'id = :selected_id';
+        $params['selected_id'] = $selectedId;
+    }
+
+    return Database::fetchAll(
+        'SELECT *
+         FROM asset_categories
+         WHERE ' . implode(' OR ', $conditions) . '
+         ORDER BY sort_order ASC, name ASC',
+        $params
+    );
 }
 
 function asset_category_tree(array $rows): array
@@ -932,6 +1105,7 @@ function handle_assets_index(): void
     Auth::requirePermission('assets.view');
 
     $filters = asset_filters();
+    $selectedParentCategoryId = asset_category_parent_for_filter($filters['category_id'], $filters['category_parent_id']);
     $rows = asset_rows($filters);
 
     View::render('assets/index', [
@@ -941,7 +1115,9 @@ function handle_assets_index(): void
         'counts' => asset_counts($filters),
         'storages' => all_storages_for_select($filters['storage_id']),
         'users' => active_users_for_asset_select($filters['assigned_user_id']),
-        'categories' => asset_category_rows_for_select($filters['category_id']),
+        'parentCategories' => asset_top_category_rows_for_select($selectedParentCategoryId),
+        'childCategories' => asset_child_category_rows_for_select($selectedParentCategoryId, $filters['category_id']),
+        'selectedParentCategoryId' => $selectedParentCategoryId,
     ]);
 }
 
@@ -973,6 +1149,9 @@ function asset_form_input_payload(): array
 {
     $condition = trim((string) input('condition_status', 'good'));
     $categoryId = ctype_digit((string) input('category_id', '')) ? (int) input('category_id') : null;
+    $usefulLifeMonths = (int) input('useful_life_months', '60');
+    $purchaseCost = max(0, (float) input('purchase_cost', '0'));
+    $salvageValue = max(0, (float) input('salvage_value', '0'));
 
     if (!array_key_exists($condition, asset_condition_options())) {
         $condition = 'good';
@@ -1005,7 +1184,11 @@ function asset_form_input_payload(): array
         'supplier_id' => ctype_digit((string) input('supplier_id', '')) ? (int) input('supplier_id') : null,
         'purchase_id' => ctype_digit((string) input('purchase_id', '')) ? (int) input('purchase_id') : null,
         'purchase_date' => asset_valid_date_or_null((string) input('purchase_date', '')),
-        'purchase_cost' => max(0, (float) input('purchase_cost', '0')),
+        'purchase_cost' => $purchaseCost,
+        'depreciation_start_date' => asset_valid_date_or_null((string) input('depreciation_start_date', '')),
+        'useful_life_months' => max(1, min(1200, $usefulLifeMonths > 0 ? $usefulLifeMonths : 60)),
+        'salvage_value' => min($purchaseCost, $salvageValue),
+        'depreciation_method' => 'straight_line',
         'warranty_expires_at' => asset_valid_date_or_null((string) input('warranty_expires_at', '')),
         'notes' => trim((string) input('notes', '')),
     ];
@@ -1098,12 +1281,14 @@ function handle_assets_create_submit(): void
                 'INSERT INTO company_assets (
                     asset_number, name, category_id, category, model, serial_number, barcode, image_path,
                     condition_status, status, storage_id, assigned_user_id, supplier_id, purchase_id,
-                    purchase_date, purchase_cost, warranty_expires_at, notes, is_active,
+                    purchase_date, purchase_cost, depreciation_start_date, useful_life_months, salvage_value,
+                    depreciation_method, warranty_expires_at, notes, is_active,
                     created_by, updated_by, created_at, updated_at
                  ) VALUES (
                     :asset_number, :name, :category_id, :category, :model, :serial_number, :barcode, :image_path,
                     :condition_status, :status, :storage_id, :assigned_user_id, :supplier_id, :purchase_id,
-                    :purchase_date, :purchase_cost, :warranty_expires_at, :notes, 1,
+                    :purchase_date, :purchase_cost, :depreciation_start_date, :useful_life_months, :salvage_value,
+                    :depreciation_method, :warranty_expires_at, :notes, 1,
                     :created_by, :updated_by, NOW(), NOW()
                  )',
                 [
@@ -1123,6 +1308,10 @@ function handle_assets_create_submit(): void
                     'purchase_id' => $payload['purchase_id'],
                     'purchase_date' => $payload['purchase_date'],
                     'purchase_cost' => $payload['purchase_cost'],
+                    'depreciation_start_date' => $payload['depreciation_start_date'],
+                    'useful_life_months' => $payload['useful_life_months'],
+                    'salvage_value' => $payload['salvage_value'],
+                    'depreciation_method' => $payload['depreciation_method'],
                     'warranty_expires_at' => $payload['warranty_expires_at'],
                     'notes' => $payload['notes'] ?: null,
                     'created_by' => $userId,
@@ -1278,6 +1467,10 @@ function handle_assets_edit_submit(array $params): void
              purchase_id = :purchase_id,
              purchase_date = :purchase_date,
              purchase_cost = :purchase_cost,
+             depreciation_start_date = :depreciation_start_date,
+             useful_life_months = :useful_life_months,
+             salvage_value = :salvage_value,
+             depreciation_method = :depreciation_method,
              warranty_expires_at = :warranty_expires_at,
              notes = :notes,
              updated_by = :updated_by,
@@ -1299,6 +1492,10 @@ function handle_assets_edit_submit(array $params): void
             'purchase_id' => $payload['purchase_id'],
             'purchase_date' => $payload['purchase_date'],
             'purchase_cost' => $payload['purchase_cost'],
+            'depreciation_start_date' => $payload['depreciation_start_date'],
+            'useful_life_months' => $payload['useful_life_months'],
+            'salvage_value' => $payload['salvage_value'],
+            'depreciation_method' => $payload['depreciation_method'],
             'warranty_expires_at' => $payload['warranty_expires_at'],
             'notes' => $payload['notes'] ?: null,
             'updated_by' => Auth::user()['id'] ?? null,
@@ -1803,6 +2000,8 @@ function handle_export_assets(): void
     }
 
     $rows = array_map(static function (array $asset): array {
+        $financials = asset_financials($asset);
+
         return [
             $asset['asset_number'],
             $asset['name'],
@@ -1819,6 +2018,13 @@ function handle_export_assets(): void
             $asset['purchase_number'] ?: '',
             $asset['purchase_date'] ?: '',
             format_money($asset['purchase_cost']),
+            $asset['depreciation_start_date'] ?: '',
+            $financials['useful_life_months'],
+            format_money($financials['salvage_value']),
+            'Straight-line',
+            format_money($financials['depreciated_value']),
+            format_money($financials['book_value']),
+            $financials['remaining_months'],
             $asset['warranty_expires_at'] ?: '',
             (int) $asset['is_active'] === 1 ? 'Active' : 'Deleted',
             $asset['notes'] ?: '',
@@ -1841,6 +2047,13 @@ function handle_export_assets(): void
         'Purchase',
         'Purchase Date',
         'Purchase Cost',
+        'Depreciation Start',
+        'Useful Life Months',
+        'Salvage Value',
+        'Depreciation Method',
+        'Depreciated Value',
+        'Current Book Value',
+        'Remaining Life Months',
         'Warranty Expiry',
         'Record Status',
         'Notes',
@@ -1939,6 +2152,12 @@ function asset_export_xlsx_sheet_xml(array $assets, array $images, array $imageS
         'Assigned User',
         'Supplier',
         'Purchase Cost',
+        'Current Book Value',
+        'Depreciated Value',
+        'Useful Life Months',
+        'Remaining Life Months',
+        'Salvage Value',
+        'Depreciation Start',
         'Warranty Expiry',
         'Record Status',
         'Notes',
@@ -1979,6 +2198,8 @@ function asset_export_xlsx_sheet_xml(array $assets, array $images, array $imageS
             $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, $barcodeCol) ? '' : ($scanCode !== '' ? 'Barcode image unavailable' : 'No scan code');
         }
 
+        $financials = asset_financials($asset);
+
         $rowValues = array_merge($rowValues, [
             asset_status_label((string) $asset['status']),
             asset_condition_label((string) $asset['condition_status']),
@@ -1986,6 +2207,12 @@ function asset_export_xlsx_sheet_xml(array $assets, array $images, array $imageS
             (string) ($asset['assigned_user_name'] ?: ''),
             (string) ($asset['supplier_name'] ?: ''),
             format_money($asset['purchase_cost']),
+            format_money($financials['book_value']),
+            format_money($financials['depreciated_value']),
+            (string) $financials['useful_life_months'],
+            (string) $financials['remaining_months'],
+            format_money($financials['salvage_value']),
+            (string) ($asset['depreciation_start_date'] ?: ''),
             (string) ($asset['warranty_expires_at'] ?: ''),
             (int) $asset['is_active'] === 1 ? 'Active' : 'Deleted',
             (string) ($asset['notes'] ?: ''),
@@ -2007,7 +2234,7 @@ function asset_export_xlsx_sheet_xml(array $assets, array $images, array $imageS
         $columnWidths[] = 32;
     }
 
-    $columnWidths = array_merge($columnWidths, [18, 16, 24, 24, 24, 18, 18, 16, 36]);
+    $columnWidths = array_merge($columnWidths, [18, 16, 24, 24, 24, 18, 18, 18, 18, 18, 18, 18, 18, 16, 36]);
     $columnXml = '';
 
     foreach ($columnWidths as $index => $width) {
@@ -2137,6 +2364,8 @@ function asset_signoff_filename(array $asset, string $extension): string
 
 function asset_signoff_field_pairs(array $asset): array
 {
+    $financials = asset_financials($asset);
+
     return [
         ['Asset Name', (string) ($asset['name'] ?? '')],
         ['Asset Number', (string) ($asset['asset_number'] ?? '')],
@@ -2153,6 +2382,12 @@ function asset_signoff_field_pairs(array $asset): array
         ['Purchase', (string) ($asset['purchase_number'] ?: 'Not linked')],
         ['Purchase Date', (string) ($asset['purchase_date'] ?: 'Not set')],
         ['Purchase Cost', format_money($asset['purchase_cost'] ?? 0)],
+        ['Current Book Value', format_money($financials['book_value'])],
+        ['Depreciated Value', format_money($financials['depreciated_value'])],
+        ['Useful Life', $financials['useful_life_months'] . ' months'],
+        ['Remaining Life', $financials['remaining_months'] . ' months'],
+        ['Salvage Value', format_money($financials['salvage_value'])],
+        ['Depreciation Start', (string) ($asset['depreciation_start_date'] ?: 'Not set')],
         ['Warranty Expiry', (string) ($asset['warranty_expires_at'] ?: 'Not set')],
         ['Record Status', (int) ($asset['is_active'] ?? 1) === 1 ? 'Active' : 'Deleted'],
         ['Notes', (string) ($asset['notes'] ?: 'No notes.')],
