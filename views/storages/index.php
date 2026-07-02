@@ -143,27 +143,30 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                         </span>
                     </td>
                     <td data-label="Notes"><?= e($storage['notes'] ? truncate_text($storage['notes'], 72) : '-') ?></td>
-                    <td data-label="Actions">
-                        <div class="inline-actions">
-                            <a class="text-link" href="<?= e(url('/storages/' . $storage['id'])) ?>">Open</a>
-                            <?php if (Auth::hasPermission('items.view')): ?>
-                                <a class="text-link" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">Items</a>
-                            <?php endif; ?>
-                            <?php if (Auth::hasPermission('storages.edit')): ?>
-                                <a class="text-link" href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>">Edit</a>
-                            <?php endif; ?>
-                            <?php if (Auth::hasPermission('storages.copy') && Auth::hasPermission('storages.create')): ?>
-                                <a class="text-link" href="<?= e(url('/storages/create?copy=' . $storage['id'])) ?>">Copy</a>
-                            <?php endif; ?>
-                            <?php if (Auth::hasPermission('storages.archive')): ?>
-                                <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>" data-live-action-form>
-                                    <?= csrf_field() ?>
-                                    <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Delete this location? You can recover it later.' : 'Recover this location?' ?>">
-                                        <?= (int) $storage['is_active'] === 1 ? 'Delete' : 'Recover' ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Storage actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/storages/' . $storage['id'])) ?>"><?= ui_icon('storages') ?><span>Open</span></a>
+                                <?php if (Auth::hasPermission('items.view')): ?>
+                                    <a href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>"><?= ui_icon('items') ?><span>Items</span></a>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('storages.edit')): ?>
+                                    <a href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit</span></a>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('storages.copy') && Auth::hasPermission('storages.create')): ?>
+                                    <a href="<?= e(url('/storages/create?copy=' . $storage['id'])) ?>"><?= ui_icon('copy_action') ?><span>Copy</span></a>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('storages.archive')): ?>
+                                    <form method="post" action="<?= e(url('/storages/' . $storage['id'] . '/status')) ?>" data-live-action-form>
+                                        <?= csrf_field() ?>
+                                        <button class="danger-link" type="submit" data-confirm="<?= (int) $storage['is_active'] === 1 ? 'Delete this location? You can recover it later.' : 'Recover this location?' ?>">
+                                            <?= ui_icon('reorder') ?><span><?= (int) $storage['is_active'] === 1 ? 'Delete' : 'Recover' ?></span>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </details>
                     </td>
                 </tr>
             <?php endforeach; ?>

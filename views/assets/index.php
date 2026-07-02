@@ -250,21 +250,24 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                         <td data-label="Status"><span class="pill <?= e(asset_status_tone((string) $asset['status'])) ?>"><?= e(asset_status_label((string) $asset['status'])) ?></span></td>
                         <td data-label="Condition"><?= e(asset_condition_label((string) $asset['condition_status'])) ?></td>
                         <td data-label="Book Value"><?= e(format_money($financials['book_value'])) ?></td>
-                        <td data-label="Actions">
-                            <div class="inline-actions">
-                                <a class="text-link" href="<?= e(url('/company-assets/' . $asset['id'])) ?>">Open</a>
-                                <?php if (Auth::hasPermission('assets.edit') && !Auth::isStaff()): ?>
-                                    <a class="text-link" href="<?= e(url('/company-assets/' . $asset['id'] . '/edit')) ?>">Edit</a>
-                                <?php endif; ?>
-                                <?php if (Auth::hasPermission('assets.archive') && !Auth::isStaff()): ?>
-                                    <form method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/status')) ?>" data-live-action-form>
-                                        <?= csrf_field() ?>
-                                        <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $asset['is_active'] === 1 ? 'Archive this asset?' : 'Recover this asset?' ?>">
-                                            <?= (int) $asset['is_active'] === 1 ? 'Archive' : 'Recover' ?>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
+                        <td data-label="Actions" class="table-actions-cell">
+                            <details class="row-action-menu">
+                                <summary aria-label="Asset actions"><?= ui_icon('menu') ?></summary>
+                                <div class="row-action-list">
+                                    <a href="<?= e(url('/company-assets/' . $asset['id'])) ?>"><?= ui_icon('assets') ?><span>Open</span></a>
+                                    <?php if (Auth::hasPermission('assets.edit') && !Auth::isStaff()): ?>
+                                        <a href="<?= e(url('/company-assets/' . $asset['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit</span></a>
+                                    <?php endif; ?>
+                                    <?php if (Auth::hasPermission('assets.archive') && !Auth::isStaff()): ?>
+                                        <form method="post" action="<?= e(url('/company-assets/' . $asset['id'] . '/status')) ?>" data-live-action-form>
+                                            <?= csrf_field() ?>
+                                            <button class="danger-link" type="submit" data-confirm="<?= (int) $asset['is_active'] === 1 ? 'Archive this asset?' : 'Recover this asset?' ?>">
+                                                <?= ui_icon('reorder') ?><span><?= (int) $asset['is_active'] === 1 ? 'Archive' : 'Recover' ?></span>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
+                            </details>
                         </td>
                     </tr>
                 <?php endforeach; ?>

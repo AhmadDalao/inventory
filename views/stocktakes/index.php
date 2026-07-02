@@ -137,7 +137,14 @@ $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool 
                         </span>
                     </td>
                     <td data-label="Created"><?= e(format_datetime_display((string) $stocktake['created_at'])) ?></td>
-                    <td data-label="Actions"><a class="text-link" href="<?= e(url('/stocktakes/' . $stocktake['id'])) ?>">Open</a></td>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Stocktake actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/stocktakes/' . $stocktake['id'])) ?>"><?= ui_icon('stocktakes') ?><span>Open</span></a>
+                            </div>
+                        </details>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

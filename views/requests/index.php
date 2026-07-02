@@ -158,8 +158,13 @@ $requestFilterUrl = static function (string $status) use ($filters): string {
                     <td data-label="Total Qty"><?= format_quantity($request['total_requested']) ?></td>
                     <td data-label="Status"><span class="pill pill-<?= e((string) $request['status']) ?>"><?= e(request_status_label((string) $request['status'])) ?></span></td>
                     <td data-label="Requested"><?= e(format_datetime_display((string) $request['requested_at'])) ?></td>
-                    <td data-label="Actions">
-                        <a class="text-link" href="<?= e(url('/requests/' . $request['id'])) ?>">Open</a>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Request actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/requests/' . $request['id'])) ?>"><?= ui_icon('requests') ?><span>Open</span></a>
+                            </div>
+                        </details>
                     </td>
                 </tr>
             <?php endforeach; ?>

@@ -203,9 +203,14 @@ $activeSize = (float) ($counts['all']['total_size'] ?? 0);
                             <span class="pill pill-active">Available</span>
                         <?php endif; ?>
                     </td>
-                    <td data-label="Actions">
+                    <td data-label="Actions" class="table-actions-cell">
                         <?php if ($exists && file_library_can_download()): ?>
-                            <a class="text-link" href="<?= e(url('/files/' . $file['id'] . '/download')) ?>">Download</a>
+                            <details class="row-action-menu">
+                                <summary aria-label="File actions"><?= ui_icon('menu') ?></summary>
+                                <div class="row-action-list">
+                                    <a href="<?= e(url('/files/' . $file['id'] . '/download')) ?>"><?= ui_icon('export') ?><span>Download</span></a>
+                                </div>
+                            </details>
                         <?php else: ?>
                             <span class="tiny-copy">No download</span>
                         <?php endif; ?>

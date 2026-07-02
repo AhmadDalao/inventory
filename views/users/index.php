@@ -95,26 +95,29 @@
                     </td>
                     <td data-label="Last Login"><?= $userRow['last_login_at'] ? e(date('M j, Y g:i A', strtotime($userRow['last_login_at']))) : 'Never' ?></td>
                     <td data-label="Created"><?= e(date('M j, Y', strtotime($userRow['created_at']))) ?></td>
-                    <td data-label="Actions">
-                        <div class="inline-actions">
-                            <?php if (Auth::hasPermission('users.edit')): ?>
-                                <a class="text-link" href="<?= e(url('/users/' . $userRow['id'] . '/edit')) ?>">Edit</a>
-                                <?php if ((int) $userRow['is_active'] === 1 && (Auth::isOwner() || $userRow['role'] !== 'owner')): ?>
-                                    <form method="post" action="<?= e(url('/users/' . $userRow['id'] . '/send-reset')) ?>" data-live-action-form>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="User actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <?php if (Auth::hasPermission('users.edit')): ?>
+                                    <a href="<?= e(url('/users/' . $userRow['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit</span></a>
+                                    <?php if ((int) $userRow['is_active'] === 1 && (Auth::isOwner() || $userRow['role'] !== 'owner')): ?>
+                                        <form method="post" action="<?= e(url('/users/' . $userRow['id'] . '/send-reset')) ?>" data-live-action-form>
+                                            <?= csrf_field() ?>
+                                            <button type="submit" data-confirm="Send a password reset email to this user?"><?= ui_icon('notification') ?><span>Send Reset</span></button>
+                                        </form>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                                <?php if ($userRow['role'] !== 'owner' && Auth::hasPermission('users.disable')): ?>
+                                    <form method="post" action="<?= e(url('/users/' . $userRow['id'] . '/status')) ?>" data-live-action-form>
                                         <?= csrf_field() ?>
-                                        <button class="text-button" type="submit" data-confirm="Send a password reset email to this user?">Send Reset</button>
+                                        <button class="danger-link" type="submit" data-confirm="<?= (int) $userRow['is_active'] === 1 ? 'Disable this admin?' : 'Restore this admin?' ?>">
+                                            <?= ui_icon('reorder') ?><span><?= (int) $userRow['is_active'] === 1 ? 'Disable' : 'Restore' ?></span>
+                                        </button>
                                     </form>
                                 <?php endif; ?>
-                            <?php endif; ?>
-                            <?php if ($userRow['role'] !== 'owner' && Auth::hasPermission('users.disable')): ?>
-                                <form method="post" action="<?= e(url('/users/' . $userRow['id'] . '/status')) ?>" data-live-action-form>
-                                    <?= csrf_field() ?>
-                                    <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $userRow['is_active'] === 1 ? 'Disable this admin?' : 'Restore this admin?' ?>">
-                                        <?= (int) $userRow['is_active'] === 1 ? 'Disable' : 'Restore' ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
+                            </div>
+                        </details>
                     </td>
                 </tr>
             <?php endforeach; ?>

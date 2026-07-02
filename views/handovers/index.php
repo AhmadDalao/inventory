@@ -155,7 +155,14 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
                     <td data-label="Used"><?= format_quantity($handover['total_used']) ?></td>
                     <td data-label="Returned"><?= format_quantity($handover['total_returned']) ?></td>
                     <td data-label="Status"><span class="pill pill-<?= e((string) $handover['status']) ?>"><?= e(handover_status_label((string) $handover['status'])) ?></span></td>
-                    <td data-label="Actions"><a class="text-link" href="<?= e(url('/handovers/' . $handover['id'])) ?>">Open</a></td>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Handover actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/handovers/' . $handover['id'])) ?>"><?= ui_icon('handover') ?><span>Open</span></a>
+                            </div>
+                        </details>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

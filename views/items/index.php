@@ -178,33 +178,36 @@ $itemFilterUrl = static function (string $status) use ($filters): string {
                         </span>
                     </td>
                     <td data-label="Last Movement"><?= $item['last_movement_at'] ? e(date('M j, Y g:i A', strtotime($item['last_movement_at']))) : 'Never' ?></td>
-                    <td data-label="Actions">
-                        <div class="inline-actions">
-                            <a class="text-link" href="<?= e(url('/items/' . $item['id'])) ?>">Open</a>
-                            <?php if (Auth::hasPermission('items.edit')): ?>
-                                <a class="text-link" href="<?= e(url('/items/' . $item['id'] . '/edit')) ?>">Edit</a>
-                            <?php endif; ?>
-                            <?php if (Auth::hasPermission('items.copy') && Auth::hasPermission('items.create')): ?>
-                                <a class="text-link" href="<?= e(url('/items/create?copy=' . $item['id'])) ?>">Copy</a>
-                            <?php endif; ?>
-                            <?php if (!empty($selectedStorage) && (int) $item['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
-                                <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $selectedStorage['id'] . '/remove')) ?>" data-live-action-form>
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="return_to" value="<?= e($currentListPath) ?>">
-                                    <button class="text-button danger-link" type="submit" data-confirm="Remove <?= e($item['name']) ?> from <?= e($selectedStorage['name']) ?> only? Other storages keep their quantities.">
-                                        Remove Here
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                            <?php if (Auth::hasPermission('items.archive')): ?>
-                                <form method="post" action="<?= e(url('/items/' . $item['id'] . '/status')) ?>" data-live-action-form>
-                                    <?= csrf_field() ?>
-                                    <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Archive this shared item? This affects every storage that still has it.' : 'Recover this item?' ?>">
-                                        <?= (int) $item['is_active'] === 1 ? 'Archive' : 'Recover' ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Item actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/items/' . $item['id'])) ?>"><?= ui_icon('items') ?><span>Open</span></a>
+                                <?php if (Auth::hasPermission('items.edit')): ?>
+                                    <a href="<?= e(url('/items/' . $item['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit</span></a>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('items.copy') && Auth::hasPermission('items.create')): ?>
+                                    <a href="<?= e(url('/items/create?copy=' . $item['id'])) ?>"><?= ui_icon('copy_action') ?><span>Copy</span></a>
+                                <?php endif; ?>
+                                <?php if (!empty($selectedStorage) && (int) $item['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
+                                    <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $selectedStorage['id'] . '/remove')) ?>" data-live-action-form>
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="return_to" value="<?= e($currentListPath) ?>">
+                                        <button class="danger-link" type="submit" data-confirm="Remove <?= e($item['name']) ?> from <?= e($selectedStorage['name']) ?> only? Other storages keep their quantities.">
+                                            <?= ui_icon('back') ?><span>Remove Here</span>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('items.archive')): ?>
+                                    <form method="post" action="<?= e(url('/items/' . $item['id'] . '/status')) ?>" data-live-action-form>
+                                        <?= csrf_field() ?>
+                                        <button class="danger-link" type="submit" data-confirm="<?= (int) $item['is_active'] === 1 ? 'Archive this shared item? This affects every storage that still has it.' : 'Recover this item?' ?>">
+                                            <?= ui_icon('reorder') ?><span><?= (int) $item['is_active'] === 1 ? 'Archive' : 'Recover' ?></span>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </details>
                     </td>
                 </tr>
             <?php endforeach; ?>

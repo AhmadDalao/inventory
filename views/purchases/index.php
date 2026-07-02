@@ -145,7 +145,14 @@ $exportQuery = http_build_query(array_filter($filters, static fn ($value): bool 
                     <td data-label="Status">
                         <span class="pill pill-<?= e((string) $purchase['status']) ?>"><?= e(purchase_status_label((string) $purchase['status'])) ?></span>
                     </td>
-                    <td data-label="Actions"><a class="text-link" href="<?= e(url('/purchases/' . $purchase['id'])) ?>">Open</a></td>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Purchase actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/purchases/' . $purchase['id'])) ?>"><?= ui_icon('purchases') ?><span>Open</span></a>
+                            </div>
+                        </details>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

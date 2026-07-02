@@ -132,21 +132,24 @@ $supplierFilterUrl = static function (string $status) use ($filters): string {
                             <?= (int) $supplier['is_active'] === 1 ? 'Active' : 'Archived' ?>
                         </span>
                     </td>
-                    <td data-label="Actions">
-                        <div class="inline-actions">
-                            <a class="text-link" href="<?= e(url('/suppliers/' . $supplier['id'])) ?>">Open</a>
-                            <?php if (Auth::hasPermission('suppliers.edit')): ?>
-                                <a class="text-link" href="<?= e(url('/suppliers/' . $supplier['id'] . '/edit')) ?>">Edit</a>
-                            <?php endif; ?>
-                            <?php if (Auth::hasPermission('suppliers.archive')): ?>
-                                <form method="post" action="<?= e(url('/suppliers/' . $supplier['id'] . '/status')) ?>" data-live-action-form>
-                                    <?= csrf_field() ?>
-                                    <button class="text-button danger-link" type="submit" data-confirm="<?= (int) $supplier['is_active'] === 1 ? 'Archive this supplier?' : 'Recover this supplier?' ?>">
-                                        <?= (int) $supplier['is_active'] === 1 ? 'Archive' : 'Recover' ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
+                    <td data-label="Actions" class="table-actions-cell">
+                        <details class="row-action-menu">
+                            <summary aria-label="Supplier actions"><?= ui_icon('menu') ?></summary>
+                            <div class="row-action-list">
+                                <a href="<?= e(url('/suppliers/' . $supplier['id'])) ?>"><?= ui_icon('supplier') ?><span>Open</span></a>
+                                <?php if (Auth::hasPermission('suppliers.edit')): ?>
+                                    <a href="<?= e(url('/suppliers/' . $supplier['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit</span></a>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('suppliers.archive')): ?>
+                                    <form method="post" action="<?= e(url('/suppliers/' . $supplier['id'] . '/status')) ?>" data-live-action-form>
+                                        <?= csrf_field() ?>
+                                        <button class="danger-link" type="submit" data-confirm="<?= (int) $supplier['is_active'] === 1 ? 'Archive this supplier?' : 'Recover this supplier?' ?>">
+                                            <?= ui_icon('reorder') ?><span><?= (int) $supplier['is_active'] === 1 ? 'Archive' : 'Recover' ?></span>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </details>
                     </td>
                 </tr>
             <?php endforeach; ?>

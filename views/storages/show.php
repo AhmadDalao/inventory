@@ -232,19 +232,24 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                             </span>
                         </td>
                         <td data-label="Last Activity"><?= $item['last_activity_at'] ? e(format_datetime_display($item['last_activity_at'])) : 'Never' ?></td>
-                        <td data-label="Actions">
+                        <td data-label="Actions" class="table-actions-cell">
                             <?php if ((int) $item['is_active'] === 1 && (int) $storage['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
-                                <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $storage['id'] . '/remove')) ?>">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="return_to" value="<?= e('/storages/' . $storage['id']) ?>">
-                                    <button
-                                        class="text-button danger-link"
-                                        type="submit"
-                                        data-confirm="Remove <?= e($item['name']) ?> from <?= e($storage['name']) ?> only? Other storages keep their quantities."
-                                    >
-                                        Remove
-                                    </button>
-                                </form>
+                                <details class="row-action-menu">
+                                    <summary aria-label="Storage item actions"><?= ui_icon('menu') ?></summary>
+                                    <div class="row-action-list">
+                                        <form method="post" action="<?= e(url('/items/' . $item['id'] . '/locations/' . $storage['id'] . '/remove')) ?>">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="return_to" value="<?= e('/storages/' . $storage['id']) ?>">
+                                            <button
+                                                class="danger-link"
+                                                type="submit"
+                                                data-confirm="Remove <?= e($item['name']) ?> from <?= e($storage['name']) ?> only? Other storages keep their quantities."
+                                            >
+                                                <?= ui_icon('back') ?><span>Remove</span>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </details>
                             <?php else: ?>
                                 <span class="tiny-copy">-</span>
                             <?php endif; ?>

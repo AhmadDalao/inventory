@@ -108,7 +108,7 @@ $isLocationScoped = !empty($filters['storage_id']);
     </div>
 
     <div class="table-wrap">
-        <table class="data-table data-table-mobile">
+        <table class="data-table data-table-mobile movement-log-table">
             <thead>
             <tr>
                 <th>When</th>
