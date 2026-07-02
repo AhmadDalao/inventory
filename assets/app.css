@@ -2219,14 +2219,30 @@ textarea {
 
 .handover-expected-usage-row {
     display: grid;
-    grid-template-columns: minmax(150px, 0.85fr) minmax(120px, 0.55fr) minmax(150px, 0.85fr) minmax(220px, 1.25fr) auto;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 10px;
-    align-items: center;
+    align-items: stretch;
     padding: 12px;
     border: 1px solid #eadfce;
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.78);
     box-shadow: 0 10px 24px rgba(31, 24, 13, 0.04);
+}
+
+.handover-expected-usage-row select[data-expected-usage-reason] {
+    grid-column: span 3;
+}
+
+.handover-expected-usage-row input[data-expected-usage-name="expected_usage_quantity"] {
+    grid-column: span 2;
+}
+
+.handover-expected-usage-row input[data-expected-usage-other] {
+    grid-column: span 2;
+}
+
+.handover-expected-usage-row input[data-expected-usage-name="expected_usage_notes"] {
+    grid-column: span 3;
 }
 
 .handover-expected-usage-row select,
@@ -2248,7 +2264,7 @@ textarea {
 }
 
 .handover-expected-usage-row input[data-expected-usage-other][hidden] + input[data-expected-usage-name="expected_usage_notes"] {
-    grid-column: 3 / 5;
+    grid-column: span 5;
 }
 
 .handover-expected-usage-row select:focus,
@@ -2259,6 +2275,7 @@ textarea {
 }
 
 .handover-expected-remove {
+    grid-column: span 2;
     min-height: 48px;
     border: 1px solid #eadfce;
     border-radius: 14px;
