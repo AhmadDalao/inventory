@@ -1445,6 +1445,10 @@ textarea {
     width: 100%;
 }
 
+.row-action-menu[open] {
+    z-index: 40;
+}
+
 .row-action-menu summary {
     display: inline-flex;
     align-items: center;
@@ -1484,10 +1488,14 @@ textarea {
 }
 
 .row-action-list {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 45;
     display: grid;
     gap: 4px;
     min-width: 180px;
-    margin-top: 8px;
+    margin-top: 0;
     padding: 8px;
     border: 1px solid var(--line);
     border-radius: 16px;
@@ -5153,6 +5161,9 @@ body.theme-clean {
     }
 
     .data-table-mobile .row-action-list {
+        position: static;
+        z-index: auto;
+        margin-top: 8px;
         width: min(260px, 100%);
         min-width: 0;
     }
