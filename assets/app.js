@@ -1152,6 +1152,166 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const initComboboxSelects = (root = document) => {
+    const selects = Array.from(root.querySelectorAll?.('select[data-combobox-select]') || []);
+
+    selects.forEach((select) => {
+      if (!(select instanceof HTMLSelectElement) || select.dataset.comboboxBound === 'true') {
+        return;
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'select-combobox workflow-picker';
+
+      const toggle = document.createElement('button');
+      toggle.className = 'workflow-picker-toggle select-combobox-toggle';
+      toggle.type = 'button';
+      toggle.setAttribute('aria-haspopup', 'listbox');
+      toggle.setAttribute('aria-expanded', 'false');
+
+      const panel = document.createElement('div');
+      panel.className = 'workflow-picker-panel select-combobox-panel';
+      panel.hidden = true;
+
+      const search = document.createElement('input');
+      search.className = 'workflow-picker-search select-combobox-search';
+      search.type = 'search';
+      search.autocomplete = 'off';
+      search.placeholder = select.dataset.comboboxPlaceholder || select.dataset.searchablePlaceholder || 'Search options...';
+
+      const optionsWrap = document.createElement('div');
+      optionsWrap.className = 'workflow-picker-options select-combobox-options';
+      optionsWrap.setAttribute('role', 'listbox');
+
+      panel.append(search, optionsWrap);
+      select.parentNode.insertBefore(wrapper, select);
+      wrapper.append(select, toggle, panel);
+      select.classList.add('select-combobox-native');
+      select.dataset.comboboxBound = 'true';
+
+      const options = Array.from(select.options);
+
+      const optionTitle = (option) => (option.dataset.labelTitle || option.textContent || '').trim() || 'Option';
+      const optionMeta = (option) => (option.dataset.labelMeta || option.dataset.searchText || '').trim();
+      const optionSearchText = (option) => [
+        option.textContent || '',
+        option.value || '',
+        option.dataset.searchText || '',
+        option.dataset.labelTitle || '',
+        option.dataset.labelMeta || '',
+      ].join(' ').toLowerCase();
+
+      const renderSelected = () => {
+        const selectedOption = select.selectedOptions[0] || options[0];
+        if (!selectedOption) {
+          toggle.innerHTML = '<span class="workflow-picker-placeholder">Select option</span>';
+          return;
+        }
+
+        const meta = optionMeta(selectedOption);
+        toggle.innerHTML = `
+          <span class="workflow-picker-selected select-combobox-selected">
+            <span class="workflow-picker-thumb workflow-picker-thumb-fallback">${escapeHtml(optionTitle(selectedOption).charAt(0).toUpperCase() || '?')}</span>
+            <span>
+              <strong>${escapeHtml(optionTitle(selectedOption))}</strong>
+              ${meta ? `<span class="tiny-copy">${escapeHtml(meta)}</span>` : ''}
+            </span>
+          </span>
+        `;
+      };
+
+      const closePanel = () => {
+        panel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      };
+
+      const openPanel = () => {
+        panel.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        search.focus();
+        search.select();
+      };
+
+      const renderOptions = () => {
+        const query = search.value.trim().toLowerCase();
+        const matches = options.filter((option) => query === '' || optionSearchText(option).includes(query));
+
+        if (!matches.length) {
+          optionsWrap.innerHTML = '<div class="workflow-picker-empty">No matching categories.</div>';
+          return;
+        }
+
+        optionsWrap.innerHTML = matches.map((option) => {
+          const index = options.indexOf(option);
+          const selected = option.selected;
+          const meta = optionMeta(option);
+
+          return `
+            <button class="workflow-picker-option select-combobox-option${selected ? ' is-selected' : ''}" type="button" role="option" aria-selected="${selected ? 'true' : 'false'}" data-select-option-index="${index}">
+              <span class="workflow-picker-thumb workflow-picker-thumb-fallback">${escapeHtml(optionTitle(option).charAt(0).toUpperCase() || '?')}</span>
+              <span>
+                <strong>${escapeHtml(optionTitle(option))}</strong>
+                ${meta ? `<span class="tiny-copy">${escapeHtml(meta)}</span>` : ''}
+              </span>
+            </button>
+          `;
+        }).join('');
+      };
+
+      toggle.addEventListener('click', () => {
+        if (panel.hidden) {
+          renderOptions();
+          openPanel();
+        } else {
+          closePanel();
+        }
+      });
+
+      search.addEventListener('input', renderOptions);
+      search.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          search.value = '';
+          renderOptions();
+          closePanel();
+          toggle.focus();
+        }
+      });
+
+      optionsWrap.addEventListener('click', (event) => {
+        const button = event.target instanceof Element ? event.target.closest('[data-select-option-index]') : null;
+        if (!(button instanceof HTMLElement)) {
+          return;
+        }
+
+        const option = options[Number.parseInt(button.dataset.selectOptionIndex || '-1', 10)];
+        if (!option) {
+          return;
+        }
+
+        select.value = option.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        renderSelected();
+        renderOptions();
+        closePanel();
+        toggle.focus();
+      });
+
+      document.addEventListener('click', (event) => {
+        if (event.target instanceof Node && !wrapper.contains(event.target)) {
+          closePanel();
+        }
+      });
+
+      select.addEventListener('change', () => {
+        renderSelected();
+        renderOptions();
+      });
+
+      renderSelected();
+      renderOptions();
+    });
+  };
+
   const notificationToastContainer = () => {
     let container = document.querySelector('[data-notification-toast-container]');
 
@@ -6767,6 +6927,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initImageExpanders(root);
     initGlobalSearch(root);
     initSearchableSelects(root);
+    initComboboxSelects(root);
     initNotificationFeed();
     initDataTables(root);
     initLiveActionForms(root);

@@ -750,6 +750,39 @@ textarea {
     font-size: 0.78rem;
 }
 
+.select-combobox {
+    display: grid;
+    gap: 0;
+}
+
+.select-combobox-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.select-combobox-toggle {
+    min-height: 64px;
+}
+
+.select-combobox-selected strong,
+.select-combobox-option strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.select-combobox-panel {
+    margin-top: 8px;
+}
+
+.select-combobox-options {
+    max-height: 280px;
+}
+
 .copy-context-card {
     display: grid;
     gap: 8px;

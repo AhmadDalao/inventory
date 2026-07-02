@@ -36,12 +36,14 @@ $scanCode = asset_scan_code($asset);
 
                 <label class="field">
                     <span>Category / subcategory</span>
-                    <select name="category_id" data-searchable-select data-searchable-placeholder="Search category, subcategory, or code">
-                        <option value="">No managed category</option>
+                    <select name="category_id" data-combobox-select data-combobox-placeholder="Search category, subcategory, or code">
+                        <option value="" data-label-title="No managed category" data-label-meta="Use fallback category label if needed">No managed category</option>
                         <?php foreach ($categories as $category): ?>
                             <option
                                 value="<?= e((string) $category['id']) ?>"
                                 data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                                data-label-title="<?= e((string) ($category['path_label'] ?? $category['name'])) ?>"
+                                data-label-meta="<?= e(trim(($category['code'] ? 'Code ' . (string) $category['code'] . ' · ' : '') . 'Managed asset category')) ?>"
                                 <?= selected((string) $category['id'], (string) ($asset['category_id'] ?? '')) ?>
                             >
                                 <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
