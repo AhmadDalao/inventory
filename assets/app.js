@@ -2689,13 +2689,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const expectedUsageRowMarkup = () => `
         <div class="handover-expected-usage-row" data-expected-usage-row>
-          <select data-expected-usage-reason data-expected-usage-name="expected_usage_reason">
+          <select class="handover-expected-field" data-expected-usage-reason data-expected-usage-name="expected_usage_reason">
             ${usageReasonOptionsMarkup()}
           </select>
-          <input type="number" step="0.01" min="0" placeholder="Expected qty" data-expected-usage-name="expected_usage_quantity">
-          <input type="text" placeholder="Other reason" data-expected-usage-other data-expected-usage-name="expected_usage_other" hidden>
-          <input type="text" placeholder="Optional note" data-expected-usage-name="expected_usage_notes">
-          <button class="text-button danger-link" type="button" data-remove-expected-usage>Remove</button>
+          <input class="handover-expected-field" type="number" step="0.01" min="0" placeholder="Expected qty" data-expected-usage-name="expected_usage_quantity">
+          <input class="handover-expected-field" type="text" placeholder="Other reason" data-expected-usage-other data-expected-usage-name="expected_usage_other" hidden>
+          <input class="handover-expected-field" type="text" placeholder="Optional note" data-expected-usage-name="expected_usage_notes">
+          <button class="handover-expected-remove" type="button" data-remove-expected-usage>Remove</button>
         </div>
       `;
 
@@ -2705,13 +2705,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return `
-          <details class="handover-expected-usage" data-expected-usage-editor>
-            <summary>Expected usage plan</summary>
+          <details class="handover-expected-usage" data-expected-usage-editor open>
+            <summary><span>Expected usage plan</span></summary>
             <p class="tiny-copy">Optional: split what you expect to use before the handover, like Online 250 and Walk-in 30.</p>
             <div class="handover-expected-usage-list" data-expected-usage-list>
               ${expectedUsageRowMarkup()}
             </div>
-            <button class="ghost-button small-button" type="button" data-add-expected-usage>Add Expected Usage</button>
+            <button class="ghost-button compact-button handover-expected-add" type="button" data-add-expected-usage><span>Add Expected Usage</span></button>
           </details>
         `;
       };
