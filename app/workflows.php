@@ -2228,6 +2228,8 @@ function handover_usage_reason_options(): array
         'damage' => 'Damage',
         'sport' => 'Sport',
         'school' => 'School',
+        'complimentary' => 'Complimentary',
+        'noshow' => 'No Show',
         'other' => 'Other',
     ];
 }
@@ -2311,8 +2313,9 @@ function handover_usage_variance_summary(array $expectedBreakdowns, array $actua
                 $hasActual = true;
             }
 
+            $reasonCode = normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? 'unspecified'));
             $label = handover_usage_reason_label(
-                (string) ($breakdown['reason_code'] ?? 'unspecified'),
+                $reasonCode,
                 (string) ($breakdown['reason_custom'] ?? '')
             );
             $key = $label . '|' . $unit;
@@ -2320,6 +2323,7 @@ function handover_usage_variance_summary(array $expectedBreakdowns, array $actua
             if (!isset($totals[$key])) {
                 $totals[$key] = [
                     'label' => $label,
+                    'reason_code' => $reasonCode,
                     'unit' => $unit,
                     'quantity' => 0.0,
                 ];
@@ -3310,20 +3314,7 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
                 'Received: ' . ($received > 0 ? format_quantity($received) . ' ' . $unit : 'not reported'),
                 'Used: ' . format_quantity($used) . ' ' . $unit,
                 'Returned: ' . format_quantity($returned) . ' ' . $unit,
-                'Remaining: ' . format_quantity($remaining) . ' ' . $unit,
             ];
-
-            if ($expectedUsageSummary !== '') {
-                $quantityLines[] = 'Expected: ' . $expectedUsageSummary;
-            }
-
-            if ($usageSummary !== '') {
-                $quantityLines[] = 'Usage: ' . $usageSummary;
-            }
-
-            if ($usageVarianceSummary !== '') {
-                $quantityLines[] = 'Variance: ' . $usageVarianceSummary;
-            }
         } else {
             $expectedUsageSummary = '';
             $usageSummary = '';
@@ -3402,12 +3393,13 @@ function workflow_signoff_format_grouped_total(array $totals): string
     return implode(' + ', $parts);
 }
 
-function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey = 'usage_breakdowns'): string
+function workflow_signoff_usage_reason_total_rows(array $rows, string $breakdownKey = 'usage_breakdowns'): array
 {
     $totals = [];
 
     foreach ($rows as $row) {
-        $unit = (string) ($row['unit'] ?? 'pcs');
+        $unit = trim((string) ($row['unit'] ?? 'pcs'));
+        $unit = $unit !== '' ? $unit : 'pcs';
 
         foreach ((array) ($row[$breakdownKey] ?? []) as $breakdown) {
             $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
@@ -3416,8 +3408,9 @@ function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey 
                 continue;
             }
 
+            $reasonCode = normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? 'unspecified'));
             $label = handover_usage_reason_label(
-                (string) ($breakdown['reason_code'] ?? 'unspecified'),
+                $reasonCode,
                 (string) ($breakdown['reason_custom'] ?? '')
             );
             $key = $label . '|' . $unit;
@@ -3425,7 +3418,8 @@ function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey 
             if (!isset($totals[$key])) {
                 $totals[$key] = [
                     'label' => $label,
-                    'unit' => $unit !== '' ? $unit : 'pcs',
+                    'reason_code' => $reasonCode,
+                    'unit' => $unit,
                     'quantity' => 0.0,
                 ];
             }
@@ -3433,6 +3427,26 @@ function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey 
             $totals[$key]['quantity'] = round($totals[$key]['quantity'] + $quantity, 2);
         }
     }
+
+    $reasonOrder = array_flip(array_keys(handover_usage_reason_options()));
+    uasort($totals, static function (array $left, array $right) use ($reasonOrder): int {
+        return [
+            $reasonOrder[(string) ($left['reason_code'] ?? 'other')] ?? 999,
+            $left['label'],
+            $left['unit'],
+        ] <=> [
+            $reasonOrder[(string) ($right['reason_code'] ?? 'other')] ?? 999,
+            $right['label'],
+            $right['unit'],
+        ];
+    });
+
+    return array_values($totals);
+}
+
+function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey = 'usage_breakdowns'): string
+{
+    $totals = workflow_signoff_usage_reason_total_rows($rows, $breakdownKey);
 
     if ($totals === []) {
         return '';
@@ -3448,6 +3462,29 @@ function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey 
 }
 
 function workflow_signoff_usage_variance_totals(array $rows): string
+{
+    $varianceRows = workflow_signoff_usage_reconciliation_rows($rows);
+
+    if ($varianceRows === []) {
+        return '';
+    }
+
+    $parts = [];
+
+    foreach ($varianceRows as $row) {
+        $difference = round((float) ($row['difference'] ?? 0), 2);
+
+        if (abs($difference) < 0.01) {
+            continue;
+        }
+
+        $parts[] = $row['label'] . ' ' . ($difference > 0 ? '+' : '') . format_quantity($difference) . ' ' . $row['unit'];
+    }
+
+    return $parts !== [] ? implode('; ', $parts) : 'No variance';
+}
+
+function workflow_signoff_usage_reconciliation_rows(array $rows): array
 {
     $hasActual = false;
     $totals = [];
@@ -3472,8 +3509,9 @@ function workflow_signoff_usage_variance_totals(array $rows): string
                     continue;
                 }
 
+                $reasonCode = normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? 'unspecified'));
                 $label = handover_usage_reason_label(
-                    (string) ($breakdown['reason_code'] ?? 'unspecified'),
+                    $reasonCode,
                     (string) ($breakdown['reason_custom'] ?? '')
                 );
                 $key = $label . '|' . $unit;
@@ -3481,6 +3519,7 @@ function workflow_signoff_usage_variance_totals(array $rows): string
                 if (!isset($totals[$key])) {
                     $totals[$key] = [
                         'label' => $label,
+                        'reason_code' => $reasonCode,
                         'unit' => $unit,
                         'quantity' => 0.0,
                     ];
@@ -3495,42 +3534,141 @@ function workflow_signoff_usage_variance_totals(array $rows): string
     }
 
     if (!$hasActual) {
-        return '';
+        return [];
     }
 
-    $parts = [];
+    $reasonOrder = array_flip(array_keys(handover_usage_reason_options()));
+    uasort($totals, static function (array $left, array $right) use ($reasonOrder): int {
+        return [
+            $reasonOrder[(string) ($left['reason_code'] ?? 'other')] ?? 999,
+            $left['label'],
+            $left['unit'],
+        ] <=> [
+            $reasonOrder[(string) ($right['reason_code'] ?? 'other')] ?? 999,
+            $right['label'],
+            $right['unit'],
+        ];
+    });
 
-    foreach ($totals as $total) {
-        $quantity = round((float) ($total['quantity'] ?? 0), 2);
+    return array_map(static function (array $total): array {
+        return [
+            'label' => (string) ($total['label'] ?? ''),
+            'reason_code' => (string) ($total['reason_code'] ?? 'other'),
+            'unit' => (string) ($total['unit'] ?? 'pcs'),
+            'difference' => round((float) ($total['quantity'] ?? 0), 2),
+        ];
+    }, array_values($totals));
+}
 
-        if (abs($quantity) < 0.01) {
-            continue;
+function workflow_signoff_reconciliation_rows(array $rows): array
+{
+    $expectedRows = workflow_signoff_usage_reason_total_rows($rows, 'expected_usage_breakdowns');
+    $actualRows = workflow_signoff_usage_reason_total_rows($rows, 'usage_breakdowns');
+    $combined = [];
+
+    foreach ($expectedRows as $row) {
+        $key = $row['label'] . '|' . $row['unit'];
+        $combined[$key] = [
+            'label' => (string) $row['label'],
+            'reason_code' => (string) ($row['reason_code'] ?? 'other'),
+            'unit' => (string) $row['unit'],
+            'expected' => round((float) $row['quantity'], 2),
+            'actual' => 0.0,
+        ];
+    }
+
+    foreach ($actualRows as $row) {
+        $key = $row['label'] . '|' . $row['unit'];
+
+        if (!isset($combined[$key])) {
+            $combined[$key] = [
+                'label' => (string) $row['label'],
+                'reason_code' => (string) ($row['reason_code'] ?? 'other'),
+                'unit' => (string) $row['unit'],
+                'expected' => 0.0,
+                'actual' => 0.0,
+            ];
         }
 
-        $parts[] = $total['label'] . ' ' . ($quantity > 0 ? '+' : '') . format_quantity($quantity) . ' ' . $total['unit'];
+        $combined[$key]['actual'] = round($combined[$key]['actual'] + (float) $row['quantity'], 2);
     }
 
-    return $parts !== [] ? implode('; ', $parts) : 'No variance';
+    $reasonOrder = array_flip(array_keys(handover_usage_reason_options()));
+    uasort($combined, static function (array $left, array $right) use ($reasonOrder): int {
+        return [
+            $reasonOrder[(string) ($left['reason_code'] ?? 'other')] ?? 999,
+            $left['label'],
+            $left['unit'],
+        ] <=> [
+            $reasonOrder[(string) ($right['reason_code'] ?? 'other')] ?? 999,
+            $right['label'],
+            $right['unit'],
+        ];
+    });
+
+    return array_map(static function (array $row): array {
+        $expected = round((float) ($row['expected'] ?? 0), 2);
+        $actual = round((float) ($row['actual'] ?? 0), 2);
+
+        return [
+            'label' => (string) ($row['label'] ?? ''),
+            'reason_code' => (string) ($row['reason_code'] ?? 'other'),
+            'unit' => (string) ($row['unit'] ?? 'pcs'),
+            'expected' => $expected,
+            'actual' => $actual,
+            'difference' => round($actual - $expected, 2),
+        ];
+    }, array_values($combined));
+}
+
+function workflow_signoff_accounting_difference_totals(array $rows): array
+{
+    $totals = [];
+
+    foreach ($rows as $row) {
+        $unit = trim((string) ($row['unit'] ?? 'pcs'));
+        $unit = $unit !== '' ? $unit : 'pcs';
+        $received = round((float) ($row['received_quantity'] ?? 0), 2);
+        $used = round((float) ($row['used_quantity'] ?? 0), 2);
+        $returned = round((float) ($row['returned_quantity'] ?? 0), 2);
+
+        if (!isset($totals[$unit])) {
+            $totals[$unit] = 0.0;
+        }
+
+        $totals[$unit] = round($totals[$unit] + ($received - $used - $returned), 2);
+    }
+
+    ksort($totals);
+
+    return $totals;
 }
 
 function workflow_signoff_totals(string $workflowType, array $rows): array
 {
     if ($workflowType === 'handover') {
+        $reconciliationRows = workflow_signoff_reconciliation_rows($rows);
+
         return [
             'total_label' => 'Total Items',
             'total_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'quantity')),
+            'received_total_label' => 'Received Total',
+            'received_total_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'received_quantity')),
             'secondary_label' => 'Used Total',
             'secondary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'used_quantity')),
             'tertiary_label' => 'Returned Total',
             'tertiary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'returned_quantity')),
             'quaternary_label' => 'Remaining Total',
             'quaternary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'remaining_quantity')),
+            'difference_label' => 'Difference',
+            'difference_value' => workflow_signoff_format_grouped_total(workflow_signoff_accounting_difference_totals($rows)),
             'expected_usage_reason_label' => 'Expected Usage',
             'expected_usage_reason_value' => workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
             'usage_reason_label' => 'Usage By Reason',
             'usage_reason_value' => workflow_signoff_usage_reason_totals($rows),
             'usage_variance_label' => 'Usage Variance',
             'usage_variance_value' => workflow_signoff_usage_variance_totals($rows),
+            'reconciliation_rows' => $reconciliationRows,
         ];
     }
 
@@ -4510,6 +4648,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     $rowHeight = max(58, min(320, (int) ceil(((int) $imageSize['height'] * 0.75) + 18)));
     $imageColumnWidth = max(12, min(64, round(((int) $imageSize['width'] / 7.2) + 2, 1)));
     $hasBrandLogo = workflow_xlsx_has_image_at($images, 1, 0);
+    $isHandover = array_key_exists('reconciliation_rows', $totals);
     $sheetRows = [];
     $sheetRows[] = '<row r="1" ht="44" customHeight="1">' . workflow_xlsx_cell('A1', $hasBrandLogo ? '' : 'KONA', 5) . workflow_xlsx_cell('B1', $meta['title'], 1) . workflow_xlsx_cell('I1', (string) ($meta['open_label'] ?? 'Scan/Search reference'), 5) . '</row>';
     $sheetRows[] = '<row r="2">' . workflow_xlsx_cell('B2', $meta['number'], 5) . workflow_xlsx_cell('I2', (string) ($meta['number'] ?? ''), 3) . '</row>';
@@ -4523,8 +4662,6 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         . workflow_xlsx_cell('G4', $meta['target_value'], 3)
         . workflow_xlsx_cell('H4', (string) ($totals['total_label'] ?? 'Total Items'), 4)
         . workflow_xlsx_cell('I4', (string) ($totals['total_value'] ?? ''), 3)
-        . workflow_xlsx_cell('J4', (string) ($totals['expected_usage_reason_label'] ?? ''), 4)
-        . workflow_xlsx_cell('K4', (string) ($totals['expected_usage_reason_value'] ?? ''), 3)
         . '</row>';
     $sheetRows[] = '<row r="5">'
         . workflow_xlsx_cell('A5', $meta['mode_label'], 4)
@@ -4535,15 +4672,17 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         . workflow_xlsx_cell('G5', (string) ($totals['tertiary_value'] ?? ''), 3)
         . workflow_xlsx_cell('H5', (string) ($totals['quaternary_label'] ?? ''), 4)
         . workflow_xlsx_cell('I5', (string) ($totals['quaternary_value'] ?? ''), 3)
-        . workflow_xlsx_cell('J5', (string) ($totals['usage_reason_label'] ?? ''), 4)
-        . workflow_xlsx_cell('K5', (string) ($totals['usage_reason_value'] ?? ''), 3)
         . '</row>';
     $sheetRows[] = '<row r="6">'
-        . workflow_xlsx_cell('J6', (string) ($totals['usage_variance_label'] ?? ''), 4)
-        . workflow_xlsx_cell('K6', (string) ($totals['usage_variance_value'] ?? ''), 3)
+        . workflow_xlsx_cell('D6', (string) ($totals['received_total_label'] ?? ''), 4)
+        . workflow_xlsx_cell('E6', (string) ($totals['received_total_value'] ?? ''), 3)
+        . workflow_xlsx_cell('F6', (string) ($totals['difference_label'] ?? ''), 4)
+        . workflow_xlsx_cell('G6', (string) ($totals['difference_value'] ?? ''), 3)
         . '</row>';
 
-    $headers = ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Expected Qty', 'Reported / Final Qty', 'Expected Usage', 'Used Breakdown', 'Returned', 'Remaining', 'Notes'];
+    $headers = $isHandover
+        ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Used', 'Returned', 'Notes']
+        : ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Expected Qty', 'Reported / Final Qty', 'Expected Usage', 'Used Breakdown', 'Returned', 'Remaining', 'Notes'];
     $headerCells = '';
 
     foreach ($headers as $index => $header) {
@@ -4560,27 +4699,111 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $cells .= workflow_xlsx_cell('C' . $rowNumber, (string) $row['item_sku'], 3);
         $cells .= workflow_xlsx_cell('D' . $rowNumber, (string) $row['item_barcode_label'], 3);
         $cells .= workflow_xlsx_cell('E' . $rowNumber, (string) $row['unit'], 3);
-        $cells .= workflow_xlsx_cell('F' . $rowNumber, (string) $row['quantity_label'], 3);
-        $cells .= workflow_xlsx_cell('G' . $rowNumber, (string) ($row['quantity_summary'] ?? ''), 3);
-        $cells .= workflow_xlsx_cell('H' . $rowNumber, (string) ($row['expected_usage_reason_summary'] ?? ''), 3);
-        $cells .= workflow_xlsx_cell('I' . $rowNumber, (string) ($row['usage_reason_summary'] ?? ''), 3);
-        $cells .= workflow_xlsx_cell('J' . $rowNumber, ((float) ($row['returned_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['returned_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
-        $cells .= workflow_xlsx_cell('K' . $rowNumber, ((float) ($row['remaining_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['remaining_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
-        $cells .= workflow_xlsx_cell('L' . $rowNumber, '', 3);
+        if ($isHandover) {
+            $unit = (string) ($row['unit'] ?? 'pcs');
+            $cells .= workflow_xlsx_cell('F' . $rowNumber, (string) $row['quantity_label'], 3);
+            $cells .= workflow_xlsx_cell('G' . $rowNumber, ((float) ($row['received_quantity'] ?? 0) > 0) ? format_quantity((float) ($row['received_quantity'] ?? 0)) . ' ' . $unit : 'not reported', 3);
+            $cells .= workflow_xlsx_cell('H' . $rowNumber, format_quantity((float) ($row['used_quantity'] ?? 0)) . ' ' . $unit, 3);
+            $cells .= workflow_xlsx_cell('I' . $rowNumber, format_quantity((float) ($row['returned_quantity'] ?? 0)) . ' ' . $unit, 3);
+            $cells .= workflow_xlsx_cell('J' . $rowNumber, '', 3);
+        } else {
+            $cells .= workflow_xlsx_cell('F' . $rowNumber, (string) $row['quantity_label'], 3);
+            $cells .= workflow_xlsx_cell('G' . $rowNumber, (string) ($row['quantity_summary'] ?? ''), 3);
+            $cells .= workflow_xlsx_cell('H' . $rowNumber, (string) ($row['expected_usage_reason_summary'] ?? ''), 3);
+            $cells .= workflow_xlsx_cell('I' . $rowNumber, (string) ($row['usage_reason_summary'] ?? ''), 3);
+            $cells .= workflow_xlsx_cell('J' . $rowNumber, ((float) ($row['returned_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['returned_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
+            $cells .= workflow_xlsx_cell('K' . $rowNumber, ((float) ($row['remaining_quantity'] ?? 0) > 0 || (string) ($row['usage_reason_summary'] ?? '') !== '') ? format_quantity((float) ($row['remaining_quantity'] ?? 0)) . ' ' . (string) ($row['unit'] ?? 'pcs') : '', 3);
+            $cells .= workflow_xlsx_cell('L' . $rowNumber, '', 3);
+        }
         $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $rowHeight . '" customHeight="1">' . $cells . '</row>';
         $rowNumber++;
+    }
+
+    $mergeCells = [
+        'B1:H1',
+        'B2:H2',
+        'B4:C4',
+    ];
+
+    if ($isHandover) {
+        $reconciliationTitleRow = $rowNumber + 2;
+        $sheetRows[] = '<row r="' . $reconciliationTitleRow . '" ht="28" customHeight="1">'
+            . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Reconciliation Summary', 1)
+            . '</row>';
+        $mergeCells[] = 'A' . $reconciliationTitleRow . ':J' . $reconciliationTitleRow;
+
+        $reconciliationHeaderRow = $reconciliationTitleRow + 1;
+        $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
+            . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
+            . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected Usage', 2)
+            . workflow_xlsx_cell('C' . $reconciliationHeaderRow, 'Used Breakdown', 2)
+            . workflow_xlsx_cell('D' . $reconciliationHeaderRow, 'Usage Variance', 2)
+            . workflow_xlsx_cell('E' . $reconciliationHeaderRow, 'Unit', 2)
+            . workflow_xlsx_cell('F' . $reconciliationHeaderRow, 'Notes', 2)
+            . '</row>';
+
+        $rowNumber = $reconciliationHeaderRow + 1;
+        $reconciliationRows = (array) ($totals['reconciliation_rows'] ?? []);
+
+        if ($reconciliationRows === []) {
+            $sheetRows[] = '<row r="' . $rowNumber . '">'
+                . workflow_xlsx_cell('A' . $rowNumber, 'No expected or actual usage reported.', 3)
+                . '</row>';
+            $mergeCells[] = 'A' . $rowNumber . ':J' . $rowNumber;
+            $rowNumber++;
+        } else {
+            foreach ($reconciliationRows as $summaryRow) {
+                $difference = round((float) ($summaryRow['difference'] ?? 0), 2);
+                $unit = (string) ($summaryRow['unit'] ?? 'pcs');
+                $sheetRows[] = '<row r="' . $rowNumber . '">'
+                    . workflow_xlsx_cell('A' . $rowNumber, (string) ($summaryRow['label'] ?? ''), 3)
+                    . workflow_xlsx_cell('B' . $rowNumber, format_quantity((float) ($summaryRow['expected'] ?? 0)) . ' ' . $unit, 3)
+                    . workflow_xlsx_cell('C' . $rowNumber, format_quantity((float) ($summaryRow['actual'] ?? 0)) . ' ' . $unit, 3)
+                    . workflow_xlsx_cell('D' . $rowNumber, ($difference > 0 ? '+' : '') . format_quantity($difference) . ' ' . $unit, 3)
+                    . workflow_xlsx_cell('E' . $rowNumber, $unit, 3)
+                    . workflow_xlsx_cell('F' . $rowNumber, '', 3)
+                    . '</row>';
+                $rowNumber++;
+            }
+        }
+
+        $totalsHeaderRow = $rowNumber + 1;
+        $sheetRows[] = '<row r="' . $totalsHeaderRow . '" ht="22" customHeight="1">'
+            . workflow_xlsx_cell('A' . $totalsHeaderRow, 'Stock Accounting', 2)
+            . workflow_xlsx_cell('B' . $totalsHeaderRow, 'Planned', 2)
+            . workflow_xlsx_cell('C' . $totalsHeaderRow, 'Received', 2)
+            . workflow_xlsx_cell('D' . $totalsHeaderRow, 'Used', 2)
+            . workflow_xlsx_cell('E' . $totalsHeaderRow, 'Returned', 2)
+            . workflow_xlsx_cell('F' . $totalsHeaderRow, 'Difference', 2)
+            . '</row>';
+        $totalsValueRow = $totalsHeaderRow + 1;
+        $sheetRows[] = '<row r="' . $totalsValueRow . '">'
+            . workflow_xlsx_cell('A' . $totalsValueRow, 'Totals', 3)
+            . workflow_xlsx_cell('B' . $totalsValueRow, (string) ($totals['total_value'] ?? ''), 3)
+            . workflow_xlsx_cell('C' . $totalsValueRow, (string) ($totals['received_total_value'] ?? ''), 3)
+            . workflow_xlsx_cell('D' . $totalsValueRow, (string) ($totals['secondary_value'] ?? ''), 3)
+            . workflow_xlsx_cell('E' . $totalsValueRow, (string) ($totals['tertiary_value'] ?? ''), 3)
+            . workflow_xlsx_cell('F' . $totalsValueRow, (string) ($totals['difference_value'] ?? ''), 3)
+            . '</row>';
+        $rowNumber = $totalsValueRow + 1;
     }
 
     $signatureRow = $rowNumber + 2;
     $sheetRows[] = '<row r="' . $signatureRow . '" ht="30" customHeight="1">' . workflow_xlsx_cell('A' . $signatureRow, 'Receiver name', 5) . workflow_xlsx_cell('B' . $signatureRow, '', 3) . workflow_xlsx_cell('D' . $signatureRow, 'Signature', 5) . workflow_xlsx_cell('E' . $signatureRow, '', 3) . '</row>';
     $sheetRows[] = '<row r="' . ($signatureRow + 1) . '" ht="30" customHeight="1">' . workflow_xlsx_cell('A' . ($signatureRow + 1), 'Date/time received', 5) . workflow_xlsx_cell('B' . ($signatureRow + 1), '', 3) . workflow_xlsx_cell('D' . ($signatureRow + 1), 'Storage owner approval', 5) . workflow_xlsx_cell('E' . ($signatureRow + 1), '', 3) . '</row>';
+    $mergeCells[] = 'B' . $signatureRow . ':C' . $signatureRow;
+    $mergeCells[] = 'E' . $signatureRow . ':H' . $signatureRow;
 
     $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
     $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
     $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
     $xml .= '<cols><col min="1" max="1" width="' . number_format($imageColumnWidth, 1, '.', '') . '" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="28" customWidth="1"/><col min="5" max="5" width="10" customWidth="1"/><col min="6" max="7" width="18" customWidth="1"/><col min="8" max="9" width="28" customWidth="1"/><col min="10" max="11" width="16" customWidth="1"/><col min="12" max="12" width="20" customWidth="1"/></cols>';
     $xml .= '<sheetData>' . implode('', $sheetRows) . '</sheetData>';
-    $xml .= '<mergeCells count="5"><mergeCell ref="B1:H1"/><mergeCell ref="B2:H2"/><mergeCell ref="B4:C4"/><mergeCell ref="B' . $signatureRow . ':C' . $signatureRow . '"/><mergeCell ref="E' . $signatureRow . ':H' . $signatureRow . '"/></mergeCells>';
+    $xml .= '<mergeCells count="' . count($mergeCells) . '">';
+    foreach ($mergeCells as $mergeCell) {
+        $xml .= '<mergeCell ref="' . workflow_xlsx_escape($mergeCell) . '"/>';
+    }
+    $xml .= '</mergeCells>';
     $xml .= '<pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>';
 
     if ($images) {
@@ -4801,6 +5024,8 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         $rowChunks[] = [];
     }
 
+    $totalPdfPages = count($rowChunks) + ($workflowType === 'handover' ? 1 : 0);
+
     $registerImage = static function (?string $imagePath) use (&$images, &$imageNamesByPath, $pdfImageWidth, $pdfImageHeight): ?string {
         $path = workflow_item_image_file($imagePath);
 
@@ -4874,26 +5099,13 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         if (!empty($totals['quaternary_label'])) {
             $commands .= workflow_pdf_text($totals['quaternary_label'] . ': ' . truncate_text((string) ($totals['quaternary_value'] ?? ''), 14), 8, 464, 608, 'F2');
         }
-        $summaryY = 594;
-        if (!empty($totals['expected_usage_reason_value'])) {
-            $commands .= workflow_pdf_text('Expected Usage: ' . truncate_text((string) $totals['expected_usage_reason_value'], 72), 7, 56, $summaryY, 'F2');
-            $summaryY -= 10;
-        }
-        if (!empty($totals['usage_reason_value'])) {
-            $commands .= workflow_pdf_text('Usage By Reason: ' . truncate_text((string) $totals['usage_reason_value'], 72), 7, 56, $summaryY, 'F2');
-            $summaryY -= 10;
-        }
-        if (!empty($totals['usage_variance_value'])) {
-            $commands .= workflow_pdf_text('Usage Variance: ' . truncate_text((string) $totals['usage_variance_value'], 72), 7, 56, $summaryY, 'F2');
-            $summaryY -= 10;
-        }
         if (!empty($meta['open_reference'])) {
             $commands .= workflow_pdf_text('Scan/Search Ref', 8, 404, 716, 'F2');
             $commands .= workflow_pdf_text((string) $meta['open_reference'], 7, 404, 704);
             $commands .= workflow_pdf_qr_code((string) $meta['open_reference'], 500, 686, 62);
         }
 
-        $tableY = $summaryY < 594 ? 552 : 566;
+        $tableY = 566;
         $imageX = 54;
         $detailsX = min(330, $imageX + $pdfImageWidth + 14);
         $quantityX = 430;
@@ -4972,7 +5184,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $y -= $rowHeight;
         }
 
-        if ($pageIndex === count($rowChunks) - 1) {
+        if ($pageIndex === count($rowChunks) - 1 && $workflowType !== 'handover') {
             $signatureY = max(70, $y - 52);
             $commands .= workflow_pdf_text('Receiver name', 9, 42, $signatureY + 38, 'F2');
             $commands .= workflow_pdf_line(130, $signatureY + 36, 296, $signatureY + 36);
@@ -4984,7 +5196,103 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_line(448, $signatureY + 10, 570, $signatureY + 10);
         }
 
-        $commands .= workflow_pdf_text('Page ' . ($pageIndex + 1) . ' of ' . count($rowChunks), 8, 522, 34);
+        $commands .= workflow_pdf_text('Page ' . ($pageIndex + 1) . ' of ' . $totalPdfPages, 8, 522, 34);
+        $pages[] = [
+            'commands' => $commands,
+            'images' => $pageImages,
+        ];
+    }
+
+    if ($workflowType === 'handover') {
+        $pageIndex = count($pages);
+        $commands = '';
+        $pageImages = [];
+        $commands .= workflow_pdf_rect(0, 0, 612, 792, 'f', '1 1 1', '1 1 1');
+        $logoName = $registerGeneratedImage(workflow_brand_logo_pdf_asset(320, 86));
+
+        if ($logoName !== null) {
+            $pageImages[] = $logoName;
+            $commands .= 'q 132.00 0 0 35.50 42.00 738.00 cm /' . $logoName . " Do Q\n";
+        } else {
+            $commands .= workflow_pdf_text('KONA INVENTORY', 9, 42, 750, 'F2');
+        }
+
+        $commands .= workflow_pdf_text('Handover Reconciliation', 20, 42, 710, 'F2');
+        $commands .= workflow_pdf_text($meta['number'], 14, 42, 689, 'F2');
+        $commands .= workflow_pdf_text('Generated ' . date('Y-m-d H:i'), 9, 410, 750);
+
+        if (!empty($meta['open_reference'])) {
+            $commands .= workflow_pdf_text('Scan/Search Ref', 8, 404, 716, 'F2');
+            $commands .= workflow_pdf_text((string) $meta['open_reference'], 7, 404, 704);
+            $commands .= workflow_pdf_qr_code((string) $meta['open_reference'], 500, 686, 62);
+        }
+
+        $commands .= workflow_pdf_rect(42, 622, 528, 58, 'B', '0.86 0.80 0.72', '0.99 0.97 0.92');
+        $commands .= workflow_pdf_text('Planned', 8, 56, 658, 'F2');
+        $commands .= workflow_pdf_text((string) ($totals['total_value'] ?? '0'), 11, 56, 640);
+        $commands .= workflow_pdf_text('Received', 8, 154, 658, 'F2');
+        $commands .= workflow_pdf_text((string) ($totals['received_total_value'] ?? '0'), 11, 154, 640);
+        $commands .= workflow_pdf_text('Used', 8, 254, 658, 'F2');
+        $commands .= workflow_pdf_text((string) ($totals['secondary_value'] ?? '0'), 11, 254, 640);
+        $commands .= workflow_pdf_text('Returned', 8, 354, 658, 'F2');
+        $commands .= workflow_pdf_text((string) ($totals['tertiary_value'] ?? '0'), 11, 354, 640);
+        $commands .= workflow_pdf_text('Difference', 8, 464, 658, 'F2');
+        $commands .= workflow_pdf_text((string) ($totals['difference_value'] ?? '0'), 11, 464, 640);
+
+        $commands .= workflow_pdf_text('Expected vs Actual Usage', 12, 42, 590, 'F2');
+        $commands .= workflow_pdf_rect(42, 560, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
+        $commands .= workflow_pdf_text('Type', 8, 56, 568, 'F2');
+        $commands .= workflow_pdf_text('Expected Usage', 8, 190, 568, 'F2');
+        $commands .= workflow_pdf_text('Used Breakdown', 8, 310, 568, 'F2');
+        $commands .= workflow_pdf_text('Usage Variance', 8, 438, 568, 'F2');
+        $y = 536;
+        $reconciliationRows = (array) ($totals['reconciliation_rows'] ?? []);
+
+        if ($reconciliationRows === []) {
+            $commands .= workflow_pdf_rect(42, $y, 528, 32, 'S', '0.86 0.80 0.72');
+            $commands .= workflow_pdf_text('No expected or actual usage reported.', 9, 56, $y + 12);
+            $y -= 38;
+        } else {
+            foreach ($reconciliationRows as $summaryRow) {
+                $difference = round((float) ($summaryRow['difference'] ?? 0), 2);
+                $unit = (string) ($summaryRow['unit'] ?? 'pcs');
+                $commands .= workflow_pdf_rect(42, $y, 528, 30, 'S', '0.86 0.80 0.72');
+                $commands .= workflow_pdf_text(truncate_text((string) ($summaryRow['label'] ?? ''), 24), 8, 56, $y + 12, 'F2');
+                $commands .= workflow_pdf_text(format_quantity((float) ($summaryRow['expected'] ?? 0)) . ' ' . $unit, 8, 190, $y + 12);
+                $commands .= workflow_pdf_text(format_quantity((float) ($summaryRow['actual'] ?? 0)) . ' ' . $unit, 8, 310, $y + 12);
+                $commands .= workflow_pdf_text(($difference > 0 ? '+' : '') . format_quantity($difference) . ' ' . $unit, 8, 438, $y + 12);
+                $y -= 30;
+
+                if ($y < 235) {
+                    break;
+                }
+            }
+        }
+
+        $commands .= workflow_pdf_text('Stock difference = received - used - returned. It should be 0 when all handed stock is accounted for.', 8, 42, max(208, $y - 8));
+        $approvalName = trim((string) ($record['approved_by_name'] ?? ''));
+        $approvalDate = trim((string) ($record['approved_at'] ?? ''));
+        $approvalNotes = trim((string) ($record['closed_notes'] ?? ''));
+        $approvalY = max(176, $y - 34);
+
+        if ($approvalName !== '' || $approvalDate !== '') {
+            $commands .= workflow_pdf_text('Approved by: ' . truncate_text($approvalName !== '' ? $approvalName : 'Not approved', 34) . ($approvalDate !== '' ? ' · ' . $approvalDate : ''), 8, 42, $approvalY, 'F2');
+            $approvalY -= 12;
+        }
+
+        if ($approvalNotes !== '') {
+            $commands .= workflow_pdf_text('Approval Notes: ' . truncate_text($approvalNotes, 90), 8, 42, $approvalY);
+        }
+
+        $commands .= workflow_pdf_text('Receiver name', 9, 42, 112, 'F2');
+        $commands .= workflow_pdf_line(130, 110, 296, 110);
+        $commands .= workflow_pdf_text('Signature', 9, 322, 112, 'F2');
+        $commands .= workflow_pdf_line(386, 110, 570, 110);
+        $commands .= workflow_pdf_text('Date/time received', 9, 42, 84, 'F2');
+        $commands .= workflow_pdf_line(154, 82, 296, 82);
+        $commands .= workflow_pdf_text('Storage owner approval', 9, 322, 84, 'F2');
+        $commands .= workflow_pdf_line(448, 82, 570, 82);
+        $commands .= workflow_pdf_text('Page ' . ($pageIndex + 1) . ' of ' . $totalPdfPages, 8, 522, 34);
         $pages[] = [
             'commands' => $commands,
             'images' => $pageImages,
@@ -5128,7 +5436,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
             || strtolower(substr($storedFilename, -5)) === '.xlsx';
         $createdTimestamp = strtotime((string) ($existingExcel['created_at'] ?? '')) ?: 0;
         $existingExcelIsRealWorkbook = $existingExcelIsRealWorkbook
-            && str_contains($storedFilename, 'signoff-sheet-img-v10')
+            && str_contains($storedFilename, 'signoff-sheet-img-v11')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
     $existingPdfIsCurrent = false;
@@ -5138,7 +5446,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
         $mimeType = (string) ($existingPdf['mime_type'] ?? '');
         $createdTimestamp = strtotime((string) ($existingPdf['created_at'] ?? '')) ?: 0;
         $existingPdfIsCurrent = $mimeType === 'application/pdf'
-            && str_contains($storedFilename, 'signoff-img-v10')
+            && str_contains($storedFilename, 'signoff-img-v11')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
 

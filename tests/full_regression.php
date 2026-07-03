@@ -2780,7 +2780,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     $requestSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $requestId]);
     assert_true($requestSignoffDocumentId > 0, 'Request sign-off PDF document was not created.');
     $requestSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestSignoffDocumentId]);
-    assert_true(strpos($requestSignoffStoredName, 'signoff-img-v10') !== false, 'Request sign-off PDF was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestSignoffStoredName, 'signoff-img-v11') !== false, 'Request sign-off PDF was not regenerated with reconciliation sign-off template.');
     $requestSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/download');
     assert_true($requestSignoffDownload['status'] === 200 && strpos($requestSignoffDownload['body'], '%PDF-') === 0, 'Request sign-off PDF could not be downloaded.');
     $requestSignoffPreview = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/view');
@@ -2793,7 +2793,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     $requestSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $requestId]);
     assert_true($requestSignoffExcelDocumentId > 0, 'Request sign-off Excel sheet document was not created.');
     $requestSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestSignoffExcelDocumentId]);
-    assert_true(strpos($requestSignoffExcelStoredName, 'signoff-sheet-img-v10') !== false, 'Request sign-off XLSX was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestSignoffExcelStoredName, 'signoff-sheet-img-v11') !== false, 'Request sign-off XLSX was not regenerated with reconciliation sign-off template.');
     $requestSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffExcelDocumentId . '/download');
     assert_true($requestSignoffExcelDownload['status'] === 200 && strpos($requestSignoffExcelDownload['body'], 'PK') === 0, 'Request sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestSignoffExcelDownload['body'], 'Request sign-off XLSX is missing embedded item images.');
@@ -2972,7 +2972,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     $requestedHandoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffDocumentId > 0, 'Requested handover sign-off PDF document was not created.');
     $requestedHandoverSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffDocumentId]);
-    assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v10') !== false, 'Requested handover sign-off PDF was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v11') !== false, 'Requested handover sign-off PDF was not regenerated with reconciliation sign-off template.');
     $requestedHandoverSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/download');
     assert_true($requestedHandoverSignoffDownload['status'] === 200 && strpos($requestedHandoverSignoffDownload['body'], '%PDF-') === 0, 'Requested handover sign-off PDF could not be downloaded.');
     $requestedHandoverSignoffPreview = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/view');
@@ -2985,7 +2985,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     $requestedHandoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffExcelDocumentId > 0, 'Requested handover sign-off Excel sheet document was not created.');
     $requestedHandoverSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffExcelDocumentId]);
-    assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v10') !== false, 'Requested handover sign-off XLSX was not regenerated with totals sign-off template.');
+    assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v11') !== false, 'Requested handover sign-off XLSX was not regenerated with reconciliation sign-off template.');
     $requestedHandoverSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffExcelDocumentId . '/download');
     assert_true($requestedHandoverSignoffExcelDownload['status'] === 200 && strpos($requestedHandoverSignoffExcelDownload['body'], 'PK') === 0, 'Requested handover sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestedHandoverSignoffExcelDownload['body'], 'Requested handover sign-off XLSX is missing embedded item images.');
@@ -2993,7 +2993,8 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Used Total', 'Requested handover sign-off XLSX is missing used quantity total.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Returned Total', 'Requested handover sign-off XLSX is missing returned quantity total.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Barcode / Scan Code', 'Requested handover sign-off XLSX is missing barcode column.');
-    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Reported / Final Qty', 'Requested handover sign-off XLSX is missing actual quantity column.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Reconciliation Summary', 'Requested handover sign-off XLSX is missing reconciliation summary.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Received', 'Requested handover sign-off XLSX is missing received quantity column.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], (string) $handoverRequestRecord['handover_number'], 'Requested handover sign-off XLSX is missing the scannable reference.');
     assert_xlsx_media_min_dimensions($requestedHandoverSignoffExcelDownload['body'], 400, 300, 'Requested handover sign-off XLSX image quality is too low.');
     $handoverGlobalSearch = http_request($baseUrl, $ownerCookie, 'GET', '/global-search?q=' . rawurlencode((string) $handoverRequestRecord['handover_number']), [], $globalSearchHeaders);
@@ -3238,7 +3239,8 @@ assert_true(strpos($staffDashboard['body'], 'metric-grid') === false, 'Staff das
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Expected Usage', 'Handover sign-off XLSX is missing expected usage fields.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Online 12', 'Handover sign-off XLSX is missing expected online usage.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Barcode / Scan Code', 'Handover sign-off XLSX is missing barcode column.');
-    assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Reported / Final Qty', 'Handover sign-off XLSX is missing actual quantity column.');
+    assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Reconciliation Summary', 'Handover sign-off XLSX is missing reconciliation summary.');
+    assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], 'Received', 'Handover sign-off XLSX is missing received quantity column.');
     assert_xlsx_contains_text($handoverSignoffExcelDownload['body'], (string) $handoverCreatedRecord['handover_number'], 'Handover sign-off XLSX is missing the scannable reference.');
     assert_xlsx_media_min_dimensions($handoverSignoffExcelDownload['body'], 400, 300, 'Handover sign-off XLSX image quality is too low.');
     $handoverScanLookup = http_request($baseUrl, $ownerCookie, 'GET', '/scan/lookup?q=' . rawurlencode((string) $handoverCreatedRecord['handover_number']), [], $globalSearchHeaders);
@@ -3423,8 +3425,9 @@ assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage 1'
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Online 5', 'Final handover sign-off XLSX is missing owner-corrected online usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Usage Variance', 'Final handover sign-off XLSX is missing usage variance.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage +1', 'Final handover sign-off XLSX is missing damage usage variance.');
-assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used:', 'Final handover sign-off XLSX is missing used quantity values.');
-assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned:', 'Final handover sign-off XLSX is missing returned quantity values.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used', 'Final handover sign-off XLSX is missing used quantity values.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned', 'Final handover sign-off XLSX is missing returned quantity values.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Difference', 'Final handover sign-off XLSX is missing stock accounting difference.');
 
 note('Verifying exports.');
 $requestExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/requests');
