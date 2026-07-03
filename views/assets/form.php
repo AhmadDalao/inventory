@@ -36,7 +36,13 @@ $scanCode = asset_scan_code($asset);
 
                 <label class="field">
                     <span>Category / subcategory</span>
-                    <select name="category_id" data-combobox-select data-combobox-placeholder="Search category, subcategory, or code">
+                    <select
+                        name="category_id"
+                        data-combobox-select
+                        data-combobox-class="asset-search-combobox"
+                        data-combobox-placeholder="Search asset category"
+                        data-combobox-empty="No matching asset categories."
+                    >
                         <option value="" data-label-title="No managed category" data-label-meta="Use fallback category label if needed">No managed category</option>
                         <?php foreach ($categories as $category): ?>
                             <option

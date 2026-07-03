@@ -1161,7 +1161,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const wrapper = document.createElement('div');
-      wrapper.className = 'select-combobox workflow-picker';
+      wrapper.className = ['select-combobox', 'workflow-picker', select.dataset.comboboxClass || '']
+        .join(' ')
+        .trim();
 
       const toggle = document.createElement('button');
       toggle.className = 'workflow-picker-toggle select-combobox-toggle';
@@ -1237,7 +1239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const matches = options.filter((option) => query === '' || optionSearchText(option).includes(query));
 
         if (!matches.length) {
-          optionsWrap.innerHTML = '<div class="workflow-picker-empty">No matching categories.</div>';
+          optionsWrap.innerHTML = `<div class="workflow-picker-empty">${escapeHtml(select.dataset.comboboxEmpty || 'No matching options.')}</div>`;
           return;
         }
 

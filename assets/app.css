@@ -3157,6 +3157,106 @@ textarea {
     z-index: 8;
 }
 
+.asset-search-combobox {
+    display: grid;
+    gap: 12px;
+}
+
+.asset-search-combobox .select-combobox-toggle {
+    min-height: 64px;
+    padding: 0 18px;
+    border: 1px solid #ded7cc;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.asset-search-combobox .select-combobox-toggle:hover,
+.asset-search-combobox .select-combobox-toggle:focus-visible {
+    border-color: rgba(235, 183, 57, 0.76);
+    box-shadow: 0 0 0 4px rgba(235, 183, 57, 0.14);
+    transform: none;
+}
+
+.asset-search-combobox .select-combobox-selected,
+.asset-search-combobox .select-combobox-option {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.asset-search-combobox .workflow-picker-thumb {
+    display: none;
+}
+
+.asset-search-combobox .select-combobox-panel {
+    position: static;
+    z-index: 8;
+    display: grid;
+    gap: 12px;
+    margin-top: 0;
+    padding: 16px;
+    border: 1px solid #ded7cc;
+    border-radius: 20px;
+    background: rgba(255, 253, 248, 0.98);
+    box-shadow: 0 22px 44px rgba(22, 18, 11, 0.12);
+    max-height: none;
+    overflow: visible;
+}
+
+.asset-search-combobox .select-combobox-panel[hidden] {
+    display: none;
+}
+
+.asset-search-combobox .select-combobox-search {
+    min-height: 60px;
+    padding: 0 18px;
+    border: 2px solid rgba(235, 183, 57, 0.72);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(235, 183, 57, 0.12);
+    font-size: 1rem;
+}
+
+.asset-search-combobox .select-combobox-search:focus {
+    border-color: var(--brand-gold, #e7b84f);
+    box-shadow: 0 0 0 4px rgba(235, 183, 57, 0.18);
+    outline: none;
+}
+
+.asset-search-combobox .select-combobox-options {
+    display: grid;
+    gap: 10px;
+    max-height: 330px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.asset-search-combobox .select-combobox-option {
+    min-height: 70px;
+    padding: 16px 18px;
+    border: 1px solid #ece3d6;
+    border-radius: 18px;
+    background: #fffdfa;
+}
+
+.asset-search-combobox .select-combobox-option:hover,
+.asset-search-combobox .select-combobox-option:focus-visible,
+.asset-search-combobox .select-combobox-option.is-selected {
+    border-color: rgba(151, 108, 61, 0.28);
+    background: #f1e4d2;
+    transform: none;
+}
+
+.asset-search-combobox .workflow-picker-empty {
+    display: grid;
+    min-height: 64px;
+    place-items: center;
+    padding: 18px;
+    border-radius: 18px;
+    background: #f7f0e8;
+    color: var(--muted);
+    text-align: center;
+}
+
 @media (max-width: 1100px) {
     .assets-filter-grid {
         grid-template-columns: repeat(2, minmax(180px, 1fr));
