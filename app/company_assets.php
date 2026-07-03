@@ -309,7 +309,7 @@ function asset_depreciation_months_elapsed(array $asset, ?DateTimeImmutable $tod
 
     try {
         $startDate = new DateTimeImmutable($start);
-    } catch (Throwable) {
+    } catch (Throwable $exception) {
         return 0;
     }
 
@@ -361,7 +361,7 @@ function asset_warranty_status(array $asset): array
     try {
         $today = new DateTimeImmutable('today');
         $expiryDate = new DateTimeImmutable($expiry);
-    } catch (Throwable) {
+    } catch (Throwable $exception) {
         return ['label' => 'Warranty date invalid', 'tone' => 'badge-warning'];
     }
 
