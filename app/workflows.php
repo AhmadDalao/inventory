@@ -5297,8 +5297,18 @@ function handover_cancel_block_reason(array $handover, ?array $user = null): ?st
         return 'You do not have permission to cancel handovers.';
     }
 
-    if (!$isRequester && !$isRecipient && !$isStorageOwner && !$isOwner) {
-        return 'Only the requester, recipient, storage owner, or owner can cancel this handover.';
+    if ($status === 'requested') {
+        if (!$isRequester && !$isStorageOwner && !$isOwner) {
+            return 'Only the requester, storage owner, or owner can cancel this handover request.';
+        }
+    } else {
+        if ($isRecipient && !$isStorageOwner && !$isOwner) {
+            return 'Receivers cannot cancel issued handovers. Report the received quantity or return usage for storage owner review.';
+        }
+
+        if (!$isStorageOwner && !$isOwner) {
+            return 'Only the storage owner or owner can cancel an issued handover.';
+        }
     }
 
     if ($status === 'delivered') {

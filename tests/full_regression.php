@@ -3116,9 +3116,19 @@ assert_true((int) Database::scalar('SELECT COUNT(*) FROM activity_logs WHERE act
 
 $cancelHandoverStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $cancelHandoverId);
 assert_true($cancelHandoverStaffPage['status'] === 200, 'Cancelable handover page did not load for recipient.');
-assert_true(strpos($cancelHandoverStaffPage['body'], 'Cancel Handover') !== false, 'Recipient should be able to cancel an issued handover before receipt.');
-$cancelHandoverCancel = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $cancelHandoverId . '/cancel', [
+assert_true(strpos($cancelHandoverStaffPage['body'], 'Cancel Handover') === false, 'Recipient should not see cancel controls for an issued handover.');
+$cancelHandoverStaffCancel = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $cancelHandoverId . '/cancel', [
     '_token' => extract_csrf($cancelHandoverStaffPage['body']),
+]);
+assert_true($cancelHandoverStaffCancel['status'] === 302, 'Blocked recipient handover cancel did not redirect.');
+assert_true((string) find_handover_or_abort($cancelHandoverId)['status'] === 'delivered', 'Recipient should not be able to cancel an issued handover.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($cancelHandoverSourceBefore - 4, 2), 'Blocked recipient cancel should not return source stock.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($cancelHandoverBufferBefore + 4, 2), 'Blocked recipient cancel should keep reserved buffer stock.');
+
+$cancelHandoverOwnerCancelPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $cancelHandoverId);
+assert_true(strpos($cancelHandoverOwnerCancelPage['body'], 'Cancel Handover') !== false, 'Owner should still see cancel controls for an issued handover.');
+$cancelHandoverCancel = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $cancelHandoverId . '/cancel', [
+    '_token' => extract_csrf($cancelHandoverOwnerCancelPage['body'], 'owner handover cancel'),
 ]);
 assert_true($cancelHandoverCancel['status'] === 302, 'Cancelable handover cancel did not redirect.');
 $cancelHandoverCancelled = find_handover_or_abort($cancelHandoverId);
