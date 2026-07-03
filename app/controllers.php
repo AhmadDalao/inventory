@@ -3518,6 +3518,7 @@ function handle_movements_index(): void
                 COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
                 COALESCE(i.sku, '') AS sku,
                 COALESCE(i.unit, '') AS unit,
+                i.image_path,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
                 destination_storage.name AS destination_storage_name,

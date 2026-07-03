@@ -26,7 +26,13 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
 </section>
 
 <div class="live-filter-region assets-page" data-live-filter-region="assets">
-    <section class="filter-panel">
+    <section class="filter-panel mobile-filter-drawer assets-filter-panel">
+        <details class="mobile-filter-details" open>
+            <summary class="mobile-filter-summary">
+                <span><?= ui_icon('filter') ?>Asset Filters</span>
+                <small>Status, category, custody, and location</small>
+            </summary>
+            <div class="mobile-filter-body">
         <form class="filter-grid assets-filter-grid" method="get" action="<?= e(url('/company-assets')) ?>" data-live-filter-form>
             <label class="field">
                 <span>Search</span>
@@ -138,6 +144,8 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
             <span class="stat-chip">Maintenance: <?= number_format($counts['maintenance']) ?></span>
             <span class="stat-chip">Book Value: <?= e(format_money($counts['value'])) ?></span>
         </div>
+            </div>
+        </details>
     </section>
 
     <section class="metric-grid assets-metric-grid">

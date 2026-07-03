@@ -134,12 +134,20 @@ $isLocationScoped = !empty($filters['storage_id']);
                 </tr>
             <?php endif; ?>
             <?php foreach ($movements as $movement): ?>
+                <?php $movementImageUrl = item_image_url($movement['image_path'] ?? null); ?>
                 <tr>
                     <td data-label="When"><?= e(date('M j, Y g:i A', strtotime($movement['used_at']))) ?></td>
                     <td data-label="Item">
-                        <a class="cell-link cell-link-compact" href="<?= e(url('/items/' . $movement['item_id'])) ?>">
-                            <strong><?= e($movement['item_name']) ?></strong>
-                            <div class="tiny-copy"><?= e($movement['sku']) ?></div>
+                        <a class="item-table-cell cell-link cell-link-compact" href="<?= e(url('/items/' . $movement['item_id'])) ?>">
+                            <?php if ($movementImageUrl): ?>
+                                <img class="item-thumb expandable-image" src="<?= e($movementImageUrl) ?>" alt="<?= e($movement['item_name']) ?>" data-expand-image tabindex="0">
+                            <?php else: ?>
+                                <span class="item-thumb item-thumb-fallback"><?= e(item_initial((string) $movement['item_name'])) ?></span>
+                            <?php endif; ?>
+                            <div>
+                                <strong><?= e($movement['item_name']) ?></strong>
+                                <div class="tiny-copy"><?= e($movement['sku']) ?></div>
+                            </div>
                         </a>
                     </td>
                     <td data-label="Type"><span class="pill pill-<?= e($movement['movement_type']) ?>"><?= e(ucfirst($movement['movement_type'])) ?></span></td>
