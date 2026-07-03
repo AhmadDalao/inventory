@@ -20,6 +20,7 @@ if (brand_custom_logo_asset() !== null) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> | <?= e($appName) ?></title>
+    <link rel="icon" type="image/svg+xml" href="<?= e(asset_url('favicon.svg')) ?>">
     <link rel="stylesheet" href="<?= e(asset_url('app.css')) ?>">
 </head>
 <body class="<?= e($bodyClasses) ?>" data-user-role="<?= e((string) ($currentUser['role'] ?? 'guest')) ?>" data-user-id="<?= e((string) ($currentUser['id'] ?? '')) ?>">
