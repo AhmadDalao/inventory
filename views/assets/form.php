@@ -15,8 +15,8 @@ $scanCode = asset_scan_code($asset);
     </div>
 </section>
 
-<section class="panel form-panel">
-    <form class="stack-form item-form" method="post" action="<?= e($action) ?>" enctype="multipart/form-data">
+<section class="panel form-panel asset-form-panel">
+    <form class="stack-form item-form asset-form" method="post" action="<?= e($action) ?>" enctype="multipart/form-data">
         <?= csrf_field() ?>
 
         <div class="item-form-section">

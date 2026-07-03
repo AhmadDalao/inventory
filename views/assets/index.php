@@ -25,9 +25,9 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
     </div>
 </section>
 
-<div class="live-filter-region" data-live-filter-region="assets">
+<div class="live-filter-region assets-page" data-live-filter-region="assets">
     <section class="filter-panel">
-        <form class="filter-grid" method="get" action="<?= e(url('/company-assets')) ?>" data-live-filter-form>
+        <form class="filter-grid assets-filter-grid" method="get" action="<?= e(url('/company-assets')) ?>" data-live-filter-form>
             <label class="field">
                 <span>Search</span>
                 <input type="text" name="search" value="<?= e($filters['search']) ?>" placeholder="Asset number, name, barcode, serial">
@@ -140,7 +140,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
         </div>
     </section>
 
-    <section class="metric-grid">
+    <section class="metric-grid assets-metric-grid">
         <article class="metric-card metric-card-dark">
             <span>Total Assets</span>
             <strong><?= number_format($counts['active']) ?></strong>
@@ -202,7 +202,7 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
         </div>
 
         <div class="table-wrap">
-            <table class="data-table data-table-mobile">
+            <table class="data-table data-table-mobile asset-table">
                 <thead>
                 <tr>
                     <th>Asset</th>
