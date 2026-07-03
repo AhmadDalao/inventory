@@ -2759,6 +2759,31 @@ textarea {
     color: var(--muted);
 }
 
+.handover-approval-chip-stack,
+.handover-reason-quick-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.handover-reason-quick-buttons {
+    justify-content: flex-start;
+}
+
+.handover-reason-quick-buttons .compact-button {
+    min-height: 34px;
+    padding: 7px 10px;
+    background: #fff8e7;
+}
+
+.handover-approval-usage-editor {
+    border: 1px solid rgba(231, 182, 74, 0.22);
+    border-radius: 20px;
+    background: #fffaf1;
+    padding: 12px;
+}
+
 .handover-approval-metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -2820,6 +2845,8 @@ textarea {
     .handover-close-card-head,
     .handover-close-card-summary,
     .handover-usage-title,
+    .handover-approval-chip-stack,
+    .handover-reason-quick-buttons,
     .handover-approval-card-head,
     .handover-approval-metrics,
     .handover-approval-confirm-grid {

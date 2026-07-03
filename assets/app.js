@@ -1715,6 +1715,37 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleOtherField(row);
       };
 
+      const applyQuickReason = (editor, reasonValue) => {
+        const rows = Array.from(editor.querySelectorAll('[data-handover-usage-row]'));
+        let targetRow = rows.find((row) => {
+          const quantity = row.querySelector('[data-handover-usage-quantity]');
+          return quantity instanceof HTMLInputElement && quantity.value.trim() === '';
+        });
+
+        if (!targetRow) {
+          targetRow = rows[rows.length - 1];
+        }
+
+        if (!(targetRow instanceof HTMLElement)) {
+          return;
+        }
+
+        const reason = targetRow.querySelector('[data-handover-usage-reason]');
+        const quantity = targetRow.querySelector('[data-handover-usage-quantity]');
+
+        if (reason instanceof HTMLSelectElement) {
+          reason.value = reasonValue;
+        }
+
+        toggleOtherField(targetRow);
+        syncEditor(editor);
+
+        if (quantity instanceof HTMLInputElement) {
+          quantity.focus();
+          quantity.select();
+        }
+      };
+
       form.dataset.handoverBound = 'true';
 
       form.querySelectorAll('[data-handover-usage-editor]').forEach((editor) => {
@@ -1746,6 +1777,16 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
+        editor.querySelectorAll('[data-handover-usage-quick-reason]').forEach((button) => {
+          if (!(button instanceof HTMLButtonElement)) {
+            return;
+          }
+
+          button.addEventListener('click', () => {
+            applyQuickReason(editor, button.dataset.handoverUsageQuickReason || 'unspecified');
+          });
+        });
+
         syncEditor(editor);
       });
     });
@@ -1757,10 +1798,46 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const toggleOtherField = (row) => {
+        const reason = row.querySelector('[data-handover-usage-reason]');
+        const other = row.querySelector('[data-handover-usage-other]');
+        const otherWrapper = row.querySelector('[data-handover-usage-other-field]');
+
+        if (!(reason instanceof HTMLSelectElement) || !(other instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const isOther = reason.value === 'other';
+        other.hidden = !isOther;
+
+        if (otherWrapper instanceof HTMLElement) {
+          otherWrapper.hidden = !isOther;
+        }
+
+        if (!isOther) {
+          other.value = '';
+        }
+      };
+
+      const sumUsageRows = (line) => {
+        let total = 0;
+
+        line.querySelectorAll('[data-handover-usage-quantity]').forEach((field) => {
+          if (field instanceof HTMLInputElement) {
+            total += Math.max(0, parseNumber(field.value));
+          }
+        });
+
+        return Math.round(total * 100) / 100;
+      };
+
       const syncLine = (line) => {
         const returnedField = line.querySelector('[data-handover-approval-returned]');
         const usedLabel = line.querySelector('[data-handover-approval-used]');
+        const reasonTotalLabel = line.querySelector('[data-handover-approval-reason-total]');
         const warning = line.querySelector('[data-handover-approval-warning]');
+        const usageWarning = line.querySelector('[data-handover-approval-usage-warning]');
+        const editor = line.querySelector('[data-handover-approval-usage-editor]');
 
         if (!(returnedField instanceof HTMLInputElement)) {
           return;
@@ -1769,17 +1846,107 @@ document.addEventListener('DOMContentLoaded', () => {
         const received = Math.max(0, parseNumber(returnedField.dataset.handoverReceived || '0'));
         const returned = parseNumber(returnedField.value);
         const isInvalid = returned < 0 || returned > received;
-        const used = Math.max(0, received - Math.max(0, returned));
+        const used = Math.round(Math.max(0, received - Math.max(0, returned)) * 100) / 100;
+        const reasonTotal = sumUsageRows(line);
+        const reasonMismatch = Math.abs(reasonTotal - used) >= 0.01;
 
         if (usedLabel instanceof HTMLElement) {
-          usedLabel.textContent = formatQuantity(Math.round(used * 100) / 100);
+          usedLabel.textContent = formatQuantity(used);
+        }
+
+        if (reasonTotalLabel instanceof HTMLElement) {
+          reasonTotalLabel.textContent = formatQuantity(reasonTotal);
+        }
+
+        if (editor instanceof HTMLElement) {
+          editor.dataset.handoverApprovalTargetUsed = formatQuantity(used);
         }
 
         if (warning instanceof HTMLElement) {
           warning.hidden = !isInvalid;
         }
 
+        if (usageWarning instanceof HTMLElement) {
+          usageWarning.hidden = !reasonMismatch;
+        }
+
         returnedField.classList.toggle('is-invalid', isInvalid);
+        line.classList.toggle('has-usage-mismatch', reasonMismatch);
+        line.classList.toggle('has-return-mismatch', isInvalid);
+      };
+
+      const bindUsageRow = (row, line) => {
+        if (!(row instanceof HTMLElement)) {
+          return;
+        }
+
+        row.querySelectorAll('input, select').forEach((field) => {
+          field.addEventListener('input', () => syncLine(line));
+          field.addEventListener('change', () => {
+            toggleOtherField(row);
+            syncLine(line);
+          });
+        });
+
+        const removeButton = row.querySelector('[data-remove-handover-usage]');
+
+        if (removeButton instanceof HTMLButtonElement) {
+          removeButton.addEventListener('click', () => {
+            const editor = row.closest('[data-handover-usage-editor]');
+            const rows = editor ? Array.from(editor.querySelectorAll('[data-handover-usage-row]')) : [];
+
+            if (rows.length <= 1) {
+              row.querySelectorAll('input').forEach((field) => {
+                if (field instanceof HTMLInputElement) {
+                  field.value = '';
+                }
+              });
+              const reason = row.querySelector('[data-handover-usage-reason]');
+              if (reason instanceof HTMLSelectElement) {
+                reason.value = 'unspecified';
+              }
+              toggleOtherField(row);
+              syncLine(line);
+              return;
+            }
+
+            row.remove();
+            syncLine(line);
+          });
+        }
+
+        toggleOtherField(row);
+      };
+
+      const applyQuickReason = (line, editor, reasonValue) => {
+        const rows = Array.from(editor.querySelectorAll('[data-handover-usage-row]'));
+        let targetRow = rows.find((row) => {
+          const quantity = row.querySelector('[data-handover-usage-quantity]');
+          return quantity instanceof HTMLInputElement && quantity.value.trim() === '';
+        });
+
+        if (!targetRow) {
+          targetRow = rows[rows.length - 1];
+        }
+
+        if (!(targetRow instanceof HTMLElement)) {
+          return;
+        }
+
+        const reason = targetRow.querySelector('[data-handover-usage-reason]');
+        const quantity = targetRow.querySelector('[data-handover-usage-quantity]');
+
+        if (reason instanceof HTMLSelectElement) {
+          reason.value = reasonValue;
+        }
+
+        toggleOtherField(targetRow);
+        syncLine(line);
+
+        if (quantity instanceof HTMLInputElement) {
+          quantity.focus();
+          quantity.select();
+        }
       };
 
       form.dataset.handoverApprovalBound = 'true';
@@ -1796,8 +1963,58 @@ document.addEventListener('DOMContentLoaded', () => {
           returnedField.addEventListener('change', () => syncLine(line));
         }
 
+        const editor = line.querySelector('[data-handover-usage-editor]');
+
+        if (editor instanceof HTMLElement) {
+          editor.querySelectorAll('[data-handover-usage-row]').forEach((row) => bindUsageRow(row, line));
+
+          const addButton = editor.querySelector('[data-add-handover-usage]');
+          const template = editor.querySelector('[data-handover-usage-template]');
+          const list = editor.querySelector('[data-handover-usage-list]');
+
+          if (addButton instanceof HTMLButtonElement && template instanceof HTMLTemplateElement && list instanceof HTMLElement) {
+            addButton.addEventListener('click', () => {
+              const fragment = template.content.cloneNode(true);
+              const row = fragment.querySelector('[data-handover-usage-row]');
+              list.appendChild(fragment);
+
+              if (row instanceof HTMLElement) {
+                bindUsageRow(row, line);
+                const quantity = row.querySelector('[data-handover-usage-quantity]');
+                if (quantity instanceof HTMLInputElement) {
+                  quantity.focus();
+                }
+              }
+
+              syncLine(line);
+            });
+          }
+
+          editor.querySelectorAll('[data-handover-usage-quick-reason]').forEach((button) => {
+            if (!(button instanceof HTMLButtonElement)) {
+              return;
+            }
+
+            button.addEventListener('click', () => {
+              applyQuickReason(line, editor, button.dataset.handoverUsageQuickReason || 'unspecified');
+            });
+          });
+        }
+
         syncLine(line);
       });
+
+      form.addEventListener('submit', (event) => {
+        const invalidLine = Array.from(form.querySelectorAll('[data-handover-approval-line]')).find((line) => {
+          return line.classList.contains('has-usage-mismatch') || line.classList.contains('has-return-mismatch');
+        });
+
+        if (invalidLine) {
+          event.preventDefault();
+          event.stopPropagation();
+          showGlobalFlash('Fix returned quantity and usage reason totals before approving.', 'danger');
+        }
+      }, true);
     });
   };
 

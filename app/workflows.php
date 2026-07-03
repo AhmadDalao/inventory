@@ -2294,6 +2294,64 @@ function handover_usage_reason_summary(array $breakdowns, string $unit = 'pcs'):
     return implode('; ', $parts);
 }
 
+function handover_usage_variance_summary(array $expectedBreakdowns, array $actualBreakdowns, string $unit = 'pcs'): string
+{
+    $hasActual = false;
+    $totals = [];
+    $unit = $unit !== '' ? $unit : 'pcs';
+    $collect = static function (array $breakdowns, float $multiplier) use (&$totals, &$hasActual, $unit): void {
+        foreach ($breakdowns as $breakdown) {
+            $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
+
+            if ($quantity <= 0) {
+                continue;
+            }
+
+            if ($multiplier > 0) {
+                $hasActual = true;
+            }
+
+            $label = handover_usage_reason_label(
+                (string) ($breakdown['reason_code'] ?? 'unspecified'),
+                (string) ($breakdown['reason_custom'] ?? '')
+            );
+            $key = $label . '|' . $unit;
+
+            if (!isset($totals[$key])) {
+                $totals[$key] = [
+                    'label' => $label,
+                    'unit' => $unit,
+                    'quantity' => 0.0,
+                ];
+            }
+
+            $totals[$key]['quantity'] = round($totals[$key]['quantity'] + ($quantity * $multiplier), 2);
+        }
+    };
+
+    $collect($expectedBreakdowns, -1.0);
+    $collect($actualBreakdowns, 1.0);
+
+    if (!$hasActual) {
+        return '';
+    }
+
+    $parts = [];
+
+    foreach ($totals as $total) {
+        $quantity = round((float) ($total['quantity'] ?? 0), 2);
+
+        if (abs($quantity) < 0.01) {
+            continue;
+        }
+
+        $prefix = $quantity > 0 ? '+' : '';
+        $parts[] = $total['label'] . ' ' . $prefix . format_quantity($quantity) . ' ' . $total['unit'];
+    }
+
+    return $parts !== [] ? implode('; ', $parts) : 'No variance';
+}
+
 function handover_usage_breakdowns_for_lines(array $lineIds): array
 {
     $lineIds = array_values(array_unique(array_filter(array_map('intval', $lineIds), static fn (int $lineId): bool => $lineId > 0)));
@@ -2404,8 +2462,14 @@ function hydrate_handover_lines_expected_usage_breakdowns(array $lines): array
     foreach ($lines as &$line) {
         $lineId = (int) ($line['id'] ?? 0);
         $breakdowns = $groups[$lineId] ?? [];
+        $unit = (string) ($line['unit'] ?? 'pcs');
         $line['expected_usage_breakdowns'] = $breakdowns;
-        $line['expected_usage_reason_summary'] = handover_usage_reason_summary($breakdowns, (string) ($line['unit'] ?? 'pcs'));
+        $line['expected_usage_reason_summary'] = handover_usage_reason_summary($breakdowns, $unit);
+        $line['usage_variance_summary'] = handover_usage_variance_summary(
+            $breakdowns,
+            (array) ($line['usage_breakdowns'] ?? []),
+            $unit
+        );
     }
     unset($line);
 
@@ -3236,6 +3300,11 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
             $remaining = max(0, round($remainingBase - $used - $returned, 2));
             $expectedUsageSummary = handover_usage_reason_summary((array) ($line['expected_usage_breakdowns'] ?? []), $unit);
             $usageSummary = handover_usage_reason_summary((array) ($line['usage_breakdowns'] ?? []), $unit);
+            $usageVarianceSummary = handover_usage_variance_summary(
+                (array) ($line['expected_usage_breakdowns'] ?? []),
+                (array) ($line['usage_breakdowns'] ?? []),
+                $unit
+            );
             $quantityLines = [
                 'Planned: ' . format_quantity($quantity) . ' ' . $unit,
                 'Received: ' . ($received > 0 ? format_quantity($received) . ' ' . $unit : 'not reported'),
@@ -3251,9 +3320,14 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
             if ($usageSummary !== '') {
                 $quantityLines[] = 'Usage: ' . $usageSummary;
             }
+
+            if ($usageVarianceSummary !== '') {
+                $quantityLines[] = 'Variance: ' . $usageVarianceSummary;
+            }
         } else {
             $expectedUsageSummary = '';
             $usageSummary = '';
+            $usageVarianceSummary = '';
             $approved = round((float) ($line['quantity_approved'] ?? 0), 2);
             $received = round((float) ($line['quantity_received'] ?? 0), 2);
             $quantityLines = [
@@ -3284,6 +3358,7 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
             'expected_usage_reason_summary' => $expectedUsageSummary,
             'usage_breakdowns' => $workflowType === 'handover' ? (array) ($line['usage_breakdowns'] ?? []) : [],
             'usage_reason_summary' => $usageSummary,
+            'usage_variance_summary' => $usageVarianceSummary,
             'quantity_label' => format_quantity($quantity) . ' ' . $unit,
             'quantity_lines' => $quantityLines,
             'quantity_summary' => implode("\n", $quantityLines),
@@ -3372,6 +3447,72 @@ function workflow_signoff_usage_reason_totals(array $rows, string $breakdownKey 
     return implode('; ', $parts);
 }
 
+function workflow_signoff_usage_variance_totals(array $rows): string
+{
+    $hasActual = false;
+    $totals = [];
+
+    foreach ($rows as $row) {
+        $unit = (string) ($row['unit'] ?? 'pcs');
+        $unit = $unit !== '' ? $unit : 'pcs';
+        $collect = static function (array $breakdowns, float $multiplier) use (&$totals, &$hasActual, $unit): void {
+            if ($multiplier > 0) {
+                foreach ($breakdowns as $breakdown) {
+                    if (round((float) ($breakdown['quantity'] ?? 0), 2) > 0) {
+                        $hasActual = true;
+                        break;
+                    }
+                }
+            }
+
+            foreach ($breakdowns as $breakdown) {
+                $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
+
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $label = handover_usage_reason_label(
+                    (string) ($breakdown['reason_code'] ?? 'unspecified'),
+                    (string) ($breakdown['reason_custom'] ?? '')
+                );
+                $key = $label . '|' . $unit;
+
+                if (!isset($totals[$key])) {
+                    $totals[$key] = [
+                        'label' => $label,
+                        'unit' => $unit,
+                        'quantity' => 0.0,
+                    ];
+                }
+
+                $totals[$key]['quantity'] = round($totals[$key]['quantity'] + ($quantity * $multiplier), 2);
+            }
+        };
+
+        $collect((array) ($row['expected_usage_breakdowns'] ?? []), -1.0);
+        $collect((array) ($row['usage_breakdowns'] ?? []), 1.0);
+    }
+
+    if (!$hasActual) {
+        return '';
+    }
+
+    $parts = [];
+
+    foreach ($totals as $total) {
+        $quantity = round((float) ($total['quantity'] ?? 0), 2);
+
+        if (abs($quantity) < 0.01) {
+            continue;
+        }
+
+        $parts[] = $total['label'] . ' ' . ($quantity > 0 ? '+' : '') . format_quantity($quantity) . ' ' . $total['unit'];
+    }
+
+    return $parts !== [] ? implode('; ', $parts) : 'No variance';
+}
+
 function workflow_signoff_totals(string $workflowType, array $rows): array
 {
     if ($workflowType === 'handover') {
@@ -3388,6 +3529,8 @@ function workflow_signoff_totals(string $workflowType, array $rows): array
             'expected_usage_reason_value' => workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
             'usage_reason_label' => 'Usage By Reason',
             'usage_reason_value' => workflow_signoff_usage_reason_totals($rows),
+            'usage_variance_label' => 'Usage Variance',
+            'usage_variance_value' => workflow_signoff_usage_variance_totals($rows),
         ];
     }
 
@@ -4395,6 +4538,10 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         . workflow_xlsx_cell('J5', (string) ($totals['usage_reason_label'] ?? ''), 4)
         . workflow_xlsx_cell('K5', (string) ($totals['usage_reason_value'] ?? ''), 3)
         . '</row>';
+    $sheetRows[] = '<row r="6">'
+        . workflow_xlsx_cell('J6', (string) ($totals['usage_variance_label'] ?? ''), 4)
+        . workflow_xlsx_cell('K6', (string) ($totals['usage_variance_value'] ?? ''), 3)
+        . '</row>';
 
     $headers = ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Expected Qty', 'Reported / Final Qty', 'Expected Usage', 'Used Breakdown', 'Returned', 'Remaining', 'Notes'];
     $headerCells = '';
@@ -4734,6 +4881,10 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         }
         if (!empty($totals['usage_reason_value'])) {
             $commands .= workflow_pdf_text('Usage By Reason: ' . truncate_text((string) $totals['usage_reason_value'], 72), 7, 56, $summaryY, 'F2');
+            $summaryY -= 10;
+        }
+        if (!empty($totals['usage_variance_value'])) {
+            $commands .= workflow_pdf_text('Usage Variance: ' . truncate_text((string) $totals['usage_variance_value'], 72), 7, 56, $summaryY, 'F2');
             $summaryY -= 10;
         }
         if (!empty($meta['open_reference'])) {
@@ -5295,6 +5446,67 @@ function handover_close_nested_values(array $usageInput, string $key, int $lineI
     return array_values($lineValues);
 }
 
+function parse_handover_usage_input_rows(array $line, array $usageInput): array
+{
+    $errors = [];
+    $lineId = (int) $line['id'];
+    $quantityRows = handover_close_nested_values($usageInput, 'quantity', $lineId);
+    $reasonRows = handover_close_nested_values($usageInput, 'reason', $lineId);
+    $otherRows = handover_close_nested_values($usageInput, 'other', $lineId);
+    $noteRows = handover_close_nested_values($usageInput, 'notes', $lineId);
+    $rowCount = max(count($quantityRows), count($reasonRows), count($otherRows), count($noteRows));
+    $breakdowns = [];
+    $hasUsageRows = false;
+    $used = 0.0;
+
+    for ($index = 0; $index < $rowCount; $index++) {
+        $quantityRaw = trim((string) ($quantityRows[$index] ?? ''));
+        $reasonRaw = trim((string) ($reasonRows[$index] ?? ''));
+        $otherRaw = trim((string) ($otherRows[$index] ?? ''));
+        $noteRaw = trim((string) ($noteRows[$index] ?? ''));
+        $reasonCode = normalize_handover_usage_reason($reasonRaw);
+        $hasMeaningfulReason = $reasonRaw !== '' && $reasonCode !== 'unspecified';
+        $hasRowData = $quantityRaw !== '' || $hasMeaningfulReason || $otherRaw !== '' || $noteRaw !== '';
+
+        if (!$hasRowData) {
+            continue;
+        }
+
+        $hasUsageRows = true;
+
+        if ($quantityRaw === '') {
+            $errors[] = $line['item_name'] . ' has a usage reason without a quantity.';
+            continue;
+        }
+
+        if (!is_numeric_value($quantityRaw) || quantity_value($quantityRaw) < 0) {
+            $errors[] = 'Usage reason quantities must be zero or more for every line.';
+            continue;
+        }
+
+        $quantity = round(quantity_value($quantityRaw), 2);
+
+        if ($quantity <= 0) {
+            continue;
+        }
+
+        $breakdowns[] = [
+            'reason_code' => $reasonCode,
+            'reason_custom' => $reasonCode === 'other' ? $otherRaw : '',
+            'quantity' => $quantity,
+            'notes' => $noteRaw,
+        ];
+        $used = round($used + $quantity, 2);
+    }
+
+    return [
+        'breakdowns' => $breakdowns,
+        'errors' => $errors,
+        'has_usage_rows' => $hasUsageRows,
+        'used' => $used,
+    ];
+}
+
 function build_handover_close_updates(array $lines, $usedInput, array $usageInput = []): array
 {
     $errors = [];
@@ -5302,53 +5514,11 @@ function build_handover_close_updates(array $lines, $usedInput, array $usageInpu
 
     foreach ($lines as $line) {
         $lineId = (int) $line['id'];
-        $quantityRows = handover_close_nested_values($usageInput, 'quantity', $lineId);
-        $reasonRows = handover_close_nested_values($usageInput, 'reason', $lineId);
-        $otherRows = handover_close_nested_values($usageInput, 'other', $lineId);
-        $noteRows = handover_close_nested_values($usageInput, 'notes', $lineId);
-        $rowCount = max(count($quantityRows), count($reasonRows), count($otherRows), count($noteRows));
-        $breakdowns = [];
-        $hasUsageRows = false;
-        $used = 0.0;
-
-        for ($index = 0; $index < $rowCount; $index++) {
-            $quantityRaw = trim((string) ($quantityRows[$index] ?? ''));
-            $reasonRaw = trim((string) ($reasonRows[$index] ?? ''));
-            $otherRaw = trim((string) ($otherRows[$index] ?? ''));
-            $noteRaw = trim((string) ($noteRows[$index] ?? ''));
-            $hasRowData = $quantityRaw !== '' || $reasonRaw !== '' || $otherRaw !== '' || $noteRaw !== '';
-
-            if (!$hasRowData) {
-                continue;
-            }
-
-            $hasUsageRows = true;
-
-            if ($quantityRaw === '') {
-                $errors[] = $line['item_name'] . ' has a usage reason without a quantity.';
-                continue;
-            }
-
-            if (!is_numeric_value($quantityRaw) || quantity_value($quantityRaw) < 0) {
-                $errors[] = 'Usage reason quantities must be zero or more for every line.';
-                continue;
-            }
-
-            $quantity = round(quantity_value($quantityRaw), 2);
-
-            if ($quantity <= 0) {
-                continue;
-            }
-
-            $reasonCode = normalize_handover_usage_reason($reasonRaw);
-            $breakdowns[] = [
-                'reason_code' => $reasonCode,
-                'reason_custom' => $reasonCode === 'other' ? $otherRaw : '',
-                'quantity' => $quantity,
-                'notes' => $noteRaw,
-            ];
-            $used = round($used + $quantity, 2);
-        }
+        $parsedUsage = parse_handover_usage_input_rows($line, $usageInput);
+        $errors = array_merge($errors, $parsedUsage['errors']);
+        $breakdowns = $parsedUsage['breakdowns'];
+        $hasUsageRows = (bool) $parsedUsage['has_usage_rows'];
+        $used = (float) $parsedUsage['used'];
 
         if (!$hasUsageRows) {
             $usedValue = is_array($usedInput) ? ($usedInput[$lineId] ?? $usedInput[(string) $lineId] ?? '') : '';
@@ -5457,7 +5627,7 @@ function handover_adjust_breakdowns_for_approval(array $line, float $confirmedUs
     return $trimmed;
 }
 
-function build_handover_approval_updates(array $lines, $returnedInput): array
+function build_handover_approval_updates(array $lines, $returnedInput, array $usageInput = []): array
 {
     $errors = [];
     $updates = [];
@@ -5482,13 +5652,27 @@ function build_handover_approval_updates(array $lines, $returnedInput): array
         }
 
         $used = round($received - $returned, 2);
+        $parsedUsage = parse_handover_usage_input_rows($line, $usageInput);
+        $errors = array_merge($errors, $parsedUsage['errors']);
+        $breakdowns = handover_adjust_breakdowns_for_approval($line, $used);
+
+        if ((bool) $parsedUsage['has_usage_rows']) {
+            $breakdownUsed = round((float) $parsedUsage['used'], 2);
+
+            if (abs($breakdownUsed - $used) >= 0.01) {
+                $errors[] = $line['item_name'] . ' usage breakdown must total ' . format_quantity($used) . ' ' . (string) ($line['unit'] ?? 'pcs') . ' after your confirmed return.';
+                continue;
+            }
+
+            $breakdowns = $parsedUsage['breakdowns'];
+        }
 
         $updates[] = [
             'line_id' => $lineId,
             'item_id' => (int) $line['item_id'],
             'used' => $used,
             'returned' => $returned,
-            'breakdowns' => handover_adjust_breakdowns_for_approval($line, $used),
+            'breakdowns' => $breakdowns,
         ];
     }
 
@@ -8691,7 +8875,13 @@ function handle_handovers_approve_submit(array $params): void
 
     $closedNotes = trim((string) input('closed_notes', (string) ($handover['closed_notes'] ?? '')));
     $lines = handover_lines((int) $handover['id']);
-    [$lineUpdates, $errors] = build_handover_approval_updates($lines, input('line_returned', []));
+    $usageInput = [
+        'quantity' => input('line_usage_quantity', []),
+        'reason' => input('line_usage_reason', []),
+        'other' => input('line_usage_other', []),
+        'notes' => input('line_usage_notes', []),
+    ];
+    [$lineUpdates, $errors] = build_handover_approval_updates($lines, input('line_returned', []), $usageInput);
 
     if ($errors !== []) {
         if (request_wants_json()) {
@@ -8830,6 +9020,7 @@ function handle_export_handovers(): void
                 format_quantity($remainingQuantity),
                 (string) ($line['expected_usage_reason_summary'] ?? ''),
                 (string) ($line['usage_reason_summary'] ?? ''),
+                (string) ($line['usage_variance_summary'] ?? ''),
                 $handover['notes'] ?: '',
                 $handover['request_decision_notes'] ?: '',
                 $handover['receipt_notes'] ?: '',
@@ -8860,6 +9051,7 @@ function handle_export_handovers(): void
         'Remaining Quantity',
         'Expected Usage Reasons',
         'Usage Reasons',
+        'Usage Variance',
         'Notes',
         'Request Decision Notes',
         'Receipt Notes',

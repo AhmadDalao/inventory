@@ -3347,15 +3347,30 @@ $ownerAdjustedExpectedReturned = 0.0;
 foreach ($handoverPendingLines as $line) {
     $lineId = (int) $line['id'];
     $returned = round((float) $line['quantity_returned'], 2);
+    $approvedUsed = round((float) $line['quantity_used'], 2);
 
     if ((int) $line['item_id'] === (int) $handoverItems[0]['id']) {
         $returned = round(max(0, $returned - 1), 2);
         $ownerAdjustedLineId = $lineId;
         $ownerAdjustedExpectedReturned = $returned;
         $ownerAdjustedExpectedUsed = round((float) $line['quantity_received'] - $returned, 2);
+        $approvedUsed = $ownerAdjustedExpectedUsed;
     }
 
     $handoverApproveFields['line_returned[' . $lineId . ']'] = format_quantity($returned);
+
+    if ((int) $line['item_id'] === (int) $handoverItems[0]['id']) {
+        $handoverApproveFields['line_usage_reason[' . $lineId . '][0]'] = 'damage';
+        $handoverApproveFields['line_usage_quantity[' . $lineId . '][0]'] = '1';
+        $handoverApproveFields['line_usage_notes[' . $lineId . '][0]'] = $prefix . ' owner confirmed damage';
+        $handoverApproveFields['line_usage_reason[' . $lineId . '][1]'] = 'online';
+        $handoverApproveFields['line_usage_quantity[' . $lineId . '][1]'] = format_quantity(max(0, $approvedUsed - 1));
+        $handoverApproveFields['line_usage_notes[' . $lineId . '][1]'] = $prefix . ' owner corrected online guests';
+    } else {
+        $handoverApproveFields['line_usage_reason[' . $lineId . '][0]'] = 'event';
+        $handoverApproveFields['line_usage_quantity[' . $lineId . '][0]'] = format_quantity($approvedUsed);
+        $handoverApproveFields['line_usage_notes[' . $lineId . '][0]'] = $prefix . ' owner confirmed event use';
+    }
 }
 
 assert_true($ownerAdjustedLineId > 0, 'Test setup did not find the owner-adjusted handover line.');
@@ -3377,9 +3392,12 @@ foreach ($handoverClosedLines as $line) {
 assert_true(is_array($ownerAdjustedClosedLine), 'Owner-adjusted handover line was not found after approval.');
 assert_true(round((float) $ownerAdjustedClosedLine['quantity_used'], 2) === $ownerAdjustedExpectedUsed, 'Owner approval correction did not update final used quantity.');
 assert_true(round((float) $ownerAdjustedClosedLine['quantity_returned'], 2) === $ownerAdjustedExpectedReturned, 'Owner approval correction did not update final returned quantity.');
+assert_true(strpos((string) ($ownerAdjustedClosedLine['usage_reason_summary'] ?? ''), 'Online ' . format_quantity(max(0, $ownerAdjustedExpectedUsed - 1))) !== false, 'Owner approval correction did not store the corrected online usage breakdown.');
+assert_true(strpos((string) ($ownerAdjustedClosedLine['usage_reason_summary'] ?? ''), 'Unspecified') === false, 'Owner approval correction should not create an unspecified usage adjustment when final reasons were supplied.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - $ownerAdjustedExpectedUsed, 2), 'Handover source balance is wrong for the first item after owner correction.');
 $handoverPageAfterApproval = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
 assert_true($handoverPageAfterApproval['status'] === 200, 'Handover detail page did not load after approval.');
+assert_true(strpos($handoverPageAfterApproval['body'], 'Variance') !== false && strpos($handoverPageAfterApproval['body'], 'Damage +1') !== false, 'Handover detail page is missing expected vs actual usage variance.');
 $handoverFinalSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverId]);
 assert_true($handoverFinalSignoffExcelDocumentId > $handoverPreApprovalSignoffExcelDocumentId, 'Handover sign-off XLSX was not regenerated after owner approval.');
 $handoverFinalSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $handoverFinalSignoffExcelDocumentId . '/download');
@@ -3392,8 +3410,9 @@ assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Expected 
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Walk-in 6', 'Final handover sign-off XLSX is missing expected walk-in usage breakdown.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used Breakdown', 'Final handover sign-off XLSX is missing used breakdown column.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage 1', 'Final handover sign-off XLSX is missing damage usage breakdown.');
-assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Online 4', 'Final handover sign-off XLSX is missing online usage breakdown.');
-assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Unspecified 1', 'Final handover sign-off XLSX is missing owner approval adjustment usage breakdown.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Online 5', 'Final handover sign-off XLSX is missing owner-corrected online usage breakdown.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Usage Variance', 'Final handover sign-off XLSX is missing usage variance.');
+assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Damage +1', 'Final handover sign-off XLSX is missing damage usage variance.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Used:', 'Final handover sign-off XLSX is missing used quantity values.');
 assert_xlsx_contains_text($handoverFinalSignoffExcelDownload['body'], 'Returned:', 'Final handover sign-off XLSX is missing returned quantity values.');
 
@@ -3409,6 +3428,7 @@ assert_true(strpos($handoverExport['body'], $handoverRecord['handover_number']) 
 assert_true(strpos($handoverExport['body'], $handoverRequestClosed['handover_number']) !== false, 'Handover export is missing the requested handover.');
 assert_true(strpos($handoverExport['body'], 'Usage Reasons') !== false && strpos($handoverExport['body'], 'Damage 1') !== false, 'Handover export is missing usage reason details.');
 assert_true(strpos($handoverExport['body'], 'Expected Usage Reasons') !== false && strpos($handoverExport['body'], 'Online 12') !== false, 'Handover export is missing expected usage details.');
+assert_true(strpos($handoverExport['body'], 'Usage Variance') !== false && strpos($handoverExport['body'], 'Damage +1') !== false, 'Handover export is missing usage variance details.');
 
 $purchaseExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/purchases');
 assert_true($purchaseExport['status'] === 200, 'Purchase export failed.');
