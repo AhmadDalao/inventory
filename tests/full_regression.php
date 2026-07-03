@@ -3284,7 +3284,7 @@ assert_true((string) $handoverDeliveredRecord['status'] === 'delivered', 'Handov
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 18, 2), 'Handover source balance is wrong after receipt review confirmation.');
 
 $handoverClosePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
-assert_true(strpos($handoverClosePage['body'], 'Used By Reason') !== false, 'Handover closeout page is missing the visible usage breakdown guidance.');
+assert_true(strpos($handoverClosePage['body'], 'Actual Usage Report') !== false, 'Handover closeout page is missing the visible actual usage guidance.');
 assert_true(strpos($handoverClosePage['body'], 'Add Usage Reason') !== false, 'Handover closeout page is missing the add usage reason action.');
 
 $handoverClosePayload = [
@@ -3527,7 +3527,7 @@ assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'R
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary.xlsx') !== false, 'Reports page is missing the daily summary XLSX export link.');
 assert_true(strpos($reportsPage['body'], 'name="item_status"') !== false && strpos($reportsPage['body'], 'Deleted items') !== false, 'Reports page is missing the item status filter.');
 assert_true(strpos($reportsPage['body'], 'summary-usage-tag') !== false && strpos($reportsPage['body'], 'Used Damage') !== false, 'Reports page is missing handover usage reason chips.');
-assert_true(strpos($reportsPage['body'], $prefix . ' damaged during event') !== false, 'Reports page is missing submitted usage notes.');
+assert_true(strpos($reportsPage['body'], $prefix . ' owner confirmed damage') !== false, 'Reports page is missing owner-approved usage notes.');
 assert_true(strpos($reportsPage['body'], 'Who Used Or Moved Stock') !== false, 'Reports page is missing the user movement summary.');
 assert_true(strpos($reportsPage['body'], 'report-preset-card') !== false, 'Reports page is missing preset cards.');
 assert_true(strpos($reportsPage['body'], 'Today Stock Activity') !== false, 'Reports page is missing the today stock activity preset.');
