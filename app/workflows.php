@@ -4746,11 +4746,36 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $reconciliationNoteRow = $reconciliationTitleRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationNoteRow . '" ht="24" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationNoteRow, 'Notes', 4)
-            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Difference means received minus used minus returned. 0 means all handed stock is accounted for.', 3)
+            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Bottom tables hold expected usage, actual usage, variance, and stock accounting. Difference means received minus used minus returned.', 3)
             . '</row>';
         $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
 
-        $reconciliationHeaderRow = $reconciliationNoteRow + 1;
+        $totalsHeaderRow = $reconciliationNoteRow + 1;
+        $sheetRows[] = '<row r="' . $totalsHeaderRow . '" ht="22" customHeight="1">'
+            . workflow_xlsx_cell('A' . $totalsHeaderRow, 'Stock Accounting', 2)
+            . workflow_xlsx_cell('B' . $totalsHeaderRow, 'Planned', 2)
+            . workflow_xlsx_cell('C' . $totalsHeaderRow, 'Received', 2)
+            . workflow_xlsx_cell('D' . $totalsHeaderRow, 'Used', 2)
+            . workflow_xlsx_cell('E' . $totalsHeaderRow, 'Returned', 2)
+            . workflow_xlsx_cell('F' . $totalsHeaderRow, 'Difference', 2)
+            . '</row>';
+        $totalsValueRow = $totalsHeaderRow + 1;
+        $sheetRows[] = '<row r="' . $totalsValueRow . '">'
+            . workflow_xlsx_cell('A' . $totalsValueRow, 'Totals', 3)
+            . workflow_xlsx_cell('B' . $totalsValueRow, (string) ($totals['total_value'] ?? ''), 3)
+            . workflow_xlsx_cell('C' . $totalsValueRow, (string) ($totals['received_total_value'] ?? ''), 3)
+            . workflow_xlsx_cell('D' . $totalsValueRow, (string) ($totals['secondary_value'] ?? ''), 3)
+            . workflow_xlsx_cell('E' . $totalsValueRow, (string) ($totals['tertiary_value'] ?? ''), 3)
+            . workflow_xlsx_cell('F' . $totalsValueRow, (string) ($totals['difference_value'] ?? ''), 3)
+            . '</row>';
+
+        $usageTitleRow = $totalsValueRow + 2;
+        $sheetRows[] = '<row r="' . $usageTitleRow . '" ht="22" customHeight="1">'
+            . workflow_xlsx_cell('A' . $usageTitleRow, 'Usage Reconciliation', 5)
+            . '</row>';
+        $mergeCells[] = 'A' . $usageTitleRow . ':J' . $usageTitleRow;
+
+        $reconciliationHeaderRow = $usageTitleRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
             . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected Usage', 2)
@@ -4784,26 +4809,6 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
                 $rowNumber++;
             }
         }
-
-        $totalsHeaderRow = $rowNumber + 1;
-        $sheetRows[] = '<row r="' . $totalsHeaderRow . '" ht="22" customHeight="1">'
-            . workflow_xlsx_cell('A' . $totalsHeaderRow, 'Stock Accounting', 2)
-            . workflow_xlsx_cell('B' . $totalsHeaderRow, 'Planned', 2)
-            . workflow_xlsx_cell('C' . $totalsHeaderRow, 'Received', 2)
-            . workflow_xlsx_cell('D' . $totalsHeaderRow, 'Used', 2)
-            . workflow_xlsx_cell('E' . $totalsHeaderRow, 'Returned', 2)
-            . workflow_xlsx_cell('F' . $totalsHeaderRow, 'Difference', 2)
-            . '</row>';
-        $totalsValueRow = $totalsHeaderRow + 1;
-        $sheetRows[] = '<row r="' . $totalsValueRow . '">'
-            . workflow_xlsx_cell('A' . $totalsValueRow, 'Totals', 3)
-            . workflow_xlsx_cell('B' . $totalsValueRow, (string) ($totals['total_value'] ?? ''), 3)
-            . workflow_xlsx_cell('C' . $totalsValueRow, (string) ($totals['received_total_value'] ?? ''), 3)
-            . workflow_xlsx_cell('D' . $totalsValueRow, (string) ($totals['secondary_value'] ?? ''), 3)
-            . workflow_xlsx_cell('E' . $totalsValueRow, (string) ($totals['tertiary_value'] ?? ''), 3)
-            . workflow_xlsx_cell('F' . $totalsValueRow, (string) ($totals['difference_value'] ?? ''), 3)
-            . '</row>';
-        $rowNumber = $totalsValueRow + 1;
     }
 
     $signatureRow = $rowNumber + 2;
@@ -5248,28 +5253,34 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_qr_code((string) $meta['open_reference'], 500, 686, 62);
         }
 
-        $commands .= workflow_pdf_rect(42, 622, 528, 58, 'B', '0.86 0.80 0.72', '0.99 0.97 0.92');
-        $commands .= workflow_pdf_text('Planned', 8, 56, 658, 'F2');
-        $commands .= workflow_pdf_text((string) ($totals['total_value'] ?? '0'), 11, 56, 640);
-        $commands .= workflow_pdf_text('Received', 8, 154, 658, 'F2');
-        $commands .= workflow_pdf_text((string) ($totals['received_total_value'] ?? '0'), 11, 154, 640);
-        $commands .= workflow_pdf_text('Used', 8, 254, 658, 'F2');
-        $commands .= workflow_pdf_text((string) ($totals['secondary_value'] ?? '0'), 11, 254, 640);
-        $commands .= workflow_pdf_text('Returned', 8, 354, 658, 'F2');
-        $commands .= workflow_pdf_text((string) ($totals['tertiary_value'] ?? '0'), 11, 354, 640);
-        $commands .= workflow_pdf_text('Difference', 8, 464, 658, 'F2');
-        $commands .= workflow_pdf_text((string) ($totals['difference_value'] ?? '0'), 11, 464, 640);
+        $commands .= workflow_pdf_text('Notes', 12, 42, 654, 'F2');
+        $commands .= workflow_pdf_text('Item rows stay simple. The tables below hold expected usage, actual usage, variance, and stock accounting.', 8, 42, 640);
 
-        $commands .= workflow_pdf_text('Notes', 12, 42, 596, 'F2');
-        $commands .= workflow_pdf_text('Expected usage, actual usage, variance, and stock difference are recorded here instead of inside item rows.', 8, 42, 582);
+        $commands .= workflow_pdf_text('Stock Accounting', 12, 42, 614, 'F2');
+        $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
+        $commands .= workflow_pdf_text('Planned', 8, 56, 592, 'F2');
+        $commands .= workflow_pdf_text('Received', 8, 146, 592, 'F2');
+        $commands .= workflow_pdf_text('Used', 8, 238, 592, 'F2');
+        $commands .= workflow_pdf_text('Returned', 8, 326, 592, 'F2');
+        $commands .= workflow_pdf_text('Difference', 8, 428, 592, 'F2');
+        $commands .= workflow_pdf_rect(42, 556, 528, 28, 'S', '0.86 0.80 0.72');
+        $commands .= workflow_pdf_line(132, 556, 132, 608);
+        $commands .= workflow_pdf_line(224, 556, 224, 608);
+        $commands .= workflow_pdf_line(312, 556, 312, 608);
+        $commands .= workflow_pdf_line(414, 556, 414, 608);
+        $commands .= workflow_pdf_text((string) ($totals['total_value'] ?? '0'), 9, 56, 567);
+        $commands .= workflow_pdf_text((string) ($totals['received_total_value'] ?? '0'), 9, 146, 567);
+        $commands .= workflow_pdf_text((string) ($totals['secondary_value'] ?? '0'), 9, 238, 567);
+        $commands .= workflow_pdf_text((string) ($totals['tertiary_value'] ?? '0'), 9, 326, 567);
+        $commands .= workflow_pdf_text((string) ($totals['difference_value'] ?? '0'), 9, 428, 567);
 
-        $commands .= workflow_pdf_text('Expected vs Actual Usage', 12, 42, 556, 'F2');
-        $commands .= workflow_pdf_rect(42, 526, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
-        $commands .= workflow_pdf_text('Type', 8, 56, 534, 'F2');
-        $commands .= workflow_pdf_text('Expected Usage', 8, 190, 534, 'F2');
-        $commands .= workflow_pdf_text('Used Breakdown', 8, 310, 534, 'F2');
-        $commands .= workflow_pdf_text('Usage Variance', 8, 438, 534, 'F2');
-        $y = 502;
+        $commands .= workflow_pdf_text('Usage Reconciliation', 12, 42, 526, 'F2');
+        $commands .= workflow_pdf_rect(42, 496, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
+        $commands .= workflow_pdf_text('Type', 8, 56, 504, 'F2');
+        $commands .= workflow_pdf_text('Expected', 8, 190, 504, 'F2');
+        $commands .= workflow_pdf_text('Actual', 8, 310, 504, 'F2');
+        $commands .= workflow_pdf_text('Variance', 8, 438, 504, 'F2');
+        $y = 472;
         $reconciliationRows = (array) ($totals['reconciliation_rows'] ?? []);
 
         if ($reconciliationRows === []) {
@@ -5281,13 +5292,16 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
                 $difference = round((float) ($summaryRow['difference'] ?? 0), 2);
                 $unit = (string) ($summaryRow['unit'] ?? 'pcs');
                 $commands .= workflow_pdf_rect(42, $y, 528, 30, 'S', '0.86 0.80 0.72');
+                $commands .= workflow_pdf_line(176, $y, 176, $y + 30);
+                $commands .= workflow_pdf_line(296, $y, 296, $y + 30);
+                $commands .= workflow_pdf_line(424, $y, 424, $y + 30);
                 $commands .= workflow_pdf_text(truncate_text((string) ($summaryRow['label'] ?? ''), 24), 8, 56, $y + 12, 'F2');
                 $commands .= workflow_pdf_text(format_quantity((float) ($summaryRow['expected'] ?? 0)) . ' ' . $unit, 8, 190, $y + 12);
                 $commands .= workflow_pdf_text(format_quantity((float) ($summaryRow['actual'] ?? 0)) . ' ' . $unit, 8, 310, $y + 12);
                 $commands .= workflow_pdf_text(($difference > 0 ? '+' : '') . format_quantity($difference) . ' ' . $unit, 8, 438, $y + 12);
                 $y -= 30;
 
-                if ($y < 235) {
+                if ($y < 225) {
                     break;
                 }
             }
@@ -5460,7 +5474,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
             || strtolower(substr($storedFilename, -5)) === '.xlsx';
         $createdTimestamp = strtotime((string) ($existingExcel['created_at'] ?? '')) ?: 0;
         $existingExcelIsRealWorkbook = $existingExcelIsRealWorkbook
-            && str_contains($storedFilename, 'signoff-sheet-img-v12')
+            && str_contains($storedFilename, 'signoff-sheet-img-v13')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
     $existingPdfIsCurrent = false;
@@ -5470,7 +5484,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
         $mimeType = (string) ($existingPdf['mime_type'] ?? '');
         $createdTimestamp = strtotime((string) ($existingPdf['created_at'] ?? '')) ?: 0;
         $existingPdfIsCurrent = $mimeType === 'application/pdf'
-            && str_contains($storedFilename, 'signoff-img-v12')
+            && str_contains($storedFilename, 'signoff-img-v13')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
 
