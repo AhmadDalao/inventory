@@ -2969,7 +2969,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_true(strpos($handoverRequestOwnerPage['body'], 'View Sign-Off PDF') !== false, 'Requested handover detail is missing sign-off PDF preview.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Download Sign-Off PDF') !== false, 'Requested handover detail is missing sign-off PDF download.');
     assert_true(strpos($handoverRequestOwnerPage['body'], 'Download Excel Sheet') !== false, 'Requested handover detail is missing sign-off Excel sheet download.');
-    $requestedHandoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $handoverRequestId]);
+    $requestedHandoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffDocumentId > 0, 'Requested handover sign-off PDF document was not created.');
     $requestedHandoverSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffDocumentId]);
     assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v12') !== false, 'Requested handover sign-off PDF was not regenerated with reconciliation sign-off template.');
@@ -2982,7 +2982,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Notes And Reconciliation') !== false, 'Requested handover sign-off PDF is missing bottom notes and reconciliation section.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Difference = received - used - returned') !== false, 'Requested handover sign-off PDF is missing stock difference explanation.');
     assert_pdf_image_min_dimensions($requestedHandoverSignoffDownload['body'], 400, 300, 'Requested handover sign-off PDF image quality is too low.');
-    $requestedHandoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $handoverRequestId]);
+    $requestedHandoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffExcelDocumentId > 0, 'Requested handover sign-off Excel sheet document was not created.');
     $requestedHandoverSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffExcelDocumentId]);
     assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v12') !== false, 'Requested handover sign-off XLSX was not regenerated with reconciliation sign-off template.');
@@ -3224,11 +3224,11 @@ assert_true(strpos($staffDashboard['body'], 'metric-grid') === false, 'Staff das
     assert_true(strpos($handoverPageForStaff['body'], 'Download Sign-Off PDF') !== false, 'Handover detail is missing sign-off PDF download.');
     assert_true(strpos($handoverPageForStaff['body'], 'Download Excel Sheet') !== false, 'Handover detail is missing sign-off Excel sheet download.');
     assert_true(strpos($handoverPageForStaff['body'], 'Proof Image Optional') !== false, 'Handover receipt form is missing optional proof image upload.');
-    $handoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $handoverId]);
+    $handoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverId]);
     assert_true($handoverSignoffDocumentId > 0, 'Handover sign-off PDF document was not created.');
     $handoverSignoffPreview = http_request($baseUrl, $staffCookie, 'GET', '/workflow-documents/' . $handoverSignoffDocumentId . '/view');
     assert_pdf_preview_response($handoverSignoffPreview, 'Handover sign-off PDF could not be previewed inline.');
-    $handoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $handoverId]);
+    $handoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverId]);
     assert_true($handoverSignoffExcelDocumentId > 0, 'Handover sign-off Excel sheet document was not created.');
     $handoverSignoffExcelDownload = http_request($baseUrl, $staffCookie, 'GET', '/workflow-documents/' . $handoverSignoffExcelDocumentId . '/download');
     assert_true($handoverSignoffExcelDownload['status'] === 200 && strpos($handoverSignoffExcelDownload['body'], 'PK') === 0, 'Handover sign-off Excel sheet could not be downloaded as XLSX.');
