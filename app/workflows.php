@@ -4663,22 +4663,33 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         . workflow_xlsx_cell('H4', (string) ($totals['total_label'] ?? 'Total Items'), 4)
         . workflow_xlsx_cell('I4', (string) ($totals['total_value'] ?? ''), 3)
         . '</row>';
-    $sheetRows[] = '<row r="5">'
-        . workflow_xlsx_cell('A5', $meta['mode_label'], 4)
-        . workflow_xlsx_cell('B5', $meta['mode_value'], 3)
-        . workflow_xlsx_cell('D5', (string) ($totals['secondary_label'] ?? ''), 4)
-        . workflow_xlsx_cell('E5', (string) ($totals['secondary_value'] ?? ''), 3)
-        . workflow_xlsx_cell('F5', (string) ($totals['tertiary_label'] ?? ''), 4)
-        . workflow_xlsx_cell('G5', (string) ($totals['tertiary_value'] ?? ''), 3)
-        . workflow_xlsx_cell('H5', (string) ($totals['quaternary_label'] ?? ''), 4)
-        . workflow_xlsx_cell('I5', (string) ($totals['quaternary_value'] ?? ''), 3)
-        . '</row>';
-    $sheetRows[] = '<row r="6">'
-        . workflow_xlsx_cell('D6', (string) ($totals['received_total_label'] ?? ''), 4)
-        . workflow_xlsx_cell('E6', (string) ($totals['received_total_value'] ?? ''), 3)
-        . workflow_xlsx_cell('F6', (string) ($totals['difference_label'] ?? ''), 4)
-        . workflow_xlsx_cell('G6', (string) ($totals['difference_value'] ?? ''), 3)
-        . '</row>';
+    if ($isHandover) {
+        $sheetRows[] = '<row r="5">'
+            . workflow_xlsx_cell('A5', $meta['mode_label'], 4)
+            . workflow_xlsx_cell('B5', $meta['mode_value'], 3)
+            . '</row>';
+        $sheetRows[] = '<row r="6">'
+            . workflow_xlsx_cell('A6', 'Notes', 4)
+            . workflow_xlsx_cell('B6', 'Expected usage, actual usage, variance, and stock difference are listed at the bottom.', 3)
+            . '</row>';
+    } else {
+        $sheetRows[] = '<row r="5">'
+            . workflow_xlsx_cell('A5', $meta['mode_label'], 4)
+            . workflow_xlsx_cell('B5', $meta['mode_value'], 3)
+            . workflow_xlsx_cell('D5', (string) ($totals['secondary_label'] ?? ''), 4)
+            . workflow_xlsx_cell('E5', (string) ($totals['secondary_value'] ?? ''), 3)
+            . workflow_xlsx_cell('F5', (string) ($totals['tertiary_label'] ?? ''), 4)
+            . workflow_xlsx_cell('G5', (string) ($totals['tertiary_value'] ?? ''), 3)
+            . workflow_xlsx_cell('H5', (string) ($totals['quaternary_label'] ?? ''), 4)
+            . workflow_xlsx_cell('I5', (string) ($totals['quaternary_value'] ?? ''), 3)
+            . '</row>';
+        $sheetRows[] = '<row r="6">'
+            . workflow_xlsx_cell('D6', (string) ($totals['received_total_label'] ?? ''), 4)
+            . workflow_xlsx_cell('E6', (string) ($totals['received_total_value'] ?? ''), 3)
+            . workflow_xlsx_cell('F6', (string) ($totals['difference_label'] ?? ''), 4)
+            . workflow_xlsx_cell('G6', (string) ($totals['difference_value'] ?? ''), 3)
+            . '</row>';
+    }
 
     $headers = $isHandover
         ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Used', 'Returned', 'Notes']
@@ -4728,11 +4739,18 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     if ($isHandover) {
         $reconciliationTitleRow = $rowNumber + 2;
         $sheetRows[] = '<row r="' . $reconciliationTitleRow . '" ht="28" customHeight="1">'
-            . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Reconciliation Summary', 1)
+            . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Notes And Reconciliation', 1)
             . '</row>';
         $mergeCells[] = 'A' . $reconciliationTitleRow . ':J' . $reconciliationTitleRow;
 
-        $reconciliationHeaderRow = $reconciliationTitleRow + 1;
+        $reconciliationNoteRow = $reconciliationTitleRow + 1;
+        $sheetRows[] = '<row r="' . $reconciliationNoteRow . '" ht="24" customHeight="1">'
+            . workflow_xlsx_cell('A' . $reconciliationNoteRow, 'Notes', 4)
+            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Difference means received minus used minus returned. 0 means all handed stock is accounted for.', 3)
+            . '</row>';
+        $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
+
+        $reconciliationHeaderRow = $reconciliationNoteRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
             . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected Usage', 2)
@@ -5090,14 +5108,17 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         $commands .= workflow_pdf_text((string) ($totals['total_label'] ?? 'Total Items'), 8, 448, 652, 'F2');
         $commands .= workflow_pdf_text(truncate_text((string) ($totals['total_value'] ?? ''), 18), 11, 448, 636);
         $commands .= workflow_pdf_text($meta['mode_label'] . ': ' . truncate_text($meta['mode_value'], 28), 9, 56, 608);
-        if (!empty($totals['secondary_label'])) {
+        if ($workflowType !== 'handover' && !empty($totals['secondary_label'])) {
             $commands .= workflow_pdf_text($totals['secondary_label'] . ': ' . truncate_text((string) ($totals['secondary_value'] ?? ''), 16), 8, 210, 608, 'F2');
         }
-        if (!empty($totals['tertiary_label'])) {
+        if ($workflowType !== 'handover' && !empty($totals['tertiary_label'])) {
             $commands .= workflow_pdf_text($totals['tertiary_label'] . ': ' . truncate_text((string) ($totals['tertiary_value'] ?? ''), 16), 8, 342, 608, 'F2');
         }
-        if (!empty($totals['quaternary_label'])) {
+        if ($workflowType !== 'handover' && !empty($totals['quaternary_label'])) {
             $commands .= workflow_pdf_text($totals['quaternary_label'] . ': ' . truncate_text((string) ($totals['quaternary_value'] ?? ''), 14), 8, 464, 608, 'F2');
+        }
+        if ($workflowType === 'handover') {
+            $commands .= workflow_pdf_text('Notes and reconciliation are listed at the bottom.', 8, 210, 608);
         }
         if (!empty($meta['open_reference'])) {
             $commands .= workflow_pdf_text('Scan/Search Ref', 8, 404, 716, 'F2');
@@ -5217,7 +5238,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_text('KONA INVENTORY', 9, 42, 750, 'F2');
         }
 
-        $commands .= workflow_pdf_text('Handover Reconciliation', 20, 42, 710, 'F2');
+        $commands .= workflow_pdf_text('Notes And Reconciliation', 20, 42, 710, 'F2');
         $commands .= workflow_pdf_text($meta['number'], 14, 42, 689, 'F2');
         $commands .= workflow_pdf_text('Generated ' . date('Y-m-d H:i'), 9, 410, 750);
 
@@ -5239,13 +5260,16 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         $commands .= workflow_pdf_text('Difference', 8, 464, 658, 'F2');
         $commands .= workflow_pdf_text((string) ($totals['difference_value'] ?? '0'), 11, 464, 640);
 
-        $commands .= workflow_pdf_text('Expected vs Actual Usage', 12, 42, 590, 'F2');
-        $commands .= workflow_pdf_rect(42, 560, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
-        $commands .= workflow_pdf_text('Type', 8, 56, 568, 'F2');
-        $commands .= workflow_pdf_text('Expected Usage', 8, 190, 568, 'F2');
-        $commands .= workflow_pdf_text('Used Breakdown', 8, 310, 568, 'F2');
-        $commands .= workflow_pdf_text('Usage Variance', 8, 438, 568, 'F2');
-        $y = 536;
+        $commands .= workflow_pdf_text('Notes', 12, 42, 596, 'F2');
+        $commands .= workflow_pdf_text('Expected usage, actual usage, variance, and stock difference are recorded here instead of inside item rows.', 8, 42, 582);
+
+        $commands .= workflow_pdf_text('Expected vs Actual Usage', 12, 42, 556, 'F2');
+        $commands .= workflow_pdf_rect(42, 526, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
+        $commands .= workflow_pdf_text('Type', 8, 56, 534, 'F2');
+        $commands .= workflow_pdf_text('Expected Usage', 8, 190, 534, 'F2');
+        $commands .= workflow_pdf_text('Used Breakdown', 8, 310, 534, 'F2');
+        $commands .= workflow_pdf_text('Usage Variance', 8, 438, 534, 'F2');
+        $y = 502;
         $reconciliationRows = (array) ($totals['reconciliation_rows'] ?? []);
 
         if ($reconciliationRows === []) {
@@ -5269,7 +5293,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             }
         }
 
-        $commands .= workflow_pdf_text('Stock difference = received - used - returned. It should be 0 when all handed stock is accounted for.', 8, 42, max(208, $y - 8));
+        $commands .= workflow_pdf_text('Difference = received - used - returned. 0 means all handed stock is accounted for.', 8, 42, max(208, $y - 8));
         $approvalName = trim((string) ($record['approved_by_name'] ?? ''));
         $approvalDate = trim((string) ($record['approved_at'] ?? ''));
         $approvalNotes = trim((string) ($record['closed_notes'] ?? ''));
@@ -5436,7 +5460,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
             || strtolower(substr($storedFilename, -5)) === '.xlsx';
         $createdTimestamp = strtotime((string) ($existingExcel['created_at'] ?? '')) ?: 0;
         $existingExcelIsRealWorkbook = $existingExcelIsRealWorkbook
-            && str_contains($storedFilename, 'signoff-sheet-img-v11')
+            && str_contains($storedFilename, 'signoff-sheet-img-v12')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
     $existingPdfIsCurrent = false;
@@ -5446,7 +5470,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
         $mimeType = (string) ($existingPdf['mime_type'] ?? '');
         $createdTimestamp = strtotime((string) ($existingPdf['created_at'] ?? '')) ?: 0;
         $existingPdfIsCurrent = $mimeType === 'application/pdf'
-            && str_contains($storedFilename, 'signoff-img-v11')
+            && str_contains($storedFilename, 'signoff-img-v12')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
 
