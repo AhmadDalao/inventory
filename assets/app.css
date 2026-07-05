@@ -2565,9 +2565,16 @@ textarea {
     border-radius: 16px;
     min-height: 48px;
     padding: 12px 14px;
-    background: #f7f1e6;
+    background: #fff;
     color: var(--accent-strong);
     font-weight: 900;
+}
+
+.handover-return-field small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 6px;
 }
 
 .handover-usage-editor {

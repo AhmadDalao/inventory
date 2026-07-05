@@ -5822,7 +5822,13 @@ function parse_handover_usage_input_rows(array $line, array $usageInput): array
         $noteRaw = trim((string) ($noteRows[$index] ?? ''));
         $reasonCode = normalize_handover_usage_reason($reasonRaw);
         $hasMeaningfulReason = $reasonRaw !== '' && $reasonCode !== 'unspecified';
-        $hasRowData = $quantityRaw !== '' || $hasMeaningfulReason || $otherRaw !== '' || $noteRaw !== '';
+        $hasMeaningfulQuantity = $quantityRaw !== ''
+            && (
+                !is_numeric_value($quantityRaw)
+                || quantity_value($quantityRaw) < 0
+                || round(quantity_value($quantityRaw), 2) > 0
+            );
+        $hasRowData = $hasMeaningfulQuantity || $hasMeaningfulReason || $otherRaw !== '' || $noteRaw !== '';
 
         if (!$hasRowData) {
             continue;
@@ -5863,51 +5869,78 @@ function parse_handover_usage_input_rows(array $line, array $usageInput): array
     ];
 }
 
-function build_handover_close_updates(array $lines, $usedInput, array $usageInput = []): array
+function build_handover_close_updates(array $lines, $returnedInput, array $usageInput = [], $usedFallbackInput = []): array
 {
     $errors = [];
     $updates = [];
 
     foreach ($lines as $line) {
         $lineId = (int) $line['id'];
-        $parsedUsage = parse_handover_usage_input_rows($line, $usageInput);
-        $errors = array_merge($errors, $parsedUsage['errors']);
-        $breakdowns = $parsedUsage['breakdowns'];
-        $hasUsageRows = (bool) $parsedUsage['has_usage_rows'];
-        $used = (float) $parsedUsage['used'];
+        $handed = handover_active_quantity($line);
+        $returnedRaw = is_array($returnedInput)
+            ? ($returnedInput[$lineId] ?? $returnedInput[(string) $lineId] ?? null)
+            : null;
+        $usedFallbackRaw = is_array($usedFallbackInput)
+            ? ($usedFallbackInput[$lineId] ?? $usedFallbackInput[(string) $lineId] ?? null)
+            : null;
 
-        if (!$hasUsageRows) {
-            $usedValue = is_array($usedInput) ? ($usedInput[$lineId] ?? $usedInput[(string) $lineId] ?? '') : '';
+        if ($returnedRaw !== null && trim((string) $returnedRaw) !== '') {
+            if (!is_numeric_value($returnedRaw) || quantity_value($returnedRaw) < 0) {
+                $errors[] = $line['item_name'] . ' must have a valid returned quantity.';
+                continue;
+            }
 
-            if (!is_numeric_value($usedValue) || quantity_value($usedValue) < 0) {
+            $returned = round(quantity_value($returnedRaw), 2);
+
+            if ($returned > $handed) {
+                $errors[] = $line['item_name'] . ' cannot return more than the confirmed received quantity.';
+                continue;
+            }
+
+            $used = round($handed - $returned, 2);
+        } elseif ($usedFallbackRaw !== null && trim((string) $usedFallbackRaw) !== '') {
+            if (!is_numeric_value($usedFallbackRaw) || quantity_value($usedFallbackRaw) < 0) {
                 $errors[] = 'Used quantity must be zero or more for every line.';
                 continue;
             }
 
-            $used = round(quantity_value($usedValue), 2);
-
-            if ($used > 0) {
-                $breakdowns[] = [
-                    'reason_code' => 'unspecified',
-                    'reason_custom' => '',
-                    'quantity' => $used,
-                    'notes' => '',
-                ];
-            }
+            $used = round(quantity_value($usedFallbackRaw), 2);
+            $returned = round($handed - $used, 2);
+        } else {
+            $errors[] = $line['item_name'] . ' must have a returned quantity.';
+            continue;
         }
 
-        $handed = handover_active_quantity($line);
+        $parsedUsage = parse_handover_usage_input_rows($line, $usageInput);
+        $errors = array_merge($errors, $parsedUsage['errors']);
+        $breakdowns = $parsedUsage['breakdowns'];
+        $hasUsageRows = (bool) $parsedUsage['has_usage_rows'];
+        $breakdownUsed = round((float) $parsedUsage['used'], 2);
+
+        if ($hasUsageRows && abs($breakdownUsed - $used) >= 0.01) {
+            $errors[] = $line['item_name'] . ' usage reasons must total ' . format_quantity($used) . ' ' . (string) ($line['unit'] ?? 'pcs') . ' after returned quantity is entered.';
+            continue;
+        }
 
         if ($used > $handed) {
             $errors[] = $line['item_name'] . ' cannot use more than the confirmed received quantity.';
             continue;
         }
 
+        if (!$hasUsageRows && $used > 0) {
+            $breakdowns[] = [
+                'reason_code' => 'unspecified',
+                'reason_custom' => '',
+                'quantity' => $used,
+                'notes' => '',
+            ];
+        }
+
         $updates[] = [
             'line_id' => $lineId,
             'item_id' => (int) $line['item_id'],
             'used' => $used,
-            'returned' => round($handed - $used, 2),
+            'returned' => $returned,
             'breakdowns' => $breakdowns,
         ];
     }
@@ -9027,6 +9060,7 @@ function handle_handovers_close_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
+    $returnedInput = input('line_returned', []);
     $usedInput = input('line_used', []);
     $usageInput = [
         'quantity' => input('line_usage_quantity', []),
@@ -9036,7 +9070,7 @@ function handle_handovers_close_submit(array $params): void
     ];
     $closedNotes = trim((string) input('closed_notes'));
     $lines = handover_lines((int) $handover['id']);
-    [$lineUpdates, $errors] = build_handover_close_updates($lines, $usedInput, $usageInput);
+    [$lineUpdates, $errors] = build_handover_close_updates($lines, $returnedInput, $usageInput, $usedInput);
     $proofFile = uploaded_file('proof_image');
     $proofError = validate_workflow_proof_upload($proofFile);
 

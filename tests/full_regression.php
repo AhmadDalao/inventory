@@ -3047,11 +3047,12 @@ $handoverRequestLines = handover_lines($handoverRequestId);
 $handoverRequestClosePayload = [
     '_token' => extract_csrf(http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverRequestId)['body']),
     'closed_notes' => $prefix . ' handover request submitted',
-    'line_used' => [],
+    'line_returned' => [],
 ];
 
 foreach ($handoverRequestLines as $line) {
-    $handoverRequestClosePayload['line_used'][(int) $line['id']] = (int) $line['item_id'] === (int) $handoverRequestItems[0]['id'] ? '3' : '2';
+    $used = (int) $line['item_id'] === (int) $handoverRequestItems[0]['id'] ? 3 : 2;
+    $handoverRequestClosePayload['line_returned'][(int) $line['id']] = format_quantity(max(0, (float) $line['quantity_received'] - $used));
 }
 
 $handoverRequestClose = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $handoverRequestId . '/close', $handoverRequestClosePayload);
@@ -3302,40 +3303,44 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSourc
 
 $handoverClosePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
 assert_true(strpos($handoverClosePage['body'], 'Actual Usage Report') !== false, 'Handover closeout page is missing the visible actual usage guidance.');
-assert_true(strpos($handoverClosePage['body'], 'Add Usage Reason') !== false, 'Handover closeout page is missing the add usage reason action.');
+assert_true(strpos($handoverClosePage['body'], 'Returned Qty') !== false, 'Handover closeout page is missing the returned quantity field.');
+assert_true(strpos($handoverClosePage['body'], 'Add Usage Split') !== false, 'Handover closeout page is missing the add usage split action.');
 
 $handoverClosePayload = [
     '_token' => extract_csrf($handoverClosePage['body']),
     'closed_notes' => $prefix . ' handover submitted',
-    'line_used' => [],
+    'line_returned' => [],
+    'line_expected_used' => [],
 ];
 
 foreach ($handoverLines as $line) {
     $lineId = (int) $line['id'];
     $used = $lineId === (int) $handoverLines[0]['id'] ? 5 : 4;
-    $handoverClosePayload['line_used'][$lineId] = (string) $used;
+    $handoverClosePayload['line_expected_used'][$lineId] = (string) $used;
+    $handoverClosePayload['line_returned'][$lineId] = format_quantity(max(0, (float) $line['quantity_received'] - $used));
 }
 
-    $handoverCloseProof = create_temp_png($prefix . ' handover close proof');
-    $handoverCloseFields = [
-        '_token' => $handoverClosePayload['_token'],
-        'closed_notes' => $handoverClosePayload['closed_notes'],
-    ];
+$handoverCloseProof = create_temp_png($prefix . ' handover close proof');
+$handoverCloseFields = [
+    '_token' => $handoverClosePayload['_token'],
+    'closed_notes' => $handoverClosePayload['closed_notes'],
+];
 
-    foreach ($handoverClosePayload['line_used'] as $lineId => $usedQuantity) {
-        $handoverCloseFields['line_used[' . $lineId . ']'] = $usedQuantity;
-        if ((int) $lineId === (int) $handoverLines[0]['id']) {
-            $handoverCloseFields['line_usage_reason[' . $lineId . '][0]'] = 'damage';
-            $handoverCloseFields['line_usage_quantity[' . $lineId . '][0]'] = '1';
-            $handoverCloseFields['line_usage_notes[' . $lineId . '][0]'] = $prefix . ' damaged during event';
-            $handoverCloseFields['line_usage_reason[' . $lineId . '][1]'] = 'online';
-            $handoverCloseFields['line_usage_quantity[' . $lineId . '][1]'] = (string) ((float) $usedQuantity - 1);
-            $handoverCloseFields['line_usage_notes[' . $lineId . '][1]'] = $prefix . ' online guests';
-        } else {
-            $handoverCloseFields['line_usage_reason[' . $lineId . '][0]'] = 'event';
-            $handoverCloseFields['line_usage_quantity[' . $lineId . '][0]'] = $usedQuantity;
-        }
+foreach ($handoverClosePayload['line_returned'] as $lineId => $returnedQuantity) {
+    $usedQuantity = $handoverClosePayload['line_expected_used'][$lineId] ?? '0';
+    $handoverCloseFields['line_returned[' . $lineId . ']'] = $returnedQuantity;
+    if ((int) $lineId === (int) $handoverLines[0]['id']) {
+        $handoverCloseFields['line_usage_reason[' . $lineId . '][0]'] = 'damage';
+        $handoverCloseFields['line_usage_quantity[' . $lineId . '][0]'] = '1';
+        $handoverCloseFields['line_usage_notes[' . $lineId . '][0]'] = $prefix . ' damaged during event';
+        $handoverCloseFields['line_usage_reason[' . $lineId . '][1]'] = 'online';
+        $handoverCloseFields['line_usage_quantity[' . $lineId . '][1]'] = (string) ((float) $usedQuantity - 1);
+        $handoverCloseFields['line_usage_notes[' . $lineId . '][1]'] = $prefix . ' online guests';
+    } else {
+        $handoverCloseFields['line_usage_reason[' . $lineId . '][0]'] = 'event';
+        $handoverCloseFields['line_usage_quantity[' . $lineId . '][0]'] = $usedQuantity;
     }
+}
 
 	$handoverClose = http_multipart_request($baseUrl, $staffCookie, '/handovers/' . $handoverId . '/close', $handoverCloseFields, [
         'proof_image' => $handoverCloseProof,

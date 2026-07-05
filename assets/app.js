@@ -1624,6 +1624,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       };
 
+      const usageRowHasMeaning = (row) => {
+        const reason = row.querySelector('[data-handover-usage-reason]');
+        const quantity = row.querySelector('[data-handover-usage-quantity]');
+        const other = row.querySelector('[data-handover-usage-other]');
+        const note = row.querySelector('input[name^="line_usage_notes"]');
+        const reasonValue = reason instanceof HTMLSelectElement ? reason.value : 'unspecified';
+        const quantityValue = quantity instanceof HTMLInputElement ? parseNumber(quantity.value) : 0;
+
+        return quantityValue > 0
+          || (reasonValue && reasonValue !== 'unspecified')
+          || (other instanceof HTMLInputElement && other.value.trim() !== '')
+          || (note instanceof HTMLInputElement && note.value.trim() !== '');
+      };
+
+      const sumUsageRows = (editor, exceptRow = null) => {
+        let total = 0;
+
+        editor.querySelectorAll('[data-handover-usage-row]').forEach((row) => {
+          if (exceptRow && row === exceptRow) {
+            return;
+          }
+
+          const field = row.querySelector('[data-handover-usage-quantity]');
+
+          if (field instanceof HTMLInputElement) {
+            total += Math.max(0, parseNumber(field.value));
+          }
+        });
+
+        return Math.round(total * 100) / 100;
+      };
+
       const syncEditor = (editor) => {
         const usedField = editor.querySelector('[data-handover-used]');
         const closeLine = editor.closest('[data-handover-close-line]') || editor.closest('tr');
@@ -1638,18 +1670,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const handed = parseNumber(usedField.dataset.handoverHanded || '0');
-        let used = 0;
+        const returned = returnedField instanceof HTMLInputElement ? parseNumber(returnedField.value) : 0;
+        const hasInvalidReturn = returned < 0 || returned > handed;
+        const used = Math.round(Math.max(0, handed - Math.max(0, returned)) * 100) / 100;
+        const reasonTotal = sumUsageRows(editor);
+        const hasReasonRows = Array.from(editor.querySelectorAll('[data-handover-usage-row]')).some((row) => usageRowHasMeaning(row));
+        const hasReasonMismatch = hasReasonRows && Math.abs(reasonTotal - used) >= 0.01;
 
-        editor.querySelectorAll('[data-handover-usage-quantity]').forEach((field) => {
-          if (!(field instanceof HTMLInputElement)) {
-            return;
-          }
-
-          used += Math.max(0, parseNumber(field.value));
-        });
-
-        used = Math.round(used * 100) / 100;
-        const returned = Math.max(0, handed - used);
         usedField.value = formatQuantity(used);
 
         if (totalLabel instanceof HTMLElement) {
@@ -1664,13 +1691,16 @@ document.addEventListener('DOMContentLoaded', () => {
           cardReturnedLabel.textContent = formatQuantity(returned);
         }
 
-        if (returnedField instanceof HTMLInputElement) {
-          returnedField.value = formatQuantity(returned);
+        if (warning instanceof HTMLElement) {
+          warning.hidden = !hasInvalidReturn && !hasReasonMismatch;
         }
 
-        if (warning instanceof HTMLElement) {
-          warning.hidden = used <= handed;
+        if (returnedField instanceof HTMLInputElement) {
+          returnedField.classList.toggle('is-invalid', hasInvalidReturn);
         }
+
+        closeLine?.classList?.toggle('has-usage-mismatch', hasReasonMismatch);
+        closeLine?.classList?.toggle('has-return-mismatch', hasInvalidReturn);
       };
 
       const bindUsageRow = (row, editor) => {
@@ -1732,9 +1762,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reason = targetRow.querySelector('[data-handover-usage-reason]');
         const quantity = targetRow.querySelector('[data-handover-usage-quantity]');
+        const usedField = editor.querySelector('[data-handover-used]');
+        const remainingUsed = Math.max(0, parseNumber(usedField instanceof HTMLInputElement ? usedField.value : '0') - sumUsageRows(editor, targetRow));
 
         if (reason instanceof HTMLSelectElement) {
           reason.value = reasonValue;
+        }
+
+        if (quantity instanceof HTMLInputElement && quantity.value.trim() === '' && remainingUsed > 0) {
+          quantity.value = formatQuantity(remainingUsed);
         }
 
         toggleOtherField(targetRow);
@@ -1754,6 +1790,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         editor.querySelectorAll('[data-handover-usage-row]').forEach((row) => bindUsageRow(row, editor));
+
+        const closeLine = editor.closest('[data-handover-close-line]') || editor.closest('tr');
+        const returnedField = closeLine?.querySelector('[data-handover-returned]');
+
+        if (returnedField instanceof HTMLInputElement) {
+          returnedField.addEventListener('input', () => syncEditor(editor));
+          returnedField.addEventListener('change', () => syncEditor(editor));
+        }
 
         const addButton = editor.querySelector('[data-add-handover-usage]');
         const template = editor.querySelector('[data-handover-usage-template]');
@@ -1788,6 +1832,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         syncEditor(editor);
+      });
+
+      form.addEventListener('submit', (event) => {
+        const invalidLine = Array.from(form.querySelectorAll('[data-handover-close-line]')).find((line) => {
+          return line.classList.contains('has-usage-mismatch') || line.classList.contains('has-return-mismatch');
+        });
+
+        if (invalidLine) {
+          event.preventDefault();
+          event.stopPropagation();
+          showGlobalFlash('Fix returned quantity or usage reason totals before submitting.', 'danger');
+          invalidLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       });
     });
   };

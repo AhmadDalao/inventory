@@ -373,7 +373,7 @@ foreach ($lines as $line) {
 
                 <div class="copy-context-card handover-usage-help">
                     <strong>Actual Usage Report</strong>
-                    <p>Report what was actually used after the event. Returning is calculated automatically, then the storage owner reviews and approves the final stock posting.</p>
+                    <p>Type how many pieces came back. The system calculates used quantity automatically, then the storage owner reviews and approves the final stock posting.</p>
                 </div>
 
                 <div class="handover-close-cards">
@@ -432,8 +432,17 @@ foreach ($lines as $line) {
                                         <strong><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></strong>
                                     </div>
                                     <label class="field handover-return-field">
-                                        <span><?= ui_icon('handover') ?>Returning / Remaining</span>
-                                        <input type="text" value="<?= e(format_quantity($lineReturningQuantity)) ?>" data-handover-returned readonly>
+                                        <span><?= ui_icon('handover') ?>Returned Qty</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="<?= e(format_quantity($line['quantity_received'])) ?>"
+                                            name="line_returned[<?= e((string) $line['id']) ?>]"
+                                            value="<?= e(format_quantity($lineReturningQuantity)) ?>"
+                                            data-handover-returned
+                                        >
+                                        <small>Used is calculated as received minus returned.</small>
                                     </label>
                                 </div>
 
@@ -441,7 +450,7 @@ foreach ($lines as $line) {
                                     <input type="hidden" name="line_used[<?= e((string) $line['id']) ?>]" value="<?= e(format_quantity($line['quantity_used'])) ?>" data-handover-used data-handover-handed="<?= e(format_quantity($line['quantity_received'])) ?>">
                                     <div class="handover-usage-title">
                                         <strong><?= ui_icon('reports') ?>Actual Usage</strong>
-                                        <small>Pick a reason, enter used quantity, and add a note only when it matters.</small>
+                                        <small>Optional: split the calculated used quantity by reason. If you leave it blank, usage is saved as Unspecified.</small>
                                     </div>
                                     <div class="handover-reason-quick-buttons" data-handover-reason-quick-buttons>
                                         <?php foreach (['online', 'walkin', 'event', 'damage', 'sport', 'school', 'other'] as $quickReason): ?>
@@ -461,8 +470,8 @@ foreach ($lines as $line) {
                                                     </select>
                                                 </label>
                                                 <label class="handover-usage-field handover-usage-field-quantity">
-                                                    <span><?= ui_icon('movements') ?>Used Qty</span>
-                                                    <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['quantity'] ?? '')) ?>" placeholder="0" aria-label="Used quantity" data-handover-usage-quantity>
+                                                    <span><?= ui_icon('movements') ?>Reason Qty</span>
+                                                    <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" value="<?= e((string) ($breakdown['quantity'] ?? '')) ?>" placeholder="Optional split" aria-label="Usage reason quantity" data-handover-usage-quantity>
                                                 </label>
                                                 <label class="handover-usage-field handover-usage-other-field" data-handover-usage-other-field <?= $selectedReason === 'other' ? '' : 'hidden' ?>>
                                                     <span><?= ui_icon('edit') ?>Other Reason</span>
@@ -478,8 +487,8 @@ foreach ($lines as $line) {
                                     </div>
                                     <div class="handover-usage-summary">
                                         <span class="handover-used-total-pill">Used <strong data-handover-used-total><?= e(format_quantity($line['quantity_used'])) ?></strong> <?= e($line['unit']) ?></span>
-                                        <span class="danger-copy" data-handover-usage-warning hidden>Used total is higher than received.</span>
-                                        <button class="ghost-button compact-button handover-add-usage" type="button" data-add-handover-usage><?= ui_icon('plus') ?><span>Add Usage Reason</span></button>
+                                        <span class="danger-copy" data-handover-usage-warning hidden>Returned must be valid and reason totals must match calculated used quantity.</span>
+                                        <button class="ghost-button compact-button handover-add-usage" type="button" data-add-handover-usage><?= ui_icon('plus') ?><span>Add Usage Split</span></button>
                                     </div>
                                     <template data-handover-usage-template>
                                         <div class="handover-usage-row" data-handover-usage-row>
@@ -492,8 +501,8 @@ foreach ($lines as $line) {
                                                 </select>
                                             </label>
                                             <label class="handover-usage-field handover-usage-field-quantity">
-                                                <span><?= ui_icon('movements') ?>Used Qty</span>
-                                                <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" placeholder="0" aria-label="Used quantity" data-handover-usage-quantity>
+                                                <span><?= ui_icon('movements') ?>Reason Qty</span>
+                                                <input type="number" step="0.01" min="0" max="<?= e(format_quantity($line['quantity_received'])) ?>" name="line_usage_quantity[<?= e((string) $line['id']) ?>][]" placeholder="Optional split" aria-label="Usage reason quantity" data-handover-usage-quantity>
                                             </label>
                                             <label class="handover-usage-field handover-usage-other-field" data-handover-usage-other-field hidden>
                                                 <span><?= ui_icon('edit') ?>Other Reason</span>
@@ -523,7 +532,7 @@ foreach ($lines as $line) {
                     <small>Attach a returned-items photo, signed sheet, or usage proof.</small>
                 </label>
 
-                <button class="primary-button" type="submit" data-confirm="<?= empty($handoverRecord['recipient_user_id']) ? 'Close this handover now?' : 'Submit this handover? The storage owner will review the used quantity and approve the return.' ?>"><?= empty($handoverRecord['recipient_user_id']) ? 'Close Handover' : 'Submit For Approval' ?></button>
+                <button class="primary-button" type="submit" data-confirm="<?= empty($handoverRecord['recipient_user_id']) ? 'Close this handover now?' : 'Submit this handover? The storage owner will review the returned quantity and approve the calculated usage.' ?>"><?= empty($handoverRecord['recipient_user_id']) ? 'Close Handover' : 'Submit For Approval' ?></button>
             </form>
 
             <?php if ($canCancelHandover): ?>
