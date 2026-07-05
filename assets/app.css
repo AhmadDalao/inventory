@@ -11593,3 +11593,135 @@ body.app-shell {
         text-align: left;
     }
 }
+
+/* Mobile table policy: keep tables as tables and let the table area side-scroll. */
+@media (max-width: 760px) {
+    .app-shell .table-wrap,
+    .app-shell .data-table-scroll,
+    .app-shell .table-scroll,
+    .app-shell .summary-table-scroll {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-gutter: stable;
+    }
+
+    .app-shell .table-wrap {
+        margin-inline: -2px;
+        padding-inline: 2px;
+    }
+
+    .app-shell .data-table-mobile,
+    .app-shell .workflow-line-table,
+    .app-shell .workflow-close-table {
+        display: table !important;
+        width: 100%;
+        min-width: 920px !important;
+        table-layout: auto;
+    }
+
+    .app-shell .movement-log-table {
+        min-width: 1320px !important;
+    }
+
+    .app-shell .asset-table {
+        min-width: 1180px !important;
+    }
+
+    .app-shell .data-table-mobile thead,
+    .app-shell .workflow-line-table thead,
+    .app-shell .workflow-close-table thead {
+        display: table-header-group !important;
+    }
+
+    .app-shell .data-table-mobile tbody,
+    .app-shell .workflow-line-table tbody,
+    .app-shell .workflow-close-table tbody {
+        display: table-row-group !important;
+    }
+
+    .app-shell .data-table-mobile tr,
+    .app-shell .workflow-line-table tr,
+    .app-shell .workflow-close-table tr {
+        display: table-row !important;
+        width: auto !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .app-shell .data-table-mobile th,
+    .app-shell .data-table-mobile td,
+    .app-shell .workflow-line-table th,
+    .app-shell .workflow-line-table td,
+    .app-shell .workflow-close-table th,
+    .app-shell .workflow-close-table td {
+        display: table-cell !important;
+        width: auto !important;
+        min-width: 0;
+        padding: 12px 10px !important;
+        border-bottom: 1px solid #efe7db !important;
+        white-space: normal;
+        vertical-align: top;
+    }
+
+    .app-shell .data-table-mobile th,
+    .app-shell .workflow-line-table th,
+    .app-shell .workflow-close-table th {
+        white-space: nowrap;
+    }
+
+    .app-shell .data-table-mobile td::before,
+    .app-shell .workflow-line-table td::before,
+    .app-shell .workflow-close-table td::before {
+        content: none !important;
+        display: none !important;
+    }
+
+    .app-shell .data-table-mobile .item-table-cell,
+    .app-shell .data-table-mobile .cell-link,
+    .app-shell .data-table-mobile .cell-link-compact {
+        display: flex !important;
+        align-items: center;
+        gap: 10px;
+        min-width: max-content;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .app-shell .data-table-mobile .item-thumb {
+        width: 46px;
+        height: 46px;
+        flex: 0 0 46px;
+        border-radius: 14px;
+    }
+
+    .app-shell .data-table-mobile .table-actions-cell,
+    .app-shell .data-table-mobile td[data-label="Actions"] {
+        width: 1% !important;
+        min-width: 76px;
+        white-space: nowrap;
+    }
+
+    .app-shell .data-table-mobile .row-action-menu {
+        width: auto;
+        display: inline-grid;
+        justify-items: center;
+    }
+
+    .app-shell .data-table-mobile .row-action-menu summary {
+        width: 44px;
+        min-height: 44px;
+        justify-content: center;
+        border-radius: 999px;
+    }
+
+    .app-shell .data-table-mobile .row-action-list {
+        min-width: 180px;
+    }
+}
