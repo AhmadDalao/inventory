@@ -2439,6 +2439,14 @@ textarea {
     color: var(--accent-strong);
 }
 
+.handover-close-summary-thumb {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(33, 25, 14, 0.08);
+}
+
 .handover-close-summary-title strong,
 .handover-close-summary-title small {
     display: block;
@@ -2735,6 +2743,13 @@ textarea {
 .handover-approval-card-head {
     grid-template-columns: minmax(160px, 1fr) auto;
     align-items: start;
+}
+
+.handover-approval-item-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
 }
 
 .handover-approval-card-head strong,

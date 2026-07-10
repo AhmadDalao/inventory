@@ -381,6 +381,7 @@ foreach ($lines as $line) {
                         <?php
                         $lineBreakdowns = (array) ($line['usage_breakdowns'] ?? []);
                         $expectedUsageSummary = trim((string) ($line['expected_usage_reason_summary'] ?? ''));
+                        $lineImageUrl = item_image_url($line['image_path'] ?? null);
                         $lineHasExistingUsage = round((float) ($line['quantity_used'] ?? 0), 2) > 0;
                         $lineReturningQuantity = round((float) $line['quantity_received'] - (float) $line['quantity_used'], 2);
 
@@ -403,7 +404,11 @@ foreach ($lines as $line) {
                         <details class="handover-close-card" data-handover-close-line open>
                             <summary class="handover-close-card-summary">
                                 <div class="handover-close-summary-title">
-                                    <?= ui_icon('items') ?>
+                                    <?php if ($lineImageUrl): ?>
+                                        <img class="item-thumb handover-close-summary-thumb expandable-image" src="<?= e($lineImageUrl) ?>" alt="<?= e($line['item_name']) ?>" data-expand-image tabindex="0">
+                                    <?php else: ?>
+                                        <span class="item-thumb item-thumb-fallback handover-close-summary-thumb"><?= e(item_initial((string) $line['item_name'])) ?></span>
+                                    <?php endif; ?>
                                     <div>
                                         <strong><?= e($line['item_name']) ?></strong>
                                         <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
@@ -568,6 +573,7 @@ foreach ($lines as $line) {
                             $expectedUsageSummary = trim((string) ($line['expected_usage_reason_summary'] ?? ''));
                             $usageSummary = trim((string) ($line['usage_reason_summary'] ?? ''));
                             $varianceSummary = trim((string) ($line['usage_variance_summary'] ?? ''));
+                            $lineImageUrl = item_image_url($line['image_path'] ?? null);
                             $approvalUsageRows = array_values(array_filter((array) ($line['usage_breakdowns'] ?? []), static fn (array $breakdown): bool => round((float) ($breakdown['quantity'] ?? 0), 2) > 0));
                             if ($approvalUsageRows === []) {
                                 $approvalUsageRows[] = [
@@ -580,9 +586,16 @@ foreach ($lines as $line) {
                         ?>
                         <section class="handover-approval-card" data-handover-approval-line>
                             <div class="handover-approval-card-head">
-                                <div>
-                                    <strong><?= e($line['item_name']) ?></strong>
-                                    <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
+                                <div class="handover-approval-item-title">
+                                    <?php if ($lineImageUrl): ?>
+                                        <img class="item-thumb handover-close-summary-thumb expandable-image" src="<?= e($lineImageUrl) ?>" alt="<?= e($line['item_name']) ?>" data-expand-image tabindex="0">
+                                    <?php else: ?>
+                                        <span class="item-thumb item-thumb-fallback handover-close-summary-thumb"><?= e(item_initial((string) $line['item_name'])) ?></span>
+                                    <?php endif; ?>
+                                    <div>
+                                        <strong><?= e($line['item_name']) ?></strong>
+                                        <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
+                                    </div>
                                 </div>
                                 <div class="handover-approval-chip-stack">
                                     <span class="handover-usage-summary-chip <?= $expectedUsageSummary === '' ? 'is-muted' : '' ?>">Expected: <?= $expectedUsageSummary !== '' ? e($expectedUsageSummary) : 'No plan' ?></span>
