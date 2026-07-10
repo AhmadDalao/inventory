@@ -15,12 +15,20 @@ $isLocationScoped = !empty($filters['storage_id']);
     <form class="filter-grid movement-filter-grid" method="get" action="<?= e(url('/movements')) ?>" data-live-filter-form>
         <label class="field">
             <span>Item</span>
-            <select name="item_id" data-searchable-select data-searchable-placeholder="Search item, SKU, or barcode">
-                <option value="">All items</option>
+            <select
+                name="item_id"
+                data-combobox-select
+                data-combobox-class="filter-search-combobox"
+                data-combobox-placeholder="Search item, SKU, or barcode"
+                data-combobox-empty="No matching items."
+            >
+                <option value="" data-label-title="All items" data-label-meta="Every item in the movement log">All items</option>
                 <?php foreach ($items as $item): ?>
                     <option
                         value="<?= e((string) $item['id']) ?>"
                         data-search-text="<?= e(trim((string) $item['name'] . ' ' . (string) $item['sku'] . ' ' . (string) ($item['barcode'] ?? '') . ' ' . (string) ($item['unit'] ?? ''))) ?>"
+                        data-label-title="<?= e((string) $item['name']) ?>"
+                        data-label-meta="<?= e(trim((string) $item['sku'] . ' · ' . (string) (($item['barcode'] ?? '') !== '' ? $item['barcode'] : 'No barcode') . ' · ' . (string) ($item['unit'] ?? ''))) ?>"
                         <?= selected((string) $item['id'], (string) ($filters['item_id'] ?? '')) ?>
                     >
                         <?= e($item['name']) ?> (<?= e($item['sku']) ?>)

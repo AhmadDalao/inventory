@@ -1274,8 +1274,8 @@ assert_true(str_contains($storageDetailPage['body'], '/items/create?storage_id='
 $storageMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $locationFilteredStorage['id']);
 assert_true($storageMovementLogPage['status'] === 200, 'Storage-filtered movement log did not load.');
 assert_true(str_contains($storageMovementLogPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Storage-filtered movement log should keep the selected location.');
-assert_true(str_contains($storageMovementLogPage['body'], 'data-searchable-select'), 'Movement Log item filter should be searchable.');
-assert_true(str_contains($storageMovementLogPage['body'], 'data-searchable-placeholder="Search item, SKU, or barcode"'), 'Movement Log item filter should expose item search guidance.');
+assert_true(str_contains($storageMovementLogPage['body'], 'data-combobox-select'), 'Movement Log item filter should use the searchable combobox picker.');
+assert_true(str_contains($storageMovementLogPage['body'], 'data-combobox-placeholder="Search item, SKU, or barcode"'), 'Movement Log item filter should expose item search guidance.');
 $movementScopeDestination = $storages[9];
 $movementScopeReference = $prefix . '-SCOPED-MOVE';
 apply_inventory_movement(

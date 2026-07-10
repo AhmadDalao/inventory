@@ -114,13 +114,21 @@ $renderCategoryNode = static function (array $category) use (&$renderCategoryNod
             </label>
             <label class="field">
                 <span>Parent category</span>
-                <select name="parent_id" data-searchable-select data-searchable-placeholder="Search parent category">
-                    <option value="">Top-level category</option>
+                <select
+                    name="parent_id"
+                    data-combobox-select
+                    data-combobox-class="filter-search-combobox"
+                    data-combobox-placeholder="Search parent category"
+                    data-combobox-empty="No matching parent categories."
+                >
+                    <option value="" data-label-title="Top-level category" data-label-meta="No parent category">Top-level category</option>
                     <?php foreach ($selectCategories as $category): ?>
                         <?php if ($isEdit && (int) $category['id'] === (int) $editCategory['id']) { continue; } ?>
                         <option
                             value="<?= e((string) $category['id']) ?>"
                             data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                            data-label-title="<?= e((string) ($category['path_label'] ?? $category['name'])) ?>"
+                            data-label-meta="<?= e(trim(($category['code'] ? 'Code ' . (string) $category['code'] . ' · ' : '') . 'Parent category')) ?>"
                             <?= selected((string) $category['id'], (string) ($editCategory['parent_id'] ?? '')) ?>
                         >
                             <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>

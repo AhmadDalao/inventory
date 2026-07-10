@@ -819,6 +819,31 @@ textarea {
     max-height: 280px;
 }
 
+.filter-search-combobox .select-combobox-toggle {
+    min-height: 58px;
+}
+
+.filter-search-combobox .workflow-picker-thumb {
+    display: none;
+}
+
+.filter-search-combobox .select-combobox-selected,
+.filter-search-combobox .select-combobox-option {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.filter-search-combobox .select-combobox-panel {
+    padding: 12px;
+}
+
+.filter-search-combobox .select-combobox-search {
+    min-height: 54px;
+}
+
+.filter-search-combobox .select-combobox-options {
+    max-height: 280px;
+}
+
 .copy-context-card {
     display: grid;
     gap: 8px;

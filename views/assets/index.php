@@ -62,12 +62,20 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
             <?php if (!Auth::isStaff()): ?>
                 <label class="field">
                     <span>Category</span>
-                    <select name="category_parent_id" data-searchable-select data-searchable-placeholder="Search main category">
-                        <option value="">All categories</option>
+                    <select
+                        name="category_parent_id"
+                        data-combobox-select
+                        data-combobox-class="filter-search-combobox"
+                        data-combobox-placeholder="Search main category"
+                        data-combobox-empty="No matching categories."
+                    >
+                        <option value="" data-label-title="All categories" data-label-meta="Includes every asset category">All categories</option>
                         <?php foreach ($parentCategories as $category): ?>
                             <option
                                 value="<?= e((string) $category['id']) ?>"
                                 data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                                data-label-title="<?= e((string) ($category['path_label'] ?? $category['name'])) ?>"
+                                data-label-meta="<?= e(trim(($category['code'] ? 'Code ' . (string) $category['code'] . ' · ' : '') . 'Includes subcategories')) ?>"
                                 <?= selected((string) $category['id'], (string) ($selectedParentCategoryId ?? '')) ?>
                             >
                                 <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
@@ -80,12 +88,20 @@ $assetFilterUrl = static function (string $status) use ($filters): string {
                 <?php if ((int) ($selectedParentCategoryId ?? 0) > 0): ?>
                     <label class="field">
                         <span>Subcategory</span>
-                        <select name="category_id" data-searchable-select data-searchable-placeholder="Search subcategory">
-                            <option value="">All subcategories</option>
+                        <select
+                            name="category_id"
+                            data-combobox-select
+                            data-combobox-class="filter-search-combobox"
+                            data-combobox-placeholder="Search subcategory"
+                            data-combobox-empty="No matching subcategories."
+                        >
+                            <option value="" data-label-title="All subcategories" data-label-meta="Includes every child category">All subcategories</option>
                             <?php foreach ($childCategories as $category): ?>
                                 <option
                                     value="<?= e((string) $category['id']) ?>"
                                     data-search-text="<?= e(($category['path_label'] ?? $category['name']) . ' ' . ($category['code'] ?? '')) ?>"
+                                    data-label-title="<?= e((string) ($category['path_label'] ?? $category['name'])) ?>"
+                                    data-label-meta="<?= e(trim(($category['code'] ? 'Code ' . (string) $category['code'] . ' · ' : '') . 'Subcategory')) ?>"
                                     <?= selected((string) $category['id'], (string) ($filters['category_id'] ?? '')) ?>
                                 >
                                     <?= e((string) ($category['path_label'] ?? $category['name'])) ?><?= $category['code'] ? ' - ' . e((string) $category['code']) : '' ?>
