@@ -1496,6 +1496,7 @@ assert_true(strpos($settingsPageForTheme['body'], '/settings/logo') !== false, '
 assert_true(strpos($settingsPageForTheme['body'], 'name="brand_logo"') !== false, 'Settings page is missing the brand logo upload field.');
 assert_true(strpos($settingsPageForTheme['body'], 'clear_brand_logo') !== false || strpos($settingsPageForTheme['body'], 'Using built-in KONA logo') !== false, 'Settings page is missing the logo clear/fallback control.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[items.barcode_required]') !== false, 'Settings page is missing the item barcode requirement switch.');
+assert_true(strpos($settingsPageForTheme['body'], 'settings[scan.manual_restock_enabled]') !== false, 'Settings page is missing the Scan Center manual stock add switch.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.item_xlsx_thumbnails]') !== false, 'Settings page is missing the item Excel thumbnail export switch.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.storage_xlsx_thumbnails]') !== false, 'Settings page is missing the storage Excel thumbnail export switch.');
 assert_true(strpos($settingsPageForTheme['body'], 'settings[exports.movement_xlsx_thumbnails]') !== false, 'Settings page is missing the movement Excel thumbnail export switch.');
@@ -3509,6 +3510,9 @@ foreach ([
     assert_true(strpos($scanPage['body'], 'data-scan-batch-form') !== false, 'Scan Center page is missing dedicated Batch Scan form.');
     assert_true(strpos($scanPage['body'], 'data-scan-batch-input') !== false, 'Scan Center page is missing dedicated Batch Scan input.');
     assert_true(strpos($scanPage['body'], 'data-scan-batch-camera-toggle') !== false, 'Scan Center page is missing dedicated Batch Camera Scan control.');
+    assert_true(strpos($scanPage['body'], 'data-scan-manual-form') !== false, 'Scan Center page is missing the manual stock add form.');
+    assert_true(strpos($scanPage['body'], 'data-scan-manual-restock-url') !== false, 'Scan Center page is missing the manual restock route.');
+    assert_true(strpos($scanPage['body'], 'data-scan-manual-search') !== false, 'Scan Center page is missing manual item search.');
     assert_true(strpos($scanPage['body'], 'data-scan-camera-slot="entry"') !== false, 'Scan Center page is missing the normal camera slot.');
     assert_true(strpos($scanPage['body'], 'data-scan-camera-slot="batch"') !== false, 'Scan Center page is missing the batch camera slot.');
     assert_true(strpos($scanPage['body'], 'data-scan-workspace') !== false, 'Scan Center page is missing stateful workspace markup.');
@@ -3519,9 +3523,11 @@ foreach ([
     assert_true(strpos($appJs, "input.addEventListener('input', scheduleLookup)") !== false, 'Scan Center input should perform live AJAX lookup.');
     assert_true(strpos($appJs, 'data-scan-batch-submit') !== false && strpos($appJs, 'addToBatch: batchMode') !== false, 'Scan Center JS is missing batch scan counting.');
     assert_true(strpos($appJs, 'batchInput.addEventListener') !== false && strpos($appJs, 'scheduleBatchLookup') !== false, 'Scan Center JS is missing live batch scan lookup.');
+    assert_true(strpos($appJs, 'data-scan-manual-form') !== false && strpos($appJs, 'manualLookup') !== false && strpos($appJs, 'Manual stock add saved') !== false, 'Scan Center JS is missing manual stock add AJAX flow.');
     assert_true(strpos($appJs, 'data-scan-batch-camera-toggle') !== false && strpos($appJs, 'Start Batch Camera Scan') !== false && strpos($appJs, 'placeCamera') !== false, 'Scan Center JS is missing dedicated batch camera handling.');
     assert_true(strpos($appJs, 'package_presets') !== false && strpos($appJs, 'Scan conversion:') !== false, 'Scan Center JS is missing package quantity conversion.');
     assert_true(strpos($appCss, '.scan-batch-panel[hidden]') !== false && strpos($appCss, '.scan-batch-scan') !== false, 'Scan Center CSS should keep hidden batch panel closed and style the dedicated batch scanner.');
+    assert_true(strpos($appCss, '.scan-manual-panel') !== false && strpos($appCss, '.scan-manual-result-card') !== false, 'App CSS is missing manual Scan Center stock add styling.');
     assert_true(strpos($appCss, '.package-preset-card') !== false && strpos($appCss, '.scan-batch-packaging') !== false, 'App CSS is missing package preset or batch packaging styles.');
     assert_true(strpos($appCss, '.confirm-modal-backdrop') !== false && strpos($appCss, '.workflow-document-card') !== false, 'App CSS is missing confirm modal or workflow document styling.');
     $itemPackagePage = http_request($baseUrl, $ownerCookie, 'GET', '/items/' . (int) $seededItems[0]['id']);

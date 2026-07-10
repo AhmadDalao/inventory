@@ -5761,6 +5761,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const lookupUrl = scanner.dataset.scanLookupUrl;
+      const manualRestockUrl = scanner.dataset.scanManualRestockUrl || '';
       const canCreateMovement = scanner.dataset.canCreateMovement === '1';
       const form = scanner.querySelector('[data-scan-form]');
       const input = scanner.querySelector('[data-scan-input]');
@@ -5789,9 +5790,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const batchSubmit = scanner.querySelector('[data-scan-batch-submit]');
       const batchClear = scanner.querySelector('[data-scan-batch-clear]');
       const batchCameraToggle = scanner.querySelector('[data-scan-batch-camera-toggle]');
+      const manualForm = scanner.querySelector('[data-scan-manual-form]');
+      const manualSearch = scanner.querySelector('[data-scan-manual-search]');
+      const manualResults = scanner.querySelector('[data-scan-manual-results]');
+      const manualItemId = scanner.querySelector('[data-scan-manual-item-id]');
+      const manualStorage = scanner.querySelector('[data-scan-manual-storage]');
+      const manualQuantity = scanner.querySelector('[data-scan-manual-quantity]');
+      const manualStatus = scanner.querySelector('[data-scan-manual-status]');
       let storages = [];
       let movementTypes = [];
       let currentItems = [];
+      let manualItems = [];
+      let manualSelectedItem = null;
       let selectedItem = null;
       let batchMode = false;
       const batchItems = new Map();
@@ -5799,6 +5809,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let cameraScanning = false;
       let entryLookupTimer = null;
       let batchLookupTimer = null;
+      let manualLookupTimer = null;
+      let manualLookupSequence = 0;
       let lookupSequence = 0;
       let cameraLookupInFlight = false;
       let lastCameraCode = '';
@@ -5828,6 +5840,16 @@ document.addEventListener('DOMContentLoaded', () => {
         status.textContent = message;
         status.classList.toggle('danger-text', type === 'danger');
         status.classList.toggle('success-text', type === 'success');
+      };
+
+      const setManualStatus = (message, type = '') => {
+        if (!manualStatus) {
+          return;
+        }
+
+        manualStatus.textContent = message;
+        manualStatus.classList.toggle('danger-text', type === 'danger');
+        manualStatus.classList.toggle('success-text', type === 'success');
       };
 
       const setCameraStatus = (message, type = '') => {
@@ -5905,6 +5927,133 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return exact;
+      };
+
+      const setManualSelectedItem = (item) => {
+        manualSelectedItem = item;
+
+        if (manualItemId instanceof HTMLInputElement) {
+          manualItemId.value = item ? String(item.id || '') : '';
+        }
+
+        if (manualResults instanceof HTMLElement) {
+          manualResults.querySelectorAll('[data-scan-manual-result-index]').forEach((card) => {
+            const index = Number.parseInt(card.getAttribute('data-scan-manual-result-index') || '-1', 10);
+            card.classList.toggle('is-selected', Boolean(item && manualItems[index] && String(manualItems[index].id) === String(item.id)));
+          });
+        }
+
+        if (item) {
+          setManualStatus(`Selected ${item.name}. Pick storage and quantity to add.`, 'success');
+        }
+      };
+
+      const renderManualResults = (items, query) => {
+        manualItems = items;
+        manualSelectedItem = null;
+
+        if (manualItemId instanceof HTMLInputElement) {
+          manualItemId.value = '';
+        }
+
+        if (!(manualResults instanceof HTMLElement)) {
+          return;
+        }
+
+        if (!items.length) {
+          manualResults.innerHTML = `<p class="empty-state">No existing item found for "${escapeHtml(query)}". Create the item first, then add stock here.</p>`;
+          return;
+        }
+
+        manualResults.innerHTML = items.map((item, index) => `
+          <button class="scan-manual-result-card" type="button" data-scan-manual-result-index="${index}">
+            ${itemImageMarkup(item)}
+            <span>
+              <strong>${escapeHtml(item.name)}</strong>
+              <small>${escapeHtml([item.sku, item.barcode || 'No barcode', item.unit].filter(Boolean).join(' · '))}</small>
+              <small>${escapeHtml(item.location_summary || 'No assigned locations')}</small>
+            </span>
+            <em>${escapeHtml(item.quantity)} ${escapeHtml(item.unit)}</em>
+          </button>
+        `).join('');
+
+        const exact = exactScanMatch(items, query);
+
+        if (exact) {
+          setManualSelectedItem(exact);
+        }
+      };
+
+      const manualLookup = async (query) => {
+        const normalized = String(query || '').trim();
+
+        if (normalized === '') {
+          manualLookupSequence += 1;
+          manualItems = [];
+          manualSelectedItem = null;
+          if (manualItemId instanceof HTMLInputElement) {
+            manualItemId.value = '';
+          }
+          if (manualResults instanceof HTMLElement) {
+            manualResults.innerHTML = '<p class="empty-state">Search and pick an existing catalog item.</p>';
+          }
+          setManualStatus('Manual add creates a restock movement and updates the selected storage balance.');
+          return;
+        }
+
+        if (normalized.length < 2) {
+          setManualStatus('Keep typing the item name, SKU, or barcode.');
+          return;
+        }
+
+        const requestId = ++manualLookupSequence;
+        setManualStatus(`Searching ${normalized}...`);
+
+        const response = await fetch(`${lookupUrl}?q=${encodeURIComponent(normalized)}`, {
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        });
+        const payload = await response.json();
+
+        if (requestId !== manualLookupSequence) {
+          return;
+        }
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || 'Manual item search failed.');
+        }
+
+        if (payload.open_url) {
+          manualItems = [];
+          manualSelectedItem = null;
+          if (manualResults instanceof HTMLElement) {
+            manualResults.innerHTML = '<p class="empty-state">That looks like a workflow reference. Use the main Scan Center lookup to open it directly.</p>';
+          }
+          setManualStatus('Manual add only accepts existing inventory items.', 'danger');
+          return;
+        }
+
+        renderManualResults(payload.items || [], normalized);
+        setManualStatus(payload.count > 0 ? `Found ${payload.count} existing item${payload.count === 1 ? '' : 's'}.` : 'No existing item found.', payload.count > 0 ? 'success' : 'danger');
+      };
+
+      const scheduleManualLookup = () => {
+        if (!(manualSearch instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const value = manualSearch.value.trim();
+        window.clearTimeout(manualLookupTimer);
+
+        manualLookupTimer = window.setTimeout(async () => {
+          try {
+            await manualLookup(value);
+          } catch (error) {
+            setManualStatus(error.message || 'Manual item search failed.', 'danger');
+          }
+        }, looksLikeScanCode(value) ? 40 : 240);
       };
 
       const resetLookupState = () => {
@@ -6653,6 +6802,110 @@ document.addEventListener('DOMContentLoaded', () => {
           selectItem(currentItems[index]);
         }
       });
+
+      if (manualSearch instanceof HTMLInputElement) {
+        manualSearch.addEventListener('input', scheduleManualLookup);
+      }
+
+      if (manualResults instanceof HTMLElement) {
+        manualResults.addEventListener('click', (event) => {
+          const target = event.target;
+
+          if (!(target instanceof Element)) {
+            return;
+          }
+
+          const card = target.closest('[data-scan-manual-result-index]');
+          const index = Number.parseInt(card?.getAttribute('data-scan-manual-result-index') || '-1', 10);
+
+          if (index >= 0 && manualItems[index]) {
+            setManualSelectedItem(manualItems[index]);
+          }
+        });
+      }
+
+      if (manualForm instanceof HTMLFormElement) {
+        manualForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+
+          const selectedId = manualItemId instanceof HTMLInputElement ? manualItemId.value : '';
+          const storageId = manualStorage instanceof HTMLSelectElement ? manualStorage.value : '';
+          const quantity = manualQuantity instanceof HTMLInputElement ? parseNumber(manualQuantity.value) : 0;
+
+          if (!manualRestockUrl) {
+            setManualStatus('Manual stock add is disabled in Website Control.', 'danger');
+            return;
+          }
+
+          if (!selectedId || !manualSelectedItem) {
+            setManualStatus('Pick an existing item first.', 'danger');
+            return;
+          }
+
+          if (!storageId) {
+            setManualStatus('Pick the storage receiving this stock.', 'danger');
+            return;
+          }
+
+          if (quantity <= 0) {
+            setManualStatus('Quantity must be greater than zero.', 'danger');
+            return;
+          }
+
+          const submitButton = manualForm.querySelector('button[type="submit"]');
+          const formData = new FormData(manualForm);
+          formData.append('_token', csrfToken(scanner));
+
+          if (submitButton instanceof HTMLButtonElement) {
+            submitButton.disabled = true;
+          }
+
+          setManualStatus('Saving manual stock add...');
+
+          try {
+            const response = await fetch(manualRestockUrl, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+              body: formData,
+            });
+            const payload = await response.json();
+
+            if (!response.ok || !payload.ok) {
+              throw new Error(payload.errors?.join(' ') || payload.message || 'Manual stock add failed.');
+            }
+
+            if (payload.item) {
+              manualItems = manualItems.map((item) => String(item.id) === String(payload.item.id) ? payload.item : item);
+              setManualSelectedItem(payload.item);
+
+              if (selectedItem && String(selectedItem.id) === String(payload.item.id)) {
+                selectItem(payload.item);
+              }
+            }
+
+            if (manualQuantity instanceof HTMLInputElement) {
+              manualQuantity.value = '';
+            }
+
+            manualForm.querySelectorAll('[name="reference_code"], [name="notes"]').forEach((inputElement) => {
+              if (inputElement instanceof HTMLInputElement) {
+                inputElement.value = '';
+              }
+            });
+
+            setManualStatus(payload.message || 'Manual stock add saved.', 'success');
+          } catch (error) {
+            setManualStatus(error.message || 'Manual stock add failed.', 'danger');
+          } finally {
+            if (submitButton instanceof HTMLButtonElement) {
+              submitButton.disabled = false;
+            }
+          }
+        });
+      }
 
       selectedBody.addEventListener('change', (event) => {
         const target = event.target;

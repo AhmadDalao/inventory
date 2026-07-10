@@ -263,6 +263,9 @@ $router->get('/scan', static function (): void {
 $router->get('/scan/lookup', static function (): void {
     handle_scan_lookup();
 });
+$router->post('/scan/manual-restock', static function (): void {
+    handle_scan_manual_restock_submit();
+});
 $router->get('/requests', static function (): void {
     handle_requests_index();
 });

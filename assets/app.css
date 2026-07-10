@@ -9006,6 +9006,85 @@ body.theme-clean.auth-shell {
     gap: 18px;
 }
 
+.scan-manual-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.scan-manual-form {
+    display: grid;
+    gap: 14px;
+}
+
+.scan-manual-search-field {
+    background: #fff;
+}
+
+.scan-manual-results {
+    display: grid;
+    gap: 10px;
+}
+
+.scan-manual-result-card {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 14px;
+    background: rgba(250, 247, 240, 0.7);
+    display: grid;
+    grid-template-columns: 54px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    text-align: left;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.scan-manual-result-card:hover,
+.scan-manual-result-card:focus-visible,
+.scan-manual-result-card.is-selected {
+    border-color: var(--accent);
+    background: #fff8e6;
+    box-shadow: 0 14px 32px rgba(67, 49, 29, 0.1);
+}
+
+.scan-manual-result-card strong,
+.scan-manual-result-card small {
+    display: block;
+}
+
+.scan-manual-result-card em {
+    font-style: normal;
+    font-weight: 900;
+    color: var(--accent-strong);
+}
+
+.scan-manual-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+    gap: 14px;
+}
+
+.scan-manual-notes-field {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+    .scan-manual-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .scan-manual-result-card {
+        grid-template-columns: 54px 1fr;
+    }
+
+    .scan-manual-result-card em {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+}
+
 .scan-batch-panel[hidden] {
     display: none;
 }

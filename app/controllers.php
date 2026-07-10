@@ -3598,11 +3598,13 @@ function handle_scan_index(): void
     }
 
     $scanMovementTypeOptions = movement_type_options_for_user(['usage', 'restock']);
+    $canManualRestock = scan_manual_restock_enabled() && can_create_movement_type('restock');
 
     View::render('scan/index', [
         'title' => site_setting('page.scan', 'Scan Center'),
         'storages' => all_storages_for_select(),
         'canCreateMovement' => $scanMovementTypeOptions !== [],
+        'canManualRestock' => $canManualRestock,
         'scanMovementTypeOptions' => $scanMovementTypeOptions,
     ]);
 }
@@ -3736,6 +3738,114 @@ function handle_scan_lookup(): void
         'count' => count($items),
         'items' => array_map('scan_item_payload', $items),
     ]);
+}
+
+function handle_scan_manual_restock_submit(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('items.view');
+    verify_csrf();
+
+    if (Auth::isStaff()) {
+        abort(403, 'Scanner is not available for staff accounts.');
+    }
+
+    if (!scan_manual_restock_enabled() || !can_create_movement_type('restock')) {
+        abort(403, 'Manual Scan Center stock add is not enabled for your account.');
+    }
+
+    $itemId = normalize_entity_id($_POST['item_id'] ?? null);
+    $storageId = normalize_entity_id($_POST['storage_id'] ?? null);
+    $quantityInput = $_POST['quantity'] ?? '';
+    $quantity = quantity_value($quantityInput);
+    $referenceCode = mb_substr(trim((string) ($_POST['reference_code'] ?? '')), 0, 120);
+    $notes = mb_substr(trim((string) ($_POST['notes'] ?? '')), 0, 1000);
+    $errors = [];
+
+    $item = $itemId !== null
+        ? Database::fetch('SELECT * FROM items WHERE id = :id AND is_active = 1 LIMIT 1', ['id' => $itemId])
+        : null;
+
+    if (!$item) {
+        $errors[] = 'Pick an active existing item first. New items must be created from Items.';
+    }
+
+    if ($storageId === null || !storage_exists_for_assignment($storageId)) {
+        $errors[] = 'Pick an active storage.';
+    }
+
+    if (!is_numeric_value($quantityInput) || $quantity <= 0) {
+        $errors[] = 'Quantity must be greater than zero.';
+    }
+
+    if ($errors !== []) {
+        if (request_wants_json()) {
+            json_response([
+                'ok' => false,
+                'message' => 'Manual stock add could not be saved.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        flash_errors($errors);
+        redirect('/scan');
+    }
+
+    try {
+        apply_inventory_movement(
+            $item,
+            'restock',
+            $quantity,
+            null,
+            $storageId,
+            date('Y-m-d H:i:s'),
+            $referenceCode !== '' ? $referenceCode : 'SCAN-MANUAL',
+            $notes !== '' ? $notes : 'Manual stock add from Scan Center.',
+            (int) (Auth::user()['id'] ?? 0),
+            'scan_manual',
+            null
+        );
+    } catch (Throwable $exception) {
+        if (request_wants_json()) {
+            json_response([
+                'ok' => false,
+                'message' => $exception->getMessage() ?: 'Manual stock add failed.',
+            ], 422);
+        }
+
+        flash('danger', $exception->getMessage() ?: 'Manual stock add failed.');
+        redirect('/scan');
+    }
+
+    $updatedItem = Database::fetch(
+        'SELECT i.*,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                ) AS location_count,
+                (
+                    SELECT GROUP_CONCAT(storage.name ORDER BY balances.quantity DESC, storage.name ASC SEPARATOR ", ")
+                    FROM item_storage_balances balances
+                    INNER JOIN storages storage ON storage.id = balances.storage_id
+                    WHERE balances.item_id = i.id
+                ) AS location_summary
+         FROM items i
+         WHERE i.id = :id
+         LIMIT 1',
+        ['id' => (int) $item['id']]
+    );
+
+    if (request_wants_json()) {
+        json_response([
+            'ok' => true,
+            'message' => 'Manual stock add saved.',
+            'item' => scan_item_payload($updatedItem ?: $item),
+        ]);
+    }
+
+    flash('success', 'Manual stock add saved.');
+    redirect('/scan');
 }
 
 function report_summary_filters(): array

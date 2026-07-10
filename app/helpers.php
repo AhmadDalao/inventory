@@ -143,6 +143,17 @@ function site_setting_schema(): array
                     ],
                     'maxlength' => 1,
                 ],
+                'scan.manual_restock_enabled' => [
+                    'label' => 'Scan Center manual stock add',
+                    'default' => '1',
+                    'help' => 'Allows inventory admins to add existing catalog items into a selected storage from Scan Center without scanning a barcode. New items must still be created from Items first.',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'maxlength' => 1,
+                ],
                 'exports.item_xlsx_thumbnails' => [
                     'label' => 'Item Excel exports with thumbnails',
                     'default' => '1',
@@ -3294,6 +3305,11 @@ function resolve_item_unit(string $selectedUnit, string $customUnit): string
 function item_barcodes_required(): bool
 {
     return site_setting('items.barcode_required', '0') === '1';
+}
+
+function scan_manual_restock_enabled(): bool
+{
+    return site_setting('scan.manual_restock_enabled', '1') === '1';
 }
 
 function normalize_item_barcode($value): string
