@@ -3184,17 +3184,44 @@ textarea {
 }
 
 .asset-form-panel {
-    max-width: 1180px;
+    width: 100%;
+    max-width: 1520px;
     margin-inline: auto;
+    justify-self: stretch;
 }
 
 .asset-form .item-form-grid,
 .asset-form .item-form-grid-primary {
-    grid-template-columns: repeat(2, minmax(240px, 1fr));
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
+.asset-form .item-form-section {
+    padding: clamp(18px, 1.8vw, 28px);
+}
+
+.asset-form .item-form-section-head {
+    align-items: center;
+}
+
+.asset-form .item-form-section-note {
+    max-width: 340px;
 }
 
 .asset-form .item-form-media-card {
     background: #fffaf1;
+}
+
+.asset-form .item-form-media-card .item-form-section-head {
+    margin-bottom: -4px;
+}
+
+.asset-form .item-form-image-row {
+    grid-template-columns: 120px minmax(260px, 520px);
+    align-items: center;
+}
+
+.asset-form .item-form-upload-stack {
+    max-width: 520px;
 }
 
 .asset-form .select-combobox-toggle {
@@ -3313,6 +3340,11 @@ textarea {
 
     .assets-metric-grid {
         grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+
+    .asset-form .item-form-grid,
+    .asset-form .item-form-grid-primary {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
     }
 }
 
