@@ -3301,6 +3301,7 @@ assert_true($handoverConfirmReceipt['status'] === 302, 'Handover receipt review 
 $handoverDeliveredRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverDeliveredRecord['status'] === 'delivered', 'Handover should become delivered after receipt review confirmation.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 18, 2), 'Handover source balance is wrong after receipt review confirmation.');
+$handoverDeliveredLines = handover_lines($handoverId);
 
 $handoverClosePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
 assert_true(strpos($handoverClosePage['body'], 'Actual Usage Report') !== false, 'Handover closeout page is missing the visible actual usage guidance.');
@@ -3314,9 +3315,9 @@ $handoverClosePayload = [
     'line_expected_used' => [],
 ];
 
-foreach ($handoverLines as $line) {
+foreach ($handoverDeliveredLines as $line) {
     $lineId = (int) $line['id'];
-    $used = $lineId === (int) $handoverLines[0]['id'] ? 5 : 4;
+    $used = (int) $line['item_id'] === (int) $handoverItems[0]['id'] ? 5 : 4;
     $handoverClosePayload['line_expected_used'][$lineId] = (string) $used;
     $handoverClosePayload['line_returned'][$lineId] = format_quantity(max(0, (float) $line['quantity_received'] - $used));
 }
