@@ -9070,6 +9070,95 @@ body.theme-clean.auth-shell {
     grid-column: 1 / -1;
 }
 
+.manual-stock-page {
+    display: grid;
+    gap: 22px;
+}
+
+.manual-stock-builder,
+.manual-stock-draft-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.manual-stock-line-form {
+    display: grid;
+    gap: 16px;
+}
+
+.manual-stock-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+    gap: 14px;
+}
+
+.manual-stock-notes-field {
+    grid-column: 1 / -1;
+}
+
+.manual-stock-selected-card,
+.manual-stock-draft-row {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 14px;
+    background: rgba(250, 247, 240, 0.72);
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+}
+
+.manual-stock-selected-card {
+    background: #fff8e6;
+    border-color: rgba(224, 177, 84, 0.55);
+    box-shadow: 0 16px 34px rgba(67, 49, 29, 0.08);
+}
+
+.manual-stock-selected-card strong,
+.manual-stock-selected-card small,
+.manual-stock-draft-row strong,
+.manual-stock-draft-row small {
+    display: block;
+}
+
+.manual-stock-selected-card em,
+.manual-stock-draft-row em {
+    font-style: normal;
+    font-weight: 900;
+    color: var(--accent-strong);
+    white-space: nowrap;
+}
+
+.manual-stock-draft {
+    display: grid;
+    gap: 12px;
+}
+
+.manual-stock-draft-row {
+    grid-template-columns: 56px minmax(0, 1fr) auto auto;
+}
+
+.manual-stock-summary {
+    border: 1px solid rgba(224, 177, 84, 0.35);
+    border-radius: 20px;
+    padding: 14px 16px;
+    background: rgba(255, 248, 230, 0.72);
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.manual-stock-summary strong,
+.manual-stock-summary span {
+    display: block;
+}
+
+.manual-stock-actions {
+    justify-content: flex-end;
+}
+
 @media (max-width: 760px) {
     .scan-manual-grid {
         grid-template-columns: 1fr;
@@ -9082,6 +9171,24 @@ body.theme-clean.auth-shell {
     .scan-manual-result-card em {
         grid-column: 1 / -1;
         justify-self: start;
+    }
+
+    .manual-stock-grid,
+    .manual-stock-selected-card,
+    .manual-stock-draft-row {
+        grid-template-columns: 1fr;
+    }
+
+    .manual-stock-draft-row .ghost-button,
+    .manual-stock-actions .ghost-button,
+    .manual-stock-actions .primary-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .manual-stock-actions {
+        display: grid;
+        grid-template-columns: 1fr;
     }
 }
 

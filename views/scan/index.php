@@ -28,6 +28,9 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
         <h3 class="page-head-title"><?= ui_icon('scan') ?><span><?= e(site_setting('page.scan', 'Scan Center')) ?></span></h3>
     </div>
     <div class="page-actions">
+        <?php if ($canManualRestock): ?>
+            <a class="primary-button" href="<?= e(url('/scan/manual')) ?>"><?= ui_icon('plus') ?><span>Manual Add</span></a>
+        <?php endif; ?>
         <a class="ghost-button" href="<?= e(url('/items')) ?>"><?= ui_icon('items') ?><span>All Items</span></a>
         <a class="ghost-button" href="<?= e(url('/items/create')) ?>"><?= ui_icon('plus') ?><span>Create Item</span></a>
         <a class="ghost-button" href="<?= e(url('/labels')) ?>"><?= ui_icon('labels') ?><span>Labels</span></a>
@@ -38,7 +41,6 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
     class="scan-shell"
     data-scan-center
     data-scan-lookup-url="<?= e(url('/scan/lookup')) ?>"
-    data-scan-manual-restock-url="<?= $canManualRestock ? e(url('/scan/manual-restock')) : '' ?>"
     data-scan-storages="<?= e((string) $storageJson) ?>"
     data-can-create-movement="<?= $canCreateMovement ? '1' : '0' ?>"
     data-scan-movement-types="<?= e((string) $scanMovementTypeJson) ?>"
@@ -71,54 +73,6 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
         </div>
         <p class="scan-status tiny-copy" data-scan-status>Ready for scan.</p>
     </article>
-
-    <?php if ($canManualRestock): ?>
-        <article class="panel scan-manual-panel" data-scan-manual-panel>
-            <div class="panel-head">
-                <div>
-                    <p class="eyebrow">Manual stock add</p>
-                    <h3>Add an existing item to storage</h3>
-                    <p class="muted-copy">Use this when the item has no barcode yet. If the item is new, create it first, then add stock here.</p>
-                </div>
-                <a class="ghost-button" href="<?= e(url('/items/create')) ?>"><?= ui_icon('plus') ?><span>New Item</span></a>
-            </div>
-            <form class="scan-manual-form" data-scan-manual-form>
-                <input type="hidden" name="item_id" data-scan-manual-item-id>
-                <label class="scan-search-field scan-manual-search-field">
-                    <?= ui_icon('search') ?>
-                    <input type="search" autocomplete="off" placeholder="Search existing item by name, SKU, barcode, or storage" data-scan-manual-search>
-                </label>
-                <div class="scan-manual-results" data-scan-manual-results>
-                    <p class="empty-state">Search and pick an existing catalog item.</p>
-                </div>
-                <div class="scan-manual-grid">
-                    <label class="field">
-                        <span>Storage</span>
-                        <select name="storage_id" required data-scan-manual-storage>
-                            <option value="">Pick storage</option>
-                            <?php foreach ($storages as $storage): ?>
-                                <option value="<?= e((string) $storage['id']) ?>"><?= e(storage_type_label((string) $storage['storage_type'])) ?> · <?= e((string) $storage['name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-                    <label class="field">
-                        <span>Quantity to add</span>
-                        <input type="number" name="quantity" min="0.01" step="0.01" placeholder="Example: 100" required data-scan-manual-quantity>
-                    </label>
-                    <label class="field">
-                        <span>Reference</span>
-                        <input type="text" name="reference_code" maxlength="120" placeholder="Invoice, delivery, note">
-                    </label>
-                    <label class="field scan-manual-notes-field">
-                        <span>Notes</span>
-                        <input type="text" name="notes" maxlength="1000" placeholder="Optional reason or supplier note">
-                    </label>
-                </div>
-                <button class="primary-button" type="submit"><?= ui_icon('plus') ?><span>Add Stock To Storage</span></button>
-                <p class="tiny-copy" data-scan-manual-status>Manual add creates a restock movement and updates the selected storage balance.</p>
-            </form>
-        </article>
-    <?php endif; ?>
 
     <?php if ($canCreateMovement): ?>
         <article class="panel scan-batch-panel" data-scan-batch-panel hidden>

@@ -260,11 +260,17 @@ $router->get('/movements', static function (): void {
 $router->get('/scan', static function (): void {
     handle_scan_index();
 });
+$router->get('/scan/manual', static function (): void {
+    handle_scan_manual_page();
+});
 $router->get('/scan/lookup', static function (): void {
     handle_scan_lookup();
 });
 $router->post('/scan/manual-restock', static function (): void {
     handle_scan_manual_restock_submit();
+});
+$router->post('/scan/manual-restock/batch', static function (): void {
+    handle_scan_manual_restock_batch_submit();
 });
 $router->get('/requests', static function (): void {
     handle_requests_index();

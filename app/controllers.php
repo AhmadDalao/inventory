@@ -3609,6 +3609,30 @@ function handle_scan_index(): void
     ]);
 }
 
+function require_scan_manual_restock_access(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('items.view');
+
+    if (Auth::isStaff()) {
+        abort(403, 'Scanner is not available for staff accounts.');
+    }
+
+    if (!scan_manual_restock_enabled() || !can_create_movement_type('restock')) {
+        abort(403, 'Manual Scan Center stock add is not enabled for your account.');
+    }
+}
+
+function handle_scan_manual_page(): void
+{
+    require_scan_manual_restock_access();
+
+    View::render('scan/manual', [
+        'title' => 'Manual Stock Add',
+        'storages' => all_storages_for_select(),
+    ]);
+}
+
 function handle_scan_lookup(): void
 {
     app_ready_or_redirect();
@@ -3740,19 +3764,34 @@ function handle_scan_lookup(): void
     ]);
 }
 
+function scan_manual_updated_item_payload(int $itemId, array $fallbackItem): array
+{
+    $updatedItem = Database::fetch(
+        'SELECT i.*,
+                (
+                    SELECT COUNT(*)
+                    FROM item_storage_balances balances
+                    WHERE balances.item_id = i.id
+                ) AS location_count,
+                (
+                    SELECT GROUP_CONCAT(storage.name ORDER BY balances.quantity DESC, storage.name ASC SEPARATOR ", ")
+                    FROM item_storage_balances balances
+                    INNER JOIN storages storage ON storage.id = balances.storage_id
+                    WHERE balances.item_id = i.id
+                ) AS location_summary
+         FROM items i
+         WHERE i.id = :id
+         LIMIT 1',
+        ['id' => $itemId]
+    );
+
+    return scan_item_payload($updatedItem ?: $fallbackItem);
+}
+
 function handle_scan_manual_restock_submit(): void
 {
-    app_ready_or_redirect();
-    Auth::requirePermission('items.view');
+    require_scan_manual_restock_access();
     verify_csrf();
-
-    if (Auth::isStaff()) {
-        abort(403, 'Scanner is not available for staff accounts.');
-    }
-
-    if (!scan_manual_restock_enabled() || !can_create_movement_type('restock')) {
-        abort(403, 'Manual Scan Center stock add is not enabled for your account.');
-    }
 
     $itemId = normalize_entity_id($_POST['item_id'] ?? null);
     $storageId = normalize_entity_id($_POST['storage_id'] ?? null);
@@ -3817,35 +3856,155 @@ function handle_scan_manual_restock_submit(): void
         redirect('/scan');
     }
 
-    $updatedItem = Database::fetch(
-        'SELECT i.*,
-                (
-                    SELECT COUNT(*)
-                    FROM item_storage_balances balances
-                    WHERE balances.item_id = i.id
-                ) AS location_count,
-                (
-                    SELECT GROUP_CONCAT(storage.name ORDER BY balances.quantity DESC, storage.name ASC SEPARATOR ", ")
-                    FROM item_storage_balances balances
-                    INNER JOIN storages storage ON storage.id = balances.storage_id
-                    WHERE balances.item_id = i.id
-                ) AS location_summary
-         FROM items i
-         WHERE i.id = :id
-         LIMIT 1',
-        ['id' => (int) $item['id']]
-    );
-
     if (request_wants_json()) {
         json_response([
             'ok' => true,
             'message' => 'Manual stock add saved.',
-            'item' => scan_item_payload($updatedItem ?: $item),
+            'item' => scan_manual_updated_item_payload((int) $item['id'], $item),
         ]);
     }
 
     flash('success', 'Manual stock add saved.');
     redirect('/scan');
+}
+
+function handle_scan_manual_restock_batch_submit(): void
+{
+    require_scan_manual_restock_access();
+    verify_csrf();
+
+    $rawLines = (string) ($_POST['lines'] ?? '');
+    $decodedLines = json_decode($rawLines, true);
+
+    if (!is_array($decodedLines)) {
+        json_response([
+            'ok' => false,
+            'message' => 'Manual draft could not be read.',
+            'errors' => ['Add at least one valid draft line before confirming.'],
+        ], 422);
+    }
+
+    $decodedLines = array_values($decodedLines);
+
+    if ($decodedLines === []) {
+        json_response([
+            'ok' => false,
+            'message' => 'Manual draft is empty.',
+            'errors' => ['Add at least one item to the draft before confirming.'],
+        ], 422);
+    }
+
+    if (count($decodedLines) > 100) {
+        json_response([
+            'ok' => false,
+            'message' => 'Manual draft is too large.',
+            'errors' => ['Confirm 100 lines or fewer at a time.'],
+        ], 422);
+    }
+
+    $errors = [];
+    $validatedLines = [];
+
+    foreach ($decodedLines as $index => $line) {
+        $lineNumber = $index + 1;
+
+        if (!is_array($line)) {
+            $errors[] = "Line {$lineNumber} is invalid.";
+            continue;
+        }
+
+        $itemId = normalize_entity_id($line['item_id'] ?? null);
+        $storageId = normalize_entity_id($line['storage_id'] ?? null);
+        $quantityInput = $line['quantity'] ?? '';
+        $quantity = quantity_value($quantityInput);
+        $referenceCode = mb_substr(trim((string) ($line['reference_code'] ?? '')), 0, 120);
+        $notes = mb_substr(trim((string) ($line['notes'] ?? '')), 0, 1000);
+
+        $item = $itemId !== null
+            ? Database::fetch('SELECT * FROM items WHERE id = :id AND is_active = 1 LIMIT 1', ['id' => $itemId])
+            : null;
+
+        if (!$item) {
+            $errors[] = "Line {$lineNumber}: pick an active existing item.";
+        }
+
+        if ($storageId === null || !storage_exists_for_assignment($storageId)) {
+            $errors[] = "Line {$lineNumber}: pick an active storage.";
+        }
+
+        if (!is_numeric_value($quantityInput) || $quantity <= 0) {
+            $errors[] = "Line {$lineNumber}: quantity must be greater than zero.";
+        }
+
+        if ($item && $storageId !== null && $quantity > 0) {
+            $validatedLines[] = [
+                'item' => $item,
+                'item_id' => (int) $item['id'],
+                'storage_id' => $storageId,
+                'quantity' => $quantity,
+                'reference_code' => $referenceCode !== '' ? $referenceCode : 'SCAN-MANUAL-BATCH',
+                'notes' => $notes !== '' ? $notes : 'Manual stock add from Scan Center draft.',
+            ];
+        }
+    }
+
+    if ($errors !== []) {
+        json_response([
+            'ok' => false,
+            'message' => 'Manual draft could not be confirmed.',
+            'errors' => $errors,
+        ], 422);
+    }
+
+    $pdo = Database::connection();
+    $ownsTransaction = !$pdo->inTransaction();
+    $performedBy = (int) (Auth::user()['id'] ?? 0);
+
+    try {
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+
+        foreach ($validatedLines as $line) {
+            apply_inventory_movement(
+                $line['item'],
+                'restock',
+                (float) $line['quantity'],
+                null,
+                (int) $line['storage_id'],
+                date('Y-m-d H:i:s'),
+                (string) $line['reference_code'],
+                (string) $line['notes'],
+                $performedBy,
+                'scan_manual',
+                null
+            );
+        }
+
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+    } catch (Throwable $exception) {
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        json_response([
+            'ok' => false,
+            'message' => $exception->getMessage() ?: 'Manual stock add failed.',
+        ], 422);
+    }
+
+    $updatedItems = [];
+    foreach ($validatedLines as $line) {
+        $updatedItems[] = scan_manual_updated_item_payload((int) $line['item_id'], $line['item']);
+    }
+
+    json_response([
+        'ok' => true,
+        'message' => 'Added ' . count($validatedLines) . ' manual stock line' . (count($validatedLines) === 1 ? '' : 's') . '.',
+        'items' => $updatedItems,
+    ]);
 }
 
 function report_summary_filters(): array
