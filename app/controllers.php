@@ -4516,6 +4516,7 @@ function handle_reports_index(): void
 
     $summaryFilters = report_summary_filters();
     $canViewDailySummary = Auth::hasPermission('movements.view') || Auth::hasPermission('movements.export');
+    $summaryQuery = http_build_query(array_filter($summaryFilters, static fn ($value): bool => $value !== null && trim((string) $value) !== ''));
 
     View::render('reports/index', [
         'title' => site_setting('page.reports', 'Reports'),
@@ -4524,6 +4525,9 @@ function handle_reports_index(): void
         'summary' => $canViewDailySummary ? report_summary_data($summaryFilters) : null,
         'storages' => all_storages_for_select($summaryFilters['storage_id']),
         'canViewDailySummary' => $canViewDailySummary,
+        'savedPresets' => saved_report_presets(),
+        'savedPresetTypes' => saved_report_preset_types(),
+        'currentReportQuery' => $summaryQuery,
     ]);
 }
 

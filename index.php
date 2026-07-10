@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/controllers.php';
+require __DIR__ . '/app/report_presets.php';
 require __DIR__ . '/app/company_assets.php';
 require __DIR__ . '/app/workflows.php';
 
@@ -478,6 +479,18 @@ $router->get('/email-logs', static function (): void {
 });
 $router->get('/reports', static function (): void {
     handle_reports_index();
+});
+$router->post('/reports/presets', static function (): void {
+    handle_report_preset_save_submit();
+});
+$router->post('/reports/presets/{id}/edit', static function (array $params): void {
+    handle_report_preset_save_submit($params);
+});
+$router->post('/reports/presets/{id}/duplicate', static function (array $params): void {
+    handle_report_preset_duplicate_submit($params);
+});
+$router->post('/reports/presets/{id}/archive', static function (array $params): void {
+    handle_report_preset_archive_submit($params);
 });
 $router->get('/exports/items', static function (): void {
     handle_export_items();

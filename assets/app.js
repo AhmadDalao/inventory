@@ -1222,14 +1222,50 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       };
 
+      const setComboboxOwnerOpenState = (isOpen) => {
+        const owner = wrapper.closest('.panel, .filter-panel, [data-live-filter-region]');
+
+        if (owner instanceof HTMLElement) {
+          const hasOpenCombobox = Boolean(owner.querySelector('.select-combobox.is-open'));
+          owner.classList.toggle('has-combobox-open', isOpen || hasOpenCombobox);
+        }
+      };
+
       const closePanel = () => {
         panel.hidden = true;
         toggle.setAttribute('aria-expanded', 'false');
+        wrapper.classList.remove('is-open');
+        setComboboxOwnerOpenState(false);
       };
 
       const openPanel = () => {
+        document.querySelectorAll('.select-combobox.is-open').forEach((openWrapper) => {
+          if (openWrapper === wrapper) {
+            return;
+          }
+
+          const openPanelElement = openWrapper.querySelector('.select-combobox-panel');
+          const openToggle = openWrapper.querySelector('.select-combobox-toggle');
+
+          if (openPanelElement instanceof HTMLElement) {
+            openPanelElement.hidden = true;
+          }
+
+          if (openToggle instanceof HTMLElement) {
+            openToggle.setAttribute('aria-expanded', 'false');
+          }
+
+          openWrapper.classList.remove('is-open');
+          const owner = openWrapper.closest('.panel, .filter-panel, [data-live-filter-region]');
+          if (owner instanceof HTMLElement && !owner.querySelector('.select-combobox.is-open')) {
+            owner.classList.remove('has-combobox-open');
+          }
+        });
+
         panel.hidden = false;
         toggle.setAttribute('aria-expanded', 'true');
+        wrapper.classList.add('is-open');
+        setComboboxOwnerOpenState(true);
         search.focus();
         search.select();
       };

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Maintenance
 {
-    private const SCHEMA_VERSION = '2026-07-02-assets-depreciation-v1';
+    private const SCHEMA_VERSION = '2026-07-10-report-presets-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -137,6 +137,32 @@ final class Maintenance
                 updated_at DATETIME NOT NULL,
                 INDEX idx_app_settings_updated_by (updated_by),
                 CONSTRAINT fk_app_settings_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
+            'CREATE TABLE IF NOT EXISTS report_presets (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(160) NOT NULL,
+                description TEXT NULL,
+                report_type VARCHAR(80) NOT NULL,
+                filters_json TEXT NOT NULL,
+                export_format ENUM("csv", "xlsx") NOT NULL DEFAULT "csv",
+                visibility ENUM("shared", "private") NOT NULL DEFAULT "shared",
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                created_by BIGINT UNSIGNED NULL,
+                updated_by BIGINT UNSIGNED NULL,
+                archived_by BIGINT UNSIGNED NULL,
+                archived_at DATETIME NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                INDEX idx_report_presets_type (report_type, is_active),
+                INDEX idx_report_presets_visibility (visibility, is_active),
+                INDEX idx_report_presets_created_by (created_by),
+                INDEX idx_report_presets_archived (archived_at),
+                CONSTRAINT fk_report_presets_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_report_presets_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_report_presets_archived_by FOREIGN KEY (archived_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
 
@@ -1574,7 +1600,16 @@ final class Maintenance
             && self::operationalSchemaIsCurrent()
             && self::fileSchemaIsCurrent()
             && self::workflowDocumentSchemaIsCurrent()
-            && self::assetCategorySchemaIsCurrent();
+            && self::assetCategorySchemaIsCurrent()
+            && self::reportPresetSchemaIsCurrent();
+    }
+
+    private static function reportPresetSchemaIsCurrent(): bool
+    {
+        return self::tableExists('report_presets')
+            && self::columnExists('report_presets', 'filters_json')
+            && self::columnExists('report_presets', 'visibility')
+            && self::columnExists('report_presets', 'archived_by');
     }
 
     private static function assetCategorySchemaIsCurrent(): bool

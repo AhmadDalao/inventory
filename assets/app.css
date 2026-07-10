@@ -789,6 +789,12 @@ textarea {
 .select-combobox {
     display: grid;
     gap: 0;
+    position: relative;
+    min-width: 0;
+}
+
+.select-combobox.is-open {
+    z-index: 560;
 }
 
 .select-combobox-native {
@@ -812,7 +818,12 @@ textarea {
 }
 
 .select-combobox-panel {
-    margin-top: 8px;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 140;
+    margin-top: 0;
 }
 
 .select-combobox-options {
@@ -3165,7 +3176,13 @@ textarea {
 .assets-filter-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(180px, 1fr));
-    align-items: end;
+    align-items: start;
+    overflow: visible;
+}
+
+.assets-filter-grid .field {
+    position: relative;
+    min-width: 0;
 }
 
 .assets-filter-grid .filter-actions {
@@ -3253,14 +3270,9 @@ textarea {
     min-height: 58px;
 }
 
-.asset-form .select-combobox-panel {
-    position: relative;
-    z-index: 8;
-}
-
 .asset-search-combobox {
     display: grid;
-    gap: 12px;
+    gap: 0;
 }
 
 .asset-search-combobox .select-combobox-toggle {
@@ -3289,22 +3301,11 @@ textarea {
 }
 
 .asset-search-combobox .select-combobox-panel {
-    position: static;
-    z-index: 8;
-    display: grid;
-    gap: 12px;
-    margin-top: 0;
     padding: 16px;
     border: 1px solid #ded7cc;
     border-radius: 20px;
     background: rgba(255, 253, 248, 0.98);
     box-shadow: 0 22px 44px rgba(22, 18, 11, 0.12);
-    max-height: none;
-    overflow: visible;
-}
-
-.asset-search-combobox .select-combobox-panel[hidden] {
-    display: none;
 }
 
 .asset-search-combobox .select-combobox-search {
@@ -3326,8 +3327,6 @@ textarea {
 .asset-search-combobox .select-combobox-options {
     display: grid;
     gap: 10px;
-    max-height: 330px;
-    overflow: auto;
     padding-right: 4px;
 }
 
@@ -8853,6 +8852,131 @@ body.theme-clean.auth-shell {
     max-width: 720px;
 }
 
+.saved-report-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.saved-report-panel .section-heading-row {
+    align-items: start;
+}
+
+.saved-report-create {
+    border: 1px solid #eadfce;
+    border-radius: 24px;
+    background: #fffaf1;
+}
+
+.saved-report-create > summary,
+.saved-report-edit > summary {
+    cursor: pointer;
+}
+
+.saved-report-form {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+    gap: 14px;
+    align-items: end;
+    padding-top: 14px;
+}
+
+.saved-report-form .primary-button,
+.saved-report-form .ghost-button {
+    min-height: 58px;
+}
+
+.saved-report-filter-query,
+.saved-report-description {
+    grid-column: span 2;
+}
+
+.saved-report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.saved-report-card {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid #eee3d5;
+    border-radius: 22px;
+    background: #fffdfa;
+}
+
+.report-preset-head,
+.saved-report-meta,
+.report-preset-actions,
+.saved-report-admin-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.report-preset-head {
+    justify-content: space-between;
+}
+
+.report-preset-icon {
+    display: inline-grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 14px;
+    background: #f2e5d3;
+    color: #8a633c;
+}
+
+.saved-report-card h4,
+.saved-report-card p {
+    margin: 0;
+}
+
+.saved-report-meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #f8f2ea;
+    color: #675f55;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.saved-report-query {
+    display: block;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #eee3d5;
+    border-radius: 14px;
+    background: #fff;
+    color: #675f55;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-report-edit {
+    border-top: 1px solid #f0e6da;
+    padding-top: 10px;
+}
+
+.saved-report-form-compact {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+
+.saved-report-admin-actions {
+    justify-content: flex-end;
+}
+
+.saved-report-admin-actions form {
+    margin: 0;
+}
+
 .scan-entry-form {
     display: grid;
     grid-template-columns: minmax(260px, 1fr) auto;
@@ -11988,5 +12112,79 @@ body.app-shell {
 
     .app-shell .data-table-mobile .row-action-list {
         min-width: 180px;
+    }
+}
+
+/* Searchable select dropdowns must overlay the page, not push surrounding filters/forms down. */
+.panel.has-combobox-open,
+.filter-panel.has-combobox-open,
+[data-live-filter-region].has-combobox-open {
+    overflow: visible !important;
+}
+
+.select-combobox,
+.app-shell .select-combobox,
+.asset-search-combobox,
+.filter-search-combobox {
+    position: relative !important;
+    min-width: 0;
+}
+
+.select-combobox.is-open,
+.app-shell .select-combobox.is-open,
+.asset-search-combobox.is-open,
+.filter-search-combobox.is-open {
+    z-index: 560;
+}
+
+.select-combobox .select-combobox-panel,
+.app-shell .select-combobox .select-combobox-panel,
+.asset-search-combobox .select-combobox-panel,
+.filter-search-combobox .select-combobox-panel {
+    position: absolute !important;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 220;
+    width: 100%;
+    margin-top: 0;
+    max-height: min(420px, 62dvh);
+    overflow: hidden;
+    display: grid;
+    gap: 12px;
+}
+
+.select-combobox .select-combobox-options,
+.app-shell .select-combobox .select-combobox-options,
+.asset-search-combobox .select-combobox-options,
+.filter-search-combobox .select-combobox-options {
+    max-height: min(300px, 44dvh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.select-combobox .select-combobox-panel[hidden],
+.app-shell .select-combobox .select-combobox-panel[hidden],
+.asset-search-combobox .select-combobox-panel[hidden],
+.filter-search-combobox .select-combobox-panel[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 900px) {
+    .saved-report-form,
+    .saved-report-form-compact {
+        grid-template-columns: 1fr;
+    }
+
+    .saved-report-filter-query,
+    .saved-report-description {
+        grid-column: auto;
+    }
+
+    .report-preset-actions .primary-button,
+    .report-preset-actions .ghost-button,
+    .saved-report-admin-actions .ghost-button {
+        width: 100%;
+        justify-content: center;
     }
 }
