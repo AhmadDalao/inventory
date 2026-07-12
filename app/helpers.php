@@ -251,8 +251,8 @@ function site_setting_schema(): array
             'fields' => [
                 'workflow.signoff_template' => [
                     'label' => 'Sign-off template',
-                    'default' => 'detailed',
-                    'help' => 'Built-in document template. Custom uploaded templates need a controlled placeholder format and should be added separately.',
+                    'default' => 'reconciliation',
+                    'help' => 'Reconciliation keeps item rows simple and moves expected/actual differences to the bottom. Use Detailed legacy only if you want the old style.',
                     'type' => 'select',
                     'options' => workflow_signoff_template_options(),
                     'maxlength' => 20,
@@ -1614,17 +1614,18 @@ function item_xlsx_thumbnail_size_options(): array
 function workflow_signoff_template_options(): array
 {
     return [
-        'detailed' => 'Detailed With Images',
-        'compact' => 'Compact Table',
+        'reconciliation' => 'Reconciliation',
+        'detailed' => 'Detailed legacy',
+        'compact' => 'Compact legacy table',
     ];
 }
 
 function workflow_signoff_template(): string
 {
-    $template = site_setting('workflow.signoff_template', 'detailed');
+    $template = site_setting('workflow.signoff_template', 'reconciliation');
     $options = workflow_signoff_template_options();
 
-    return array_key_exists($template, $options) ? $template : 'detailed';
+    return array_key_exists($template, $options) ? $template : 'reconciliation';
 }
 
 function handover_line_edits_enabled(): bool
@@ -3684,7 +3685,7 @@ function store_workflow_pdf_document(string $pdfBytes, string $workflowType, str
 {
     ensure_directory_exists(workflow_upload_directory());
 
-    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-img-v13') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.pdf';
+    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-img-v14') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.pdf';
     $destination = workflow_upload_directory() . '/' . $filename;
 
     if (file_put_contents($destination, $pdfBytes) === false) {
@@ -3703,7 +3704,7 @@ function store_workflow_excel_document(string $sheetBytes, string $workflowType,
 {
     ensure_directory_exists(workflow_upload_directory());
 
-    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-sheet-img-v13') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.xlsx';
+    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-sheet-img-v14') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.xlsx';
     $destination = workflow_upload_directory() . '/' . $filename;
 
     if (file_put_contents($destination, $sheetBytes) === false) {

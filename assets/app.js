@@ -1924,6 +1924,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return Math.round(total * 100) / 100;
       };
 
+      const sumUsageRowsExcept = (line, exceptRow = null) => {
+        let total = 0;
+
+        line.querySelectorAll('[data-handover-usage-row]').forEach((row) => {
+          if (exceptRow && row === exceptRow) {
+            return;
+          }
+
+          const field = row.querySelector('[data-handover-usage-quantity]');
+
+          if (field instanceof HTMLInputElement) {
+            total += Math.max(0, parseNumber(field.value));
+          }
+        });
+
+        return Math.round(total * 100) / 100;
+      };
+
       const syncLine = (line) => {
         const returnedField = line.querySelector('[data-handover-approval-returned]');
         const usedLabel = line.querySelector('[data-handover-approval-used]');
@@ -2028,9 +2046,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reason = targetRow.querySelector('[data-handover-usage-reason]');
         const quantity = targetRow.querySelector('[data-handover-usage-quantity]');
+        const targetUsed = parseNumber(editor.dataset.handoverApprovalTargetUsed || '0');
+        const remainingUsed = Math.max(0, targetUsed - sumUsageRowsExcept(line, targetRow));
 
         if (reason instanceof HTMLSelectElement) {
           reason.value = reasonValue;
+        }
+
+        if (quantity instanceof HTMLInputElement && quantity.value.trim() === '' && remainingUsed > 0) {
+          quantity.value = formatQuantity(remainingUsed);
         }
 
         toggleOtherField(targetRow);
@@ -2961,6 +2985,8 @@ document.addEventListener('DOMContentLoaded', () => {
         damage: 'Damage',
         sport: 'Sport',
         school: 'School',
+        complimentary: 'Complimentary',
+        noshow: 'No Show',
         other: 'Other'
       };
 
@@ -2987,6 +3013,8 @@ document.addEventListener('DOMContentLoaded', () => {
           damage: 'Damage',
           sport: 'Sport',
           school: 'School',
+          complimentary: 'Complimentary',
+          noshow: 'No Show',
           other: 'Other'
         };
       }

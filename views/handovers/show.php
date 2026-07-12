@@ -56,7 +56,7 @@ $plannedTotal = 0.0;
 $receivedTotal = 0.0;
 $usedTotal = 0.0;
 $returnedTotal = 0.0;
-$remainingTotal = 0.0;
+$unaccountedTotal = 0.0;
 
 foreach ($lines as $line) {
     $plannedTotal += (float) $line['quantity_handed'];
@@ -66,7 +66,7 @@ foreach ($lines as $line) {
     $baseQuantity = in_array($handoverStatus, ['requested', 'awaiting_receipt'], true)
         ? (float) $line['quantity_handed']
         : (float) $line['quantity_received'];
-    $remainingTotal += round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
+    $unaccountedTotal += round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
 }
 ?>
 
@@ -111,8 +111,8 @@ foreach ($lines as $line) {
                 <strong><?= format_quantity($usedTotal) ?></strong>
             </div>
             <div>
-                <span>Remaining</span>
-                <strong><?= format_quantity($remainingTotal) ?></strong>
+                <span>Returned</span>
+                <strong><?= format_quantity($returnedTotal) ?></strong>
             </div>
         </div>
 
@@ -458,7 +458,7 @@ foreach ($lines as $line) {
                                         <small>Optional: split the calculated used quantity by reason. If you leave it blank, usage is saved as Unspecified.</small>
                                     </div>
                                     <div class="handover-reason-quick-buttons" data-handover-reason-quick-buttons>
-                                        <?php foreach (['online', 'walkin', 'event', 'damage', 'sport', 'school', 'other'] as $quickReason): ?>
+                                        <?php foreach (['online', 'walkin', 'event', 'damage', 'sport', 'school', 'complimentary', 'noshow', 'other'] as $quickReason): ?>
                                             <button class="ghost-button compact-button" type="button" data-handover-usage-quick-reason="<?= e($quickReason) ?>"><?= e($usageReasonOptions[$quickReason] ?? ucfirst($quickReason)) ?></button>
                                         <?php endforeach; ?>
                                     </div>
@@ -645,7 +645,7 @@ foreach ($lines as $line) {
                                     <small>Reason totals must equal Final Used. This is what goes into movement logs and final sign-off files.</small>
                                 </div>
                                 <div class="handover-reason-quick-buttons" data-handover-reason-quick-buttons>
-                                    <?php foreach (['online', 'walkin', 'event', 'damage', 'sport', 'school', 'other'] as $quickReason): ?>
+                                    <?php foreach (['online', 'walkin', 'event', 'damage', 'sport', 'school', 'complimentary', 'noshow', 'other'] as $quickReason): ?>
                                         <button class="ghost-button compact-button" type="button" data-handover-usage-quick-reason="<?= e($quickReason) ?>"><?= e($usageReasonOptions[$quickReason] ?? ucfirst($quickReason)) ?></button>
                                     <?php endforeach; ?>
                                 </div>
@@ -987,12 +987,9 @@ foreach ($lines as $line) {
                 <th>SKU</th>
                 <th>Planned</th>
                 <th>Received</th>
-                <th>Expected Usage</th>
                 <th>Used</th>
-                <th>Usage</th>
-                <th>Variance</th>
                 <th>Returned</th>
-                <th>Remaining</th>
+                <th>Difference / Unaccounted</th>
             </tr>
             </thead>
             <tbody>
@@ -1002,7 +999,7 @@ foreach ($lines as $line) {
                 $baseQuantity = in_array((string) $handoverRecord['status'], ['requested', 'awaiting_receipt'], true)
                     ? (float) $line['quantity_handed']
                     : (float) $line['quantity_received'];
-                $remaining = round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
+                $unaccounted = round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
                 ?>
                 <tr>
                     <td data-label="Item">
@@ -1029,12 +1026,9 @@ foreach ($lines as $line) {
                     <td data-label="SKU"><?= e($line['item_sku']) ?></td>
                     <td data-label="Planned"><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Received"><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
-                    <td data-label="Expected Usage"><?= e((string) ($line['expected_usage_reason_summary'] ?? '')) ?: '-' ?></td>
                     <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
-                    <td data-label="Usage"><?= e((string) ($line['usage_reason_summary'] ?? '')) ?: '-' ?></td>
-                    <td data-label="Variance"><?= e((string) ($line['usage_variance_summary'] ?? '')) ?: '-' ?></td>
                     <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
-                    <td data-label="Remaining"><?= format_quantity($remaining) ?> <?= e($line['unit']) ?></td>
+                    <td data-label="Difference / Unaccounted"><?= format_quantity($unaccounted) ?> <?= e($line['unit']) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
