@@ -271,12 +271,13 @@ Test coverage needed:
 ## Handovers
 
 Current behavior:
-- Direct handover, handover request, staff receipt, close, used/returned calculation, storage-owner approval, self-approval blocking, and movement posting exist.
+- Direct handover, handover request, staff receipt, returned-first closeout, actual usage reasons, storage-owner approval, self-approval blocking, and movement posting exist.
+- Signoff PDF/XLSX keeps item rows simple and puts expected usage, actual usage, variance, returned total, and difference/unaccounted in a bottom reconciliation table.
 - Staff should see only their relevant holding cards and handovers.
 
 Missing behavior:
 - Need short receipt confirmation like requests, where staff confirms exact delivered quantity.
-- Need tests that used quantity auto-calculates returned quantity live.
+- Need tests that returned quantity auto-calculates used quantity live.
 - Need tests for storage-owner approval of closed handover.
 - Need UI test for dropdown collapse after selecting an item.
 
@@ -298,7 +299,8 @@ Test coverage needed:
 - Staff cannot request from unrelated owner when assignment exists.
 - Direct admin handover appears for selected staff.
 - Staff confirms actual received quantity.
-- Used quantity changes returned quantity instantly.
+- Returned quantity changes used quantity instantly.
+- Owner/admin can correct returned quantity and actual usage reason split before approval.
 - Staff close moves to waiting approval.
 - Storage owner approval returns remaining quantity and closes.
 
@@ -579,7 +581,8 @@ Test coverage needed:
 
 Current behavior:
 - Activity/audit log exists.
-- CSV exports exist for items, movements, storages, requests, handovers, purchases, files, stocktakes, suppliers, reorder, audit, and users.
+- CSV/Excel exports exist for items, movements, storages, requests, handovers, purchases, files, stocktakes, suppliers, reorder, audit, and users.
+- Storage exports can target all storages or one selected storage from the searchable picker or storage detail page.
 
 Missing behavior:
 - Need export field contracts by module.

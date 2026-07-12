@@ -35,7 +35,11 @@ The report script creates:
 
 The report includes active items, active storages, stock units, inventory value, low-stock lines, open requests, open handovers, open purchases, open stocktakes, daily usage, daily restock quantity, top usage items, and pending purchases.
 
-The `Reports` page in the app provides preset CSV shortcuts for the most common exports: item catalog, storage value, usage, transfers, requests, handovers, purchases, suppliers, files, stocktakes, audit, email logs, and users. It does not create new data; it reuses the existing permission-checked exports.
+The `Reports` page in the app provides preset CSV/Excel shortcuts for the most common exports: item catalog, storage value, usage, transfers, requests, handovers, purchases, suppliers, files, stocktakes, audit, email logs, and users. It does not create new data; it reuses the existing permission-checked exports.
+
+Storage item exports can be generated from the Storages page with the searchable storage picker or from a specific storage detail page. Pick one storage when accounting needs only that location, or leave all storages selected for the grouped export.
+
+Handover signoff files now use returned-first closeout. Staff enters what came back, the app calculates used quantity, optional usage reasons explain the used amount, and the owner/admin final review posts stock. The signoff PDF/XLSX keeps item rows simple and moves expected/actual/variance/returned/difference reconciliation to a bottom table.
 
 ## Barcode Scanner Workflow
 
