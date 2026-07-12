@@ -743,6 +743,19 @@ assert_true($copiedStorageItemRow !== null, 'Storage export is missing the copie
 assert_true(($copiedStorageItemRow[18] ?? '') === '$0.00', 'Copied storage export item value is wrong.');
 assert_true(($copiedStorageItemRow[15] ?? '') === '0', 'Copied storage export item quantity is wrong.');
 
+note('Exporting one selected storage only.');
+$singleStorageExport = request($baseUrl, $cookieFile, 'GET', '/exports/storages?storage_id=' . $firstStorageId);
+assert_true($singleStorageExport['status'] === 200, 'Single storage export did not respond with HTTP 200.');
+$singleStorageExportRows = csv_rows($singleStorageExport['body']);
+$singleStorageSummaryRow = find_csv_row($singleStorageExportRows, static fn (array $row): bool => ($row[0] ?? '') === $storageName && ($row[11] ?? '') === 'Storage');
+assert_true($singleStorageSummaryRow !== null, 'Single storage export is missing the selected storage summary row.');
+$unexpectedSingleExportRow = find_csv_row($singleStorageExportRows, static fn (array $row): bool => in_array(($row[0] ?? ''), [$secondaryStorageName, $copiedStorageName], true));
+assert_true($unexpectedSingleExportRow === null, 'Single storage export included another storage.');
+
+$storageDetailExportLinks = request($baseUrl, $cookieFile, 'GET', '/storages/' . $firstStorageId);
+assert_true($storageDetailExportLinks['status'] === 200, 'Storage detail did not load for export link verification.');
+assert_true(contains_text($storageDetailExportLinks['body'], '/exports/storages?storage_id=' . $firstStorageId), 'Storage detail is missing the direct CSV export link.');
+
 note('Removing the item from the second storage only.');
 $removeFromSecondStorage = request($baseUrl, $cookieFile, 'POST', '/items/' . $firstItemId . '/locations/' . $thirdStorageId . '/remove', [
     '_token' => extract_csrf($secondaryStorageDetail['body']),

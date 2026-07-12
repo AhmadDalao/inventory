@@ -57,6 +57,40 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
         <a class="stat-chip filter-chip <?= $filters['status'] === 'active' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('active')) ?>" data-live-filter-link>Active: <?= number_format($counts['active']) ?></a>
         <a class="stat-chip filter-chip <?= $filters['status'] === 'archived' ? 'filter-chip-active' : '' ?>" href="<?= e($storageFilterUrl('archived')) ?>" data-live-filter-link>Deleted: <?= number_format($counts['archived']) ?></a>
     </div>
+
+    <?php if (Auth::hasPermission('storages.export')): ?>
+        <form class="filter-grid storage-export-picker" method="get" action="<?= e(url('/exports/storages')) ?>">
+            <label class="field">
+                <span>Export Storage Items</span>
+                <select
+                    name="storage_id"
+                    data-combobox-select
+                    data-combobox-class="filter-search-combobox"
+                    data-combobox-placeholder="Search storage"
+                    data-combobox-empty="No matching storages."
+                >
+                    <option value="" data-label-title="All storages" data-label-meta="Exports every storage and its items">All storages</option>
+                    <?php foreach ($storageOptions as $option): ?>
+                        <option
+                            value="<?= e((string) $option['id']) ?>"
+                            data-search-text="<?= e($option['name'] . ' ' . storage_type_label($option['storage_type']) . ' ' . ($option['owner_name'] ?? '')) ?>"
+                            data-label-title="<?= e($option['name']) ?>"
+                            data-label-meta="<?= e(storage_type_label($option['storage_type']) . (!empty($option['owner_name']) ? ' · Owner ' . $option['owner_name'] : '')) ?>"
+                            <?= selected((string) $option['id'], (string) ($filters['storage_id'] ?? '')) ?>
+                        >
+                            <?= e($option['name']) ?> · <?= e(storage_type_label($option['storage_type'])) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <div class="filter-actions">
+                <?php if (storage_xlsx_thumbnail_export_enabled()): ?>
+                    <button class="primary-button" type="submit" formaction="<?= e(url('/exports/storages.xlsx')) ?>" formmethod="get"><?= ui_icon('storages') ?><span>Export Excel</span></button>
+                <?php endif; ?>
+                <button class="ghost-button" type="submit" formaction="<?= e(url('/exports/storages')) ?>" formmethod="get"><?= ui_icon('export') ?><span>Export CSV</span></button>
+            </div>
+        </form>
+    <?php endif; ?>
 </section>
 
 <section class="panel data-table-shell" data-table-shell data-empty-text="No storages match this search.">
@@ -150,6 +184,12 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                                 <a href="<?= e(url('/storages/' . $storage['id'])) ?>"><?= ui_icon('storages') ?><span>Open</span></a>
                                 <?php if (Auth::hasPermission('items.view')): ?>
                                     <a href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>"><?= ui_icon('items') ?><span>Items</span></a>
+                                <?php endif; ?>
+                                <?php if (Auth::hasPermission('storages.export')): ?>
+                                    <?php if (storage_xlsx_thumbnail_export_enabled()): ?>
+                                        <a href="<?= e(url('/exports/storages.xlsx?storage_id=' . $storage['id'])) ?>"><?= ui_icon('storages') ?><span>Export Excel</span></a>
+                                    <?php endif; ?>
+                                    <a href="<?= e(url('/exports/storages?storage_id=' . $storage['id'])) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
                                 <?php endif; ?>
                                 <?php if (Auth::hasPermission('storages.edit')): ?>
                                     <a href="<?= e(url('/storages/' . $storage['id'] . '/edit')) ?>"><?= ui_icon('edit') ?><span>Edit</span></a>

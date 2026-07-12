@@ -9,6 +9,12 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
     </div>
     <div class="page-actions">
         <a class="ghost-button" href="<?= e(url('/storages')) ?>"><?= ui_icon('back') ?><span>All Locations</span></a>
+        <?php if (Auth::hasPermission('storages.export')): ?>
+            <?php if (storage_xlsx_thumbnail_export_enabled()): ?>
+                <a class="ghost-button" href="<?= e(url('/exports/storages.xlsx?storage_id=' . $storage['id'])) ?>"><?= ui_icon('storages') ?><span>Export Excel</span></a>
+            <?php endif; ?>
+            <a class="ghost-button" href="<?= e(url('/exports/storages?storage_id=' . $storage['id'])) ?>"><?= ui_icon('export') ?><span>Export CSV</span></a>
+        <?php endif; ?>
         <?php if (Auth::hasPermission('storages.copy') && Auth::hasPermission('storages.create')): ?>
             <a class="ghost-button" href="<?= e(url('/storages/create?copy=' . $storage['id'])) ?>"><?= ui_icon('copy_action') ?><span>Copy Location</span></a>
         <?php endif; ?>
@@ -123,6 +129,28 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                         <span>Open movements filtered to this location.</span>
                     </span>
                     <span class="storage-action-cta">Open</span>
+                </a>
+            <?php endif; ?>
+
+            <?php if (Auth::hasPermission('storages.export')): ?>
+                <?php if (storage_xlsx_thumbnail_export_enabled()): ?>
+                    <a class="storage-action-card" href="<?= e(url('/exports/storages.xlsx?storage_id=' . $storage['id'])) ?>">
+                        <span class="storage-action-icon"><?= ui_icon('storages') ?></span>
+                        <span class="storage-action-copy">
+                            <strong>Export Items Excel</strong>
+                            <span>Download <?= e($storage['name']) ?> with every item, quantity, value, thumbnails, and scan codes.</span>
+                        </span>
+                        <span class="storage-action-cta">Excel</span>
+                    </a>
+                <?php endif; ?>
+
+                <a class="storage-action-card" href="<?= e(url('/exports/storages?storage_id=' . $storage['id'])) ?>">
+                    <span class="storage-action-icon"><?= ui_icon('export') ?></span>
+                    <span class="storage-action-copy">
+                        <strong>Export Items CSV</strong>
+                        <span>Download a lightweight item list for this location.</span>
+                    </span>
+                    <span class="storage-action-cta">CSV</span>
                 </a>
             <?php endif; ?>
 

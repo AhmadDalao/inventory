@@ -2931,6 +2931,16 @@ textarea {
     align-items: end;
 }
 
+.storage-export-picker {
+    align-items: end;
+    padding-top: 14px;
+    border-top: 1px solid rgba(138, 109, 74, 0.12);
+}
+
+.storage-export-picker .field {
+    flex: 1 1 360px;
+}
+
 .field-row {
     display: grid;
     gap: 14px;
