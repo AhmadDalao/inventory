@@ -102,9 +102,12 @@ Requests cover user/admin item requests. The normal cycle is create, approve/rej
 
 ### Handovers
 
-Handovers cover temporary issuing of items to a person or team.
+Handovers have two target modes:
 
-Current cycle:
+- Staff / temporary use: items are issued to a person or team, then returned quantity and usage reasons are reported.
+- Storage transfer: items move from one storage to another storage owner, then the destination owner confirms what actually arrived.
+
+Staff-use cycle:
 
 1. Admin/storage owner creates the handover and optional expected usage plan.
 2. Receiver confirms exact quantity received.
@@ -114,6 +117,14 @@ Current cycle:
 6. Owner reviews, corrects if needed, and approves.
 7. Stock movements post on owner approval.
 8. PDF/XLSX signoff is regenerated for the final record.
+
+Storage-transfer cycle:
+
+1. Source storage owner creates a handover with target `Transfer to Storage Owner`.
+2. Stock moves from source storage into the handover buffer.
+3. Destination storage owner confirms received quantities.
+4. If receipt is exact, stock moves from buffer to destination storage and the handover closes.
+5. If receipt is short, received stock waits in the buffer until the source owner approves the shortage; then received stock moves to destination and missing stock returns to source.
 
 Receiver cancellation after delivery is intentionally restricted. The receiver reports issues; the storage owner decides final stock action.
 
