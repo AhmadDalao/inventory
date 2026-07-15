@@ -1820,6 +1820,29 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
 
         $reconciliationHeaderRow = $reconciliationNoteRow + 1;
+        if (!$isStorageTransfer) {
+            $usageSummaryRows = [
+                ['Expected Usage', (string) ($totals['expected_usage_reason_value'] ?? '')],
+                ['Used Breakdown / Actual Usage', (string) ($totals['usage_reason_value'] ?? '')],
+                ['Usage Variance', (string) ($totals['usage_variance_value'] ?? '')],
+            ];
+
+            foreach ($usageSummaryRows as [$summaryLabel, $summaryValue]) {
+                $summaryValue = trim((string) $summaryValue);
+
+                if ($summaryValue === '') {
+                    continue;
+                }
+
+                $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
+                    . workflow_xlsx_cell('A' . $reconciliationHeaderRow, $summaryLabel, 4)
+                    . workflow_xlsx_cell('B' . $reconciliationHeaderRow, $summaryValue, 3)
+                    . '</row>';
+                $mergeCells[] = 'B' . $reconciliationHeaderRow . ':J' . $reconciliationHeaderRow;
+                $reconciliationHeaderRow++;
+            }
+        }
+
         $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
             . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected Usage / Issued', 2)
