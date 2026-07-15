@@ -489,9 +489,12 @@ function global_search_results(string $query): array
             'date_to' => '',
         ], 'h');
         $rows = Database::fetchAll(
-            "SELECT h.id, h.handover_number, h.status, h.recipient_name, source_storage.name AS source_storage_name
+            "SELECT h.id, h.handover_number, h.status, h.recipient_name, h.recipient_type,
+                    source_storage.name AS source_storage_name,
+                    destination_storage.name AS destination_storage_name
              FROM handovers h
              INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
+             LEFT JOIN storages destination_storage ON destination_storage.id = h.destination_storage_id
              {$where}
              ORDER BY h.issued_at DESC, h.id DESC
              LIMIT 5",
@@ -499,7 +502,13 @@ function global_search_results(string $query): array
         );
 
         foreach ($rows as $row) {
-            $results[] = global_search_result('Handovers', (string) $row['handover_number'], handover_status_label((string) $row['status']) . ' · ' . (string) $row['recipient_name'], url('/handovers/' . $row['id']), 'handover', 'Handover');
+            $subtitleParts = [handover_status_label((string) $row['status']), (string) $row['recipient_name']];
+
+            if (($row['recipient_type'] ?? 'staff') === 'storage' && !empty($row['destination_storage_name'])) {
+                $subtitleParts[] = (string) $row['source_storage_name'] . ' to ' . (string) $row['destination_storage_name'];
+            }
+
+            $results[] = global_search_result('Handovers', (string) $row['handover_number'], implode(' · ', array_filter($subtitleParts)), url('/handovers/' . $row['id']), 'handover', 'Handover');
         }
     }
 
