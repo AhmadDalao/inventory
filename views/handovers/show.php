@@ -286,6 +286,7 @@ foreach ($lines as $line) {
                         <tbody>
                         <?php foreach ($lines as $line): ?>
                             <?php
+                            $lineImageUrl = item_image_url($line['image_path'] ?? null);
                             $oldReceivedInput = old('line_received', []);
                             $receivedValue = is_array($oldReceivedInput) && array_key_exists((int) $line['id'], $oldReceivedInput)
                                 ? (string) $oldReceivedInput[(int) $line['id']]
@@ -294,7 +295,19 @@ foreach ($lines as $line) {
                                     : format_quantity((float) $line['quantity_handed']));
                             ?>
                             <tr>
-                                <td><?= e($line['item_name']) ?> <span class="tiny-copy"><?= e($line['item_sku']) ?></span></td>
+                                <td>
+                                    <div class="item-table-cell">
+                                        <?php if ($lineImageUrl): ?>
+                                            <img class="item-thumb expandable-image" src="<?= e($lineImageUrl) ?>" alt="<?= e($line['item_name']) ?>" data-expand-image tabindex="0">
+                                        <?php else: ?>
+                                            <span class="item-thumb item-thumb-fallback"><?= e(item_initial((string) $line['item_name'])) ?></span>
+                                        <?php endif; ?>
+                                        <div>
+                                            <strong><?= e($line['item_name']) ?></strong>
+                                            <span class="tiny-copy"><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></span>
+                                        </div>
+                                    </div>
+                                </td>
                                 <td><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                                 <td>
                                     <input
@@ -363,9 +376,24 @@ foreach ($lines as $line) {
                         </thead>
                         <tbody>
                         <?php foreach ($lines as $line): ?>
-                            <?php $shortage = round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2); ?>
+                            <?php
+                            $lineImageUrl = item_image_url($line['image_path'] ?? null);
+                            $shortage = round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2);
+                            ?>
                             <tr>
-                                <td><?= e($line['item_name']) ?> <span class="tiny-copy"><?= e($line['item_sku']) ?></span></td>
+                                <td>
+                                    <div class="item-table-cell">
+                                        <?php if ($lineImageUrl): ?>
+                                            <img class="item-thumb expandable-image" src="<?= e($lineImageUrl) ?>" alt="<?= e($line['item_name']) ?>" data-expand-image tabindex="0">
+                                        <?php else: ?>
+                                            <span class="item-thumb item-thumb-fallback"><?= e(item_initial((string) $line['item_name'])) ?></span>
+                                        <?php endif; ?>
+                                        <div>
+                                            <strong><?= e($line['item_name']) ?></strong>
+                                            <span class="tiny-copy"><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></span>
+                                        </div>
+                                    </div>
+                                </td>
                                 <td><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                                 <td><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
                                 <td><?= format_quantity($shortage) ?> <?= e($line['unit']) ?></td>
