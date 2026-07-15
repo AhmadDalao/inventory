@@ -40,7 +40,7 @@ If local MySQL is unavailable, run stock invariants on the live server after a b
 
 ## Current Architecture
 
-Routes still live in `index.php`. Domain functions are loaded through `app/modules.php` and organized under `app/modules/`.
+Routes still live in `index.php`. Domain functions are loaded through `app/modules.php` and organized under `app/modules/`. Bootstrap-safe shared support code, such as permission catalogs and role defaults, lives under `app/support/`.
 
 The old aggregate files remain as compatibility loaders:
 
