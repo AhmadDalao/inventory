@@ -15,6 +15,32 @@ $editableLineItems = old('edit_line_items', array_map(static fn (array $line): a
 $editableLineItems = is_array($editableLineItems) && $editableLineItems !== []
     ? $editableLineItems
     : [['item_id' => '', 'quantity' => '']];
+$workflowCatalogPreview = json_decode((string) ($storageCatalogJson ?? '{}'), true);
+$workflowCatalogItemsById = [];
+
+if (is_array($workflowCatalogPreview)) {
+    foreach ($workflowCatalogPreview as $catalogItems) {
+        if (!is_array($catalogItems)) {
+            continue;
+        }
+
+        foreach ($catalogItems as $catalogItem) {
+            if (!is_array($catalogItem) || empty($catalogItem['id'])) {
+                continue;
+            }
+
+            $workflowCatalogItemsById[(string) $catalogItem['id']] = $catalogItem;
+        }
+    }
+}
+
+$workflowLinePreviewItem = static function (array $line) use ($workflowCatalogItemsById): ?array {
+    $itemId = (string) ($line['item_id'] ?? '');
+
+    return $itemId !== '' && isset($workflowCatalogItemsById[$itemId])
+        ? $workflowCatalogItemsById[$itemId]
+        : null;
+};
 $statusLabel = handover_status_label((string) $handoverRecord['status']);
 $isRequestMode = (string) ($handoverRecord['handover_mode'] ?? 'direct') === 'request';
 $isSourceOwner = Auth::isOwner()
@@ -428,6 +454,19 @@ foreach ($lines as $line) {
                             </summary>
 
                             <div class="handover-close-card-body">
+                                <div class="handover-close-item-identity">
+                                    <?php if ($lineImageUrl): ?>
+                                        <img class="item-thumb handover-close-body-thumb expandable-image" src="<?= e($lineImageUrl) ?>" alt="<?= e($line['item_name']) ?>" data-expand-image tabindex="0">
+                                    <?php else: ?>
+                                        <span class="item-thumb item-thumb-fallback handover-close-body-thumb"><?= e(item_initial((string) $line['item_name'])) ?></span>
+                                    <?php endif; ?>
+                                    <div>
+                                        <span class="eyebrow">Reporting Item</span>
+                                        <strong><?= e($line['item_name']) ?></strong>
+                                        <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
+                                    </div>
+                                </div>
+
                                 <?php if ($expectedUsageSummary !== ''): ?>
                                     <div class="handover-usage-summary-chip">Expected: <?= e($expectedUsageSummary) ?></div>
                                 <?php endif; ?>
@@ -878,12 +917,29 @@ foreach ($lines as $line) {
                         </thead>
                         <tbody data-workflow-line-body>
                         <?php foreach ($editableLineItems as $line): ?>
+                            <?php $selectedWorkflowItem = $workflowLinePreviewItem((array) $line); ?>
                             <tr data-workflow-line>
                                 <td>
                                     <div class="workflow-picker" data-workflow-picker>
                                         <input type="hidden" name="line_item_id[]" value="<?= e((string) ($line['item_id'] ?? '')) ?>" data-workflow-item-input required>
                                         <button class="workflow-picker-toggle" type="button" data-workflow-picker-toggle>
-                                            <span class="workflow-picker-toggle-copy" data-workflow-picker-label><?= !empty($line['item_id']) ? 'Saved item' : 'Select source item first' ?></span>
+                                            <span class="workflow-picker-toggle-copy" data-workflow-picker-label>
+                                                <?php if ($selectedWorkflowItem): ?>
+                                                    <span class="workflow-picker-selected">
+                                                        <?php if (!empty($selectedWorkflowItem['image_url'])): ?>
+                                                            <img class="workflow-picker-thumb" src="<?= e((string) $selectedWorkflowItem['image_url']) ?>" alt="<?= e((string) $selectedWorkflowItem['name']) ?>">
+                                                        <?php else: ?>
+                                                            <span class="workflow-picker-thumb workflow-picker-thumb-fallback"><?= e(item_initial((string) $selectedWorkflowItem['name'])) ?></span>
+                                                        <?php endif; ?>
+                                                        <span>
+                                                            <strong><?= e((string) $selectedWorkflowItem['name']) ?></strong>
+                                                            <span class="tiny-copy"><?= e((string) $selectedWorkflowItem['sku']) ?><?= !empty($selectedWorkflowItem['barcode']) ? ' · ' . e((string) $selectedWorkflowItem['barcode']) : '' ?> · <?= e((string) $selectedWorkflowItem['unit']) ?></span>
+                                                        </span>
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="workflow-picker-placeholder">Select source item first</span>
+                                                <?php endif; ?>
+                                            </span>
                                         </button>
                                         <div class="workflow-picker-panel" data-workflow-picker-panel hidden>
                                             <input class="workflow-picker-search" type="search" placeholder="Search item" data-workflow-picker-search>
