@@ -1808,14 +1808,14 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     if ($handoverUsesReconciliation) {
         $reconciliationTitleRow = $rowNumber + 2;
         $sheetRows[] = '<row r="' . $reconciliationTitleRow . '" ht="28" customHeight="1">'
-            . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Handover Reconciliation', 1)
+            . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Notes And Reconciliation', 1)
             . '</row>';
         $mergeCells[] = 'A' . $reconciliationTitleRow . ':J' . $reconciliationTitleRow;
 
         $reconciliationNoteRow = $reconciliationTitleRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationNoteRow . '" ht="24" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationNoteRow, 'Notes', 4)
-            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.', 3)
+            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.', 3)
             . '</row>';
         $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
 
@@ -2395,7 +2395,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_text('KONA INVENTORY', 9, 42, 750, 'F2');
         }
 
-        $commands .= workflow_pdf_text($handoverUsesReconciliation ? 'Handover Reconciliation' : 'Legacy Notes And Reconciliation', 20, 42, 710, 'F2');
+        $commands .= workflow_pdf_text($handoverUsesReconciliation ? 'Notes And Reconciliation' : 'Legacy Notes And Reconciliation', 20, 42, 710, 'F2');
         $commands .= workflow_pdf_text($meta['number'], 14, 42, 689, 'F2');
         $commands .= workflow_pdf_text('Generated ' . date('Y-m-d H:i'), 9, 410, 750);
 
@@ -2409,7 +2409,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         $commands .= workflow_pdf_text($handoverUsesReconciliation ? 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.' : 'Legacy layout keeps the old stock accounting and usage variance summary.', 8, 42, 640);
 
         if ($handoverUsesReconciliation) {
-            $commands .= workflow_pdf_text('Reconciliation Table', 12, 42, 614, 'F2');
+            $commands .= workflow_pdf_text('Usage Reconciliation', 12, 42, 614, 'F2');
             $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
             $commands .= workflow_pdf_text('Type', 8, 56, 592, 'F2');
             $commands .= workflow_pdf_text('Expected / Issued', 8, 182, 592, 'F2');
@@ -2462,7 +2462,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
                 }
             }
 
-            $commands .= workflow_pdf_text('Difference / Unaccounted = received - used - returned. 0 means all handed stock is accounted for.', 8, 42, max(208, $y - 8));
+            $commands .= workflow_pdf_text('Difference = received - used - returned. 0 means all handed stock is accounted for.', 8, 42, max(208, $y - 8));
         } else {
             $commands .= workflow_pdf_text('Stock Accounting', 12, 42, 614, 'F2');
             $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
