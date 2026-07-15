@@ -4,6 +4,7 @@ declare(strict_types=1);
 $moduleFiles = [
     __DIR__ . '/modules/core.php',
     __DIR__ . '/modules/settings.php',
+    __DIR__ . '/modules/email.php',
     __DIR__ . '/modules/auth.php',
     __DIR__ . '/modules/users.php',
     __DIR__ . '/modules/inventory.php',
