@@ -17,3 +17,881 @@ function handle_documentation_index(): void
         'departmentGuides' => documentation_department_guides(),
     ]);
 }
+// Moved from helpers.php.
+
+function documentation_sections(): array
+{
+    return [
+        [
+            'slug' => 'dashboard',
+            'title' => 'Dashboard',
+            'icon' => 'dashboard',
+            'audience' => 'Owner, Admin, CFO, Accountant, Operations, Storage Managers, Staff',
+            'route' => '/dashboard',
+            'summary' => 'The landing page for live inventory health, usage trends, pending work, and staff assignments.',
+            'features' => [
+                'Shows active item counts, storage counts, warehouse counts, total stock units, low-stock items, inventory value, usage, open requests, open handovers, and purchase queue metrics.',
+                'Date filters change dashboard charts and usage cards without leaving the page.',
+                'Storage filter narrows the dashboard to one storage or warehouse; leaving it blank shows every active storage.',
+                'Charts show usage trends and value by location so managers can see where stock is being consumed or held.',
+                'Staff users see a simplified dashboard focused on items assigned or handed over to them.',
+                'Notification panel shows recent workflow events and plays a sound when new events arrive.',
+            ],
+            'steps' => [
+                'Use the storage filter when you need to review one warehouse or storage area.',
+                'Use date from and date to when checking usage for a shift, event day, week, or month.',
+                'Open low-stock cards when deciding what needs refill or purchase.',
+                'Open request, handover, or purchase cards when something is waiting for action.',
+            ],
+            'rules' => [
+                'Dashboard numbers are summaries; the movement log and item detail pages remain the source of truth for exact history.',
+                'Staff dashboard intentionally hides management metrics.',
+            ],
+        ],
+        [
+            'slug' => 'global-search',
+            'title' => 'Global Search',
+            'icon' => 'search',
+            'audience' => 'Owner, Admin, CFO, Accountant, Operations, Storage Managers, Staff',
+            'route' => '/dashboard',
+            'summary' => 'The top search bar finds allowed pages and records from one place without opening each module first.',
+            'features' => [
+                'Search from the topbar by item name, SKU, storage, request number, handover number, purchase number, supplier, file name, admin, audit activity, or documentation topic.',
+                'Results update with AJAX as you type after at least 2 characters.',
+                'Use keyboard arrows to move between results and press Enter to open the selected result.',
+                'Results are grouped by module such as Pages, Items, Storages, Requests, Handovers, Purchases, Files, Stocktakes, Reorder, Admins, Audit, and Documentation.',
+                'If no exact result is selected, submitting the search opens the best fallback page for that user.',
+            ],
+            'steps' => [
+                'Click the Search anything field in the topbar.',
+                'Type a SKU, item name, request number, supplier, file name, or documentation topic.',
+                'Click a result or use arrow keys and Enter.',
+                'Use the target page filters if you need deeper filtering after opening a result.',
+            ],
+            'rules' => [
+                'Global search follows the same permissions as the sidebar and pages.',
+                'Staff do not see private admin inventory results or item quantities through global search.',
+                'Search is action-based AJAX; it runs when the user types or submits, not by passive polling.',
+            ],
+        ],
+        [
+            'slug' => 'storages',
+            'title' => 'Storages And Warehouses',
+            'icon' => 'storages',
+            'audience' => 'Owner, Admin, Operations, Storage Managers',
+            'route' => '/storages',
+            'summary' => 'Create and manage locations that hold inventory. A warehouse can hold many items, and a storage can hold the same items with different quantities.',
+            'features' => [
+                'Create unlimited warehouses and storages.',
+                'Assign an owner/admin to each storage so requests and handovers go to the right person.',
+                'Open a storage to see every assigned item, including items with 0 quantity that need refill.',
+                'Storage value is calculated from item quantity multiplied by cost per unit.',
+                'Copy a storage setup and choose whether copied items start with 0 quantity.',
+                'Delete is soft delete: archived storages can be recovered from the deleted filter.',
+                'Export storage reports with every item inside each storage and its quantity/value.',
+                'Use the searchable storage export picker to export one selected storage or every storage.',
+                'Open a storage detail page to export Excel or CSV for only the items inside that storage.',
+            ],
+            'steps' => [
+                'Create warehouse or storage from Storages > Create Storage.',
+                'Pick the storage type, owner, and notes.',
+                'Open a storage to review assigned items and remaining quantity.',
+                'Use Copy when another location should use the same item setup.',
+                'Use Export Storage Items when you need a storage-specific item list for review or accounting.',
+                'Use Deleted filter when you need to recover a removed storage.',
+            ],
+            'rules' => [
+                'Removing an item from one storage must not remove it from every storage.',
+                '0 quantity means refill needed, not deleted.',
+                'A storage can show an item even when quantity is 0 if the item is assigned there.',
+            ],
+        ],
+        [
+            'slug' => 'items',
+            'title' => 'Items Catalog',
+            'icon' => 'items',
+            'audience' => 'Owner, Admin, Operations, Storage Managers',
+            'route' => '/items',
+            'summary' => 'The shared item catalog: name, SKU, barcode, unit, cost, image, reorder level, and current quantity across locations.',
+            'features' => [
+                'Create items with SKU, optional real barcode, unit, category, reorder level, cost, notes, and optional image.',
+                'Barcode can be typed or filled by clicking the barcode field and scanning with a hardware scanner.',
+                'Use units such as pcs by default, or pick another unit when needed.',
+                'Upload item images for clarity; thumbnails appear in tables and can expand on click.',
+                'Same SKU can exist across storages through shared item assignments and separate storage balances.',
+                'Copy an item setup to avoid retyping name, SKU, notes, unit, cost, and image details.',
+                'Archive is soft delete and can be recovered.',
+                'Export filtered item reports.',
+            ],
+            'steps' => [
+                'Create a new item from Items > Create Item.',
+                'If the SKU already exists, add it to a selected storage instead of creating a duplicate catalog record.',
+                'Use quantity 0 when assigning an item to a storage that needs tracking but is not stocked yet.',
+                'Open an item to see locations, movement history, purchase history, and refill context.',
+            ],
+            'rules' => [
+                'SKU is the stock keeping identifier. It can be shared across storages because quantity belongs to storage balances.',
+                'Barcode is the real scannable code printed on an item. If barcode is blank, printable labels fall back to SKU.',
+                'Owners can make item barcode mandatory from Website Control > Inventory Controls.',
+                'Category is only a grouping label; it should not control stock behavior.',
+                'Do not archive an item that is still assigned to storages; remove the specific storage assignment first.',
+            ],
+        ],
+        [
+            'slug' => 'assets',
+            'title' => 'Company Assets',
+            'icon' => 'assets',
+            'audience' => 'Owner, Admin, Operations, Storage Managers, Staff',
+            'route' => '/company-assets',
+            'summary' => 'Track durable company property such as laptops, radios, printers, cameras, tools, tablets, and equipment without affecting inventory item quantities.',
+            'features' => [
+                'Create one asset at a time or bulk-create multiple serialized assets from the same purchase.',
+                'Track asset number, barcode or asset tag, serial number, model, category, condition, status, location, assigned user, supplier, purchase cost, warranty expiry, notes, image, and protected files.',
+                'Assign assets to employees or locations, require receipt confirmation, request returns, confirm returned condition, and keep every custody action in the event timeline.',
+                'Open maintenance tickets with due date, vendor, cost, notes, proof files, and completion status.',
+                'Export assets to CSV or Excel with optional thumbnails and barcode images using the export settings.',
+                'Scan Center and global search can open assets by asset number, barcode, serial number, or QR reference.',
+            ],
+            'steps' => [
+                'Create the asset from Assets > Create Asset and upload an image if available.',
+                'Use bulk quantity when buying many identical durable objects, such as 10 radios; the system creates one record per object.',
+                'Assign the asset to a user or storage and wait for the recipient to confirm receipt.',
+                'When the asset comes back, confirm return, choose the received condition, and upload proof if needed.',
+                'Use Maintenance when the asset is under repair or warranty work.',
+            ],
+            'rules' => [
+                'Assets are individual company property records. They do not change inventory item quantities.',
+                'Staff only see assets assigned to them.',
+                'Owner and super admin can override asset status, but every override is logged.',
+                'QR codes store only the asset reference, so domain changes do not break scanning.',
+                'Deleted assets are soft-deleted and recoverable.',
+            ],
+        ],
+        [
+            'slug' => 'item-detail-movements',
+            'title' => 'Item Detail And Stock Movements',
+            'icon' => 'movements',
+            'audience' => 'Owner, Admin, Operations, Storage Managers',
+            'route' => '/movements',
+            'summary' => 'Movement forms and logs explain exactly how quantities changed per item and location.',
+            'features' => [
+                'Create usage, restock, transfer, and adjustment movements.',
+                'Usage subtracts quantity automatically; employees type 100, not -100.',
+                'Restock adds stock to a destination storage.',
+                'Transfer moves stock from one storage to another and updates both balances.',
+                'Adjustment sets or corrects a balance when a physical count requires correction.',
+                'Movement log shows source storage, destination storage, quantities, balances, reference code, notes, user, and date.',
+                'AJAX updates refresh visible quantities and history after supported actions.',
+            ],
+            'steps' => [
+                'Open an item and choose the movement type.',
+                'Pick source and destination storage depending on movement type.',
+                'Enter the positive quantity used, added, moved, or adjusted.',
+                'Add reference and notes when the movement comes from an event, supplier receipt, handover, or correction.',
+            ],
+            'rules' => [
+                'Usage is always entered as a positive number and the system subtracts it.',
+                'Transfers must not create or destroy stock; they move quantity between locations.',
+                'Movement history does not disappear when an item is archived.',
+            ],
+        ],
+        [
+            'slug' => 'scan-center',
+            'title' => 'Scan Center',
+            'icon' => 'scan',
+            'audience' => 'Owner, Admin, Operations, Storage Managers',
+            'route' => '/scan',
+            'summary' => 'Scan Center is the fast barcode/SKU workflow for finding an item and posting common stock actions without browsing the catalog.',
+            'features' => [
+                'Accepts hardware scanner input in the search field.',
+                'Uses browser camera barcode scanning when the device supports BarcodeDetector.',
+                'Looks up active items by barcode, SKU, item name, or location.',
+                'Shows item image, SKU, barcode, current quantity, stock value, and per-location balances.',
+                'Can post quick usage or restock movements through the same stock movement endpoint used by item detail pages.',
+                'Links to the item page and printable labels when deeper review is needed.',
+            ],
+            'steps' => [
+                'Open Scan Center.',
+                'Click the scan field and scan with a hardware scanner, or use Start Camera Scan on supported phones.',
+                'Select the matched item.',
+                'Pick movement type, storage, quantity, and notes if you need to post quick usage or restock.',
+                'Use Open Item when the movement needs transfer, adjustment, or deeper history review.',
+            ],
+            'rules' => [
+                'Scanner movements use existing permission checks and movement logs.',
+                'Usage is entered as a positive number and the app subtracts it.',
+                'Camera scanning depends on browser support; hardware scanner and manual barcode entry always remain available.',
+            ],
+        ],
+        [
+            'slug' => 'requests',
+            'title' => 'Requests',
+            'icon' => 'requests',
+            'audience' => 'Owner, Admin, Storage Managers, Staff',
+            'route' => '/requests',
+            'summary' => 'Requests are used when someone asks another storage owner/admin for items, or staff ask for items they need to use.',
+            'features' => [
+                'Staff can request item quantities without seeing private storage quantities.',
+                'Admins can request transfers from one storage owner to another destination storage.',
+                'Approver receives notification and can approve or reject.',
+                'Requester confirms received quantity, including short receipt such as receiving 98 instead of 100.',
+                'Approver confirms receipt variance so stock is corrected and returned when needed.',
+                'Request status moves through pending, approved, receipt review, completed, rejected, or cancelled.',
+                'Export request reports.',
+            ],
+            'steps' => [
+                'Create a request and select the item lines and quantities needed.',
+                'Staff should ask from the assigned storage owner when one is configured.',
+                'Approver reviews requested quantities and approves or rejects.',
+                'Receiver enters exact received quantities.',
+                'Approver confirms variances before the request becomes complete.',
+            ],
+            'rules' => [
+                'Users cannot approve their own request.',
+                'Staff requests do not need destination storage because staff ask for use, not storage transfer.',
+                'Short receipt must be recorded honestly so the system corrects the remaining stock.',
+            ],
+        ],
+        [
+            'slug' => 'handovers',
+            'title' => 'Handovers',
+            'icon' => 'handover',
+            'audience' => 'Owner, Admin, Storage Managers, Reception, Staff',
+            'route' => '/handovers',
+            'summary' => 'Handovers track temporary items given to someone for a shift, event, reception desk, or same-day use.',
+            'features' => [
+                'Storage owner/admin can create a handover to staff.',
+                'Staff can request a handover for items they need later that day.',
+                'Recipient confirms exact received quantity before use.',
+                'Closeout is returned-first: recipient enters how many came back and the system calculates used quantity.',
+                'Expected usage is a forecast only; actual usage is reported after the work is done.',
+                'Actual usage can be split by reason such as Online, Walk-in, Event, Damage, Sport, School, Other, or Unspecified.',
+                'Staff close the handover after use; status waits for storage owner approval.',
+                'Approver can correct returned quantity and usage reasons before final close.',
+                'Movement logs record issued, used, and returned stock impact.',
+                'Signoff PDF/Excel keeps item rows simple and places usage reconciliation at the bottom: total issued, reason totals, returned total, and difference/unaccounted.',
+                'Export handover reports.',
+            ],
+            'steps' => [
+                'Create or request a handover and add line items.',
+                'Recipient confirms what they actually received.',
+                'Recipient enters returned quantity after the shift or event.',
+                'System calculates used quantity from received minus returned.',
+                'Recipient optionally splits used quantity by reason.',
+                'Storage owner reviews, corrects if needed, and approves the closeout so used and returned stock post correctly.',
+            ],
+            'rules' => [
+                'Handover is temporary; request is for asking/transfer workflow.',
+                'Staff cannot close a handover directly into final closed status; owner/admin approval is required.',
+                'If received quantity is wrong, it must enter receipt review before stock is corrected.',
+                'Difference/unaccounted should normally be 0. If it is not, the owner should review before closing.',
+            ],
+        ],
+        [
+            'slug' => 'purchases',
+            'title' => 'Purchases And Receiving',
+            'icon' => 'purchases',
+            'audience' => 'Owner, CFO, Accountant, Operations, Admin',
+            'route' => '/purchases',
+            'summary' => 'Purchases track supplier quotes, price lists, receipts, approvals, receiving, and final restocking.',
+            'features' => [
+                'Create supplier purchase drafts for a destination storage.',
+                'Attach quote, price list, receipt, proof image, or scanned PDF before submitting.',
+                'Bulk import can process old supplier files and create purchase drafts.',
+                'OCR/import uses configured server AI OCR for old Arabic/English scanned PDFs, then falls back to local/browser extraction and manual review.',
+                'OCR confidence badges flag low-confidence supplier fields, dates, and line items before draft creation.',
+                'Approver can adjust quantities and prices before approval.',
+                'Approval does not add stock yet.',
+                'Receiver reports exact received quantity and uploads receipt/proof if needed.',
+                'Final confirmation creates restock movements, updates storage balances, item total quantity, and weighted average cost.',
+                'Self approval and self receipt confirmation are blocked.',
+                'Export purchase reports with supplier, storage, status, line details, totals, users, and file names.',
+            ],
+            'steps' => [
+                'Create purchase draft or use Bulk Import.',
+                'Select supplier, destination storage, approver, currency, expected date, and line items.',
+                'Attach at least one proof document before submitting.',
+                'Approver reviews and approves or rejects.',
+                'Receiver enters what arrived.',
+                'Approver confirms final received quantities to add stock.',
+            ],
+            'rules' => [
+                'Stock increases only after final receipt confirmation, not at approval.',
+                'Use receipt review for shortages, overages, or questionable deliveries.',
+                'Treat low OCR confidence as a review warning, not as approved inventory data.',
+                'Quick-created purchase items appear in inventory only when the purchase workflow confirms them.',
+            ],
+        ],
+        [
+            'slug' => 'reports',
+            'title' => 'Reports',
+            'icon' => 'reports',
+            'audience' => 'Owner, CFO, Accountant, Operations, Admin',
+            'route' => '/reports',
+            'summary' => 'Reports shows a daily operations summary plus export presets for the business reports used most often.',
+            'features' => [
+                'Daily summary answers what happened on one date: used quantities, touched items, users, locations, and movement timeline.',
+                'Groups export shortcuts by Inventory, Workflow, Finance, Supplier, Files, and Audit.',
+                'Keeps reports permission-aware so users only see presets they can export.',
+                'Provides date, status, and storage preset links where the underlying module supports filters.',
+                'Links back to the source pages for review before export.',
+            ],
+            'steps' => [
+                'Open Reports from the sidebar.',
+                'Use the Daily Operations filter to pick a date, location, and movement type.',
+                'Review usage by item, who moved stock, and the activity timeline.',
+                'Export Summary when you need a day-end CSV.',
+                'Pick the report card that matches the question.',
+                'Use Download CSV for the preset export or Open Source Page to review records first.',
+                'Use the target module filters when you need a more specific report.',
+            ],
+            'rules' => [
+                'Reports do not create new data; they reuse existing movements and exports.',
+                'Movement logs remain the source of truth for stock history.',
+                'CSV exports are permission-checked the same way as the source pages.',
+            ],
+        ],
+        [
+            'slug' => 'suppliers',
+            'title' => 'Suppliers',
+            'icon' => 'supplier',
+            'audience' => 'Owner, CFO, Accountant, Operations, Admin',
+            'route' => '/suppliers',
+            'summary' => 'Supplier directory stores vendor details and purchase history.',
+            'features' => [
+                'Create supplier records with type, custom type when Other is selected, phone, national address, authorized person, optional email, optional CR, optional VAT/tax number, notes, and active/deleted status.',
+                'Supplier pages show linked purchase history.',
+                'Archived suppliers can be recovered.',
+                'Purchases can reuse existing suppliers or quick-create suppliers from purchase forms.',
+                'Export supplier reports.',
+            ],
+            'steps' => [
+                'Create suppliers before purchase if you know the details.',
+                'Open supplier detail to see purchase history and status.',
+                'Archive suppliers that should not be used for new purchases.',
+            ],
+            'rules' => [
+                'Supplier type, phone, national address, and authorized person are mandatory for new supplier records. If type is Other, write the actual custom type.',
+                'Supplier records should be reused rather than duplicated with slightly different spelling.',
+                'Supplier documents live under Purchases and Files, not inside supplier notes.',
+            ],
+        ],
+        [
+            'slug' => 'files',
+            'title' => 'Files',
+            'icon' => 'files',
+            'audience' => 'Owner, Admin, CFO, Accountant, Storage Managers with file permissions',
+            'route' => '/files',
+            'summary' => 'Central protected file library for uploaded item images and purchase documents.',
+            'features' => [
+                'Indexes uploaded item images, copied item images, purchase-line images, supplier quotes, price lists, receipts, and proof files.',
+                'Keeps a protected archive copy for tracking.',
+                'Search by filename, item, SKU, supplier, purchase number, storage, and uploader.',
+                'Filter by type, status, and upload date.',
+                'Download through permission-checked routes.',
+                'Export file index as CSV.',
+            ],
+            'steps' => [
+                'Open Files from the sidebar.',
+                'Use filters to narrow by purchase documents or item images.',
+                'Open the linked source when you need purchase or item context.',
+                'Download when proof is needed for accounting or review.',
+            ],
+            'rules' => [
+                'Files are restricted; staff do not browse the central file library.',
+                'Deleting an original draft document marks the source as deleted but keeps the archive record for audit.',
+                'Use purchases for supplier proof; do not store supplier proof only in notes.',
+            ],
+        ],
+        [
+            'slug' => 'stocktakes',
+            'title' => 'Stocktakes',
+            'icon' => 'stocktakes',
+            'audience' => 'Owner, Admin, Operations, Storage Managers',
+            'route' => '/stocktakes',
+            'summary' => 'Stocktakes are controlled physical counts used to correct inventory balances.',
+            'features' => [
+                'Create a count for one storage.',
+                'Enter counted quantity per item.',
+                'Variance shows difference between system quantity and counted quantity.',
+                'Approval posts adjustment movements to correct balances.',
+                'Cancel draft or waiting stocktakes when the count is wrong or no longer needed.',
+                'Export stocktake reports.',
+            ],
+            'steps' => [
+                'Create stocktake for a storage.',
+                'Count items physically and enter counted quantities.',
+                'Review variances carefully.',
+                'Approver confirms to post adjustment movements.',
+            ],
+            'rules' => [
+                'Stocktake is for correcting reality; do not use it instead of normal usage, transfer, request, handover, or purchase workflows.',
+                'Approval is required before stocktake corrections affect inventory.',
+            ],
+        ],
+        [
+            'slug' => 'reorder',
+            'title' => 'Reorder Center',
+            'icon' => 'reorder',
+            'audience' => 'Owner, CFO, Operations, Storage Managers',
+            'route' => '/reorder',
+            'summary' => 'Reorder center finds items below reorder level and can create purchase drafts.',
+            'features' => [
+                'Shows low-stock suggestions by item and storage.',
+                'Filters suggestions by storage.',
+                'Suggested quantity is based on current quantity versus reorder level.',
+                'Can create purchase drafts from low-stock suggestions.',
+                'Export reorder suggestions.',
+            ],
+            'steps' => [
+                'Open Reorder Center and filter by storage if needed.',
+                'Review low-stock suggestions and estimated value.',
+                'Pick supplier and approver, then create purchase draft.',
+                'Attach supplier proof before submitting the draft.',
+            ],
+            'rules' => [
+                'Reorder suggestions are guidance, not automatic stock changes.',
+                'Stock still enters inventory only through purchase receiving or manual restock movement.',
+            ],
+        ],
+        [
+            'slug' => 'labels',
+            'title' => 'Labels',
+            'icon' => 'labels',
+            'audience' => 'Owner, Admin, Operations, Storage Managers',
+            'route' => '/labels',
+            'summary' => 'Printable labels help identify items and storages quickly.',
+            'features' => [
+                'Generate item labels with item names, SKU, unit, category, image where available, and code.',
+                'Generate storage labels with storage name and type.',
+                'Search and filter label lists before printing.',
+                'Use browser print to print labels.',
+            ],
+            'steps' => [
+                'Open Labels.',
+                'Choose items or storages.',
+                'Search/filter the labels you want.',
+                'Print from the browser.',
+            ],
+            'rules' => [
+                'Labels help physical operations but do not change inventory data.',
+                'Use clear item names and SKUs before printing labels.',
+            ],
+        ],
+        [
+            'slug' => 'admins-users',
+            'title' => 'Admins, Users, Roles, And Positions',
+            'icon' => 'users',
+            'audience' => 'Owner and admins with user permissions',
+            'route' => '/users',
+            'summary' => 'Access control manages login accounts, business positions, permissions, and staff ownership.',
+            'features' => [
+                'Create Owner, Admin, and Staff access levels.',
+                'Assign business positions such as CFO, Accountant, Operations Manager, Storage Manager, Reception Staff, General Admin, and Staff.',
+                'Position presets apply recommended permissions.',
+                'Permissions can be customized per user.',
+                'Staff can be assigned to a storage owner so their requests go to the right person.',
+                'Admins can send password reset/setup emails to active users.',
+                'Disable or restore user accounts.',
+                'Export admin/user list.',
+            ],
+            'steps' => [
+                'Create user with name, email, position, access level, and password.',
+                'Use position defaults unless the user needs a custom permission set.',
+                'Review permissions before saving.',
+                'Use Send Reset when a user forgets their password or needs a setup link.',
+                'Disable accounts instead of deleting login history.',
+            ],
+            'rules' => [
+                'Role controls access level; position describes the real job.',
+                'Owner has all permissions.',
+                'Staff should only see the simplified workflows they need.',
+                'Do not give approval permissions to users who approve their own work.',
+            ],
+        ],
+        [
+            'slug' => 'website-control',
+            'title' => 'Website Control',
+            'icon' => 'settings',
+            'audience' => 'Owner and admins with settings permissions',
+            'route' => '/settings/site',
+            'summary' => 'Website Control changes dashboard name, page labels, table names, navigation names, and interface style.',
+            'features' => [
+                'Rename dashboard, sidebar links, page titles, table titles, and dashboard metric labels.',
+                'Switch interface style between KONA and Classic Warm.',
+                'Control brand mark and sidebar eyebrow.',
+                'Control cost-free email settings for password reset emails and optional workflow alert copies.',
+                'Use SMTP, PHP mail, or log-only email mode.',
+                'Send a test email to confirm Hostinger mail delivery.',
+                'Add or replace the OpenAI API key used for purchase document OCR without editing project files.',
+                'Enable or disable server-side AI OCR for Arabic and English scanned supplier documents.',
+                'Save settings without code changes.',
+            ],
+            'steps' => [
+                'Open Website Control.',
+                'Edit the label or style you want changed.',
+                'Use Email Delivery to add SMTP host, port, encryption, username, password, sender details, and alert rules.',
+                'Use Send Test Email after changing sender or SMTP settings.',
+                'Paste an OpenAI key under Purchase OCR if scanned supplier PDFs should be extracted on the server.',
+                'Save Website Control.',
+                'Use Classic Warm if the KONA style does not fit your workflow.',
+            ],
+            'rules' => [
+                'Website Control changes wording, look, barcode rules, email delivery, and OCR configuration; it does not directly change stock quantities.',
+                'Password reset tokens expire after 60 minutes and are stored hashed.',
+                'SMTP is recommended for production; PHP mail remains a fallback.',
+                'Email workflow alerts are optional; in-app notifications remain the source of truth.',
+                'OpenAI keys are masked after saving. Blank means keep the current saved key.',
+                'Keep labels short so the sidebar and tables stay readable on phones.',
+            ],
+        ],
+        [
+            'slug' => 'email-logs',
+            'title' => 'Email Logs',
+            'icon' => 'notification',
+            'audience' => 'Owner, CFO, Accountant, admins with email log permissions',
+            'route' => '/email-logs',
+            'summary' => 'Email Logs show every password reset, setup, test email, and workflow email delivery attempt.',
+            'features' => [
+                'Review sent, failed, and suppressed email attempts.',
+                'Filter by recipient, subject, email type, status, and date range.',
+                'Open linked workflow records when the email belongs to a request, handover, purchase, stocktake, supplier, item, storage, or user.',
+                'Export email delivery attempts for audit review.',
+                'Use failed rows to diagnose SMTP host, port, encryption, username, password, and sender issues.',
+            ],
+            'steps' => [
+                'Open Email Logs from the sidebar or global search.',
+                'Use status cards to jump between sent, failed, and suppressed emails.',
+                'Search by recipient or subject when checking a password reset or workflow alert.',
+                'Open the linked source if the email belongs to a workflow record.',
+                'Export CSV when finance or management needs a delivery trail.',
+            ],
+            'rules' => [
+                'Email logs are sensitive because they include recipient addresses and delivery errors.',
+                'Failed email does not stop inventory workflows; in-app notifications remain the source of truth.',
+                'Suppressed means the app intentionally did not send, usually because email is disabled or log-only mode is active.',
+                'Fix SMTP settings from Website Control, then send a test email and confirm the new log row.',
+            ],
+        ],
+        [
+            'slug' => 'audit-log',
+            'title' => 'Audit Log',
+            'icon' => 'audit',
+            'audience' => 'Owner, CFO, Operations, Admins with audit access',
+            'route' => '/audit-log',
+            'summary' => 'Audit Log tracks important admin actions and system events for accountability.',
+            'features' => [
+                'Search system activity by action, entity, user, and date.',
+                'Filter by action type and entity type.',
+                'Review metadata for context where available.',
+                'Export audit activity.',
+            ],
+            'steps' => [
+                'Open Audit Log.',
+                'Filter by date when investigating a specific period.',
+                'Search by user, entity, or action keyword.',
+                'Export when management or finance needs a record.',
+            ],
+            'rules' => [
+                'Audit log supports accountability; it is not a replacement for inventory movement history.',
+                'Do not delete operational records just to hide mistakes. Correct them with the correct workflow.',
+            ],
+        ],
+        [
+            'slug' => 'exports',
+            'title' => 'Exports And Reports',
+            'icon' => 'export',
+            'audience' => 'Owner, CFO, Accountant, Operations, Admins with export access',
+            'route' => '/exports',
+            'summary' => 'Exports turn filtered operational data into CSV or Excel files for accounting, reporting, and review.',
+            'features' => [
+                'Export items, storages, movements, requests, handovers, purchases, files, stocktakes, suppliers, reorder suggestions, audit log, and users.',
+                'Most exports respect current page filters.',
+                'Storage exports can be generated for all storages or one selected storage from the Storages page/searchable picker or storage detail page.',
+                'Storage exports include each storage and the items inside it with quantity, value, thumbnails, and scan codes where enabled.',
+                'Purchase exports include supplier, storage, status, lines, quantities, prices, totals, users, and files.',
+                'File exports include original filename, source, context, uploader, size, and archive path.',
+            ],
+            'steps' => [
+                'Filter the page first.',
+                'Click Export CSV or Export Excel.',
+                'For storage item exports, search and pick the storage first if you only need one storage.',
+                'Open the file in Excel, Numbers, or Google Sheets.',
+            ],
+            'rules' => [
+                'Exports are snapshots at download time.',
+                'Sensitive exports should only be shared with people who need them.',
+            ],
+        ],
+        [
+            'slug' => 'notifications-live-updates',
+            'title' => 'Notifications And Live Updates',
+            'icon' => 'notification',
+            'audience' => 'All logged-in users',
+            'route' => '/notifications',
+            'summary' => 'Notifications and AJAX updates refresh screens after user actions without constant reloads or background table polling.',
+            'features' => [
+                'Notification menu shows recent workflow activity and refreshes when opened or after an action completes.',
+                'Full Notifications page lists the complete log as cards with filters and direct open links.',
+                'New unread notifications show a popup toast when the app detects them during an action-triggered notification refresh.',
+                'Notification sound plays when a refreshed notification check detects new unread work after browser audio is unlocked.',
+                'Requests, handovers, purchases, filters, and key action forms update with AJAX where supported.',
+                'Filters instantly refresh result regions only when the user changes a filter, searches, submits, or clicks a filter chip.',
+                'Live action forms show feedback and update content after actions.',
+            ],
+            'steps' => [
+                'Keep the app open during operations.',
+                'Open All Notifications from the bell or account menu to browse the complete log.',
+                'Use notification menu to jump to approvals or reviews.',
+                'Use filters normally; supported pages update without a full reload after your input.',
+            ],
+            'rules' => [
+                'The app does not silently refresh tables in the background; it updates after a detected user action.',
+                'Notifications tell you what needs attention; the detail page is where the final decision happens.',
+            ],
+        ],
+        [
+            'slug' => 'login-security',
+            'title' => 'Login And Security',
+            'icon' => 'settings',
+            'audience' => 'All logged-in users',
+            'route' => '/login',
+            'summary' => 'Login protects the inventory system and controls what each employee can see or do.',
+            'features' => [
+                'Users log in with email and password.',
+                'Users can request a reset link from the login page.',
+                'Password reset links expire after 60 minutes and can only be used once.',
+                'Disabled users cannot log in.',
+                'Owner, Admin, and Staff roles control broad access.',
+                'Permissions control exact features such as create, edit, approve, export, or file download.',
+                'Business position controls default permission presets but permissions remain the final control.',
+            ],
+            'steps' => [
+                'Use your assigned email and password.',
+                'Use Forgot Password if you need a reset link.',
+                'Log out when using shared devices.',
+                'Ask an owner/admin if you need access to a page required for your job.',
+            ],
+            'rules' => [
+                'Do not share login accounts.',
+                'Do not use someone else account to approve your own request, purchase, or handover.',
+                'Approvals should be done by the responsible owner/admin, not the requester.',
+            ],
+        ],
+    ];
+}
+
+function documentation_important_sections(): array
+{
+    return [
+        [
+            'title' => 'Staff Daily Flow',
+            'icon' => 'handover',
+            'summary' => 'What staff should request, receive, use, return, and close without seeing private stock totals.',
+            'anchor' => 'doc-handovers',
+            'tags' => ['Staff', 'Requests', 'Handovers', 'Received quantity', 'Returned quantity', 'Actual usage'],
+        ],
+        [
+            'title' => 'Manager Approval Flow',
+            'icon' => 'requests',
+            'summary' => 'Where owners/admins approve requests, handovers, purchases, receipt differences, and closeouts.',
+            'anchor' => 'doc-requests',
+            'tags' => ['Approvals', 'No self approval', 'Receipt review', 'Closeout'],
+        ],
+        [
+            'title' => 'Purchasing And Receiving',
+            'icon' => 'purchases',
+            'summary' => 'Supplier quotes, price lists, receipts, OCR drafts, final receiving, and weighted cost updates.',
+            'anchor' => 'doc-purchases',
+            'tags' => ['CFO', 'Accountant', 'Supplier proof', 'Restock'],
+        ],
+        [
+            'title' => 'Stock And Storage',
+            'icon' => 'storages',
+            'summary' => 'How storage balances, warehouses, transfers, 0-quantity refill items, and movements connect.',
+            'anchor' => 'doc-storages',
+            'tags' => ['Warehouse', 'Storage', 'Transfers', 'Refill'],
+        ],
+        [
+            'title' => 'Files And Proof',
+            'icon' => 'files',
+            'summary' => 'Protected document library for receipts, supplier files, item images, and purchase proof.',
+            'anchor' => 'doc-files',
+            'tags' => ['Files', 'Receipts', 'Images', 'Audit'],
+        ],
+        [
+            'title' => 'Reports And Exports',
+            'icon' => 'export',
+            'summary' => 'CSV exports for inventory, storage, usage, purchases, files, audit, stocktakes, and users.',
+            'anchor' => 'doc-exports',
+            'tags' => ['CFO', 'Reports', 'CSV', 'Accounting'],
+        ],
+        [
+            'title' => 'Access Control',
+            'icon' => 'users',
+            'summary' => 'Owner/admin/staff access, business positions, permissions, and assigned storage owners.',
+            'anchor' => 'doc-admins-users',
+            'tags' => ['Owner', 'Admin', 'CFO', 'Accountant', 'Staff'],
+        ],
+        [
+            'title' => 'Password Recovery And Email',
+            'icon' => 'notification',
+            'summary' => 'Cost-free SMTP or PHP mail for reset links, admin setup links, test email, and optional workflow alert copies.',
+            'anchor' => 'doc-settings-website-control',
+            'tags' => ['Password reset', 'Email', 'SMTP', 'PHP mail', 'Notifications', 'Website Control'],
+        ],
+    ];
+}
+
+function documentation_department_guides(): array
+{
+    return [
+        [
+            'department' => 'Owner / General Management',
+            'icon' => 'dashboard',
+            'roles' => ['Owner'],
+            'responsibilities' => [
+                'Controls every module, user, permission, setting, export, and audit view.',
+                'Reviews high-risk approvals and keeps the system rules clean.',
+                'Uses dashboard, reports, audit, files, and website control to monitor the business.',
+            ],
+            'pages' => ['Dashboard', 'Admins', 'Website Control', 'Audit Log', 'Files', 'Exports'],
+            'handoff' => 'Owner grants access, reviews exceptions, and should not be used as a shared login.',
+        ],
+        [
+            'department' => 'CFO / Finance',
+            'icon' => 'value',
+            'roles' => ['CFO', 'Finance Admin'],
+            'responsibilities' => [
+                'Approves purchase value, supplier proof, receipt differences, and finance exports.',
+                'Uses protected Files to review quotes, price lists, receipts, and proof of purchase.',
+                'Tracks inventory value, weighted cost changes, and supplier purchase history.',
+            ],
+            'pages' => ['Purchases', 'Suppliers', 'Files', 'Reports', 'Audit Log', 'Dashboard'],
+            'handoff' => 'Finance approves money and proof; receiving still confirms what physically arrived.',
+        ],
+        [
+            'department' => 'Accountant',
+            'icon' => 'document',
+            'roles' => ['Accountant', 'Finance User'],
+            'responsibilities' => [
+                'Creates or reviews supplier purchases, uploads receipts, and exports purchase records.',
+                'Checks attached files and supplier information before finance reporting.',
+                'Does not need operational delete controls unless explicitly granted.',
+            ],
+            'pages' => ['Purchases', 'Suppliers', 'Files', 'Exports'],
+            'handoff' => 'Accountant prepares and records; approver confirms before stock value changes.',
+        ],
+        [
+            'department' => 'Operations Manager',
+            'icon' => 'chart',
+            'roles' => ['Operations Manager', 'Admin'],
+            'responsibilities' => [
+                'Monitors stock health, usage, handovers, requests, stocktakes, reorder needs, and labels.',
+                'Fixes operational flow issues without bypassing approval rules.',
+                'Coordinates storage owners and staff during events or daily operations.',
+            ],
+            'pages' => ['Dashboard', 'Storages', 'Items', 'Requests', 'Handovers', 'Stocktakes', 'Reorder', 'Labels'],
+            'handoff' => 'Operations owns workflow quality; storage owners own their physical balances.',
+        ],
+        [
+            'department' => 'Storage Manager / Warehouse Owner',
+            'icon' => 'storages',
+            'roles' => ['Storage Manager', 'Warehouse Owner', 'Admin'],
+            'responsibilities' => [
+                'Owns one or more storage locations and approves items leaving or returning.',
+                'Reviews storage item balances, 0-quantity refill items, transfers, requests, and handovers.',
+                'Confirms returned quantity before temporary handovers become closed.',
+            ],
+            'pages' => ['Storages', 'Items', 'Movement Log', 'Requests', 'Handovers', 'Stocktakes'],
+            'handoff' => 'Storage owner approval is what protects stock from silent loss.',
+        ],
+        [
+            'department' => 'Reception / Staff',
+            'icon' => 'users',
+            'roles' => ['Staff', 'Reception Staff'],
+            'responsibilities' => [
+                'Requests items needed for work and confirms exactly what was received.',
+                'Uses handovers for temporary items, records used quantity, and returns the remainder.',
+                'Sees a simplified dashboard focused on assigned work, not private inventory totals.',
+            ],
+            'pages' => ['Dashboard', 'Requests', 'Handovers', 'Documentation'],
+            'handoff' => 'Staff reports reality; admins approve and correct the stock impact.',
+        ],
+        [
+            'department' => 'Admin / Access Control',
+            'icon' => 'settings',
+            'roles' => ['Owner', 'General Admin'],
+            'responsibilities' => [
+                'Creates users, assigns positions, applies permission presets, and adjusts custom permissions.',
+                'Manages website labels and interface style from Website Control.',
+                'Uses documentation to train employees on the exact workflows they should follow.',
+            ],
+            'pages' => ['Admins', 'Website Control', 'Documentation', 'Audit Log'],
+            'handoff' => 'Admin access is powerful; give the least permissions that still let the person do the job.',
+        ],
+    ];
+}
+
+function documentation_section_count(): int
+{
+    return count(documentation_sections());
+}
+
+function documentation_screenshot_url(string $slug): ?string
+{
+    $safeSlug = preg_replace('/[^a-z0-9\-]/', '', strtolower($slug));
+
+    if ($safeSlug === '') {
+        return null;
+    }
+
+    foreach (['png', 'webp', 'jpg', 'jpeg'] as $extension) {
+        $relativePath = 'docs/screenshots/' . $safeSlug . '.' . $extension;
+
+        if (is_file(base_path('assets/' . $relativePath))) {
+            return asset_url($relativePath);
+        }
+    }
+
+    return null;
+}
+
+function documentation_visual_for_section(array $section): array
+{
+    $steps = [];
+
+    foreach (($section['steps'] ?? []) as $step) {
+        $step = trim((string) $step);
+
+        if ($step !== '') {
+            $steps[] = $step;
+        }
+
+        if (count($steps) >= 3) {
+            break;
+        }
+    }
+
+    if ($steps === []) {
+        foreach (($section['features'] ?? []) as $feature) {
+            $feature = trim((string) $feature);
+
+            if ($feature !== '') {
+                $steps[] = $feature;
+            }
+
+            if (count($steps) >= 3) {
+                break;
+            }
+        }
+    }
+
+    return [
+        'screenshot_url' => documentation_screenshot_url((string) ($section['slug'] ?? '')),
+        'route' => (string) ($section['route'] ?? ''),
+        'title' => (string) ($section['title'] ?? 'System screen'),
+        'icon' => (string) ($section['icon'] ?? 'documentation'),
+        'steps' => $steps,
+    ];
+}
