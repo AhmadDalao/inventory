@@ -1815,7 +1815,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $reconciliationNoteRow = $reconciliationTitleRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationNoteRow . '" ht="24" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationNoteRow, 'Notes', 4)
-            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.', 3)
+            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Stock Accounting. Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.', 3)
             . '</row>';
         $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
 
