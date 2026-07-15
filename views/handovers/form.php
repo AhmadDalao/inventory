@@ -1,6 +1,9 @@
 <?php
 $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id' => '', 'quantity' => '']];
 $isStaffRequest = !empty($isStaffRequest);
+$recipientType = (string) ($handoverRecord['recipient_type'] ?? 'staff');
+$isStorageTransfer = !$isStaffRequest && $recipientType === 'storage';
+$destinationStorages = is_array($destinationStorages ?? null) ? $destinationStorages : [];
 $usageReasonOptions = is_array($usageReasonOptions ?? null) ? $usageReasonOptions : handover_usage_reason_options();
 $workflowCatalogPreview = json_decode((string) ($storageCatalogJson ?? '{}'), true);
 $workflowCatalogItemsById = [];
@@ -81,6 +84,29 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
             </div>
         <?php endif; ?>
 
+        <?php if (!$isStaffRequest): ?>
+            <section class="copy-context-card handover-target-switcher" data-handover-target-switcher>
+                <strong>Who receives this handover?</strong>
+                <p>Use staff mode for temporary usage. Use storage transfer when stock is moving from one storage owner to another storage.</p>
+                <div class="handover-target-options">
+                    <label class="handover-target-option">
+                        <input type="radio" name="recipient_type" value="staff" data-handover-target-radio <?= $isStorageTransfer ? '' : 'checked' ?>>
+                        <span>
+                            <strong>Hand to Staff</strong>
+                            <small>Temporary use, then returned quantity and usage reasons are reported.</small>
+                        </span>
+                    </label>
+                    <label class="handover-target-option">
+                        <input type="radio" name="recipient_type" value="storage" data-handover-target-radio <?= $isStorageTransfer ? 'checked' : '' ?>>
+                        <span>
+                            <strong>Transfer to Storage Owner</strong>
+                            <small>Destination owner confirms receipt. No usage closeout is shown.</small>
+                        </span>
+                    </label>
+                </div>
+            </section>
+        <?php endif; ?>
+
         <div class="field-row">
             <?php if ($isStaffRequest): ?>
                 <?php if (!empty($lockedRequestOwner)): ?>
@@ -119,9 +145,9 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
             </label>
 
             <?php if (!$isStaffRequest): ?>
-                <label class="field">
+                <label class="field" data-handover-staff-fields <?= $isStorageTransfer ? 'hidden' : '' ?>>
                     <span>Staff Account</span>
-                    <select name="recipient_user_id">
+                    <select name="recipient_user_id" <?= $isStorageTransfer ? 'disabled' : '' ?>>
                         <option value="">Optional linked staff</option>
                         <?php foreach ($users as $user): ?>
                             <option value="<?= e((string) $user['id']) ?>" <?= selected((string) $user['id'], (string) ($handoverRecord['recipient_user_id'] ?? '')) ?>>
@@ -131,9 +157,34 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
                     </select>
                 </label>
 
-                <label class="field">
+                <label class="field" data-handover-staff-fields <?= $isStorageTransfer ? 'hidden' : '' ?>>
                     <span>Recipient Name</span>
-                    <input type="text" name="recipient_name" value="<?= e((string) ($handoverRecord['recipient_name'] ?? '')) ?>" placeholder="Reception, event desk, person name">
+                    <input type="text" name="recipient_name" value="<?= e((string) ($handoverRecord['recipient_name'] ?? '')) ?>" placeholder="Reception, event desk, person name" <?= $isStorageTransfer ? 'disabled' : '' ?>>
+                </label>
+
+                <label class="field" data-handover-storage-fields <?= $isStorageTransfer ? '' : 'hidden' ?>>
+                    <span>Destination Storage</span>
+                    <select
+                        name="destination_storage_id"
+                        data-handover-destination-storage
+                        data-combobox-select
+                        data-combobox-class="filter-search-combobox"
+                        data-combobox-placeholder="Search destination storage"
+                        data-combobox-empty="No matching destination storages."
+                        <?= $isStorageTransfer ? 'required' : 'disabled' ?>
+                    >
+                        <option value="">Select destination storage</option>
+                        <?php foreach ($destinationStorages as $storage): ?>
+                            <option
+                                value="<?= e((string) $storage['id']) ?>"
+                                data-owner-name="<?= e((string) ($storage['owner_name'] ?? '')) ?>"
+                                <?= selected((string) $storage['id'], (string) ($handoverRecord['destination_storage_id'] ?? '')) ?>
+                            >
+                                <?= e(storage_type_label((string) $storage['storage_type'])) ?> · <?= e((string) $storage['name']) ?><?= !empty($storage['owner_name']) ? ' · Owner: ' . e((string) $storage['owner_name']) : '' ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small data-handover-destination-copy>Destination owner confirms what arrived. Same source and destination are blocked.</small>
                 </label>
             <?php endif; ?>
         </div>
@@ -160,7 +211,7 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
             data-hide-availability="<?= $isStaffRequest ? 'true' : 'false' ?>"
             data-hide-item-quantity="<?= $isStaffRequest ? 'true' : 'false' ?>"
             data-locked-owner-id="<?= e(!empty($lockedRequestOwner) ? (string) $lockedRequestOwner['id'] : '') ?>"
-            data-expected-usage="true"
+            data-expected-usage="<?= $isStorageTransfer ? 'false' : 'true' ?>"
             data-usage-reasons="<?= e(json_encode($usageReasonOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
         >
             <div class="panel-head">
@@ -214,7 +265,7 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
                                         <div class="workflow-picker-options" data-workflow-picker-options></div>
                                     </div>
                                 </div>
-                                <details class="handover-expected-usage" data-expected-usage-editor open>
+                                <details class="handover-expected-usage" data-expected-usage-editor data-handover-transfer-sensitive <?= $isStorageTransfer ? 'hidden' : '' ?> open>
                                     <summary><span>Expected usage plan</span></summary>
                                     <p class="tiny-copy">Optional: split what you expect to use before the handover, like Online 250 and Walk-in 30.</p>
                                     <div class="handover-expected-usage-list" data-expected-usage-list>

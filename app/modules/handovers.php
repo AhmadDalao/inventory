@@ -83,6 +83,25 @@ function handover_request_source_storages_for_staff(array $user, ?int $selectedI
     }));
 }
 
+function handover_destination_storages_for_select(?int $selectedId = null): array
+{
+    return array_values(array_filter(
+        all_storages_for_select($selectedId),
+        static fn (array $storage): bool => !empty($storage['owner_user_id']) || ($selectedId !== null && (int) $storage['id'] === $selectedId)
+    ));
+}
+
+function handover_is_storage_transfer(array $handover): bool
+{
+    return (string) ($handover['recipient_type'] ?? 'staff') === 'storage'
+        || !empty($handover['destination_storage_id']);
+}
+
+function handover_target_type_label(array $handover): string
+{
+    return handover_is_storage_transfer($handover) ? 'Storage transfer' : 'Staff use';
+}
+
 function handover_filters(): array
 {
     $status = (string) query('status', 'all');
@@ -109,7 +128,7 @@ function build_handover_where(array $filters, string $alias = 'h'): array
     }
 
     if (!empty($filters['storage_id'])) {
-        $conditions[] = "{$alias}.source_storage_id = :handover_storage_id";
+        $conditions[] = "({$alias}.source_storage_id = :handover_storage_id OR {$alias}.destination_storage_id = :handover_storage_id)";
         $params['handover_storage_id'] = (int) $filters['storage_id'];
     }
 
@@ -119,6 +138,7 @@ function build_handover_where(array $filters, string $alias = 'h'): array
             OR {$alias}.recipient_name LIKE :handover_search_recipient
             OR COALESCE({$alias}.notes, '') LIKE :handover_search_notes
             OR source_storage.name LIKE :handover_search_source_storage
+            OR destination_storage.name LIKE :handover_search_destination_storage
             OR EXISTS (
                 SELECT 1
                 FROM handover_lines handover_lines
@@ -134,6 +154,7 @@ function build_handover_where(array $filters, string $alias = 'h'): array
         $params['handover_search_recipient'] = $handoverSearchLike;
         $params['handover_search_notes'] = $handoverSearchLike;
         $params['handover_search_source_storage'] = $handoverSearchLike;
+        $params['handover_search_destination_storage'] = $handoverSearchLike;
         $params['handover_search_item_name'] = $handoverSearchLike;
         $params['handover_search_item_sku'] = $handoverSearchLike;
     }
@@ -929,7 +950,10 @@ function find_handover_or_abort(int $handoverId): array
         'SELECT h.*,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
                 source_storage.owner_user_id AS source_owner_user_id,
+                destination_storage.owner_user_id AS destination_owner_user_id,
                 creator.name AS creator_name,
                 request_approver.name AS request_approver_name,
                 request_approved_by_user.name AS request_approved_by_name,
@@ -938,9 +962,12 @@ function find_handover_or_abort(int $handoverId): array
                 approver.name AS approved_by_name,
                 recipient.name AS recipient_user_name,
                 recipient.email AS recipient_user_email,
-                source_owner.name AS source_owner_name
+                source_owner.name AS source_owner_name,
+                destination_owner.name AS destination_owner_name,
+                destination_owner.email AS destination_owner_email
          FROM handovers h
          INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = h.destination_storage_id
          LEFT JOIN users creator ON creator.id = h.created_by
          LEFT JOIN users request_approver ON request_approver.id = h.approver_user_id
          LEFT JOIN users request_approved_by_user ON request_approved_by_user.id = h.request_approved_by
@@ -949,6 +976,7 @@ function find_handover_or_abort(int $handoverId): array
          LEFT JOIN users completer ON completer.id = h.completed_by
          LEFT JOIN users recipient ON recipient.id = h.recipient_user_id
          LEFT JOIN users source_owner ON source_owner.id = source_storage.owner_user_id
+         LEFT JOIN users destination_owner ON destination_owner.id = destination_storage.owner_user_id
          WHERE h.id = :id' . $scopeSql . '
          LIMIT 1',
         ['id' => $handoverId] + $scopeParams
@@ -1104,11 +1132,23 @@ function handover_can_report_receipt(array $handover, ?array $user = null): bool
 {
     $user = $user ?? Auth::user();
 
-    if ($user === null || !Auth::hasPermission('handovers.close')) {
+    if ($user === null) {
         return false;
     }
 
     if (!in_array((string) ($handover['status'] ?? ''), ['awaiting_receipt', 'receipt_review'], true)) {
+        return false;
+    }
+
+    if (handover_is_storage_transfer($handover)) {
+        $userId = (int) ($user['id'] ?? 0);
+
+        return Auth::isOwner()
+            || (int) ($handover['destination_owner_user_id'] ?? 0) === $userId
+            || (int) ($handover['recipient_user_id'] ?? 0) === $userId;
+    }
+
+    if (!Auth::hasPermission('handovers.close')) {
         return false;
     }
 
@@ -1125,6 +1165,16 @@ function handover_receipt_confirm_block_reason(array $handover, ?array $user = n
 
     if ((string) ($handover['status'] ?? '') !== 'receipt_review') {
         return 'Only handovers waiting on receipt review can be confirmed.';
+    }
+
+    if (handover_is_storage_transfer($handover)) {
+        if (!Auth::isOwner()
+            && (int) ($handover['source_owner_user_id'] ?? 0) !== (int) ($user['id'] ?? 0)
+            && (int) ($handover['created_by'] ?? 0) !== (int) ($user['id'] ?? 0)) {
+            return 'Only the source storage owner can confirm this transfer shortage.';
+        }
+
+        return null;
     }
 
     if (!Auth::isOwner()
@@ -1534,6 +1584,53 @@ function finalize_handover_inventory(array $handover, array $lineUpdates, int $p
     }
 }
 
+function finalize_handover_storage_transfer_inventory(array $handover, array $receiptUpdates, int $performedBy): void
+{
+    if (empty($handover['destination_storage_id'])) {
+        throw new RuntimeException('Storage transfer destination is missing.');
+    }
+
+    $bufferStorageId = system_storage_id('handover_buffer');
+
+    foreach ($receiptUpdates as $update) {
+        $item = find_item_or_abort((int) $update['item_id']);
+        $received = round((float) ($update['received'] ?? 0), 2);
+        $shortage = round((float) ($update['shortage'] ?? 0), 2);
+
+        if ($received > 0) {
+            apply_inventory_movement(
+                $item,
+                'transfer',
+                $received,
+                $bufferStorageId,
+                (int) $handover['destination_storage_id'],
+                date('Y-m-d H:i:s'),
+                (string) $handover['handover_number'],
+                'Storage transfer received into destination storage.',
+                $performedBy,
+                'handover',
+                (int) $handover['id']
+            );
+        }
+
+        if ($shortage > 0) {
+            apply_inventory_movement(
+                $item,
+                'transfer',
+                $shortage,
+                $bufferStorageId,
+                (int) $handover['source_storage_id'],
+                date('Y-m-d H:i:s'),
+                (string) $handover['handover_number'],
+                'Storage transfer shortage returned to source storage.',
+                $performedBy,
+                'handover',
+                (int) $handover['id']
+            );
+        }
+    }
+}
+
 function handover_summary_rows(array $filters): array
 {
     [$where, $params] = build_handover_where($filters);
@@ -1542,6 +1639,8 @@ function handover_summary_rows(array $filters): array
         "SELECT h.*,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
                 creator.name AS creator_name,
                 COALESCE(line_totals.line_count, 0) AS line_count,
                 COALESCE(line_totals.total_handed, 0) AS total_handed,
@@ -1549,6 +1648,7 @@ function handover_summary_rows(array $filters): array
                 COALESCE(line_totals.total_returned, 0) AS total_returned
          FROM handovers h
          INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = h.destination_storage_id
          LEFT JOIN users creator ON creator.id = h.created_by
          LEFT JOIN (
              SELECT handover_id,
@@ -1591,6 +1691,7 @@ function staff_dashboard_handover_cards(int $userId): array
          INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
          INNER JOIN items i ON i.id = handover_line.item_id
          WHERE h.recipient_user_id = :user_id
+           AND COALESCE(h.recipient_type, "staff") = "staff"
            AND h.status IN ("awaiting_receipt", "receipt_review", "delivered", "pending_approval")
            AND (
                CASE
@@ -1654,8 +1755,10 @@ function handle_handovers_create_page(): void
 
     $currentUser = Auth::user() ?? [];
     $selectedSourceStorageId = normalize_entity_id(old('source_storage_id', ''));
+    $selectedDestinationStorageId = normalize_entity_id(old('destination_storage_id', ''));
     $selectedRecipientUserId = normalize_entity_id(old('recipient_user_id', ''));
     $selectedRequestOwnerId = normalize_entity_id(old('request_owner_user_id', ''));
+    $selectedRecipientType = Auth::isStaff() ? 'staff' : (in_array((string) old('recipient_type', 'staff'), ['staff', 'storage'], true) ? (string) old('recipient_type', 'staff') : 'staff');
     $lockedRequestOwner = Auth::isStaff() ? handover_request_assigned_owner($currentUser) : null;
     $sourceStorages = Auth::isStaff()
         ? handover_request_source_storages_for_staff($currentUser, $selectedSourceStorageId, $selectedRequestOwnerId)
@@ -1665,6 +1768,8 @@ function handle_handovers_create_page(): void
         'title' => Auth::isStaff() ? 'Request Handover' : 'Create Handover',
         'handoverRecord' => [
             'source_storage_id' => old('source_storage_id', ''),
+            'destination_storage_id' => old('destination_storage_id', ''),
+            'recipient_type' => $selectedRecipientType,
             'request_owner_user_id' => old('request_owner_user_id', $lockedRequestOwner ? (string) $lockedRequestOwner['id'] : ''),
             'recipient_name' => Auth::isStaff() ? (string) ($currentUser['name'] ?? '') : old('recipient_name', ''),
             'recipient_user_id' => Auth::isStaff() ? (string) ($currentUser['id'] ?? '') : old('recipient_user_id', ''),
@@ -1673,6 +1778,7 @@ function handle_handovers_create_page(): void
         ],
         'lineItems' => old('line_items', [['item_id' => '', 'quantity' => '']]),
         'sourceStorages' => $sourceStorages,
+        'destinationStorages' => Auth::isStaff() ? [] : handover_destination_storages_for_select($selectedDestinationStorageId),
         'users' => Auth::isStaff() ? [] : active_staff_users_for_select($selectedRecipientUserId),
         'ownerCandidates' => Auth::isStaff() && !$lockedRequestOwner ? handover_request_owner_candidates_for_select($selectedRequestOwnerId) : [],
         'lockedRequestOwner' => $lockedRequestOwner,
@@ -1698,9 +1804,13 @@ function handle_handovers_create_submit(): void
     $user = Auth::user();
     $isStaffRequest = Auth::isStaff();
     [$lines, $lineErrors] = parse_workflow_lines();
-    [$expectedUsageByItem, $expectedUsageErrors] = parse_handover_expected_usage_by_item($lines);
+    $recipientType = $isStaffRequest ? 'staff' : (in_array((string) input('recipient_type', 'staff'), ['staff', 'storage'], true) ? (string) input('recipient_type', 'staff') : 'staff');
+    $isStorageTransfer = $recipientType === 'storage';
+    [$expectedUsageByItem, $expectedUsageErrors] = $isStorageTransfer ? [[], []] : parse_handover_expected_usage_by_item($lines);
     $payload = [
         'source_storage_id' => normalize_entity_id(input('source_storage_id')),
+        'destination_storage_id' => $isStorageTransfer ? normalize_entity_id(input('destination_storage_id')) : null,
+        'recipient_type' => $recipientType,
         'request_owner_user_id' => normalize_entity_id(input('request_owner_user_id')),
         'recipient_name' => $isStaffRequest ? trim((string) ($user['name'] ?? '')) : trim((string) input('recipient_name')),
         'recipient_user_id' => $isStaffRequest ? (int) ($user['id'] ?? 0) : normalize_entity_id(input('recipient_user_id')),
@@ -1710,6 +1820,8 @@ function handle_handovers_create_submit(): void
 
     flash_old_input([
         'source_storage_id' => (string) ($payload['source_storage_id'] ?? ''),
+        'destination_storage_id' => (string) ($payload['destination_storage_id'] ?? ''),
+        'recipient_type' => $payload['recipient_type'],
         'request_owner_user_id' => (string) ($payload['request_owner_user_id'] ?? ''),
         'recipient_name' => $payload['recipient_name'],
         'recipient_user_id' => (string) ($payload['recipient_user_id'] ?? ''),
@@ -1733,11 +1845,12 @@ function handle_handovers_create_submit(): void
         $errors[] = 'You can only create handovers from storages you own.';
     }
 
-    if ($payload['recipient_name'] === '' && !$payload['recipient_user_id']) {
+    if (!$isStorageTransfer && $payload['recipient_name'] === '' && !$payload['recipient_user_id']) {
         $errors[] = 'Enter a recipient name or choose a user.';
     }
 
     $sourceOwner = $payload['source_storage_id'] ? storage_owner_record((int) $payload['source_storage_id']) : null;
+    $destinationOwner = null;
     $assignedRequestOwnerId = $isStaffRequest ? normalize_entity_id($user['assigned_owner_user_id'] ?? null) : null;
     $expectedRequestOwnerId = $assignedRequestOwnerId ?? $payload['request_owner_user_id'];
     $recipientUser = null;
@@ -1756,7 +1869,22 @@ function handle_handovers_create_submit(): void
         }
     }
 
-    if ($payload['recipient_user_id']) {
+    if ($isStorageTransfer) {
+        if (!$payload['destination_storage_id'] || !storage_exists_for_assignment($payload['destination_storage_id'])) {
+            $errors[] = 'Pick a valid destination storage.';
+        } elseif ((int) $payload['destination_storage_id'] === (int) $payload['source_storage_id']) {
+            $errors[] = 'Source and destination storage cannot be the same.';
+        } else {
+            $destinationOwner = storage_owner_record((int) $payload['destination_storage_id']);
+
+            if (!$destinationOwner || empty($destinationOwner['owner_user_id']) || (int) ($destinationOwner['owner_is_active'] ?? 0) !== 1) {
+                $errors[] = 'Destination storage needs an active owner before stock can be transferred.';
+            } else {
+                $payload['recipient_user_id'] = (int) $destinationOwner['owner_user_id'];
+                $payload['recipient_name'] = (string) ($destinationOwner['owner_name'] ?: $destinationOwner['storage_name']);
+            }
+        }
+    } elseif ($payload['recipient_user_id']) {
         $recipientUser = Database::fetch(
             'SELECT id, name, role, is_active
              FROM users
@@ -1814,7 +1942,7 @@ function handle_handovers_create_submit(): void
     $handoverNumber = next_workflow_number('HDO', 'handovers', 'handover_number');
     $initialStatus = $isStaffRequest
         ? 'requested'
-        : ($payload['recipient_user_id'] ? 'awaiting_receipt' : 'delivered');
+        : ($isStorageTransfer || $payload['recipient_user_id'] ? 'awaiting_receipt' : 'delivered');
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
@@ -1823,9 +1951,11 @@ function handle_handovers_create_submit(): void
             'INSERT INTO handovers (
                 handover_number,
                 source_storage_id,
+                destination_storage_id,
                 approver_user_id,
                 recipient_name,
                 recipient_user_id,
+                recipient_type,
                 handover_mode,
                 status,
                 scheduled_for_date,
@@ -1847,9 +1977,11 @@ function handle_handovers_create_submit(): void
              ) VALUES (
                 :handover_number,
                 :source_storage_id,
+                :destination_storage_id,
                 :approver_user_id,
                 :recipient_name,
                 :recipient_user_id,
+                :recipient_type,
                 :handover_mode,
                 :status,
                 :scheduled_for_date,
@@ -1872,9 +2004,11 @@ function handle_handovers_create_submit(): void
             [
                 'handover_number' => $handoverNumber,
                 'source_storage_id' => (int) $payload['source_storage_id'],
+                'destination_storage_id' => $payload['destination_storage_id'] !== null ? (int) $payload['destination_storage_id'] : null,
                 'approver_user_id' => $sourceOwner['owner_user_id'] ?? null,
                 'recipient_name' => $payload['recipient_name'],
                 'recipient_user_id' => $payload['recipient_user_id'],
+                'recipient_type' => $payload['recipient_type'],
                 'handover_mode' => $isStaffRequest ? 'request' : 'direct',
                 'status' => $initialStatus,
                 'scheduled_for_date' => $payload['scheduled_for_date'] !== '' ? $payload['scheduled_for_date'] : null,
@@ -1930,7 +2064,7 @@ function handle_handovers_create_submit(): void
 
             $lineId = Database::lastInsertId();
 
-            if (!empty($expectedUsageByItem[(int) $item['id']])) {
+            if (!$isStorageTransfer && !empty($expectedUsageByItem[(int) $item['id']])) {
                 $expectedUsageUpdates[] = [
                     'line_id' => $lineId,
                     'item_id' => (int) $item['id'],
@@ -1946,7 +2080,9 @@ function handle_handovers_create_submit(): void
                 'id' => $handoverId,
                 'handover_number' => $handoverNumber,
                 'source_storage_id' => (int) $payload['source_storage_id'],
+                'destination_storage_id' => $payload['destination_storage_id'] !== null ? (int) $payload['destination_storage_id'] : null,
                 'recipient_name' => $payload['recipient_name'],
+                'recipient_type' => $payload['recipient_type'],
             ], array_map(static function (array $line) use ($itemsById): array {
                 $item = $itemsById[(int) $line['item_id']];
 
@@ -1979,6 +2115,17 @@ function handle_handovers_create_submit(): void
             $handoverId,
             (int) ($user['id'] ?? 0)
         );
+    } elseif ($isStorageTransfer && $payload['recipient_user_id']) {
+        create_notification(
+            (int) $payload['recipient_user_id'],
+            'handover_storage_transfer_created',
+            'Storage transfer ' . $handoverNumber . ' awaiting receipt',
+            'Confirm what arrived into ' . (string) ($destinationOwner['storage_name'] ?? 'your destination storage') . '.',
+            url('/handovers/' . $handoverId),
+            'handover',
+            $handoverId,
+            (int) ($user['id'] ?? 0)
+        );
     } elseif ($payload['recipient_user_id']) {
         create_notification(
             (int) $payload['recipient_user_id'],
@@ -1993,7 +2140,7 @@ function handle_handovers_create_submit(): void
     }
 
     consume_old_input();
-    flash('success', $isStaffRequest ? 'Handover request created.' : 'Handover created.');
+    flash('success', $isStaffRequest ? 'Handover request created.' : ($isStorageTransfer ? 'Storage transfer handover created.' : 'Handover created.'));
     redirect('/handovers/' . $handoverId);
 }
 
@@ -2729,14 +2876,17 @@ function handle_handovers_void_submit(array $params): void
 function handle_handovers_receive_submit(array $params): void
 {
     app_ready_or_redirect();
-    Auth::requirePermission('handovers.close');
+    Auth::requireLogin();
     verify_csrf();
 
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
+    $isStorageTransfer = handover_is_storage_transfer($handover);
 
     if (!handover_can_report_receipt($handover, $user)) {
-        flash('danger', 'Only the assigned recipient can report received quantities.');
+        flash('danger', $isStorageTransfer
+            ? 'Only the destination storage owner can report transfer receipt quantities.'
+            : 'Only the assigned recipient can report received quantities.');
         redirect('/handovers/' . $handover['id']);
     }
 
@@ -2807,21 +2957,66 @@ function handle_handovers_receive_submit(array $params): void
             );
         }
 
-        Database::execute(
-            'UPDATE handovers
-             SET status = :status,
-                 receipt_notes = :receipt_notes,
-                 receipt_reported_at = NOW(),
-                 updated_by = :updated_by,
-                 updated_at = NOW()
-             WHERE id = :id',
-            [
-                'status' => $hasVariance ? 'receipt_review' : 'delivered',
-                'receipt_notes' => $receiptNotes !== '' ? $receiptNotes : null,
-                'updated_by' => (int) $user['id'],
-                'id' => (int) $handover['id'],
-            ]
-        );
+        if ($isStorageTransfer) {
+            if (!$hasVariance) {
+                finalize_handover_storage_transfer_inventory($handover, $receiptUpdates, (int) $user['id']);
+
+                Database::execute(
+                    'UPDATE handovers
+                     SET status = "closed",
+                         receipt_notes = :receipt_notes,
+                         receipt_reported_at = NOW(),
+                         submitted_at = NOW(),
+                         submitted_by = :submitted_by,
+                         approved_at = NOW(),
+                         approved_by = :approved_by,
+                         completed_at = NOW(),
+                         completed_by = :completed_by,
+                         updated_by = :updated_by,
+                         updated_at = NOW()
+                     WHERE id = :id',
+                    [
+                        'receipt_notes' => $receiptNotes !== '' ? $receiptNotes : null,
+                        'submitted_by' => (int) $user['id'],
+                        'approved_by' => (int) $user['id'],
+                        'completed_by' => (int) $user['id'],
+                        'updated_by' => (int) $user['id'],
+                        'id' => (int) $handover['id'],
+                    ]
+                );
+            } else {
+                Database::execute(
+                    'UPDATE handovers
+                     SET status = "receipt_review",
+                         receipt_notes = :receipt_notes,
+                         receipt_reported_at = NOW(),
+                         updated_by = :updated_by,
+                         updated_at = NOW()
+                     WHERE id = :id',
+                    [
+                        'receipt_notes' => $receiptNotes !== '' ? $receiptNotes : null,
+                        'updated_by' => (int) $user['id'],
+                        'id' => (int) $handover['id'],
+                    ]
+                );
+            }
+        } else {
+            Database::execute(
+                'UPDATE handovers
+                 SET status = :status,
+                     receipt_notes = :receipt_notes,
+                     receipt_reported_at = NOW(),
+                     updated_by = :updated_by,
+                     updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'status' => $hasVariance ? 'receipt_review' : 'delivered',
+                    'receipt_notes' => $receiptNotes !== '' ? $receiptNotes : null,
+                    'updated_by' => (int) $user['id'],
+                    'id' => (int) $handover['id'],
+                ]
+            );
+        }
 
         if ($storedProof !== null) {
             create_workflow_document_record(
@@ -2849,6 +3044,13 @@ function handle_handovers_receive_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
+    try {
+        $updatedHandover = find_handover_or_abort((int) $handover['id']);
+        ensure_workflow_signoff_pdf('handover', $updatedHandover, handover_lines((int) $handover['id']));
+    } catch (Throwable $exception) {
+        // Attachment regeneration should not block receipt reporting.
+    }
+
     if (!empty($handover['source_owner_user_id'])) {
         create_notification(
             (int) $handover['source_owner_user_id'],
@@ -2856,9 +3058,13 @@ function handle_handovers_receive_submit(array $params): void
             $hasVariance
                 ? 'Handover ' . $handover['handover_number'] . ' needs receipt review'
                 : 'Handover ' . $handover['handover_number'] . ' was received',
-            $hasVariance
-                ? ($user['name'] ?? 'Recipient') . ' reported the actual received quantity and is waiting for your confirmation.'
-                : ($user['name'] ?? 'Recipient') . ' confirmed the delivered quantity and can now track usage.',
+            $isStorageTransfer
+                ? ($hasVariance
+                    ? ($user['name'] ?? 'Destination owner') . ' reported a transfer shortage and is waiting for source owner confirmation.'
+                    : ($user['name'] ?? 'Destination owner') . ' confirmed the transfer receipt and stock moved to the destination storage.')
+                : ($hasVariance
+                    ? ($user['name'] ?? 'Recipient') . ' reported the actual received quantity and is waiting for your confirmation.'
+                    : ($user['name'] ?? 'Recipient') . ' confirmed the delivered quantity and can now track usage.'),
             url('/handovers/' . $handover['id']),
             'handover',
             (int) $handover['id'],
@@ -2869,27 +3075,41 @@ function handle_handovers_receive_submit(array $params): void
     if (request_wants_json()) {
         json_response([
             'ok' => true,
-            'message' => $hasVariance
-                ? 'Receipt report saved. Waiting for the storage owner to confirm the shortage.'
-                : 'Receipt confirmed. You can now track usage and returns.',
+            'message' => $isStorageTransfer
+                ? ($hasVariance
+                    ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
+                    : 'Transfer received and closed.')
+                : ($hasVariance
+                    ? 'Receipt report saved. Waiting for the storage owner to confirm the shortage.'
+                    : 'Receipt confirmed. You can now track usage and returns.'),
             'redirect_url' => url('/handovers/' . $handover['id']),
         ]);
     }
 
-    flash('success', $hasVariance
-        ? 'Receipt report saved. Waiting for the storage owner to confirm the shortage.'
-        : 'Receipt confirmed. You can now track usage and returns.');
+    flash('success', $isStorageTransfer
+        ? ($hasVariance
+            ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
+            : 'Transfer received and closed.')
+        : ($hasVariance
+            ? 'Receipt report saved. Waiting for the storage owner to confirm the shortage.'
+            : 'Receipt confirmed. You can now track usage and returns.'));
     redirect('/handovers/' . $handover['id']);
 }
 
 function handle_handovers_confirm_receipt_submit(array $params): void
 {
     app_ready_or_redirect();
-    Auth::requirePermission('handovers.approve');
+    Auth::requireLogin();
     verify_csrf();
 
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
+    $isStorageTransfer = handover_is_storage_transfer($handover);
+    if (!$isStorageTransfer && !Auth::hasPermission('handovers.approve')) {
+        flash('danger', 'You do not have access to that area.');
+        redirect('/handovers/' . $handover['id']);
+    }
+
     $receiptConfirmBlockReason = handover_receipt_confirm_block_reason($handover, $user);
 
     if ($receiptConfirmBlockReason !== null) {
@@ -2903,43 +3123,76 @@ function handle_handovers_confirm_receipt_submit(array $params): void
     $pdo->beginTransaction();
 
     try {
-        foreach ($lines as $line) {
-            $received = round((float) $line['quantity_received'], 2);
-            $planned = round((float) $line['quantity_handed'], 2);
-            $shortage = round($planned - $received, 2);
+        if ($isStorageTransfer) {
+            $receiptUpdates = array_map(static fn (array $line): array => [
+                'line_id' => (int) $line['id'],
+                'item_id' => (int) $line['item_id'],
+                'handed' => round((float) $line['quantity_handed'], 2),
+                'received' => round((float) $line['quantity_received'], 2),
+                'shortage' => max(0, round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2)),
+            ], $lines);
 
-            if ($shortage <= 0) {
-                continue;
+            finalize_handover_storage_transfer_inventory($handover, $receiptUpdates, (int) $user['id']);
+
+            Database::execute(
+                'UPDATE handovers
+                 SET status = "closed",
+                     submitted_at = COALESCE(submitted_at, NOW()),
+                     submitted_by = COALESCE(submitted_by, :submitted_by),
+                     approved_at = NOW(),
+                     approved_by = :approved_by,
+                     completed_at = NOW(),
+                     completed_by = :completed_by,
+                     updated_by = :updated_by,
+                     updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'submitted_by' => (int) $user['id'],
+                    'approved_by' => (int) $user['id'],
+                    'completed_by' => (int) $user['id'],
+                    'updated_by' => (int) $user['id'],
+                    'id' => (int) $handover['id'],
+                ]
+            );
+        } else {
+            foreach ($lines as $line) {
+                $received = round((float) $line['quantity_received'], 2);
+                $planned = round((float) $line['quantity_handed'], 2);
+                $shortage = round($planned - $received, 2);
+
+                if ($shortage <= 0) {
+                    continue;
+                }
+
+                $item = find_item_or_abort((int) $line['item_id']);
+
+                apply_inventory_movement(
+                    $item,
+                    'transfer',
+                    $shortage,
+                    $bufferStorageId,
+                    (int) $handover['source_storage_id'],
+                    date('Y-m-d H:i:s'),
+                    (string) $handover['handover_number'],
+                    'Unreceived handover quantity returned to source storage.',
+                    (int) $user['id'],
+                    'handover',
+                    (int) $handover['id']
+                );
             }
 
-            $item = find_item_or_abort((int) $line['item_id']);
-
-            apply_inventory_movement(
-                $item,
-                'transfer',
-                $shortage,
-                $bufferStorageId,
-                (int) $handover['source_storage_id'],
-                date('Y-m-d H:i:s'),
-                (string) $handover['handover_number'],
-                'Unreceived handover quantity returned to source storage.',
-                (int) $user['id'],
-                'handover',
-                (int) $handover['id']
+            Database::execute(
+                'UPDATE handovers
+                 SET status = "delivered",
+                     updated_by = :updated_by,
+                     updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'updated_by' => (int) $user['id'],
+                    'id' => (int) $handover['id'],
+                ]
             );
         }
-
-        Database::execute(
-            'UPDATE handovers
-             SET status = "delivered",
-                 updated_by = :updated_by,
-                 updated_at = NOW()
-             WHERE id = :id',
-            [
-                'updated_by' => (int) $user['id'],
-                'id' => (int) $handover['id'],
-            ]
-        );
 
         $pdo->commit();
     } catch (Throwable $exception) {
@@ -2951,12 +3204,23 @@ function handle_handovers_confirm_receipt_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
+    try {
+        $updatedHandover = find_handover_or_abort((int) $handover['id']);
+        ensure_workflow_signoff_pdf('handover', $updatedHandover, handover_lines((int) $handover['id']));
+    } catch (Throwable $exception) {
+        // Attachment regeneration should not block receipt confirmation.
+    }
+
     if (!empty($handover['recipient_user_id'])) {
         create_notification(
             (int) $handover['recipient_user_id'],
             'handover_delivery_confirmed',
-            'Handover ' . $handover['handover_number'] . ' is ready',
-            'The reported received quantity was confirmed. You can now track usage and returns.',
+            $isStorageTransfer
+                ? 'Transfer ' . $handover['handover_number'] . ' approved'
+                : 'Handover ' . $handover['handover_number'] . ' is ready',
+            $isStorageTransfer
+                ? 'The source owner approved the transfer shortage and the received stock moved to the destination storage.'
+                : 'The reported received quantity was confirmed. You can now track usage and returns.',
             url('/handovers/' . $handover['id']),
             'handover',
             (int) $handover['id'],
@@ -2967,12 +3231,16 @@ function handle_handovers_confirm_receipt_submit(array $params): void
     if (request_wants_json()) {
         json_response([
             'ok' => true,
-            'message' => 'Receipt discrepancy approved. The handover is now active.',
+            'message' => $isStorageTransfer
+                ? 'Transfer shortage approved and closed.'
+                : 'Receipt discrepancy approved. The handover is now active.',
             'redirect_url' => url('/handovers/' . $handover['id']),
         ]);
     }
 
-    flash('success', 'Receipt discrepancy approved. The handover is now active.');
+    flash('success', $isStorageTransfer
+        ? 'Transfer shortage approved and closed.'
+        : 'Receipt discrepancy approved. The handover is now active.');
     redirect('/handovers/' . $handover['id']);
 }
 
@@ -2984,6 +3252,11 @@ function handle_handovers_close_submit(array $params): void
 
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
+    if (handover_is_storage_transfer($handover)) {
+        flash('danger', 'Storage transfers close through receipt confirmation, not usage closeout.');
+        redirect('/handovers/' . $handover['id']);
+    }
+
     $isSourceOwner = Auth::isOwner()
         || (int) ($handover['source_owner_user_id'] ?? 0) === (int) ($user['id'] ?? 0)
         || (int) ($handover['created_by'] ?? 0) === (int) ($user['id'] ?? 0);
@@ -3183,6 +3456,11 @@ function handle_handovers_approve_submit(array $params): void
 
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
+    if (handover_is_storage_transfer($handover)) {
+        flash('danger', 'Storage transfers are approved through receipt confirmation, not usage closeout.');
+        redirect('/handovers/' . $handover['id']);
+    }
+
     $isSourceOwner = Auth::isOwner()
         || (int) ($handover['source_owner_user_id'] ?? 0) === (int) ($user['id'] ?? 0)
         || (int) ($handover['created_by'] ?? 0) === (int) ($user['id'] ?? 0);
@@ -3325,8 +3603,10 @@ function handle_export_handovers(): void
             $rows[] = [
                 $handover['handover_number'],
                 (string) ($handover['handover_mode'] ?? 'direct') === 'request' ? 'Request' : 'Direct',
+                handover_target_type_label($handover),
                 handover_status_label((string) $handover['status']),
                 $handover['source_storage_name'],
+                $handover['destination_storage_name'] ?? '',
                 $handover['recipient_name'],
                 $handover['requested_at'] ?: '',
                 $handover['issued_at'],
@@ -3356,8 +3636,10 @@ function handle_export_handovers(): void
     export_csv('handovers-export-' . date('Ymd-His') . '.csv', [
         'Handover Number',
         'Mode',
+        'Target Type',
         'Status',
         'Source Storage',
+        'Destination Storage',
         'Recipient',
         'Requested At',
         'Issued At',

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class Maintenance
 {
-    private const SCHEMA_VERSION = '2026-07-10-report-presets-v1';
+    private const SCHEMA_VERSION = '2026-07-15-handover-storage-transfer-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -559,9 +559,11 @@ final class Maintenance
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 handover_number VARCHAR(40) NOT NULL,
                 source_storage_id BIGINT UNSIGNED NOT NULL,
+                destination_storage_id BIGINT UNSIGNED NULL,
                 approver_user_id BIGINT UNSIGNED NULL,
                 recipient_name VARCHAR(160) NOT NULL,
                 recipient_user_id BIGINT UNSIGNED NULL,
+                recipient_type ENUM("staff", "storage") NOT NULL DEFAULT "staff",
                 handover_mode ENUM("direct", "request") NOT NULL DEFAULT "direct",
                 status ENUM("requested", "awaiting_receipt", "receipt_review", "delivered", "pending_approval", "closed", "rejected", "cancelled") NOT NULL DEFAULT "delivered",
                 scheduled_for_date DATE NULL,
@@ -591,8 +593,11 @@ final class Maintenance
                 INDEX idx_handovers_approver (approver_user_id),
                 INDEX idx_handovers_mode (handover_mode),
                 INDEX idx_handovers_source_storage (source_storage_id),
+                INDEX idx_handovers_destination_storage (destination_storage_id),
+                INDEX idx_handovers_recipient_type (recipient_type),
                 INDEX idx_handovers_recipient_user (recipient_user_id),
                 CONSTRAINT fk_handovers_source_storage FOREIGN KEY (source_storage_id) REFERENCES storages(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_handovers_destination_storage FOREIGN KEY (destination_storage_id) REFERENCES storages(id) ON DELETE RESTRICT,
                 CONSTRAINT fk_handovers_approver_user FOREIGN KEY (approver_user_id) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_recipient_user FOREIGN KEY (recipient_user_id) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -614,6 +619,14 @@ final class Maintenance
 
         if ($handoverApproverColumnExists === 0) {
             Database::execute('ALTER TABLE handovers ADD COLUMN approver_user_id BIGINT UNSIGNED NULL AFTER source_storage_id');
+        }
+
+        if (!self::columnExists('handovers', 'destination_storage_id')) {
+            Database::execute('ALTER TABLE handovers ADD COLUMN destination_storage_id BIGINT UNSIGNED NULL AFTER source_storage_id');
+        }
+
+        if (!self::columnExists('handovers', 'recipient_type')) {
+            Database::execute('ALTER TABLE handovers ADD COLUMN recipient_type ENUM("staff", "storage") NOT NULL DEFAULT "staff" AFTER recipient_user_id');
         }
 
         $handoverModeColumnExists = (int) Database::scalar(
@@ -774,8 +787,12 @@ final class Maintenance
 
         self::ensureIndexExists('handovers', 'idx_handovers_approver', 'CREATE INDEX `idx_handovers_approver` ON `handovers` (`approver_user_id`)');
         self::ensureIndexExists('handovers', 'idx_handovers_mode', 'CREATE INDEX `idx_handovers_mode` ON `handovers` (`handover_mode`)');
+        self::ensureIndexExists('handovers', 'idx_handovers_destination_storage', 'CREATE INDEX `idx_handovers_destination_storage` ON `handovers` (`destination_storage_id`)');
+        self::ensureIndexExists('handovers', 'idx_handovers_recipient_type', 'CREATE INDEX `idx_handovers_recipient_type` ON `handovers` (`recipient_type`)');
         self::ensureForeignKeyExists('handovers', 'fk_handovers_approver_user', 'ALTER TABLE `handovers` ADD CONSTRAINT `fk_handovers_approver_user` FOREIGN KEY (`approver_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL');
         self::ensureForeignKeyExists('handovers', 'fk_handovers_request_approved_by', 'ALTER TABLE `handovers` ADD CONSTRAINT `fk_handovers_request_approved_by` FOREIGN KEY (`request_approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL');
+        self::ensureForeignKeyExists('handovers', 'fk_handovers_destination_storage', 'ALTER TABLE `handovers` ADD CONSTRAINT `fk_handovers_destination_storage` FOREIGN KEY (`destination_storage_id`) REFERENCES `storages` (`id`) ON DELETE RESTRICT');
+        Database::execute('UPDATE handovers SET recipient_type = "staff" WHERE recipient_type IS NULL OR recipient_type = ""');
 
         Database::execute('ALTER TABLE handovers MODIFY COLUMN status ENUM("open", "completed", "cancelled", "awaiting_receipt", "receipt_review", "delivered", "pending_approval", "closed", "requested", "rejected") NOT NULL DEFAULT "delivered"');
         Database::execute(

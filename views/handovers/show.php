@@ -43,6 +43,7 @@ $workflowLinePreviewItem = static function (array $line) use ($workflowCatalogIt
 };
 $statusLabel = handover_status_label((string) $handoverRecord['status']);
 $isRequestMode = (string) ($handoverRecord['handover_mode'] ?? 'direct') === 'request';
+$isStorageTransfer = handover_is_storage_transfer($handoverRecord);
 $isSourceOwner = Auth::isOwner()
     || (int) ($handoverRecord['source_owner_user_id'] ?? 0) === (int) ($currentUser['id'] ?? 0)
     || (int) ($handoverRecord['created_by'] ?? 0) === (int) ($currentUser['id'] ?? 0);
@@ -51,15 +52,17 @@ $canApproveRequest = Auth::hasPermission('handovers.approve')
 $canRejectRequest = $canApproveRequest;
 $canCancelHandover = handover_cancel_block_reason($handoverRecord, $currentUser) === null;
 $canReportReceipt = handover_can_report_receipt($handoverRecord, $currentUser);
-$canConfirmReceipt = Auth::hasPermission('handovers.approve')
-    && handover_receipt_confirm_block_reason($handoverRecord, $currentUser) === null;
+$canConfirmReceipt = handover_receipt_confirm_block_reason($handoverRecord, $currentUser) === null
+    && ($isStorageTransfer || Auth::hasPermission('handovers.approve'));
 $canClose = Auth::hasPermission('handovers.close')
+    && !$isStorageTransfer
     && (string) $handoverRecord['status'] === 'delivered'
     && (
         (int) ($handoverRecord['recipient_user_id'] ?? 0) === (int) ($currentUser['id'] ?? 0)
         || ($isSourceOwner && empty($handoverRecord['recipient_user_id']))
     );
 $canApproveClose = Auth::hasPermission('handovers.approve')
+    && !$isStorageTransfer
     && (string) $handoverRecord['status'] === 'pending_approval'
     && $isSourceOwner;
 $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $currentUser) === null;
@@ -113,8 +116,14 @@ foreach ($lines as $line) {
                 <div class="item-hero-image item-hero-image-fallback">H</div>
                 <div>
                     <span class="pill pill-<?= e((string) $handoverRecord['status']) ?>"><?= e($statusLabel) ?></span>
-                    <h4><?= e($handoverRecord['recipient_name']) ?></h4>
-                    <p><?= e($handoverRecord['source_storage_name']) ?></p>
+                    <h4><?= e($isStorageTransfer ? (string) ($handoverRecord['destination_storage_name'] ?? 'Destination storage') : (string) $handoverRecord['recipient_name']) ?></h4>
+                    <p>
+                        <?php if ($isStorageTransfer): ?>
+                            <?= e((string) $handoverRecord['source_storage_name']) ?> → <?= e((string) ($handoverRecord['destination_storage_name'] ?? 'Destination storage')) ?>
+                        <?php else: ?>
+                            <?= e($handoverRecord['source_storage_name']) ?>
+                        <?php endif; ?>
+                    </p>
                     <p class="tiny-copy">
                         <?= (string) $handoverRecord['status'] === 'requested' ? 'Requested ' : 'Issued ' ?>
                         <?= e(format_datetime_display((string) ((string) $handoverRecord['status'] === 'requested' && !empty($handoverRecord['requested_at']) ? $handoverRecord['requested_at'] : $handoverRecord['issued_at']))) ?>
@@ -150,14 +159,21 @@ foreach ($lines as $line) {
             </section>
             <section class="handover-info-card">
                 <span>Mode</span>
-                <strong><?= $isRequestMode ? 'Requested by staff' : 'Direct handover' ?></strong>
-                <small><?= !empty($handoverRecord['requested_at']) ? e(format_datetime_display((string) $handoverRecord['requested_at'])) : 'No request timestamp' ?></small>
+                <strong><?= $isStorageTransfer ? 'Storage transfer' : ($isRequestMode ? 'Requested by staff' : 'Direct handover') ?></strong>
+                <small><?= $isStorageTransfer ? 'Destination owner confirms receipt' : (!empty($handoverRecord['requested_at']) ? e(format_datetime_display((string) $handoverRecord['requested_at'])) : 'No request timestamp') ?></small>
             </section>
             <section class="handover-info-card">
-                <span>Recipient</span>
-                <strong><?= e($handoverRecord['recipient_name']) ?></strong>
-                <small><?= !empty($handoverRecord['recipient_user_name']) ? e($handoverRecord['recipient_user_name']) : 'No linked account' ?></small>
+                <span><?= $isStorageTransfer ? 'Destination Owner' : 'Recipient' ?></span>
+                <strong><?= e($isStorageTransfer ? (string) ($handoverRecord['destination_owner_name'] ?? $handoverRecord['recipient_name']) : (string) $handoverRecord['recipient_name']) ?></strong>
+                <small><?= $isStorageTransfer ? e((string) ($handoverRecord['destination_storage_name'] ?? 'Destination not set')) : (!empty($handoverRecord['recipient_user_name']) ? e($handoverRecord['recipient_user_name']) : 'No linked account') ?></small>
             </section>
+            <?php if ($isStorageTransfer): ?>
+            <section class="handover-info-card">
+                <span>Destination</span>
+                <strong><?= e((string) ($handoverRecord['destination_storage_name'] ?? 'Not set')) ?></strong>
+                <small><?= e(storage_type_label((string) ($handoverRecord['destination_storage_type'] ?? 'storage'))) ?> · Owner: <?= e((string) ($handoverRecord['destination_owner_name'] ?: 'Not assigned')) ?></small>
+            </section>
+            <?php endif; ?>
             <section class="handover-info-card">
                 <span>Schedule</span>
                 <strong><?= !empty($handoverRecord['scheduled_for_date']) ? e(date('M j, Y', strtotime((string) $handoverRecord['scheduled_for_date']))) : 'Not set' ?></strong>
@@ -206,9 +222,9 @@ foreach ($lines as $line) {
                     <?php if ($canApproveRequest): ?>
                         Review Handover Request
                     <?php elseif ($canReportReceipt): ?>
-                        Confirm Actual Receipt
+                        <?= $isStorageTransfer ? 'Confirm Storage Receipt' : 'Confirm Actual Receipt' ?>
                     <?php elseif ($canConfirmReceipt): ?>
-                        Review Receipt Difference
+                        <?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Review Receipt Difference' ?>
                     <?php elseif ($canApproveClose): ?>
                         Approve Return To Storage
                     <?php elseif ($canCancelHandover): ?>
@@ -267,8 +283,8 @@ foreach ($lines as $line) {
             <?php endif; ?>
         <?php elseif ($canReportReceipt): ?>
             <div class="copy-context-card">
-                <strong>Report the exact quantity you got</strong>
-                <p>If anything arrived short, submit the real number. The storage owner will confirm the shortage before this handover becomes active.</p>
+                <strong><?= $isStorageTransfer ? 'Confirm what arrived into destination storage' : 'Report the exact quantity you got' ?></strong>
+                <p><?= $isStorageTransfer ? 'Full receipt closes the transfer and moves stock into the destination storage. Short receipt waits for source owner confirmation.' : 'If anything arrived short, submit the real number. The storage owner will confirm the shortage before this handover becomes active.' ?></p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/receive')) ?>" enctype="multipart/form-data" data-live-action-form>
@@ -357,8 +373,8 @@ foreach ($lines as $line) {
             <?php endif; ?>
         <?php elseif ($canConfirmReceipt): ?>
             <div class="copy-context-card">
-                <strong>Approve the reported shortage</strong>
-                <p>The quantities below were reported by the recipient. Approving this will return the missing difference back to the source storage and activate the handover.</p>
+                <strong><?= $isStorageTransfer ? 'Approve the transfer shortage' : 'Approve the reported shortage' ?></strong>
+                <p><?= $isStorageTransfer ? 'Approving moves reported received stock into the destination storage and returns missing quantity to the source storage.' : 'The quantities below were reported by the recipient. Approving this will return the missing difference back to the source storage and activate the handover.' ?></p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/confirm-receipt')) ?>" data-live-action-form>
@@ -371,7 +387,7 @@ foreach ($lines as $line) {
                             <th>Item</th>
                             <th>Planned</th>
                             <th>Reported Received</th>
-                            <th>Returning</th>
+                            <th><?= $isStorageTransfer ? 'Short / Returning To Source' : 'Returning' ?></th>
                         </tr>
                         </thead>
                         <tbody>
@@ -403,7 +419,7 @@ foreach ($lines as $line) {
                     </table>
                 </div>
 
-                <button class="primary-button" type="submit" data-confirm="Approve the reported receipt difference and activate this handover?">Approve Receipt Difference</button>
+                <button class="primary-button" type="submit" data-confirm="<?= $isStorageTransfer ? 'Approve this transfer shortage and close the transfer?' : 'Approve the reported receipt difference and activate this handover?' ?>"><?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Approve Receipt Difference' ?></button>
             </form>
 
             <?php if ($canCancelHandover): ?>
@@ -795,9 +811,9 @@ foreach ($lines as $line) {
                 <?php if ((string) $handoverRecord['status'] === 'requested'): ?>
                     This handover request is waiting for the storage owner to approve or reject it.
                 <?php elseif ((string) $handoverRecord['status'] === 'awaiting_receipt'): ?>
-                    This handover is waiting for the recipient to confirm what actually arrived.
+                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the destination storage owner to confirm what arrived.' : 'This handover is waiting for the recipient to confirm what actually arrived.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'receipt_review'): ?>
-                    This handover is waiting for the storage owner to confirm the reported shortage.
+                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported shortage.' : 'This handover is waiting for the storage owner to confirm the reported shortage.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'pending_approval'): ?>
                     This handover is waiting for the storage owner to approve the remaining quantity.
                 <?php elseif ((string) $handoverRecord['status'] === 'rejected'): ?>
@@ -805,7 +821,7 @@ foreach ($lines as $line) {
                 <?php elseif ((string) $handoverRecord['status'] === 'cancelled'): ?>
                     This handover request was cancelled.
                 <?php else: ?>
-                    This handover is already closed.
+                    <?= $isStorageTransfer ? 'This storage transfer is already closed.' : 'This handover is already closed.' ?>
                 <?php endif; ?>
             </p>
         <?php endif; ?>

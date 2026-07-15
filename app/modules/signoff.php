@@ -97,6 +97,23 @@ function workflow_signoff_meta(string $workflowType, array $record): array
     $workflowNumber = (string) ($record[$numberKey] ?? 'Workflow');
 
     if ($workflowType === 'handover') {
+        if (function_exists('handover_is_storage_transfer') && handover_is_storage_transfer($record)) {
+            return [
+                'title' => $title,
+                'number' => $workflowNumber,
+                'open_reference' => $workflowNumber,
+                'open_label' => 'Scan/Search reference',
+                'party_label' => 'Destination Owner',
+                'party_value' => (string) (($record['destination_owner_name'] ?? '') ?: ($record['recipient_name'] ?? '')),
+                'source_label' => 'Source',
+                'source_value' => (string) ($record['source_storage_name'] ?? ''),
+                'target_label' => 'Destination',
+                'target_value' => (string) ($record['destination_storage_name'] ?? 'Not set'),
+                'mode_label' => 'Mode',
+                'mode_value' => 'Storage transfer',
+            ];
+        }
+
         return [
             'title' => $title,
             'number' => $workflowNumber,
@@ -129,9 +146,20 @@ function workflow_signoff_meta(string $workflowType, array $record): array
     ];
 }
 
-function workflow_signoff_rows(string $workflowType, array $lines): array
+function workflow_signoff_is_storage_transfer(string $workflowType, array $record): bool
 {
-    return array_map(static function (array $line) use ($workflowType): array {
+    return $workflowType === 'handover'
+        && function_exists('handover_is_storage_transfer')
+        && handover_is_storage_transfer($record);
+}
+
+function workflow_signoff_rows(string $workflowType, array $lines, array $record = []): array
+{
+    $isStorageTransfer = workflow_signoff_is_storage_transfer($workflowType, $record);
+    $receiptWasReported = $isStorageTransfer
+        && in_array((string) ($record['status'] ?? ''), ['receipt_review', 'closed'], true);
+
+    return array_map(static function (array $line) use ($workflowType, $isStorageTransfer, $receiptWasReported): array {
         $quantity = $workflowType === 'handover'
             ? (float) ($line['quantity_handed'] ?? 0)
             : (float) ($line['quantity_requested'] ?? 0);
@@ -143,23 +171,38 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
 
         if ($workflowType === 'handover') {
             $received = round((float) ($line['quantity_received'] ?? 0), 2);
-            $used = round((float) ($line['quantity_used'] ?? 0), 2);
-            $returned = round((float) ($line['quantity_returned'] ?? 0), 2);
-            $remainingBase = $received > 0 ? $received : $quantity;
-            $remaining = max(0, round($remainingBase - $used - $returned, 2));
-            $expectedUsageSummary = handover_usage_reason_summary((array) ($line['expected_usage_breakdowns'] ?? []), $unit);
-            $usageSummary = handover_usage_reason_summary((array) ($line['usage_breakdowns'] ?? []), $unit);
-            $usageVarianceSummary = handover_usage_variance_summary(
-                (array) ($line['expected_usage_breakdowns'] ?? []),
-                (array) ($line['usage_breakdowns'] ?? []),
-                $unit
-            );
-            $quantityLines = [
-                'Planned: ' . format_quantity($quantity) . ' ' . $unit,
-                'Received: ' . ($received > 0 ? format_quantity($received) . ' ' . $unit : 'not reported'),
-                'Used: ' . format_quantity($used) . ' ' . $unit,
-                'Returned: ' . format_quantity($returned) . ' ' . $unit,
-            ];
+            if ($isStorageTransfer) {
+                $used = 0.0;
+                $returned = $receiptWasReported ? max(0, round($quantity - $received, 2)) : 0.0;
+                $remaining = 0.0;
+                $expectedUsageSummary = '';
+                $usageSummary = '';
+                $usageVarianceSummary = '';
+                $quantityLines = [
+                    'Planned: ' . format_quantity($quantity) . ' ' . $unit,
+                    'Received: ' . ($receiptWasReported ? format_quantity($received) . ' ' . $unit : 'not reported'),
+                    'To destination: ' . ($receiptWasReported ? format_quantity($received) . ' ' . $unit : 'pending'),
+                    'Returning to source: ' . ($receiptWasReported ? format_quantity($returned) . ' ' . $unit : 'pending'),
+                ];
+            } else {
+                $used = round((float) ($line['quantity_used'] ?? 0), 2);
+                $returned = round((float) ($line['quantity_returned'] ?? 0), 2);
+                $remainingBase = $received > 0 ? $received : $quantity;
+                $remaining = max(0, round($remainingBase - $used - $returned, 2));
+                $expectedUsageSummary = handover_usage_reason_summary((array) ($line['expected_usage_breakdowns'] ?? []), $unit);
+                $usageSummary = handover_usage_reason_summary((array) ($line['usage_breakdowns'] ?? []), $unit);
+                $usageVarianceSummary = handover_usage_variance_summary(
+                    (array) ($line['expected_usage_breakdowns'] ?? []),
+                    (array) ($line['usage_breakdowns'] ?? []),
+                    $unit
+                );
+                $quantityLines = [
+                    'Planned: ' . format_quantity($quantity) . ' ' . $unit,
+                    'Received: ' . ($received > 0 ? format_quantity($received) . ' ' . $unit : 'not reported'),
+                    'Used: ' . format_quantity($used) . ' ' . $unit,
+                    'Returned: ' . format_quantity($returned) . ' ' . $unit,
+                ];
+            }
         } else {
             $expectedUsageSummary = '';
             $usageSummary = '';
@@ -186,13 +229,13 @@ function workflow_signoff_rows(string $workflowType, array $lines): array
             'received_quantity' => $workflowType === 'handover'
                 ? round((float) ($line['quantity_received'] ?? 0), 2)
                 : round((float) ($line['quantity_received'] ?? 0), 2),
-            'used_quantity' => $workflowType === 'handover' ? round((float) ($line['quantity_used'] ?? 0), 2) : 0.0,
-            'returned_quantity' => $workflowType === 'handover' ? round((float) ($line['quantity_returned'] ?? 0), 2) : 0.0,
+            'used_quantity' => $workflowType === 'handover' ? $used : 0.0,
+            'returned_quantity' => $workflowType === 'handover' ? $returned : 0.0,
             'remaining_quantity' => $workflowType === 'handover' ? $remaining : 0.0,
             'approved_quantity' => $workflowType === 'request' ? round((float) ($line['quantity_approved'] ?? 0), 2) : 0.0,
-            'expected_usage_breakdowns' => $workflowType === 'handover' ? (array) ($line['expected_usage_breakdowns'] ?? []) : [],
+            'expected_usage_breakdowns' => $workflowType === 'handover' && !$isStorageTransfer ? (array) ($line['expected_usage_breakdowns'] ?? []) : [],
             'expected_usage_reason_summary' => $expectedUsageSummary,
-            'usage_breakdowns' => $workflowType === 'handover' ? (array) ($line['usage_breakdowns'] ?? []) : [],
+            'usage_breakdowns' => $workflowType === 'handover' && !$isStorageTransfer ? (array) ($line['usage_breakdowns'] ?? []) : [],
             'usage_reason_summary' => $usageSummary,
             'usage_variance_summary' => $usageVarianceSummary,
             'quantity_label' => format_quantity($quantity) . ' ' . $unit,
@@ -489,6 +532,29 @@ function workflow_signoff_accounting_difference_totals(array $rows): array
     return $totals;
 }
 
+function workflow_signoff_transfer_difference_totals(array $rows): array
+{
+    $totals = [];
+
+    foreach ($rows as $row) {
+        $unit = trim((string) ($row['unit'] ?? 'pcs'));
+        $unit = $unit !== '' ? $unit : 'pcs';
+        $planned = round((float) ($row['quantity'] ?? 0), 2);
+        $received = round((float) ($row['received_quantity'] ?? 0), 2);
+        $returned = round((float) ($row['returned_quantity'] ?? 0), 2);
+
+        if (!isset($totals[$unit])) {
+            $totals[$unit] = 0.0;
+        }
+
+        $totals[$unit] = round($totals[$unit] + ($planned - $received - $returned), 2);
+    }
+
+    ksort($totals);
+
+    return $totals;
+}
+
 function workflow_signoff_single_unit(array $rows): ?string
 {
     $units = [];
@@ -512,14 +578,16 @@ function workflow_signoff_quantity_sum(array $rows, string $quantityKey): float
     return round($total, 2);
 }
 
-function workflow_signoff_reconciliation_table_rows(array $rows): array
+function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorageTransfer = false): array
 {
     $unit = workflow_signoff_single_unit($rows);
     $planned = workflow_signoff_quantity_sum($rows, 'quantity');
     $received = workflow_signoff_quantity_sum($rows, 'received_quantity');
     $used = workflow_signoff_quantity_sum($rows, 'used_quantity');
     $returned = workflow_signoff_quantity_sum($rows, 'returned_quantity');
-    $unaccounted = round($received - $used - $returned, 2);
+    $unaccounted = $isStorageTransfer
+        ? round($planned - $received - $returned, 2)
+        : round($received - $used - $returned, 2);
     $tableRows = [
         [
             'type' => 'total_issued',
@@ -531,6 +599,38 @@ function workflow_signoff_reconciliation_table_rows(array $rows): array
             'notes' => 'Issued quantity compared with received quantity.',
         ],
     ];
+
+    if ($isStorageTransfer) {
+        $tableRows[] = [
+            'type' => 'received_destination',
+            'label' => 'Received Into Destination',
+            'expected' => '',
+            'actual' => $unit === null ? workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'received_quantity')) : $received,
+            'difference' => '',
+            'unit' => $unit ?? '',
+            'notes' => 'Accepted by destination storage.',
+        ];
+        $tableRows[] = [
+            'type' => 'returned_source',
+            'label' => 'Returned To Source',
+            'expected' => '',
+            'actual' => $unit === null ? workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'returned_quantity')) : $returned,
+            'difference' => '',
+            'unit' => $unit ?? '',
+            'notes' => 'Short quantity returned to source storage.',
+        ];
+        $tableRows[] = [
+            'type' => 'difference',
+            'label' => 'Difference / Unaccounted',
+            'expected' => $unit === null ? '' : 0,
+            'actual' => $unit === null ? workflow_signoff_format_grouped_total(workflow_signoff_transfer_difference_totals($rows)) : $unaccounted,
+            'difference' => '',
+            'unit' => $unit ?? '',
+            'notes' => 'Planned - received - returned. Target is 0.',
+        ];
+
+        return $tableRows;
+    }
 
     foreach (workflow_signoff_reconciliation_rows($rows) as $summaryRow) {
         $expected = round((float) ($summaryRow['expected'] ?? 0), 2);
@@ -573,33 +673,37 @@ function workflow_signoff_reconciliation_table_rows(array $rows): array
     return $tableRows;
 }
 
-function workflow_signoff_totals(string $workflowType, array $rows): array
+function workflow_signoff_totals(string $workflowType, array $rows, array $record = []): array
 {
     if ($workflowType === 'handover') {
-        $reconciliationRows = workflow_signoff_reconciliation_rows($rows);
+        $isStorageTransfer = workflow_signoff_is_storage_transfer($workflowType, $record);
+        $reconciliationRows = $isStorageTransfer ? [] : workflow_signoff_reconciliation_rows($rows);
 
-        return [
+        $totals = [
+            'is_storage_transfer' => $isStorageTransfer,
             'total_label' => 'Total Items',
             'total_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'quantity')),
             'received_total_label' => 'Received Total',
             'received_total_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'received_quantity')),
-            'secondary_label' => 'Used Total',
-            'secondary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'used_quantity')),
-            'tertiary_label' => 'Returned Total',
+            'secondary_label' => $isStorageTransfer ? 'To Destination Total' : 'Used Total',
+            'secondary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, $isStorageTransfer ? 'received_quantity' : 'used_quantity')),
+            'tertiary_label' => $isStorageTransfer ? 'Returned To Source' : 'Returned Total',
             'tertiary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'returned_quantity')),
-            'quaternary_label' => 'Remaining Total',
-            'quaternary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'remaining_quantity')),
+            'quaternary_label' => $isStorageTransfer ? 'Difference' : 'Remaining Total',
+            'quaternary_value' => workflow_signoff_format_grouped_total($isStorageTransfer ? workflow_signoff_transfer_difference_totals($rows) : workflow_signoff_grouped_quantity_total($rows, 'remaining_quantity')),
             'difference_label' => 'Difference',
-            'difference_value' => workflow_signoff_format_grouped_total(workflow_signoff_accounting_difference_totals($rows)),
+            'difference_value' => workflow_signoff_format_grouped_total($isStorageTransfer ? workflow_signoff_transfer_difference_totals($rows) : workflow_signoff_accounting_difference_totals($rows)),
             'expected_usage_reason_label' => 'Expected Usage',
-            'expected_usage_reason_value' => workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
+            'expected_usage_reason_value' => $isStorageTransfer ? '' : workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
             'usage_reason_label' => 'Usage By Reason',
-            'usage_reason_value' => workflow_signoff_usage_reason_totals($rows),
+            'usage_reason_value' => $isStorageTransfer ? '' : workflow_signoff_usage_reason_totals($rows),
             'usage_variance_label' => 'Usage Variance',
-            'usage_variance_value' => workflow_signoff_usage_variance_totals($rows),
+            'usage_variance_value' => $isStorageTransfer ? '' : workflow_signoff_usage_variance_totals($rows),
             'reconciliation_rows' => $reconciliationRows,
-            'reconciliation_table_rows' => workflow_signoff_reconciliation_table_rows($rows),
+            'reconciliation_table_rows' => workflow_signoff_reconciliation_table_rows($rows, $isStorageTransfer),
         ];
+
+        return $totals;
     }
 
     return [
@@ -1593,6 +1697,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     $imageColumnWidth = max(12, min(64, round(((int) $imageSize['width'] / 7.2) + 2, 1)));
     $hasBrandLogo = workflow_xlsx_has_image_at($images, 1, 0);
     $isHandover = array_key_exists('reconciliation_rows', $totals);
+    $isStorageTransfer = !empty($totals['is_storage_transfer']);
     $handoverUsesReconciliation = $isHandover && workflow_signoff_template() === 'reconciliation';
     $sheetRows = [];
     $sheetRows[] = '<row r="1" ht="44" customHeight="1">' . workflow_xlsx_cell('A1', $hasBrandLogo ? '' : 'KONA', 5) . workflow_xlsx_cell('B1', $meta['title'], 1) . workflow_xlsx_cell('I1', (string) ($meta['open_label'] ?? 'Scan/Search reference'), 5) . '</row>';
@@ -1637,7 +1742,9 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     }
 
     $headers = $handoverUsesReconciliation
-        ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Used', 'Returned', 'Notes']
+        ? ($isStorageTransfer
+            ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'To Destination', 'Returned To Source', 'Notes']
+            : ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Used', 'Returned', 'Notes'])
         : ($isHandover
             ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Expected Usage', 'Actual Usage', 'Returned', 'Remaining', 'Variance / Notes']
             : ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Expected Qty', 'Reported / Final Qty', 'Expected Usage', 'Used Breakdown', 'Returned', 'Remaining', 'Notes']);
@@ -1660,7 +1767,11 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         if ($handoverUsesReconciliation) {
             $cells .= workflow_xlsx_number_cell('F' . $rowNumber, (float) ($row['quantity'] ?? 0), 3);
             $cells .= workflow_xlsx_number_cell('G' . $rowNumber, (float) ($row['received_quantity'] ?? 0), 3);
-            $cells .= workflow_xlsx_formula_cell('H' . $rowNumber, 'G' . $rowNumber . '-I' . $rowNumber, 3);
+            if ($isStorageTransfer) {
+                $cells .= workflow_xlsx_number_cell('H' . $rowNumber, (float) ($row['received_quantity'] ?? 0), 3);
+            } else {
+                $cells .= workflow_xlsx_formula_cell('H' . $rowNumber, 'G' . $rowNumber . '-I' . $rowNumber, 3);
+            }
             $cells .= workflow_xlsx_number_cell('I' . $rowNumber, (float) ($row['returned_quantity'] ?? 0), 3);
             $cells .= workflow_xlsx_cell('J' . $rowNumber, '', 3);
         } elseif ($isHandover) {
@@ -1870,8 +1981,8 @@ function workflow_signoff_excel_payload(string $workflowType, array $record, arr
     }
 
     $meta = workflow_signoff_meta($workflowType, $record);
-    $rows = workflow_signoff_rows($workflowType, $lines);
-    $totals = workflow_signoff_totals($workflowType, $rows);
+    $rows = workflow_signoff_rows($workflowType, $lines, $record);
+    $totals = workflow_signoff_totals($workflowType, $rows, $record);
     $imageSize = workflow_signoff_effective_image_size('excel');
     $images = [];
     $brandLogo = workflow_brand_logo_xlsx_asset(180, 48);
@@ -2041,8 +2152,8 @@ function workflow_pdf_build(array $pages, array $images): string
 function workflow_signoff_pdf_payload(string $workflowType, array $record, array $lines): string
 {
     $meta = workflow_signoff_meta($workflowType, $record);
-    $rows = workflow_signoff_rows($workflowType, $lines);
-    $totals = workflow_signoff_totals($workflowType, $rows);
+    $rows = workflow_signoff_rows($workflowType, $lines, $record);
+    $totals = workflow_signoff_totals($workflowType, $rows, $record);
     $handoverUsesReconciliation = $workflowType === 'handover' && workflow_signoff_template() === 'reconciliation';
     $pdfImageSize = workflow_signoff_effective_image_size('pdf');
     $pdfImageWidth = (int) $pdfImageSize['width'];

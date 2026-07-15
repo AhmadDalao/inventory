@@ -3066,7 +3066,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const hideItemQuantity = builder.dataset.hideItemQuantity === 'true';
       const ownerName = form.querySelector('[data-request-owner-name]');
       const ownerCopy = form.querySelector('[data-request-owner-copy]');
-      const hasExpectedUsage = builder.dataset.expectedUsage === 'true';
+      const hasExpectedUsage = () => builder.dataset.expectedUsage === 'true';
       let usageReasons = {
         unspecified: 'Unspecified',
         walkin: 'Walk-in',
@@ -3130,7 +3130,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       const expectedUsageEditorMarkup = () => {
-        if (!hasExpectedUsage) {
+        if (!hasExpectedUsage()) {
           return '';
         }
 
@@ -3615,6 +3615,107 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       renumberExpectedUsageFields();
       body.querySelectorAll('[data-workflow-line]').forEach((line) => syncLine(line));
+    });
+  };
+
+  const initHandoverTargetSwitchers = (root = document) => {
+    root.querySelectorAll('[data-handover-target-switcher]').forEach((switcher) => {
+      if (switcher.dataset.jsBound === 'true') {
+        return;
+      }
+
+      const form = switcher.closest('form');
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+
+      const radios = Array.from(form.querySelectorAll('[data-handover-target-radio]'))
+        .filter((radio) => radio instanceof HTMLInputElement);
+      const staffFields = Array.from(form.querySelectorAll('[data-handover-staff-fields]'));
+      const storageFields = Array.from(form.querySelectorAll('[data-handover-storage-fields]'));
+      const destinationSelect = form.querySelector('[data-handover-destination-storage]');
+      const destinationCopy = form.querySelector('[data-handover-destination-copy]');
+      const sourceSelect = form.querySelector('[data-workflow-storage]');
+      const lineBuilder = form.querySelector('[data-workflow-line-builder]');
+
+      const setSectionEnabled = (section, enabled) => {
+        if (!(section instanceof HTMLElement)) {
+          return;
+        }
+
+        section.hidden = !enabled;
+        section.querySelectorAll('input, select, textarea, button').forEach((field) => {
+          if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement || field instanceof HTMLButtonElement) {
+            field.disabled = !enabled;
+          }
+        });
+      };
+
+      const syncDestinationCopy = () => {
+        if (!(destinationSelect instanceof HTMLSelectElement) || !destinationCopy) {
+          return;
+        }
+
+        const selected = destinationSelect.selectedOptions[0];
+        const ownerName = selected?.dataset?.ownerName || '';
+        destinationCopy.textContent = ownerName
+          ? `${ownerName} will confirm what arrived into this destination storage.`
+          : 'Destination owner confirms what arrived. Same source and destination are blocked.';
+      };
+
+      const syncExpectedUsage = (enabled) => {
+        if (lineBuilder instanceof HTMLElement) {
+          lineBuilder.dataset.expectedUsage = enabled ? 'true' : 'false';
+        }
+
+        form.querySelectorAll('[data-handover-transfer-sensitive], [data-expected-usage-editor]').forEach((editor) => {
+          if (!(editor instanceof HTMLElement)) {
+            return;
+          }
+
+          editor.hidden = !enabled;
+          editor.querySelectorAll('input, select, textarea, button').forEach((field) => {
+            if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement || field instanceof HTMLButtonElement) {
+              field.disabled = !enabled;
+            }
+          });
+        });
+      };
+
+      const sync = () => {
+        const targetType = radios.find((radio) => radio.checked)?.value || 'staff';
+        const isStorage = targetType === 'storage';
+
+        staffFields.forEach((section) => setSectionEnabled(section, !isStorage));
+        storageFields.forEach((section) => setSectionEnabled(section, isStorage));
+
+        if (destinationSelect instanceof HTMLSelectElement) {
+          destinationSelect.required = isStorage;
+          destinationSelect.disabled = !isStorage;
+        }
+
+        syncExpectedUsage(!isStorage);
+        syncDestinationCopy();
+
+        if (isStorage && sourceSelect instanceof HTMLSelectElement && destinationSelect instanceof HTMLSelectElement && sourceSelect.value !== '' && sourceSelect.value === destinationSelect.value) {
+          destinationSelect.setCustomValidity('Destination storage must be different from source storage.');
+        } else if (destinationSelect instanceof HTMLSelectElement) {
+          destinationSelect.setCustomValidity('');
+        }
+      };
+
+      radios.forEach((radio) => radio.addEventListener('change', sync));
+
+      if (destinationSelect instanceof HTMLSelectElement) {
+        destinationSelect.addEventListener('change', sync);
+      }
+
+      if (sourceSelect instanceof HTMLSelectElement) {
+        sourceSelect.addEventListener('change', sync);
+      }
+
+      switcher.dataset.jsBound = 'true';
+      sync();
     });
   };
 
@@ -8059,6 +8160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMovementForm(root);
     initLiveFilters(root);
     initLabelPrintSelection(root);
+    initHandoverTargetSwitchers(root);
     initWorkflowLineBuilders(root);
     initPurchaseLineBuilders(root);
     initPurchaseOcrImport(root);
