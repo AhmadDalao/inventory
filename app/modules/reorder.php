@@ -1,0 +1,318 @@
+<?php
+declare(strict_types=1);
+
+// Domain module: reorder. Function names are preserved for route/view compatibility.
+
+// Moved from workflows.php.
+
+function reorder_filters(): array
+{
+    return [
+        'search' => trim((string) query('search', '')),
+        'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
+        'include_zero_policy' => (string) query('include_zero_policy', '') === '1',
+    ];
+}
+
+function reorder_suggestion_rows(array $filters): array
+{
+    $conditions = [
+        'item.is_active = 1',
+        'storage.is_active = 1',
+        'storage.is_system = 0',
+        'balance.quantity <= item.reorder_level',
+    ];
+    $params = [];
+
+    if (empty($filters['include_zero_policy'])) {
+        $conditions[] = 'item.reorder_level > 0';
+    }
+
+    if (!empty($filters['storage_id'])) {
+        $conditions[] = 'storage.id = :storage_id';
+        $params['storage_id'] = (int) $filters['storage_id'];
+    }
+
+    if (($filters['search'] ?? '') !== '') {
+        $conditions[] = '(item.name LIKE :reorder_search_item OR item.sku LIKE :reorder_search_sku OR COALESCE(item.barcode, "") LIKE :reorder_search_barcode OR storage.name LIKE :reorder_search_storage)';
+        $params['reorder_search_item'] = '%' . $filters['search'] . '%';
+        $params['reorder_search_sku'] = '%' . $filters['search'] . '%';
+        $params['reorder_search_barcode'] = '%' . $filters['search'] . '%';
+        $params['reorder_search_storage'] = '%' . $filters['search'] . '%';
+    }
+
+    return Database::fetchAll(
+        'SELECT item.id AS item_id,
+                item.name AS item_name,
+                item.sku,
+                item.barcode,
+                item.unit,
+                item.category,
+                item.cost_per_unit,
+                item.image_path,
+                item.reorder_level,
+                storage.id AS storage_id,
+                storage.name AS storage_name,
+                storage.storage_type,
+                balance.quantity,
+                GREATEST(item.reorder_level - balance.quantity, 0) AS suggested_quantity
+         FROM item_storage_balances balance
+         INNER JOIN items item ON item.id = balance.item_id
+         INNER JOIN storages storage ON storage.id = balance.storage_id
+         WHERE ' . implode(' AND ', $conditions) . '
+         ORDER BY storage.name ASC, suggested_quantity DESC, item.name ASC',
+        $params
+    );
+}
+
+function handle_reorder_index(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('reorder.view');
+
+    $filters = reorder_filters();
+
+    View::render('reorder/index', [
+        'title' => site_setting('page.reorder', 'Reorder Center'),
+        'filters' => $filters,
+        'rows' => reorder_suggestion_rows($filters),
+        'storages' => all_storages_for_select($filters['storage_id']),
+        'suppliers' => suppliers_for_select(),
+        'approvers' => purchase_approvers_for_select(),
+    ]);
+}
+
+function handle_reorder_create_purchase_submit(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('reorder.create_purchase');
+    Auth::requirePermission('purchases.create');
+    verify_csrf();
+
+    $storageId = normalize_entity_id(input('storage_id'));
+    $supplierPayload = [
+        'supplier_id' => normalize_entity_id(input('supplier_id')),
+        'supplier_name' => trim((string) input('supplier_name')),
+        'supplier_type' => trim((string) input('supplier_type', 'product')),
+        'supplier_type_other' => trim((string) input('supplier_type_other')),
+        'supplier_phone' => trim((string) input('supplier_phone')),
+        'supplier_email' => strtolower(trim((string) input('supplier_email'))),
+        'supplier_tax_number' => strtoupper(trim((string) input('supplier_tax_number'))),
+        'supplier_commercial_registration' => strtoupper(trim((string) input('supplier_commercial_registration'))),
+        'supplier_national_address' => trim((string) input('supplier_national_address')),
+        'supplier_authorized_person' => trim((string) input('supplier_authorized_person')),
+        'supplier_notes' => '',
+    ];
+    $approverUserId = normalize_entity_id(input('approver_user_id'));
+    $currency = strtoupper(trim((string) input('currency', 'SAR'))) ?: 'SAR';
+    $notes = trim((string) input('notes'));
+    $errors = [];
+
+    if ($storageId === null || !storage_exists_for_assignment($storageId)) {
+        $errors[] = 'Pick one storage to create a purchase draft.';
+    }
+
+    if ($supplierPayload['supplier_id'] === null) {
+        if ($supplierPayload['supplier_name'] === '') {
+            $errors[] = 'Pick a supplier or write a new supplier name.';
+        }
+
+        if (!array_key_exists($supplierPayload['supplier_type'], supplier_type_options())) {
+            $errors[] = 'Supplier type is required.';
+        }
+
+        if ($supplierPayload['supplier_type'] === 'other' && $supplierPayload['supplier_type_other'] === '') {
+            $errors[] = 'Write the custom supplier type when choosing Other.';
+        }
+
+        if ($supplierPayload['supplier_phone'] === '') {
+            $errors[] = 'Supplier phone number is required.';
+        }
+
+        if ($supplierPayload['supplier_national_address'] === '') {
+            $errors[] = 'Supplier national address is required.';
+        }
+
+        if ($supplierPayload['supplier_authorized_person'] === '') {
+            $errors[] = 'Supplier authorized person name is required.';
+        }
+    }
+
+    if ($supplierPayload['supplier_email'] !== '' && !filter_var($supplierPayload['supplier_email'], FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Supplier email is not valid.';
+    }
+
+    if ($approverUserId === null) {
+        $errors[] = 'Pick a purchase approver.';
+    } elseif ($approverUserId === (int) (Auth::user()['id'] ?? 0)) {
+        $errors[] = 'You cannot approve your own reorder purchase.';
+    }
+
+    if (!preg_match('/^[A-Z]{3,8}$/', $currency)) {
+        $errors[] = 'Currency must be 3 to 8 uppercase letters.';
+    }
+
+    $suggestions = $storageId ? reorder_suggestion_rows([
+        'storage_id' => $storageId,
+        'search' => '',
+        'include_zero_policy' => false,
+    ]) : [];
+    $suggestions = array_values(array_filter($suggestions, static fn (array $row): bool => (float) $row['suggested_quantity'] > 0));
+
+    if ($suggestions === []) {
+        $errors[] = 'No low-stock reorder suggestions exist for this storage.';
+    }
+
+    if ($errors !== []) {
+        flash_errors($errors);
+        redirect('/reorder' . ($storageId ? '?storage_id=' . $storageId : ''));
+    }
+
+    $user = Auth::user();
+    $storage = find_storage_or_abort((int) $storageId);
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+
+    try {
+        $supplierId = persist_supplier_from_purchase_payload($supplierPayload, (int) $user['id']);
+        $purchaseNumber = next_workflow_number('PO', 'purchases', 'purchase_number');
+
+        Database::execute(
+            'INSERT INTO purchases (
+                purchase_number,
+                supplier_id,
+                destination_storage_id,
+                requester_user_id,
+                approver_user_id,
+                status,
+                currency,
+                notes,
+                created_at,
+                updated_at
+             ) VALUES (
+                :purchase_number,
+                :supplier_id,
+                :destination_storage_id,
+                :requester_user_id,
+                :approver_user_id,
+                "draft",
+                :currency,
+                :notes,
+                NOW(),
+                NOW()
+             )',
+            [
+                'purchase_number' => $purchaseNumber,
+                'supplier_id' => $supplierId,
+                'destination_storage_id' => $storageId,
+                'requester_user_id' => (int) $user['id'],
+                'approver_user_id' => $approverUserId,
+                'currency' => $currency,
+                'notes' => $notes !== '' ? $notes : 'Auto-created from reorder suggestions for ' . $storage['name'] . '.',
+            ]
+        );
+        $purchaseId = Database::lastInsertId();
+
+        foreach ($suggestions as $suggestion) {
+            Database::execute(
+                'INSERT INTO purchase_lines (
+                    purchase_id,
+                    item_id,
+                    item_name,
+                    item_sku,
+                    item_barcode,
+                    item_category,
+                    unit,
+                    item_image_path,
+                    item_notes,
+                    quantity_requested,
+                    quantity_approved,
+                    unit_cost_quoted,
+                    unit_cost_approved,
+                    created_at,
+                    updated_at
+                 ) VALUES (
+                    :purchase_id,
+                    :item_id,
+                    :item_name,
+                    :item_sku,
+                    :item_barcode,
+                    :item_category,
+                    :unit,
+                    :item_image_path,
+                    NULL,
+                    :quantity_requested,
+                    0,
+                    :unit_cost_quoted,
+                    0,
+                    NOW(),
+                    NOW()
+                 )',
+                [
+                    'purchase_id' => $purchaseId,
+                    'item_id' => (int) $suggestion['item_id'],
+                    'item_name' => $suggestion['item_name'],
+                    'item_sku' => $suggestion['sku'],
+                    'item_barcode' => normalize_item_barcode($suggestion['barcode'] ?? '') !== '' ? normalize_item_barcode($suggestion['barcode']) : null,
+                    'item_category' => $suggestion['category'] ?: null,
+                    'unit' => $suggestion['unit'],
+                    'item_image_path' => $suggestion['image_path'] ?: null,
+                    'quantity_requested' => round((float) $suggestion['suggested_quantity'], 2),
+                    'unit_cost_quoted' => round((float) $suggestion['cost_per_unit'], 2),
+                ]
+            );
+        }
+
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        flash('danger', $exception->getMessage());
+        redirect('/reorder?storage_id=' . $storageId);
+    }
+
+    record_activity('reorder.purchase_created', 'purchase', $purchaseId, 'Created purchase draft ' . $purchaseNumber . ' from reorder suggestions', [
+        'storage_id' => $storageId,
+        'line_count' => count($suggestions),
+    ]);
+    flash('success', 'Purchase draft created from low-stock suggestions. Attach supplier proof before submitting.');
+    redirect('/purchases/' . $purchaseId . '/edit');
+}
+
+function handle_export_reorder(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('reorder.export');
+
+    $rows = array_map(static function (array $row): array {
+        return [
+            $row['storage_name'],
+            storage_type_label((string) $row['storage_type']),
+            $row['item_name'],
+            $row['sku'],
+            $row['category'] ?: '',
+            $row['unit'],
+            format_quantity($row['quantity']),
+            format_quantity($row['reorder_level']),
+            format_quantity($row['suggested_quantity']),
+            format_money($row['cost_per_unit']),
+            format_money((float) $row['suggested_quantity'] * (float) $row['cost_per_unit']),
+        ];
+    }, reorder_suggestion_rows(reorder_filters()));
+
+    export_csv('reorder-export-' . date('Ymd-His') . '.csv', [
+        'Storage',
+        'Storage Type',
+        'Item',
+        'SKU',
+        'Category',
+        'Unit',
+        'Current Quantity',
+        'Reorder Level',
+        'Suggested Quantity',
+        'Cost Per Unit',
+        'Suggested Value',
+    ], $rows);
+}

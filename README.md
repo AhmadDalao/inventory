@@ -1,35 +1,52 @@
-# Inventory HQ
+# Inventory KONA
 
-Simple inventory tracking app built with plain PHP and MySQL.
+Internal inventory, handover, purchasing, asset, and reporting system for KONA operations.
 
-## What it does
+This is no longer a tiny CRUD app. The current application tracks consumable stock by storage, movement history, requests, handovers, supplier purchases, fixed assets, files, reports, notifications, roles, permissions, and audit logs.
 
-- Login with role-based access
-- Owner account plus admin management
-- CRUD for inventory items
-- Current stock tracking per item
-- Movement log for usage, restock, and adjustments
-- Dashboard metrics for stock, low inventory, value, and recent activity
-- CSV export for items and movement history
+## Developer Handover
 
-## Local run
+Start here:
 
-1. Copy `.env.example` to `.env`
-2. Fill in your MySQL credentials
-3. Start the dev server:
+- [Developer handover](docs/developer-handover.md)
+- Production URL: `https://inventory.ahmaddalao.com`
+- Live app path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
+- Main branch: `main`
+- GitHub remote: `https://github.com/AhmadDalao/inventory.git`
+
+## Local Setup
+
+1. Copy `.env.example` to `.env`.
+2. Fill in MySQL credentials.
+3. Run with PHP:
 
 ```bash
 php -S 127.0.0.1:8080 router.php
 ```
 
-4. Open `http://127.0.0.1:8080`
-5. Complete setup to create the first owner account
+4. Open `http://127.0.0.1:8080`.
 
-## Deploy
+## Checks
 
-1. Upload the project to your web root
-2. Add a real `.env` file on the server
-3. Make sure the domain points to this folder
-4. Open the app and finish setup
+```bash
+php -l index.php
+find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
+node --check assets/app.js
+php tests/full_regression.php
+php tests/stock_invariants.php
+```
 
-Apache rewrite rules live in `.htaccess`, so shared hosting is fine.
+If local MySQL is unavailable, run stock invariants on the live server after a backup.
+
+## Current Architecture
+
+Routes still live in `index.php`. Domain functions are loaded through `app/modules.php` and organized under `app/modules/`.
+
+The old aggregate files remain as compatibility loaders:
+
+- `app/controllers.php`
+- `app/workflows.php`
+- `app/company_assets.php`
+- `app/report_presets.php`
+
+Do not add new logic to those compatibility files. Put new backend logic in the correct module.

@@ -2,10 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/app/bootstrap.php';
-require __DIR__ . '/app/controllers.php';
-require __DIR__ . '/app/report_presets.php';
-require __DIR__ . '/app/company_assets.php';
-require __DIR__ . '/app/workflows.php';
+require __DIR__ . '/app/modules.php';
 
 $router = new Router();
 
