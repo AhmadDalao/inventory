@@ -1822,7 +1822,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $reconciliationHeaderRow = $reconciliationNoteRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
-            . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected / Issued', 2)
+            . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected Usage / Issued', 2)
             . workflow_xlsx_cell('C' . $reconciliationHeaderRow, 'Actual', 2)
             . workflow_xlsx_cell('D' . $reconciliationHeaderRow, 'Difference', 2)
             . workflow_xlsx_cell('E' . $reconciliationHeaderRow, 'Unit', 2)
@@ -2412,7 +2412,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_text('Usage Reconciliation', 12, 42, 614, 'F2');
             $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
             $commands .= workflow_pdf_text('Type', 8, 56, 592, 'F2');
-            $commands .= workflow_pdf_text('Expected / Issued', 8, 182, 592, 'F2');
+            $commands .= workflow_pdf_text('Expected Usage / Issued', 8, 182, 592, 'F2');
             $commands .= workflow_pdf_text('Actual', 8, 294, 592, 'F2');
             $commands .= workflow_pdf_text('Difference', 8, 376, 592, 'F2');
             $commands .= workflow_pdf_text('Notes', 8, 464, 592, 'F2');
