@@ -1084,6 +1084,9 @@ foreach ($lines as $line) {
             <?php foreach ($lines as $line): ?>
                 <?php
                 $imageUrl = item_image_url($line['image_path'] ?? null);
+                $expectedUsageSummary = trim((string) ($line['expected_usage_reason_summary'] ?? ''));
+                $usageSummary = trim((string) ($line['usage_reason_summary'] ?? ''));
+                $varianceSummary = trim((string) ($line['usage_variance_summary'] ?? ''));
                 $baseQuantity = in_array((string) $handoverRecord['status'], ['requested', 'awaiting_receipt'], true)
                     ? (float) $line['quantity_handed']
                     : (float) $line['quantity_received'];
@@ -1104,6 +1107,19 @@ foreach ($lines as $line) {
                             <div>
                                 <strong><?= e($line['item_name']) ?></strong>
                                 <div class="tiny-copy"><?= e($line['unit']) ?></div>
+                                <?php if ($expectedUsageSummary !== '' || $usageSummary !== '' || $varianceSummary !== ''): ?>
+                                    <div class="handover-line-usage-chips">
+                                        <?php if ($expectedUsageSummary !== ''): ?>
+                                            <span class="handover-usage-summary-chip">Expected: <?= e($expectedUsageSummary) ?></span>
+                                        <?php endif; ?>
+                                        <?php if ($usageSummary !== ''): ?>
+                                            <span class="handover-usage-summary-chip">Actual: <?= e($usageSummary) ?></span>
+                                        <?php endif; ?>
+                                        <?php if ($varianceSummary !== ''): ?>
+                                            <span class="handover-usage-summary-chip">Variance: <?= e($varianceSummary) ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php if (Auth::hasPermission('items.view')): ?>
                             </a>

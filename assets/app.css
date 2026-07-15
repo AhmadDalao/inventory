@@ -2873,6 +2873,13 @@ textarea {
     color: var(--muted);
 }
 
+.handover-line-usage-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
 .handover-approval-chip-stack,
 .handover-reason-quick-buttons {
     display: flex;
