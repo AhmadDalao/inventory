@@ -1739,6 +1739,39 @@ document.addEventListener('DOMContentLoaded', () => {
         closeLine?.classList?.toggle('has-return-mismatch', hasInvalidReturn);
       };
 
+      const fillCalculatedUsageQuantity = (editor) => {
+        const usedField = editor.querySelector('[data-handover-used]');
+
+        if (!(usedField instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const used = Math.max(0, parseNumber(usedField.value));
+        const rows = Array.from(editor.querySelectorAll('[data-handover-usage-row]'));
+
+        if (rows.length === 0) {
+          return;
+        }
+
+        const meaningfulRows = rows.filter((row) => usageRowHasMeaning(row));
+
+        if (meaningfulRows.length > 1) {
+          return;
+        }
+
+        const targetRow = meaningfulRows[0] || rows[0];
+
+        if (!(targetRow instanceof HTMLElement)) {
+          return;
+        }
+
+        const quantity = targetRow.querySelector('[data-handover-usage-quantity]');
+
+        if (quantity instanceof HTMLInputElement) {
+          quantity.value = used > 0 ? formatQuantity(used) : '';
+        }
+      };
+
       const bindUsageRow = (row, editor) => {
         if (!(row instanceof HTMLElement)) {
           return;
@@ -1831,8 +1864,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const returnedField = closeLine?.querySelector('[data-handover-returned]');
 
         if (returnedField instanceof HTMLInputElement) {
-          returnedField.addEventListener('input', () => syncEditor(editor));
-          returnedField.addEventListener('change', () => syncEditor(editor));
+          const syncReturnedUsage = () => {
+            syncEditor(editor);
+            fillCalculatedUsageQuantity(editor);
+            syncEditor(editor);
+          };
+
+          returnedField.addEventListener('input', syncReturnedUsage);
+          returnedField.addEventListener('change', syncReturnedUsage);
         }
 
         const addButton = editor.querySelector('[data-add-handover-usage]');

@@ -2566,41 +2566,6 @@ textarea {
     background: #fffdf9;
 }
 
-.handover-close-item-identity {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 14px;
-    border: 1px solid rgba(231, 182, 74, 0.24);
-    border-radius: 20px;
-    background: linear-gradient(135deg, #fffaf0, #f8f0e4);
-    padding: 12px 14px;
-}
-
-.handover-close-item-identity > div {
-    min-width: 0;
-}
-
-.handover-close-item-identity strong,
-.handover-close-item-identity small {
-    display: block;
-}
-
-.handover-close-item-identity small {
-    color: var(--muted);
-    margin-top: 3px;
-}
-
-.handover-close-body-thumb {
-    width: 58px;
-    height: 58px;
-    flex: 0 0 58px;
-    border-radius: 16px;
-    object-fit: cover;
-    overflow: hidden;
-    box-shadow: 0 10px 24px rgba(33, 25, 14, 0.08);
-}
-
 .handover-close-card-head {
     display: grid;
     grid-template-columns: repeat(2, minmax(180px, 1fr));

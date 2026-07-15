@@ -482,19 +482,6 @@ foreach ($lines as $line) {
                             </summary>
 
                             <div class="handover-close-card-body">
-                                <div class="handover-close-item-identity">
-                                    <?php if ($lineImageUrl): ?>
-                                        <img class="item-thumb handover-close-body-thumb expandable-image" src="<?= e($lineImageUrl) ?>" alt="<?= e($line['item_name']) ?>" data-expand-image tabindex="0">
-                                    <?php else: ?>
-                                        <span class="item-thumb item-thumb-fallback handover-close-body-thumb"><?= e(item_initial((string) $line['item_name'])) ?></span>
-                                    <?php endif; ?>
-                                    <div>
-                                        <span class="eyebrow">Reporting Item</span>
-                                        <strong><?= e($line['item_name']) ?></strong>
-                                        <small><?= e($line['item_sku']) ?> · <?= e($line['unit']) ?></small>
-                                    </div>
-                                </div>
-
                                 <?php if ($expectedUsageSummary !== ''): ?>
                                     <div class="handover-usage-summary-chip">Expected: <?= e($expectedUsageSummary) ?></div>
                                 <?php endif; ?>
