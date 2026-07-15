@@ -51,9 +51,10 @@ $canApproveRequest = Auth::hasPermission('handovers.approve')
     && handover_request_decision_block_reason($handoverRecord, $currentUser) === null;
 $canRejectRequest = $canApproveRequest;
 $canCancelHandover = handover_cancel_block_reason($handoverRecord, $currentUser) === null;
-$canReportReceipt = handover_can_report_receipt($handoverRecord, $currentUser);
 $canConfirmReceipt = handover_receipt_confirm_block_reason($handoverRecord, $currentUser) === null
     && ($isStorageTransfer || Auth::hasPermission('handovers.approve'));
+$canReportReceipt = handover_can_report_receipt($handoverRecord, $currentUser)
+    && !$canConfirmReceipt;
 $canClose = Auth::hasPermission('handovers.close')
     && !$isStorageTransfer
     && (string) $handoverRecord['status'] === 'delivered'
