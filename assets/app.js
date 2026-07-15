@@ -1981,6 +1981,47 @@ document.addEventListener('DOMContentLoaded', () => {
         return Math.round(total * 100) / 100;
       };
 
+      const usageRowHasMeaning = (row) => {
+        const reason = row.querySelector('[data-handover-usage-reason]');
+        const quantity = row.querySelector('[data-handover-usage-quantity]');
+        const other = row.querySelector('[data-handover-usage-other]');
+        const note = row.querySelector('input[name^="line_usage_notes"]');
+        const reasonValue = reason instanceof HTMLSelectElement ? reason.value : 'unspecified';
+        const quantityValue = quantity instanceof HTMLInputElement ? parseNumber(quantity.value) : 0;
+
+        return quantityValue > 0
+          || (reasonValue !== '' && reasonValue !== 'unspecified')
+          || (other instanceof HTMLInputElement && other.value.trim() !== '')
+          || (note instanceof HTMLInputElement && note.value.trim() !== '');
+      };
+
+      const fillApprovalCalculatedUsageQuantity = (line, editor) => {
+        const targetUsed = Math.max(0, parseNumber(editor.dataset.handoverApprovalTargetUsed || '0'));
+        const rows = Array.from(editor.querySelectorAll('[data-handover-usage-row]'));
+
+        if (rows.length === 0) {
+          return;
+        }
+
+        const meaningfulRows = rows.filter((row) => row instanceof HTMLElement && usageRowHasMeaning(row));
+
+        if (meaningfulRows.length > 1) {
+          return;
+        }
+
+        const targetRow = meaningfulRows[0] || rows[0];
+
+        if (!(targetRow instanceof HTMLElement)) {
+          return;
+        }
+
+        const quantity = targetRow.querySelector('[data-handover-usage-quantity]');
+
+        if (quantity instanceof HTMLInputElement) {
+          quantity.value = targetUsed > 0 ? formatQuantity(targetUsed) : '';
+        }
+      };
+
       const syncLine = (line) => {
         const returnedField = line.querySelector('[data-handover-approval-returned]');
         const usedLabel = line.querySelector('[data-handover-approval-used]');
@@ -2115,8 +2156,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const returnedField = line.querySelector('[data-handover-approval-returned]');
 
         if (returnedField instanceof HTMLInputElement) {
-          returnedField.addEventListener('input', () => syncLine(line));
-          returnedField.addEventListener('change', () => syncLine(line));
+          const syncReturnedApproval = () => {
+            syncLine(line);
+            const editor = line.querySelector('[data-handover-usage-editor]');
+
+            if (editor instanceof HTMLElement) {
+              fillApprovalCalculatedUsageQuantity(line, editor);
+              syncLine(line);
+            }
+          };
+
+          returnedField.addEventListener('input', syncReturnedApproval);
+          returnedField.addEventListener('change', syncReturnedApproval);
         }
 
         const editor = line.querySelector('[data-handover-usage-editor]');
@@ -3131,6 +3182,10 @@ document.addEventListener('DOMContentLoaded', () => {
         body.querySelectorAll('[data-workflow-picker-panel]').forEach((panel) => {
           if (panel !== exceptPanel) {
             panel.hidden = true;
+            const picker = panel.closest('[data-workflow-picker]');
+            if (picker instanceof HTMLElement) {
+              picker.classList.remove('is-open');
+            }
           }
         });
       };
@@ -3483,6 +3538,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (panel) {
               panel.hidden = true;
+              const picker = panel.closest('[data-workflow-picker]');
+              if (picker instanceof HTMLElement) {
+                picker.classList.remove('is-open');
+              }
             }
 
             syncLine(row);
@@ -3502,6 +3561,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (panel) {
             panel.hidden = !panel.hidden;
+            const picker = panel.closest('[data-workflow-picker]');
+            if (picker instanceof HTMLElement) {
+              picker.classList.toggle('is-open', !panel.hidden);
+            }
           }
 
           if (!panel?.hidden && search instanceof HTMLInputElement) {

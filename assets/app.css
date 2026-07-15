@@ -12194,6 +12194,44 @@ body.app-shell {
     display: none !important;
 }
 
+/* Open workflow item pickers should behave like dropdowns, not like new form sections. */
+.workflow-picker.is-open {
+    z-index: 620;
+}
+
+.workflow-picker.is-open > .workflow-picker-panel:not(.select-combobox-panel) {
+    position: absolute !important;
+    top: calc(100% + 8px);
+    left: 0;
+    right: auto;
+    z-index: 620;
+    width: min(760px, calc(100vw - 48px));
+    max-width: calc(100vw - 48px);
+    max-height: min(460px, 64dvh);
+    margin-top: 0;
+    overflow: hidden;
+    box-shadow: 0 28px 70px rgba(22, 18, 11, 0.18);
+}
+
+.workflow-picker.is-open > .workflow-picker-panel:not(.select-combobox-panel) .workflow-picker-options {
+    max-height: min(340px, 48dvh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.workflow-line-table td:has(.workflow-picker.is-open) {
+    position: relative;
+    z-index: 620;
+}
+
+@media (max-width: 760px) {
+    .workflow-picker.is-open > .workflow-picker-panel:not(.select-combobox-panel) {
+        width: min(520px, calc(100vw - 32px));
+        max-width: calc(100vw - 32px);
+        max-height: min(420px, 58dvh);
+    }
+}
+
 @media (max-width: 900px) {
     .saved-report-form,
     .saved-report-form-compact {
