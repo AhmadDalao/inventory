@@ -3594,11 +3594,22 @@ function handle_export_handovers(): void
     $rows = [];
 
     foreach ($handovers as $handover) {
+        $isStorageTransfer = handover_is_storage_transfer($handover);
+
         foreach (handover_lines((int) $handover['id']) as $line) {
-            $baseQuantity = in_array((string) ($handover['status'] ?? ''), ['requested', 'awaiting_receipt'], true)
-                ? round((float) ($line['quantity_handed'] ?? 0), 2)
-                : round((float) ($line['quantity_received'] ?? 0), 2);
-            $remainingQuantity = max(0, round($baseQuantity - (float) ($line['quantity_used'] ?? 0) - (float) ($line['quantity_returned'] ?? 0), 2));
+            if ($isStorageTransfer) {
+                $remainingQuantity = max(0, round(
+                    (float) ($line['quantity_handed'] ?? 0)
+                    - (float) ($line['quantity_received'] ?? 0)
+                    - (float) ($line['quantity_returned'] ?? 0),
+                    2
+                ));
+            } else {
+                $baseQuantity = in_array((string) ($handover['status'] ?? ''), ['requested', 'awaiting_receipt'], true)
+                    ? round((float) ($line['quantity_handed'] ?? 0), 2)
+                    : round((float) ($line['quantity_received'] ?? 0), 2);
+                $remainingQuantity = max(0, round($baseQuantity - (float) ($line['quantity_used'] ?? 0) - (float) ($line['quantity_returned'] ?? 0), 2));
+            }
 
             $rows[] = [
                 $handover['handover_number'],

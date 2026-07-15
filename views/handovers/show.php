@@ -230,7 +230,7 @@ foreach ($lines as $line) {
                     <?php elseif ($canCancelHandover): ?>
                         <?= e($cancelHandoverLabel) ?>
                     <?php else: ?>
-                        Usage And Return
+                        <?= $isStorageTransfer ? 'Transfer Status' : 'Usage And Return' ?>
                     <?php endif; ?>
                 </h3>
             </div>

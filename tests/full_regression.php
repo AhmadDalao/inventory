@@ -2720,6 +2720,114 @@ assert_true((string) $transferRequestRecord['status'] === 'completed', 'Transfer
 assert_true(balance_quantity((int) $transferItems[0]['id'], (int) $transferSource['id']) === round($initialTransferItemOneQuantity - 7, 2), 'Transfer source balance is wrong for the first item.');
 assert_true(balance_quantity((int) $transferItems[0]['id'], (int) $transferDestination['id']) === 7.0, 'Transfer destination balance is wrong for the first item.');
 
+note('Running storage-transfer handover workflow over HTTP.');
+$storageTransferExactItem = create_item_record($prefix . ' Handover Transfer Exact Item', $prefix . '-HDO-XFER-EXACT', (int) $handoverSource['id'], 30, 1.50, (int) $owner['id']);
+$storageTransferShortItem = create_item_record($prefix . ' Handover Transfer Short Item', $prefix . '-HDO-XFER-SHORT', (int) $handoverSource['id'], 40, 1.75, (int) $owner['id']);
+
+$storageTransferCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+assert_true($storageTransferCreatePage['status'] === 200, 'Storage-transfer handover create page did not load.');
+assert_true(strpos($storageTransferCreatePage['body'], 'value="storage"') !== false, 'Handover create page is missing the storage transfer target option.');
+assert_true(strpos($storageTransferCreatePage['body'], 'name="destination_storage_id"') !== false, 'Handover create page is missing the destination storage picker.');
+
+$sameStorageTransfer = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($storageTransferCreatePage['body'], 'storage transfer same-storage guard'),
+    'recipient_type' => 'storage',
+    'source_storage_id' => $handoverSource['id'],
+    'destination_storage_id' => $handoverSource['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
+    'notes' => $prefix . ' blocked same storage transfer',
+    'line_item_id' => [(int) $storageTransferExactItem['id']],
+    'line_quantity' => ['1'],
+]);
+assert_true($sameStorageTransfer['status'] === 302 && location_matches($sameStorageTransfer['location'], '/handovers/create'), 'Same source/destination storage transfer should redirect back to create.');
+$sameStorageTransferReload = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+assert_true(strpos($sameStorageTransferReload['body'], 'Source and destination storage cannot be the same.') !== false, 'Same source/destination storage transfer error did not render.');
+
+$storageTransferExactSourceBefore = balance_quantity((int) $storageTransferExactItem['id'], (int) $handoverSource['id']);
+$storageTransferExactDestinationBefore = balance_quantity((int) $storageTransferExactItem['id'], (int) $transferDestination['id']);
+$storageTransferExactBufferBefore = balance_quantity((int) $storageTransferExactItem['id'], system_storage_id('handover_buffer'));
+$storageTransferExactCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+$storageTransferExactCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($storageTransferExactCreatePage['body'], 'storage transfer exact create'),
+    'recipient_type' => 'storage',
+    'source_storage_id' => $handoverSource['id'],
+    'destination_storage_id' => $transferDestination['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
+    'notes' => $prefix . ' exact storage transfer handover',
+    'line_item_id' => [(int) $storageTransferExactItem['id']],
+    'line_quantity' => ['6'],
+]);
+assert_true($storageTransferExactCreate['status'] === 302, 'Exact storage-transfer handover create did not redirect.');
+$storageTransferExactId = first_redirect_id($storageTransferExactCreate['location'], '/handovers');
+$storageTransferExactRecord = find_handover_or_abort($storageTransferExactId);
+assert_true((string) $storageTransferExactRecord['recipient_type'] === 'storage', 'Exact storage-transfer handover should store recipient_type=storage.');
+assert_true((int) $storageTransferExactRecord['destination_storage_id'] === (int) $transferDestination['id'], 'Exact storage-transfer handover should store destination storage.');
+assert_true((string) $storageTransferExactRecord['status'] === 'awaiting_receipt', 'Exact storage-transfer handover should wait for destination receipt.');
+assert_true(balance_quantity((int) $storageTransferExactItem['id'], (int) $handoverSource['id']) === round($storageTransferExactSourceBefore - 6, 2), 'Exact storage-transfer source balance should be reserved.');
+assert_true(balance_quantity((int) $storageTransferExactItem['id'], system_storage_id('handover_buffer')) === round($storageTransferExactBufferBefore + 6, 2), 'Exact storage-transfer buffer balance should hold the shipped stock.');
+
+$storageTransferExactAdminPage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $storageTransferExactId);
+assert_true($storageTransferExactAdminPage['status'] === 200, 'Exact storage-transfer detail page did not load for destination owner.');
+assert_true(strpos($storageTransferExactAdminPage['body'], 'Confirm Storage Receipt') !== false, 'Storage-transfer detail should show storage receipt controls to destination owner.');
+assert_true(strpos($storageTransferExactAdminPage['body'], 'Actual Usage Report') === false, 'Storage-transfer detail should not show staff usage closeout UI.');
+$storageTransferExactLines = handover_lines($storageTransferExactId);
+$storageTransferExactReceive = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $storageTransferExactId . '/receive', [
+    '_token' => extract_csrf($storageTransferExactAdminPage['body'], 'storage transfer exact receipt'),
+    'receipt_notes' => $prefix . ' exact storage transfer received',
+    'line_received' => [
+        (int) $storageTransferExactLines[0]['id'] => '6',
+    ],
+]);
+assert_true($storageTransferExactReceive['status'] === 302, 'Exact storage-transfer receipt did not redirect.');
+$storageTransferExactClosed = find_handover_or_abort($storageTransferExactId);
+assert_true((string) $storageTransferExactClosed['status'] === 'closed', 'Exact storage-transfer handover should close immediately after exact receipt.');
+assert_true(balance_quantity((int) $storageTransferExactItem['id'], (int) $handoverSource['id']) === round($storageTransferExactSourceBefore - 6, 2), 'Exact storage-transfer source balance is wrong after receipt.');
+assert_true(balance_quantity((int) $storageTransferExactItem['id'], (int) $transferDestination['id']) === round($storageTransferExactDestinationBefore + 6, 2), 'Exact storage-transfer destination balance is wrong after receipt.');
+assert_true(balance_quantity((int) $storageTransferExactItem['id'], system_storage_id('handover_buffer')) === $storageTransferExactBufferBefore, 'Exact storage-transfer buffer should be empty after receipt.');
+
+$storageTransferShortSourceBefore = balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']);
+$storageTransferShortDestinationBefore = balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']);
+$storageTransferShortBufferBefore = balance_quantity((int) $storageTransferShortItem['id'], system_storage_id('handover_buffer'));
+$storageTransferShortCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+$storageTransferShortCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($storageTransferShortCreatePage['body'], 'storage transfer short create'),
+    'recipient_type' => 'storage',
+    'source_storage_id' => $handoverSource['id'],
+    'destination_storage_id' => $transferDestination['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
+    'notes' => $prefix . ' short storage transfer handover',
+    'line_item_id' => [(int) $storageTransferShortItem['id']],
+    'line_quantity' => ['8'],
+]);
+assert_true($storageTransferShortCreate['status'] === 302, 'Short storage-transfer handover create did not redirect.');
+$storageTransferShortId = first_redirect_id($storageTransferShortCreate['location'], '/handovers');
+$storageTransferShortAdminPage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $storageTransferShortId);
+$storageTransferShortLines = handover_lines($storageTransferShortId);
+$storageTransferShortReceive = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $storageTransferShortId . '/receive', [
+    '_token' => extract_csrf($storageTransferShortAdminPage['body'], 'storage transfer short receipt'),
+    'receipt_notes' => $prefix . ' short storage transfer receipt',
+    'line_received' => [
+        (int) $storageTransferShortLines[0]['id'] => '5',
+    ],
+]);
+assert_true($storageTransferShortReceive['status'] === 302, 'Short storage-transfer receipt did not redirect.');
+$storageTransferShortReview = find_handover_or_abort($storageTransferShortId);
+assert_true((string) $storageTransferShortReview['status'] === 'receipt_review', 'Short storage-transfer handover should wait for source owner shortage confirmation.');
+assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']) === round($storageTransferShortSourceBefore - 8, 2), 'Short storage-transfer source balance should stay fully reserved before shortage approval.');
+assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']) === $storageTransferShortDestinationBefore, 'Short storage-transfer destination should not receive stock before source approval.');
+assert_true(balance_quantity((int) $storageTransferShortItem['id'], system_storage_id('handover_buffer')) === round($storageTransferShortBufferBefore + 8, 2), 'Short storage-transfer buffer should hold all shipped stock before source approval.');
+$storageTransferShortOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $storageTransferShortId);
+assert_true($storageTransferShortOwnerPage['status'] === 200 && strpos($storageTransferShortOwnerPage['body'], 'Approve Transfer Shortage') !== false, 'Source owner should see transfer shortage approval controls.');
+$storageTransferShortConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $storageTransferShortId . '/confirm-receipt', [
+    '_token' => extract_csrf($storageTransferShortOwnerPage['body'], 'storage transfer shortage approval'),
+]);
+assert_true($storageTransferShortConfirm['status'] === 302, 'Short storage-transfer shortage confirmation did not redirect.');
+$storageTransferShortClosed = find_handover_or_abort($storageTransferShortId);
+assert_true((string) $storageTransferShortClosed['status'] === 'closed', 'Short storage-transfer handover should close after source owner approval.');
+assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']) === round($storageTransferShortSourceBefore - 5, 2), 'Short storage-transfer source balance should only lose the received quantity after shortage approval.');
+assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']) === round($storageTransferShortDestinationBefore + 5, 2), 'Short storage-transfer destination balance should gain only the confirmed received quantity.');
+assert_true(balance_quantity((int) $storageTransferShortItem['id'], system_storage_id('handover_buffer')) === $storageTransferShortBufferBefore, 'Short storage-transfer buffer should be empty after source approval.');
+
 note('Cancelling a requester-owned item request without a reason.');
 $requestCancelCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/requests/create');
 assert_true($requestCancelCreatePage['status'] === 200, 'Cancelable request create page did not load.');
@@ -3465,6 +3573,9 @@ $handoverExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/handover
 assert_true($handoverExport['status'] === 200, 'Handover export failed.');
 assert_true(strpos($handoverExport['body'], $handoverRecord['handover_number']) !== false, 'Handover export is missing the created handover.');
 assert_true(strpos($handoverExport['body'], $handoverRequestClosed['handover_number']) !== false, 'Handover export is missing the requested handover.');
+assert_true(strpos($handoverExport['body'], $storageTransferExactClosed['handover_number']) !== false, 'Handover export is missing the exact storage-transfer handover.');
+assert_true(strpos($handoverExport['body'], $storageTransferShortClosed['handover_number']) !== false, 'Handover export is missing the short storage-transfer handover.');
+assert_true(strpos($handoverExport['body'], 'Storage transfer') !== false && strpos($handoverExport['body'], $transferDestination['name']) !== false, 'Handover export is missing storage-transfer target details.');
 assert_true(strpos($handoverExport['body'], 'Usage Reasons') !== false && strpos($handoverExport['body'], 'Damage 1') !== false, 'Handover export is missing usage reason details.');
 assert_true(strpos($handoverExport['body'], 'Expected Usage Reasons') !== false && strpos($handoverExport['body'], 'Online 12') !== false, 'Handover export is missing expected usage details.');
 assert_true(strpos($handoverExport['body'], 'Usage Variance') !== false && strpos($handoverExport['body'], 'Damage +1') !== false, 'Handover export is missing usage variance details.');
