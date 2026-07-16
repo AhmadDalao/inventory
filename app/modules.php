@@ -49,6 +49,7 @@ $moduleFiles = [
     'handover_pages',
     'handover_create',
     'handover_request_decisions',
+    'handover_cancellations',
     'handover_decisions',
     'handover_receipts',
     'handover_closeout',
