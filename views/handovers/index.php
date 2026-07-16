@@ -141,6 +141,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
                 </tr>
             <?php endif; ?>
             <?php foreach ($handovers as $handover): ?>
+                <?php $rowIsStorageTransfer = handover_is_storage_transfer($handover); ?>
                 <tr>
                     <td data-label="Handover">
                         <a class="cell-link cell-link-compact" href="<?= e(url('/handovers/' . $handover['id'])) ?>">
@@ -148,8 +149,18 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
                             <div class="tiny-copy"><?= e(format_datetime_display((string) $handover['issued_at'])) ?></div>
                         </a>
                     </td>
-                    <td data-label="Storage"><?= e($handover['source_storage_name']) ?></td>
-                    <td data-label="Recipient"><?= e($handover['recipient_name']) ?></td>
+                    <td data-label="Storage">
+                        <strong><?= e($handover['source_storage_name']) ?></strong>
+                        <?php if ($rowIsStorageTransfer): ?>
+                            <div class="tiny-copy">→ <?= e((string) ($handover['destination_storage_name'] ?? 'Destination storage')) ?></div>
+                        <?php endif; ?>
+                    </td>
+                    <td data-label="Recipient">
+                        <?= e($handover['recipient_name']) ?>
+                        <?php if ($rowIsStorageTransfer): ?>
+                            <div class="tiny-copy">Storage transfer</div>
+                        <?php endif; ?>
+                    </td>
                     <td data-label="Items"><?= number_format((int) $handover['line_count']) ?></td>
                     <td data-label="Planned"><?= format_quantity($handover['total_handed']) ?></td>
                     <td data-label="Used"><?= format_quantity($handover['total_used']) ?></td>

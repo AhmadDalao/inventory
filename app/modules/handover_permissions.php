@@ -159,9 +159,11 @@ function handover_receipt_confirm_block_reason(array $handover, ?array $user = n
     }
 
     if (handover_is_storage_transfer($handover)) {
-        if (!Auth::isOwner()
-            && (int) ($handover['source_owner_user_id'] ?? 0) !== (int) ($user['id'] ?? 0)
-            && (int) ($handover['created_by'] ?? 0) !== (int) ($user['id'] ?? 0)) {
+        $userId = (int) ($user['id'] ?? 0);
+        $isSourceOwner = (int) ($handover['source_owner_user_id'] ?? 0) === $userId
+            || (int) ($handover['approver_user_id'] ?? 0) === $userId;
+
+        if (!Auth::isOwner() && !$isSourceOwner) {
             return 'Only the source storage owner can confirm this transfer shortage.';
         }
 

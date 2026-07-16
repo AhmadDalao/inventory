@@ -2770,6 +2770,9 @@ $storageTransferExactAdminPage = http_request($baseUrl, $adminCookie, 'GET', '/h
 assert_true($storageTransferExactAdminPage['status'] === 200, 'Exact storage-transfer detail page did not load for destination owner.');
 assert_true(strpos($storageTransferExactAdminPage['body'], 'Confirm Storage Receipt') !== false, 'Storage-transfer detail should show storage receipt controls to destination owner.');
 assert_true(strpos($storageTransferExactAdminPage['body'], 'Actual Usage Report') === false, 'Storage-transfer detail should not show staff usage closeout UI.');
+$storageTransferExactStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $storageTransferExactId);
+assert_true($storageTransferExactStaffPage['status'] === 200, 'Exact storage-transfer detail page did not load for unrelated staff.');
+assert_true(strpos($storageTransferExactStaffPage['body'], 'Confirm Storage Receipt') === false, 'Unrelated staff should not see storage transfer receipt controls.');
 $storageTransferExactLines = handover_lines($storageTransferExactId);
 $storageTransferExactReceive = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $storageTransferExactId . '/receive', [
     '_token' => extract_csrf($storageTransferExactAdminPage['body'], 'storage transfer exact receipt'),
@@ -2816,6 +2819,9 @@ assert_true((string) $storageTransferShortReview['status'] === 'receipt_review',
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']) === round($storageTransferShortSourceBefore - 8, 2), 'Short storage-transfer source balance should stay fully reserved before shortage approval.');
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']) === $storageTransferShortDestinationBefore, 'Short storage-transfer destination should not receive stock before source approval.');
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], system_storage_id('handover_buffer')) === round($storageTransferShortBufferBefore + 8, 2), 'Short storage-transfer buffer should hold all shipped stock before source approval.');
+$storageTransferShortAdminReviewPage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $storageTransferShortId);
+assert_true($storageTransferShortAdminReviewPage['status'] === 200, 'Short storage-transfer detail page did not load for destination owner after shortage report.');
+assert_true(strpos($storageTransferShortAdminReviewPage['body'], 'Approve Transfer Shortage') === false, 'Destination owner should not approve a source shortage.');
 $storageTransferShortOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $storageTransferShortId);
 assert_true($storageTransferShortOwnerPage['status'] === 200 && strpos($storageTransferShortOwnerPage['body'], 'Approve Transfer Shortage') !== false, 'Source owner should see transfer shortage approval controls.');
 $storageTransferShortConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $storageTransferShortId . '/confirm-receipt', [
