@@ -2789,6 +2789,15 @@ assert_true((string) $storageTransferExactClosed['status'] === 'closed', 'Exact 
 assert_true(balance_quantity((int) $storageTransferExactItem['id'], (int) $handoverSource['id']) === round($storageTransferExactSourceBefore - 6, 2), 'Exact storage-transfer source balance is wrong after receipt.');
 assert_true(balance_quantity((int) $storageTransferExactItem['id'], (int) $transferDestination['id']) === round($storageTransferExactDestinationBefore + 6, 2), 'Exact storage-transfer destination balance is wrong after receipt.');
 assert_true(balance_quantity((int) $storageTransferExactItem['id'], system_storage_id('handover_buffer')) === $storageTransferExactBufferBefore, 'Exact storage-transfer buffer should be empty after receipt.');
+$storageTransferExactExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $storageTransferExactId]);
+assert_true($storageTransferExactExcelDocumentId > 0, 'Storage-transfer sign-off Excel sheet was not created.');
+$storageTransferExactExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $storageTransferExactExcelDocumentId . '/download');
+assert_true($storageTransferExactExcelDownload['status'] === 200 && strpos($storageTransferExactExcelDownload['body'], 'PK') === 0, 'Storage-transfer sign-off Excel sheet could not be downloaded.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Storage transfer', 'Storage-transfer sign-off XLSX is missing transfer mode.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Transfer Accounting', 'Storage-transfer sign-off XLSX is missing transfer accounting note.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Received Into Destination', 'Storage-transfer sign-off XLSX is missing destination receipt row.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Returned To Source', 'Storage-transfer sign-off XLSX is missing returned-to-source row.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Difference means planned minus destination received minus returned to source', 'Storage-transfer sign-off XLSX uses staff usage difference wording.');
 
 $storageTransferShortSourceBefore = balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']);
 $storageTransferShortDestinationBefore = balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']);

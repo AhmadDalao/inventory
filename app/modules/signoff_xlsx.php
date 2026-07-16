@@ -220,6 +220,13 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     $isHandover = array_key_exists('reconciliation_rows', $totals);
     $isStorageTransfer = !empty($totals['is_storage_transfer']);
     $handoverUsesReconciliation = $isHandover && workflow_signoff_template() === 'reconciliation';
+    $headerNote = $isStorageTransfer
+        ? 'Transfer stock accounting is listed at the bottom. Received stock goes to destination; short quantity returns to source.'
+        : ($handoverUsesReconciliation ? 'Expected usage, actual usage, variance, and stock difference are listed at the bottom.' : 'Legacy layout keeps expected and actual usage details inside the item table.');
+    $reconciliationNote = $isStorageTransfer
+        ? 'Transfer Accounting. Received stock goes to destination. Short quantity returns to source. Difference means planned minus destination received minus returned to source.'
+        : 'Stock Accounting. Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.';
+    $issuedHeader = $isStorageTransfer ? 'Issued / Planned' : 'Expected Usage / Issued';
     $sheetRows = [];
     $sheetRows[] = '<row r="1" ht="44" customHeight="1">' . workflow_xlsx_cell('A1', $hasBrandLogo ? '' : 'KONA', 5) . workflow_xlsx_cell('B1', $meta['title'], 1) . workflow_xlsx_cell('I1', (string) ($meta['open_label'] ?? 'Scan/Search reference'), 5) . '</row>';
     $sheetRows[] = '<row r="2">' . workflow_xlsx_cell('B2', $meta['number'], 5) . workflow_xlsx_cell('I2', (string) ($meta['number'] ?? ''), 3) . '</row>';
@@ -241,7 +248,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
             . '</row>';
         $sheetRows[] = '<row r="6">'
             . workflow_xlsx_cell('A6', 'Notes', 4)
-            . workflow_xlsx_cell('B6', $handoverUsesReconciliation ? 'Expected usage, actual usage, variance, and stock difference are listed at the bottom.' : 'Legacy layout keeps expected and actual usage details inside the item table.', 3)
+            . workflow_xlsx_cell('B6', $headerNote, 3)
             . '</row>';
     } else {
         $sheetRows[] = '<row r="5">'
@@ -336,7 +343,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         $reconciliationNoteRow = $reconciliationTitleRow + 1;
         $sheetRows[] = '<row r="' . $reconciliationNoteRow . '" ht="24" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationNoteRow, 'Notes', 4)
-            . workflow_xlsx_cell('B' . $reconciliationNoteRow, 'Stock Accounting. Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.', 3)
+            . workflow_xlsx_cell('B' . $reconciliationNoteRow, $reconciliationNote, 3)
             . '</row>';
         $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
 
@@ -366,7 +373,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
 
         $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
-            . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Expected Usage / Issued', 2)
+            . workflow_xlsx_cell('B' . $reconciliationHeaderRow, $issuedHeader, 2)
             . workflow_xlsx_cell('C' . $reconciliationHeaderRow, 'Actual', 2)
             . workflow_xlsx_cell('D' . $reconciliationHeaderRow, 'Difference', 2)
             . workflow_xlsx_cell('E' . $reconciliationHeaderRow, 'Unit', 2)

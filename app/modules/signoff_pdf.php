@@ -343,14 +343,24 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_qr_code((string) $meta['open_reference'], 500, 686, 62);
         }
 
+        $isStorageTransfer = !empty($totals['is_storage_transfer']);
+        $notesText = $isStorageTransfer
+            ? 'Transfer accounting: received stock moves to destination, short quantity returns to source. Difference / Unaccounted should be 0.'
+            : ($handoverUsesReconciliation ? 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.' : 'Legacy layout keeps the old stock accounting and usage variance summary.');
+        $reconciliationTitle = $isStorageTransfer ? 'Transfer Reconciliation' : 'Usage Reconciliation';
+        $issuedHeader = $isStorageTransfer ? 'Issued / Planned' : 'Expected Usage / Issued';
+        $differenceNote = $isStorageTransfer
+            ? 'Difference = planned - received into destination - returned to source. 0 means the transfer is fully accounted for.'
+            : 'Difference = received - used - returned. 0 means all handed stock is accounted for.';
+
         $commands .= workflow_pdf_text('Notes', 12, 42, 654, 'F2');
-        $commands .= workflow_pdf_text($handoverUsesReconciliation ? 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.' : 'Legacy layout keeps the old stock accounting and usage variance summary.', 8, 42, 640);
+        $commands .= workflow_pdf_text($notesText, 8, 42, 640);
 
         if ($handoverUsesReconciliation) {
-            $commands .= workflow_pdf_text('Usage Reconciliation', 12, 42, 614, 'F2');
+            $commands .= workflow_pdf_text($reconciliationTitle, 12, 42, 614, 'F2');
             $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
             $commands .= workflow_pdf_text('Type', 8, 56, 592, 'F2');
-            $commands .= workflow_pdf_text('Expected Usage / Issued', 8, 182, 592, 'F2');
+            $commands .= workflow_pdf_text($issuedHeader, 8, 182, 592, 'F2');
             $commands .= workflow_pdf_text('Actual', 8, 294, 592, 'F2');
             $commands .= workflow_pdf_text('Difference', 8, 376, 592, 'F2');
             $commands .= workflow_pdf_text('Notes', 8, 464, 592, 'F2');
@@ -400,7 +410,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
                 }
             }
 
-            $commands .= workflow_pdf_text('Difference = received - used - returned. 0 means all handed stock is accounted for.', 8, 42, max(208, $y - 8));
+            $commands .= workflow_pdf_text($differenceNote, 8, 42, max(208, $y - 8));
         } else {
             $commands .= workflow_pdf_text('Stock Accounting', 12, 42, 614, 'F2');
             $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
@@ -420,7 +430,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             $commands .= workflow_pdf_text((string) ($totals['tertiary_value'] ?? '0'), 9, 326, 567);
             $commands .= workflow_pdf_text((string) ($totals['difference_value'] ?? '0'), 9, 428, 567);
 
-            $commands .= workflow_pdf_text('Usage Reconciliation', 12, 42, 526, 'F2');
+            $commands .= workflow_pdf_text($reconciliationTitle, 12, 42, 526, 'F2');
             $commands .= workflow_pdf_rect(42, 496, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
             $commands .= workflow_pdf_text('Type', 8, 56, 504, 'F2');
             $commands .= workflow_pdf_text('Expected', 8, 190, 504, 'F2');
