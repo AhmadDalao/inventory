@@ -1590,6 +1590,101 @@ function handle_export_users(): void
 
 // Moved from workflows.php.
 
+function handle_export_handovers(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('handovers.export');
+
+    $filters = handover_filters();
+    if (trim((string) query('status', '')) === '') {
+        $filters['status'] = 'all';
+    }
+    $handovers = handover_summary_rows($filters);
+    $rows = [];
+
+    foreach ($handovers as $handover) {
+        $isStorageTransfer = handover_is_storage_transfer($handover);
+
+        foreach (handover_lines((int) $handover['id']) as $line) {
+            if ($isStorageTransfer) {
+                $remainingQuantity = max(0, round(
+                    (float) ($line['quantity_handed'] ?? 0)
+                    - (float) ($line['quantity_received'] ?? 0)
+                    - (float) ($line['quantity_returned'] ?? 0),
+                    2
+                ));
+            } else {
+                $baseQuantity = in_array((string) ($handover['status'] ?? ''), ['requested', 'awaiting_receipt'], true)
+                    ? round((float) ($line['quantity_handed'] ?? 0), 2)
+                    : round((float) ($line['quantity_received'] ?? 0), 2);
+                $remainingQuantity = max(0, round($baseQuantity - (float) ($line['quantity_used'] ?? 0) - (float) ($line['quantity_returned'] ?? 0), 2));
+            }
+
+            $rows[] = [
+                $handover['handover_number'],
+                (string) ($handover['handover_mode'] ?? 'direct') === 'request' ? 'Request' : 'Direct',
+                handover_target_type_label($handover),
+                handover_status_label((string) $handover['status']),
+                $handover['source_storage_name'],
+                $handover['destination_storage_name'] ?? '',
+                $handover['recipient_name'],
+                $handover['requested_at'] ?: '',
+                $handover['issued_at'],
+                $handover['request_approved_at'] ?: '',
+                $handover['request_rejected_at'] ?: '',
+                $handover['receipt_reported_at'] ?: '',
+                $handover['completed_at'] ?: '',
+                $line['item_name'],
+                $line['item_sku'],
+                $line['unit'],
+                format_quantity($line['quantity_handed']),
+                format_quantity($line['quantity_received']),
+                format_quantity($line['quantity_used']),
+                format_quantity($line['quantity_returned']),
+                format_quantity($remainingQuantity),
+                (string) ($line['expected_usage_reason_summary'] ?? ''),
+                (string) ($line['usage_reason_summary'] ?? ''),
+                (string) ($line['usage_variance_summary'] ?? ''),
+                $handover['notes'] ?: '',
+                $handover['request_decision_notes'] ?: '',
+                $handover['receipt_notes'] ?: '',
+                $handover['closed_notes'] ?: '',
+            ];
+        }
+    }
+
+    export_csv('handovers-export-' . date('Ymd-His') . '.csv', [
+        'Handover Number',
+        'Mode',
+        'Target Type',
+        'Status',
+        'Source Storage',
+        'Destination Storage',
+        'Recipient',
+        'Requested At',
+        'Issued At',
+        'Request Approved At',
+        'Request Rejected At',
+        'Receipt Reported At',
+        'Completed At',
+        'Item',
+        'SKU',
+        'Unit',
+        'Planned Quantity',
+        'Received Quantity',
+        'Used Quantity',
+        'Returned Quantity',
+        'Remaining Quantity',
+        'Expected Usage Reasons',
+        'Usage Reasons',
+        'Usage Variance',
+        'Notes',
+        'Request Decision Notes',
+        'Receipt Notes',
+        'Closed Notes',
+    ], $rows);
+}
+
 function handle_export_purchases(): void
 {
     app_ready_or_redirect();
