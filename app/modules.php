@@ -29,6 +29,7 @@ $moduleFiles = [
     'handover_usage_reasons',
     'handover_usage_breakdowns',
     'handover_usage_inputs',
+    'handover_receipt_updates',
     'handover_usage',
     'handover_queries',
     'handover_status',
