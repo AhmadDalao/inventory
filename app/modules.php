@@ -68,6 +68,7 @@ $moduleFiles = [
     'asset_support',
     'asset_categories',
     'assets',
+    'asset_lifecycle',
     'asset_exports',
     'asset_signoff',
 ];
