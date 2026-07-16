@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 $moduleFiles = [
     'core',
+    'frontend_assets',
     'settings',
     'email',
     'options',

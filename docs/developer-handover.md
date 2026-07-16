@@ -245,6 +245,7 @@ php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
 php tests/module_boundaries.php
+php tests/frontend_assets.php
 git diff --check
 ```
 
@@ -346,9 +347,7 @@ Domain logic now lives under `app/modules/`. Keep it that way.
 
 The signoff module was split further because PDF/XLSX generation had become too large for safe edits. `app/modules/signoff.php` now loads the focused signoff files and keeps only the public persistence helpers.
 
-This pass did not split `assets/app.css` or `assets/app.js`.
-
-Reason: PHP stock workflow was the high-risk area. Frontend splitting and helper/class cleanup should be a later refactor after production proves stable.
+Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding one stylesheet and one script. Keep base desktop/global CSS in `assets/app.css`, mobile/sidebar/table/dropdown overrides in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JavaScript can be split safely.
 
 ## 13. Verification Notes
 
@@ -359,6 +358,7 @@ php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
 php tests/module_boundaries.php
+php tests/frontend_assets.php
 php tests/full_regression.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMODULARYYYYMMDD
 php tests/stock_invariants.php
 ```
@@ -372,5 +372,5 @@ Recommended order:
 1. Add automated export/filter parity tests across all modules.
 2. Continue mobile field-work polish for handover, scan/manual stock add, assets, and movement tables.
 3. Harden OCR review for Arabic scanned PDFs with confidence warnings and optional OpenAI fallback.
-4. Split `assets/app.css` and `assets/app.js` into frontend domain files.
+4. Split `assets/app.js` into frontend domain files after the PHP and CSS split stay stable in production.
 5. Consider moving plain functions into classes only after the module split has been stable in production.

@@ -21,7 +21,9 @@ if (brand_custom_logo_asset() !== null) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> | <?= e($appName) ?></title>
     <link rel="icon" type="image/svg+xml" href="<?= e(asset_url('favicon.svg')) ?>">
-    <link rel="stylesheet" href="<?= e(asset_url('app.css')) ?>">
+    <?php foreach (frontend_stylesheets() as $stylesheet): ?>
+        <link rel="stylesheet" href="<?= e(asset_url($stylesheet)) ?>">
+    <?php endforeach; ?>
 </head>
 <body class="<?= e($bodyClasses) ?>" data-user-role="<?= e((string) ($currentUser['role'] ?? 'guest')) ?>" data-user-id="<?= e((string) ($currentUser['id'] ?? '')) ?>">
 <?php if ($authPage): ?>
@@ -236,7 +238,9 @@ if (brand_custom_logo_asset() !== null) {
     </div>
 <?php endif; ?>
 
-<script src="<?= e(asset_url('app.js')) ?>" defer></script>
+<?php foreach (frontend_scripts() as $script): ?>
+    <script src="<?= e(asset_url($script)) ?>" defer></script>
+<?php endforeach; ?>
 </body>
 </html>
 <?php consume_old_input(); ?>

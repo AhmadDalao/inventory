@@ -33,6 +33,7 @@ php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
 php tests/module_boundaries.php
+php tests/frontend_assets.php
 php tests/full_regression.php
 php tests/stock_invariants.php
 ```
@@ -55,3 +56,5 @@ Do not add new logic to those compatibility files. Put new backend logic in the 
 The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/modules.php`, such as `request_create.php`, `handover_closeout.php`, `workflow_inputs.php`, `workflow_stock_impact.php`, `workflow_filters.php`, `purchase_documents.php`, `report_summary.php`, `report_presets.php`, `export_items.php`, or `file_uploads.php`.
 
 Run `php tests/module_boundaries.php` after backend refactors. It fails if old aggregate files grow logic again or if `app/modules.php` points at missing modules.
+
+Frontend assets are loaded through `app/modules/frontend_assets.php`. Keep the base desktop/global layer in `assets/app.css`, the mobile/sidebar/table/dropdown override layer in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JS is split safely.
