@@ -51,7 +51,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
 | `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |
 | `app/modules/dashboard.php` | Dashboard filters, role-specific dashboard data, cards, queue snapshots, latest updates, and chart payloads. |
-| `app/modules/exports.php` | CSV/XLSX exports for items, storages, movements, users, handovers, purchases, suppliers, daily summaries, thumbnails, and barcode output. |
+| `app/modules/exports.php` | Compatibility shim that loads the focused export modules. New export logic should not be added here. |
+| `app/modules/export_items.php` | Item CSV/XLSX exports, optional thumbnails, barcode text/images, and filtered item export rows. |
+| `app/modules/export_movements.php` | Movement-log CSV/XLSX exports, location/type/date filters, thumbnails, and barcode output. |
+| `app/modules/export_daily_summary.php` | Daily operations summary CSV/XLSX exports, usage-by-reason, people, timeline, and summary image output. |
+| `app/modules/export_storages.php` | Storage CSV/XLSX exports, storage item rows, values, thumbnails, and barcode output. |
+| `app/modules/export_workflows.php` | User, handover, purchase, and supplier CSV exports. |
 | `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
 | `app/modules/reports.php` | Reports page, daily operations summary, usage by reason, storage/user activity, and saved report presets. |
 | `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
