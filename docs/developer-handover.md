@@ -149,6 +149,7 @@ Do not add new code to these compatibility loaders:
 | `app/maintenance/MaintenanceSchemaState.php` | Schema version and current-state inspection trait used by `app/Maintenance.php` to decide whether bootstrapping can be skipped safely. |
 | `app/maintenance/MaintenancePlatformSchemas.php` | Platform table setup for permissions, app settings, report presets, login attempts, password reset tokens, and email delivery logs. |
 | `app/maintenance/MaintenanceFileWorkflowSchemas.php` | File-library and workflow-document table setup used by `app/Maintenance.php`. Keep proof/signoff document schema changes here instead of bloating `syncSchema()`. |
+| `app/maintenance/MaintenanceNotificationSchemas.php` | Notification table setup and legacy actor-column/index repair used by `app/Maintenance.php`. Keep notification schema changes here instead of bloating `syncSchema()`. |
 | `app/maintenance/MaintenanceBackfills.php` | One-time/repair backfill trait for missing storage balances and file asset registration. |
 | `app/maintenance/MaintenancePermissionSeeds.php` | Permission seed trait for owner/admin/staff defaults and module-specific permission grants. |
 
@@ -347,6 +348,7 @@ Latest split checkpoint:
 - Scanned reference lookup lives in `app/modules/search_reference.php`.
 - Permissions/settings/report preset/auth/email log schema setup lives in `app/maintenance/MaintenancePlatformSchemas.php`.
 - File-library and workflow-document schema setup lives in `app/maintenance/MaintenanceFileWorkflowSchemas.php`.
+- Notification schema setup lives in `app/maintenance/MaintenanceNotificationSchemas.php`.
 - `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and `app/modules/search.php` now stay focused on route/page orchestration, engine orchestration, or global result composition.
 
 `app/module_manifest.php` now lists the focused module files by domain group, and `app/modules.php` only loads that manifest. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/exports.php`, and `app/modules/reports.php` remain only for older direct includes. They are not the place for new business logic.
