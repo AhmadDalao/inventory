@@ -114,7 +114,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/reorder.php` | Reorder center, low-stock detection, suggested restock quantities, and purchase draft creation from reorder rows. |
 | `app/modules/audit.php` | Audit log filters/exports and email log filters/exports. |
 | `app/modules/labels.php` | Label page data, label search, selectable label printing, barcode/SKU scan codes, and label rows. |
-| `app/modules/documentation_content.php` | In-app documentation sections, important-section cards, and department guidance content. |
+| `app/modules/documentation_guides.php` | Documentation landing cards and department-specific guidance content. |
+| `app/modules/documentation_content.php` | In-app documentation page sections and workflow explanations. |
 | `app/modules/documentation.php` | Documentation page handler, screenshot lookup, and visual-helper payloads. |
 | `app/modules/asset_support.php` | Asset filters, query helpers, financial/depreciation helpers, select lists, event queries, maintenance queries, and asset file lookups. |
 | `app/modules/asset_category_support.php` | Asset category filters, tree/path helpers, descendant lookup, cycle checks, and save payload normalization. |
@@ -315,7 +316,8 @@ Latest split checkpoint:
 
 - Asset lifecycle actions live in `app/modules/asset_lifecycle.php`.
 - Asset category helper logic lives in `app/modules/asset_category_support.php`.
-- Static documentation content lives in `app/modules/documentation_content.php`.
+- Documentation landing cards and department guides live in `app/modules/documentation_guides.php`.
+- Long documentation page sections live in `app/modules/documentation_content.php`.
 - OCR parsing helpers live in `app/modules/ocr_parser.php`.
 - Scanned reference lookup lives in `app/modules/search_reference.php`.
 - `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and `app/modules/search.php` now stay focused on route/page orchestration, engine orchestration, or global result composition.
