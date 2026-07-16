@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// Domain module: handover create and line-edit handlers. Function names are preserved for route compatibility.
+// Domain module: handover create submit handler. Function names are preserved for route compatibility.
 
 function handle_handovers_create_submit(): void
 {

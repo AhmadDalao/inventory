@@ -94,8 +94,9 @@ Do not add new code to these compatibility loaders:
 | `app/modules/request_status.php` | Request cancellation, recovery, and void handlers. |
 | `app/modules/request_exports.php` | Request CSV export handler. |
 | `app/modules/handovers.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused handover modules directly. |
-| `app/modules/handover_pages.php` | Handover index/create/show pages and line-edit submit handler. |
+| `app/modules/handover_pages.php` | Handover index/create/show page handlers. |
 | `app/modules/handover_create.php` | Handover create submit handler for staff-use and storage-transfer handovers. |
+| `app/modules/handover_line_edits.php` | Requested handover line-edit submit handler before approval. |
 | `app/modules/handover_receipts.php` | Handover receipt confirmation and shortage confirmation handlers. |
 | `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
 | `app/modules/ocr_parser.php` | Purchase OCR text cleanup, Arabic/English parsing helpers, parsed result normalization, confidence flags, and catalog matching. |
