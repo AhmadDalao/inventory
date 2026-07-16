@@ -73,7 +73,14 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff_assets.php` | Item thumbnails, official logo assets, barcode generation, QR generation, and image processing for signoff files. |
 | `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
-| `app/modules/requests.php` | Request lifecycle, approvals, rejection, receipt mismatch, completion, cancellation, recovery, and request line handling. |
+| `app/modules/requests.php` | Compatibility shim that loads focused request support and route-handler modules. |
+| `app/modules/request_support.php` | Request filters, visibility scope, request lines, inventory issue/receipt helpers, recovery rules, and summary queries. |
+| `app/modules/request_pages.php` | Request index/create/show page handlers. |
+| `app/modules/request_create.php` | Request create and draft submit handlers. |
+| `app/modules/request_decisions.php` | Request approval and rejection handlers. |
+| `app/modules/request_receipts.php` | Request receipt report and receipt confirmation handlers. |
+| `app/modules/request_status.php` | Request cancellation, recovery, and void handlers. |
+| `app/modules/request_exports.php` | Request CSV export handler. |
 | `app/modules/handovers.php` | Compatibility shim that loads the focused handover route-handler modules. New handler logic should go into the stage-specific files below. |
 | `app/modules/handover_pages.php` | Handover index/create/show pages and line-edit submit handler. |
 | `app/modules/handover_create.php` | Handover create submit handler for staff-use and storage-transfer handovers. |
