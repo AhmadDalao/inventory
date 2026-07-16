@@ -62,7 +62,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/report_summary.php` | Reports page, daily operations summary, usage by item/reason, storage/user activity, and report shortcut cards. |
 | `app/modules/report_presets.php` | Saved report preset types, permissions, source/export URLs, create/update/duplicate/archive handlers, and filter-state persistence. |
 | `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
-| `app/modules/search.php` | Global search, scanned reference routing, smart reference open, and module-aware result URLs. |
+| `app/modules/search_reference.php` | Scanned reference normalization, reference target lookup, exact reference redirects, and smart open routing for QR/barcode references. |
+| `app/modules/search.php` | Global search page/result logic, accessible pages, documentation/settings search, and module-aware result URLs. |
 | `app/modules/handover_usage.php` | Usage reason labels, expected/actual usage summaries, variance summaries, and usage breakdown query helpers. |
 | `app/modules/handover_queries.php` | Handover filters, detail queries, line queries, destination storage lists, and storage-transfer detection helpers. |
 | `app/modules/handover_status.php` | Handover recovery, owner status override rules, closed-handover reversal, and receipt shortage inventory correction. |
@@ -299,7 +300,8 @@ Latest split checkpoint:
 - Asset category helper logic lives in `app/modules/asset_category_support.php`.
 - Static documentation content lives in `app/modules/documentation_content.php`.
 - OCR parsing helpers live in `app/modules/ocr_parser.php`.
-- `app/modules/assets.php`, `app/modules/documentation.php`, and `app/modules/ocr.php` now stay focused on route/page orchestration or engine orchestration.
+- Scanned reference lookup lives in `app/modules/search_reference.php`.
+- `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and `app/modules/search.php` now stay focused on route/page orchestration, engine orchestration, or global result composition.
 
 `app/modules.php` now lists the focused module files directly. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/exports.php`, and `app/modules/reports.php` remain only for older direct includes. They are not the place for new business logic.
 

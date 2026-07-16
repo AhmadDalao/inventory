@@ -24,6 +24,7 @@ $moduleFiles = [
     'report_summary',
     'report_presets',
     'notifications',
+    'search_reference',
     'search',
     'handover_usage',
     'handover_queries',
