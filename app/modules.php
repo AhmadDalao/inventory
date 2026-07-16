@@ -27,6 +27,7 @@ $moduleFiles = [
     'search_reference',
     'search',
     'handover_usage_reasons',
+    'handover_usage_breakdowns',
     'handover_usage',
     'handover_queries',
     'handover_status',
