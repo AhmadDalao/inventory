@@ -45,6 +45,7 @@ $moduleFiles = [
     'handover_decisions',
     'handover_receipts',
     'handover_closeout',
+    'ocr_support',
     'ocr',
     'purchase_documents',
     'purchase_persistence',
