@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-16
+Updated: 2026-07-17
 
 ## 1. What This System Is
 
@@ -24,6 +24,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/module_manifest.php` is the explicit grouped domain module graph. It lists the focused modules by domain instead of routing through aggregate compatibility shims.
 - `app/modules.php` is now a loader only. It flattens the manifest and requires each focused module.
 - `app/helpers.php` still loads bootstrap-safe helpers, while permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers now live under `app/support/`.
+- `app/Maintenance.php` is the schema/bootstrap orchestrator. Reusable schema helpers, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
 
@@ -143,6 +144,9 @@ Do not add new code to these compatibility loaders:
 | `app/support/branding.php` | Brand mark/logo helpers, upload/storage directories, UI theme options, export thumbnail sizing, and signoff template/image sizing. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/settings.php` | Website Control setting schema, stored setting accessors, OpenAI OCR setting helpers, grouped settings for forms, and absolute URL helper. Loaded during bootstrap through `app/helpers.php` after `app_config()` is available. |
 | `app/support/presentation.php` | Formatting, UI icon SVGs, active-route helpers, initials, truncation, stock value, and Code39 barcode rendering. Loaded during bootstrap through `app/helpers.php`. |
+| `app/maintenance/MaintenanceSchemaHelpers.php` | Schema/bootstrap helper trait for setting writes, table/column checks, indexes, and foreign-key checks used by `app/Maintenance.php`. |
+| `app/maintenance/MaintenanceBackfills.php` | One-time/repair backfill trait for missing storage balances and file asset registration. |
+| `app/maintenance/MaintenancePermissionSeeds.php` | Permission seed trait for owner/admin/staff defaults and module-specific permission grants. |
 
 ## 4. Stock Rules
 
@@ -322,6 +326,8 @@ If the database changed, restore both files and SQL from the same backup set. Do
 7. Run lint, JS check, regression, and stock invariants.
 
 Do not bypass `item_storage_balances`. That is how inventory systems become fiction.
+
+Database bootstrapping belongs in `app/Maintenance.php`, but reusable schema helpers, backfills, and seed routines belong in `app/maintenance/`. Workflow behavior does not belong in maintenance files.
 
 ## 12. Current Refactor Boundary
 

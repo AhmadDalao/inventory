@@ -42,7 +42,7 @@ If local MySQL is unavailable, run stock invariants on the live server after a b
 
 ## Current Architecture
 
-Routes still live in `index.php`. Domain functions are organized under `app/modules/`, grouped in `app/module_manifest.php`, and loaded by `app/modules.php`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`.
+Routes still live in `index.php`. Domain functions are organized under `app/modules/`, grouped in `app/module_manifest.php`, and loaded by `app/modules.php`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`. Schema maintenance helpers, one-time backfills, and permission seed routines live under `app/maintenance/`.
 
 The old aggregate files remain as compatibility loaders:
 
@@ -56,5 +56,7 @@ Do not add new logic to those compatibility files. Put new backend logic in the 
 The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/module_manifest.php`, such as `request_create.php`, `handover_closeout.php`, `workflow_inputs.php`, `workflow_stock_impact.php`, `workflow_filters.php`, `purchase_documents.php`, `report_summary.php`, `report_presets.php`, `dashboard_filters.php`, `dashboard_metrics.php`, `export_items.php`, `option_items.php`, `option_workflows.php`, or `file_uploads.php`.
 
 Run `php tests/module_boundaries.php` after backend refactors. It fails if old aggregate files grow logic again or if `app/module_manifest.php` points at missing modules.
+
+When changing database bootstrapping, keep `app/Maintenance.php` as the orchestrator and put reusable helpers, backfills, and seed routines in `app/maintenance/`. Do not bury workflow behavior there.
 
 Frontend assets are loaded through `app/modules/frontend_assets.php`. Keep the base desktop/global layer in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, the mobile/sidebar/table/dropdown override layer in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JS is split safely.
