@@ -45,6 +45,15 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
         </label>
 
         <label class="field">
+            <span>Target</span>
+            <select name="target_type">
+                <option value="all" <?= selected('all', (string) ($filters['target_type'] ?? 'all')) ?>>All targets</option>
+                <option value="staff" <?= selected('staff', (string) ($filters['target_type'] ?? 'all')) ?>>Staff use</option>
+                <option value="storage" <?= selected('storage', (string) ($filters['target_type'] ?? 'all')) ?>>Storage transfer</option>
+            </select>
+        </label>
+
+        <label class="field">
             <span>Storage</span>
             <select name="storage_id">
                 <option value="">All storages</option>
@@ -92,7 +101,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
             <strong><?= ui_icon('handover') ?><span><?= e(site_setting('table.handovers', 'All Handovers')) ?></span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($handovers)) ?></span>
         </div>
-        <p class="table-shell-copy">Track temporary-use requests, issued stock, used quantities, and what came back.</p>
+        <p class="table-shell-copy">Track staff temporary-use handovers and storage-to-storage transfers.</p>
     </div>
 
     <div class="data-table-toolbar">
@@ -124,6 +133,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
             <thead>
             <tr>
                 <th>Handover</th>
+                <th>Target</th>
                 <th>Storage</th>
                 <th>Recipient</th>
                 <th>Items</th>
@@ -137,7 +147,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
             <tbody>
             <?php if ($handovers === []): ?>
                 <tr>
-                    <td colspan="9" class="empty-cell">No handovers found.</td>
+                    <td colspan="10" class="empty-cell">No handovers found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($handovers as $handover): ?>
@@ -148,6 +158,9 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
                             <strong><?= e($handover['handover_number']) ?></strong>
                             <div class="tiny-copy"><?= e(format_datetime_display((string) $handover['issued_at'])) ?></div>
                         </a>
+                    </td>
+                    <td data-label="Target">
+                        <span class="pill <?= $rowIsStorageTransfer ? 'pill-receipt_review' : 'pill-delivered' ?>"><?= e(handover_target_type_label($handover)) ?></span>
                     </td>
                     <td data-label="Storage">
                         <strong><?= e($handover['source_storage_name']) ?></strong>

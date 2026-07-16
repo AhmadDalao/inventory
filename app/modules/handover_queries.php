@@ -103,10 +103,12 @@ function handover_target_type_label(array $handover): string
 function handover_filters(): array
 {
     $status = (string) query('status', 'all');
+    $targetType = (string) query('target_type', 'all');
 
     return [
         'search' => trim((string) query('search', '')),
         'status' => in_array($status, ['open', 'requested', 'awaiting_receipt', 'receipt_review', 'delivered', 'pending_approval', 'closed', 'rejected', 'cancelled', 'all'], true) ? $status : 'all',
+        'target_type' => in_array($targetType, ['all', 'staff', 'storage'], true) ? $targetType : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
@@ -123,6 +125,12 @@ function build_handover_where(array $filters, string $alias = 'h'): array
     } elseif ($filters['status'] !== 'all') {
         $conditions[] = "{$alias}.status = :handover_status";
         $params['handover_status'] = $filters['status'];
+    }
+
+    if (($filters['target_type'] ?? 'all') === 'storage') {
+        $conditions[] = "(COALESCE({$alias}.recipient_type, 'staff') = 'storage' OR {$alias}.destination_storage_id IS NOT NULL)";
+    } elseif (($filters['target_type'] ?? 'all') === 'staff') {
+        $conditions[] = "(COALESCE({$alias}.recipient_type, 'staff') = 'staff' AND {$alias}.destination_storage_id IS NULL)";
     }
 
     if (!empty($filters['storage_id'])) {
