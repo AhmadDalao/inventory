@@ -56,7 +56,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_permissions.php` | Handover approval, edit, cancel, receipt, and closeout permission guards. |
 | `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery, audit, and workflow document helpers. |
 | `app/modules/handover_inventory.php` | Handover stock reservation, staff-use finalization, and storage-transfer buffer/source/destination movement logic. |
-| `app/modules/signoff.php` | Handover/request PDF/XLSX signoff generation, QR/barcode rendering, official logo, images, and reconciliation tables. |
+| `app/modules/signoff.php` | Signoff loader plus final PDF/XLSX persistence helpers. Keep public `ensure_workflow_signoff_pdf()` here. |
+| `app/modules/signoff_documents.php` | Workflow document labels and workflow document asset registration. |
+| `app/modules/signoff_data.php` | Signoff metadata, item rows, totals, usage summaries, variance, and reconciliation table data. |
+| `app/modules/signoff_assets.php` | Item thumbnails, official logo assets, barcode generation, QR generation, and image processing for signoff files. |
+| `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
+| `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
 | `app/modules/requests.php` | Request lifecycle, approvals, rejection, receipt mismatch, completion, cancellation, recovery, and request line handling. |
 | `app/modules/handovers.php` | Handover lifecycle, staff handovers, storage-owner transfers, expected usage, returned-first closeout, owner final review, and status actions. |
 | `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
@@ -257,6 +262,8 @@ Support helpers were separated into:
 - `app/support/presentation.php`
 
 Domain logic now lives under `app/modules/`. Keep it that way.
+
+The signoff module was split further because PDF/XLSX generation had become too large for safe edits. `app/modules/signoff.php` now loads the focused signoff files and keeps only the public persistence helpers.
 
 This pass did not split `assets/app.css` or `assets/app.js`.
 
