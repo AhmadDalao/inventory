@@ -32,7 +32,7 @@ foreach (array_merge($stylesheets, $scripts) as $asset) {
 
 $layout = file_get_contents($root . '/views/layout.php') ?: '';
 
-if (!str_contains($layout, 'frontend_stylesheets()') || !str_contains($layout, 'frontend_scripts()')) {
+if (strpos($layout, 'frontend_stylesheets()') === false || strpos($layout, 'frontend_scripts()') === false) {
     fail_frontend_assets('Layout must load frontend assets through the registry.');
 }
 
@@ -44,12 +44,12 @@ foreach ([
     'Mobile table policy',
     'Searchable select dropdowns must overlay',
 ] as $marker) {
-    if (!str_contains($mobileCss, $marker)) {
+    if (strpos($mobileCss, $marker) === false) {
         fail_frontend_assets('Mobile CSS module is missing marker: ' . $marker);
     }
 }
 
-if (str_contains($baseCss, 'Sidebar scroll fix')) {
+if (strpos($baseCss, 'Sidebar scroll fix') !== false) {
     fail_frontend_assets('Mobile/sidebar CSS should live in assets/css/mobile.css, not the base app.css.');
 }
 
