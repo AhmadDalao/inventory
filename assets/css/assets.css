@@ -1,0 +1,342 @@
+/* Asset module: list, filters, forms, and category hierarchy. */
+.assets-page {
+    display: grid;
+    gap: 18px;
+}
+
+.assets-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+    align-items: start;
+    overflow: visible;
+}
+
+.assets-filter-grid .field {
+    position: relative;
+    min-width: 0;
+}
+
+.assets-filter-grid .filter-actions {
+    align-self: end;
+}
+
+.assets-page .chip-row {
+    gap: 10px;
+}
+
+.assets-metric-grid {
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+}
+
+.asset-table {
+    min-width: 1180px;
+}
+
+.asset-table td[data-label="Asset"] {
+    min-width: 300px;
+}
+
+.asset-table td[data-label="Scan Code"],
+.asset-table td[data-label="Serial"],
+.asset-table td[data-label="Custody"] {
+    min-width: 160px;
+}
+
+.asset-table td[data-label="Status"],
+.asset-table td[data-label="Condition"],
+.asset-table td[data-label="Book Value"] {
+    white-space: nowrap;
+}
+
+.asset-table code {
+    white-space: nowrap;
+}
+
+.asset-table .item-table-cell {
+    align-items: center;
+}
+
+.asset-form-panel {
+    width: 100%;
+    max-width: 1520px;
+    margin-inline: auto;
+    justify-self: stretch;
+}
+
+.asset-form .item-form-grid,
+.asset-form .item-form-grid-primary {
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
+.asset-form .item-form-section {
+    padding: clamp(18px, 1.8vw, 28px);
+}
+
+.asset-form .item-form-section-head {
+    align-items: center;
+}
+
+.asset-form .item-form-section-note {
+    max-width: 340px;
+}
+
+.asset-form .item-form-media-card {
+    background: #fffaf1;
+}
+
+.asset-form .item-form-media-card .item-form-section-head {
+    margin-bottom: -4px;
+}
+
+.asset-form .item-form-image-row {
+    grid-template-columns: 120px minmax(260px, 520px);
+    align-items: center;
+}
+
+.asset-form .item-form-upload-stack {
+    max-width: 520px;
+}
+
+.asset-form .select-combobox-toggle {
+    min-height: 58px;
+}
+
+.asset-search-combobox {
+    display: grid;
+    gap: 0;
+}
+
+.asset-search-combobox .select-combobox-toggle {
+    min-height: 64px;
+    padding: 0 18px;
+    border: 1px solid #ded7cc;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: none;
+}
+
+.asset-search-combobox .select-combobox-toggle:hover,
+.asset-search-combobox .select-combobox-toggle:focus-visible {
+    border-color: rgba(235, 183, 57, 0.76);
+    box-shadow: 0 0 0 4px rgba(235, 183, 57, 0.14);
+    transform: none;
+}
+
+.asset-search-combobox .select-combobox-selected,
+.asset-search-combobox .select-combobox-option {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.asset-search-combobox .workflow-picker-thumb {
+    display: none;
+}
+
+.asset-search-combobox .select-combobox-panel {
+    padding: 16px;
+    border: 1px solid #ded7cc;
+    border-radius: 20px;
+    background: rgba(255, 253, 248, 0.98);
+    box-shadow: 0 22px 44px rgba(22, 18, 11, 0.12);
+}
+
+.asset-search-combobox .select-combobox-search {
+    min-height: 60px;
+    padding: 0 18px;
+    border: 2px solid rgba(235, 183, 57, 0.72);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(235, 183, 57, 0.12);
+    font-size: 1rem;
+}
+
+.asset-search-combobox .select-combobox-search:focus {
+    border-color: var(--brand-gold, #e7b84f);
+    box-shadow: 0 0 0 4px rgba(235, 183, 57, 0.18);
+    outline: none;
+}
+
+.asset-search-combobox .select-combobox-options {
+    display: grid;
+    gap: 10px;
+    padding-right: 4px;
+}
+
+.asset-search-combobox .select-combobox-option {
+    min-height: 70px;
+    padding: 16px 18px;
+    border: 1px solid #ece3d6;
+    border-radius: 18px;
+    background: #fffdfa;
+}
+
+.asset-search-combobox .select-combobox-option:hover,
+.asset-search-combobox .select-combobox-option:focus-visible,
+.asset-search-combobox .select-combobox-option.is-selected {
+    border-color: rgba(151, 108, 61, 0.28);
+    background: #f1e4d2;
+    transform: none;
+}
+
+.asset-search-combobox .workflow-picker-empty {
+    display: grid;
+    min-height: 64px;
+    place-items: center;
+    padding: 18px;
+    border-radius: 18px;
+    background: #f7f0e8;
+    color: var(--muted);
+    text-align: center;
+}
+
+@media (max-width: 1100px) {
+    .assets-filter-grid {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+
+    .assets-metric-grid {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+
+    .asset-form .item-form-grid,
+    .asset-form .item-form-grid-primary {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .assets-filter-grid,
+    .assets-metric-grid,
+    .asset-form .item-form-grid,
+    .asset-form .item-form-grid-primary,
+    .asset-form .item-form-image-row {
+        grid-template-columns: 1fr;
+    }
+
+    .asset-table {
+        min-width: 0;
+    }
+
+    .asset-table td[data-label="Asset"],
+    .asset-table td[data-label="Scan Code"],
+    .asset-table td[data-label="Serial"],
+    .asset-table td[data-label="Custody"] {
+        min-width: 0;
+    }
+
+    .asset-table td[data-label="Status"],
+    .asset-table td[data-label="Condition"],
+    .asset-table td[data-label="Book Value"] {
+        white-space: normal;
+    }
+
+    .assets-page .data-table-toolbar .button-row {
+        width: 100%;
+    }
+
+    .assets-page .data-table-toolbar .button-row .ghost-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .asset-form .item-form-section-note {
+        max-width: none;
+        text-align: left;
+    }
+}
+
+.asset-category-layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.42fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.asset-category-form-card,
+.asset-category-tree-card {
+    min-width: 0;
+}
+
+.asset-category-tree,
+.asset-category-root-drop,
+.asset-category-children {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.asset-category-root-drop {
+    min-height: 90px;
+    padding: 4px;
+}
+
+.asset-category-children {
+    margin: 10px 0 0 28px;
+    padding-left: 16px;
+    min-height: 12px;
+    border-left: 2px solid rgba(229, 179, 79, 0.28);
+}
+
+.asset-category-node {
+    display: grid;
+    min-width: 0;
+}
+
+.asset-category-node.is-dragging {
+    opacity: 0.55;
+}
+
+.asset-category-drop-zone.is-drop-target {
+    border-radius: 18px;
+    outline: 2px dashed rgba(229, 179, 79, 0.78);
+    outline-offset: 4px;
+}
+
+.asset-category-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    padding: 16px;
+    border: 1px solid #eee2d3;
+    border-radius: 22px;
+    background: #fffdf8;
+    box-shadow: 0 12px 28px rgba(70, 52, 33, 0.05);
+}
+
+.asset-category-drag-handle {
+    width: 38px;
+    height: 38px;
+    border: 1px solid #e7d7c1;
+    border-radius: 14px;
+    background: #fbf4e8;
+    color: #8b6b43;
+    cursor: grab;
+    font-weight: 900;
+}
+
+.asset-category-title-row,
+.asset-category-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.asset-category-main {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.asset-category-path {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.asset-category-meta {
+    justify-content: flex-end;
+    color: var(--muted);
+    font-size: 0.84rem;
+    text-align: right;
+}

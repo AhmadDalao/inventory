@@ -57,4 +57,4 @@ The compatibility loaders exist only for older direct includes. New code should 
 
 Run `php tests/module_boundaries.php` after backend refactors. It fails if old aggregate files grow logic again or if `app/modules.php` points at missing modules.
 
-Frontend assets are loaded through `app/modules/frontend_assets.php`. Keep the base desktop/global layer in `assets/app.css`, the mobile/sidebar/table/dropdown override layer in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JS is split safely.
+Frontend assets are loaded through `app/modules/frontend_assets.php`. Keep the base desktop/global layer in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, the mobile/sidebar/table/dropdown override layer in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JS is split safely.

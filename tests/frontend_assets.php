@@ -37,10 +37,22 @@ if (strpos($layout, 'frontend_stylesheets()') === false || strpos($layout, 'fron
 }
 
 $baseCss = file_get_contents($root . '/assets/app.css') ?: '';
+$assetsCss = file_get_contents($root . '/assets/css/assets.css') ?: '';
 $mobileCss = file_get_contents($root . '/assets/css/mobile.css') ?: '';
 
 foreach ([
+    'Asset module',
+    '.assets-page',
+    '.asset-category-layout',
+] as $marker) {
+    if (strpos($assetsCss, $marker) === false) {
+        fail_frontend_assets('Assets CSS module is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
     'Sidebar scroll fix',
+    'Mobile hardening',
     'Mobile table policy',
     'Searchable select dropdowns must overlay',
 ] as $marker) {
@@ -51,6 +63,10 @@ foreach ([
 
 if (strpos($baseCss, 'Sidebar scroll fix') !== false) {
     fail_frontend_assets('Mobile/sidebar CSS should live in assets/css/mobile.css, not the base app.css.');
+}
+
+if (strpos($baseCss, '.assets-page') !== false) {
+    fail_frontend_assets('Asset CSS should live in assets/css/assets.css, not the base app.css.');
 }
 
 echo '[frontend-assets] PASS' . PHP_EOL;

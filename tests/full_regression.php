@@ -3654,7 +3654,10 @@ foreach ([
     assert_true(strpos($manualScanPage['body'], 'data-manual-stock-draft') !== false, 'Manual stock add page is missing the review draft.');
     assert_true(strpos($manualScanPage['body'], '/scan/manual-restock/batch') !== false, 'Manual stock add page is missing the batch confirmation route.');
     $appJs = file_get_contents(dirname(__DIR__) . '/assets/app.js') ?: '';
-    $appCss = file_get_contents(dirname(__DIR__) . '/assets/app.css') ?: '';
+    $appCss = '';
+    foreach (frontend_stylesheets() as $stylesheet) {
+        $appCss .= file_get_contents(dirname(__DIR__) . '/assets/' . ltrim($stylesheet, '/')) ?: '';
+    }
     assert_true(strpos($appJs, 'confirm-modal-backdrop') !== false && strpos($appJs, 'window.confirm') === false, 'App JS should use the custom confirm modal instead of browser confirms.');
     assert_true(strpos($appJs, "input.addEventListener('input', scheduleLookup)") !== false, 'Scan Center input should perform live AJAX lookup.');
     assert_true(strpos($appJs, 'data-scan-batch-submit') !== false && strpos($appJs, 'addToBatch: batchMode') !== false, 'Scan Center JS is missing batch scan counting.');

@@ -347,7 +347,7 @@ Domain logic now lives under `app/modules/`. Keep it that way.
 
 The signoff module was split further because PDF/XLSX generation had become too large for safe edits. `app/modules/signoff.php` now loads the focused signoff files and keeps only the public persistence helpers.
 
-Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding one stylesheet and one script. Keep base desktop/global CSS in `assets/app.css`, mobile/sidebar/table/dropdown overrides in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JavaScript can be split safely.
+Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding one stylesheet and one script. Keep base desktop/global CSS in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, mobile/sidebar/table/dropdown overrides in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JavaScript can be split safely.
 
 ## 13. Verification Notes
 

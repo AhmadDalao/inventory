@@ -5,6 +5,7 @@ function frontend_stylesheets(): array
 {
     return [
         'app.css',
+        'css/assets.css',
         'css/mobile.css',
     ];
 }
