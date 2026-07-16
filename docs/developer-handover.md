@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-15
+Updated: 2026-07-16
 
 ## 1. What This System Is
 
@@ -37,32 +37,38 @@ Do not add new code to these compatibility loaders:
 
 | Module | Purpose |
 |---|---|
-| `app/modules/core.php` | Shared route helpers and CSV/XLSX helpers. |
-| `app/modules/auth.php` | Setup, login, logout, forgot/reset password. |
-| `app/modules/users.php` | Admin users, roles, positions, permission saving, reset links. |
-| `app/modules/settings.php` | Website control, site settings, logo upload, email test settings. |
-| `app/modules/dashboard.php` | Dashboard filters, dashboard metrics, operational snapshots. |
-| `app/modules/inventory.php` | Items, storages, balances, package presets, stock movement posting. |
-| `app/modules/scan.php` | Scan Center, manual stock add, batch scan, scan lookup payloads. |
-| `app/modules/exports.php` | Item, storage, movement, user, and daily summary exports. |
-| `app/modules/reports.php` | Reports page, daily summary data, saved report presets. |
-| `app/modules/notifications.php` | Notification creation, feed, unread counts, read-all actions. |
-| `app/modules/search.php` | Global search and reference open routing. |
-| `app/modules/handover_usage.php` | Handover usage reason labels, summaries, variance summaries, and expected/actual usage breakdown queries. |
-| `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery helpers. |
-| `app/modules/requests.php` | Request lifecycle, approvals, receipt mismatch, recover, void, exports. |
-| `app/modules/handovers.php` | Handover lifecycle, expected usage, returned-first closeout, approval, status override. |
-| `app/modules/signoff.php` | PDF/XLSX signoff generation, QR/barcode assets, reconciliation tables. |
-| `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, approval, receiving, weighted average cost. |
-| `app/modules/ocr.php` | Purchase OCR health, OCR parsing, browser/OpenAI fallback helpers. |
-| `app/modules/files.php` | File library, protected file downloads, workflow document access. |
-| `app/modules/stocktakes.php` | Stocktake create/count/approve/cancel/export. |
-| `app/modules/suppliers.php` | Supplier CRUD, custom supplier type, purchase history. |
-| `app/modules/reorder.php` | Reorder center and purchase draft creation. |
-| `app/modules/audit.php` | Audit log and email log pages/exports. |
-| `app/modules/labels.php` | Label page data and label rows. |
-| `app/modules/documentation.php` | In-app documentation page. |
-| `app/modules/assets.php` | Fixed assets, categories, custody, maintenance, depreciation, exports, signoff files. |
+| `app/modules/core.php` | Shared route helpers, CSV/XLSX response helpers, and low-level export payload builders. |
+| `app/modules/settings.php` | Website Control page actions, site setting saves, logo upload, OCR settings display, and email test controls. |
+| `app/modules/email.php` | PHP `mail()` delivery wrapper, email settings, reset email delivery, workflow email copies, and email log writes. |
+| `app/modules/options.php` | Shared option lists and labels for statuses, units, supplier types, movement types, roles, and workflow dropdowns. |
+| `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
+| `app/modules/users.php` | Admin users, roles, positions, permission saving, assigned owner controls, reset links, and user exports. |
+| `app/modules/inventory.php` | Items, storages, balances, package presets, item/location filtering, stock movement posting, and stock snapshot sync. |
+| `app/modules/dashboard.php` | Dashboard filters, role-specific dashboard data, cards, queue snapshots, latest updates, and chart payloads. |
+| `app/modules/exports.php` | CSV/XLSX exports for items, storages, movements, users, handovers, purchases, suppliers, daily summaries, thumbnails, and barcode output. |
+| `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
+| `app/modules/reports.php` | Reports page, daily operations summary, usage by reason, storage/user activity, and saved report presets. |
+| `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
+| `app/modules/search.php` | Global search, scanned reference routing, smart reference open, and module-aware result URLs. |
+| `app/modules/handover_usage.php` | Usage reason labels, expected/actual usage summaries, variance summaries, and usage breakdown query helpers. |
+| `app/modules/handover_queries.php` | Handover filters, detail queries, line queries, destination storage lists, and storage-transfer detection helpers. |
+| `app/modules/handover_status.php` | Handover recovery, owner status override rules, closed-handover reversal, and receipt shortage inventory correction. |
+| `app/modules/handover_permissions.php` | Handover approval, edit, cancel, receipt, and closeout permission guards. |
+| `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery, audit, and workflow document helpers. |
+| `app/modules/handover_inventory.php` | Handover stock reservation, staff-use finalization, and storage-transfer buffer/source/destination movement logic. |
+| `app/modules/signoff.php` | Handover/request PDF/XLSX signoff generation, QR/barcode rendering, official logo, images, and reconciliation tables. |
+| `app/modules/requests.php` | Request lifecycle, approvals, rejection, receipt mismatch, completion, cancellation, recovery, and request line handling. |
+| `app/modules/handovers.php` | Handover lifecycle, staff handovers, storage-owner transfers, expected usage, returned-first closeout, owner final review, and status actions. |
+| `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
+| `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
+| `app/modules/files.php` | Protected file library, workflow document access, file asset registration, item/asset/purchase image registration, and file exports. |
+| `app/modules/stocktakes.php` | Stocktake create/count/submit/approve/cancel flows, variance movements, stocktake exports, and audit trail hooks. |
+| `app/modules/suppliers.php` | Supplier CRUD, required Saudi business fields, custom supplier type, search, archive/recover, exports, and purchase linkage. |
+| `app/modules/reorder.php` | Reorder center, low-stock detection, suggested restock quantities, and purchase draft creation from reorder rows. |
+| `app/modules/audit.php` | Audit log filters/exports and email log filters/exports. |
+| `app/modules/labels.php` | Label page data, label search, selectable label printing, barcode/SKU scan codes, and label rows. |
+| `app/modules/documentation.php` | In-app documentation page, documentation search data, and employee guidance content. |
+| `app/modules/assets.php` | Fixed assets, categories/subcategories, custody, maintenance, depreciation/book value, warranty status, files, exports, and asset signoff files. |
 | `app/support/permissions.php` | Permission catalog, role defaults, position defaults, and permission input sanitizing. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/http.php` | Request path, URL, asset URL, security headers, download headers, redirects, flash/old input, CSRF, JSON responses, and error page helpers. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/branding.php` | Brand mark/logo helpers, upload/storage directories, UI theme options, export thumbnail sizing, and signoff template/image sizing. Loaded during bootstrap through `app/helpers.php`. |
@@ -88,6 +94,12 @@ Rules:
 - Purchases add stock only after final receipt confirmation.
 - Stocktakes create adjustment movements after approval.
 - Assets do not affect inventory stock.
+
+Critical handover stock split:
+
+- Staff handovers are temporary-use workflows. They can create usage and return movements after owner approval.
+- Storage-owner handovers are stock relocation workflows. They never use usage reasons and they close by moving confirmed receipt from the handover buffer into the destination storage.
+- The handover buffer is an accountability location. It proves stock left the source but has not yet been finalized as used, returned, or received by the destination.
 
 ## 5. Major Workflow Cycles
 
@@ -234,11 +246,37 @@ Do not bypass `item_storage_balances`. That is how inventory systems become fict
 
 ## 12. Current Refactor Boundary
 
-This pass split backend PHP route/workflow code into domain modules and started shrinking monoliths by moving permission/role defaults to `app/support/permissions.php`, request/security helpers to `app/support/http.php`, branding/upload helpers to `app/support/branding.php`, Website Control setting helpers to `app/support/settings.php`, presentation helpers to `app/support/presentation.php`, and handover usage breakdown helpers to `app/modules/handover_usage.php`. It did not split `assets/app.css` or `assets/app.js`.
+This pass split backend PHP route/workflow code into domain modules and shrank the old monoliths into compatibility loaders. `app/controllers.php`, `app/workflows.php`, `app/company_assets.php`, and `app/report_presets.php` now only load `app/modules.php`.
+
+Support helpers were separated into:
+
+- `app/support/permissions.php`
+- `app/support/http.php`
+- `app/support/branding.php`
+- `app/support/settings.php`
+- `app/support/presentation.php`
+
+Domain logic now lives under `app/modules/`. Keep it that way.
+
+This pass did not split `assets/app.css` or `assets/app.js`.
 
 Reason: PHP stock workflow was the high-risk area. Frontend splitting and helper/class cleanup should be a later refactor after production proves stable.
 
-## 13. Next Technical Improvements
+## 13. Verification Notes
+
+Latest modular-refactor verification should include:
+
+```bash
+php -l index.php
+find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
+node --check assets/app.js
+php tests/full_regression.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMODULARYYYYMMDD
+php tests/stock_invariants.php
+```
+
+If the full regression runs on live, run `php scripts/backup.php` first and use a unique prefix. The regression creates users, storages, items, handovers, purchases, assets, stocktakes, and exports, then cleans them up.
+
+## 14. Next Technical Improvements
 
 Recommended order:
 
