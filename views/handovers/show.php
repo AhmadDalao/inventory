@@ -98,6 +98,12 @@ foreach ($lines as $line) {
         : (float) $line['quantity_received'];
     $unaccountedTotal += round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
 }
+
+$storageReceiptWasReported = $isStorageTransfer && in_array($handoverStatus, ['receipt_review', 'closed'], true);
+$storageShortTotal = max(0, round($plannedTotal - $receivedTotal, 2));
+$storageReturnedToSourceTotal = $storageReceiptWasReported ? $storageShortTotal : 0.0;
+$storageToDestinationTotal = $storageReceiptWasReported ? $receivedTotal : 0.0;
+$storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTotal - $storageReturnedToSourceTotal, 2));
 ?>
 
 <section class="page-head">
@@ -138,18 +144,33 @@ foreach ($lines as $line) {
                 <span>Planned</span>
                 <strong><?= format_quantity($plannedTotal) ?></strong>
             </div>
-            <div>
-                <span>Received</span>
-                <strong><?= format_quantity($receivedTotal) ?></strong>
-            </div>
-            <div>
-                <span>Used</span>
-                <strong><?= format_quantity($usedTotal) ?></strong>
-            </div>
-            <div>
-                <span>Returned</span>
-                <strong><?= format_quantity($returnedTotal) ?></strong>
-            </div>
+            <?php if ($isStorageTransfer): ?>
+                <div>
+                    <span>To Destination</span>
+                    <strong><?= format_quantity($storageToDestinationTotal) ?></strong>
+                </div>
+                <div>
+                    <span>Returning To Source</span>
+                    <strong><?= format_quantity($storageReturnedToSourceTotal) ?></strong>
+                </div>
+                <div>
+                    <span>Difference</span>
+                    <strong><?= format_quantity($storageDifferenceTotal) ?></strong>
+                </div>
+            <?php else: ?>
+                <div>
+                    <span>Received</span>
+                    <strong><?= format_quantity($receivedTotal) ?></strong>
+                </div>
+                <div>
+                    <span>Used</span>
+                    <strong><?= format_quantity($usedTotal) ?></strong>
+                </div>
+                <div>
+                    <span>Returned</span>
+                    <strong><?= format_quantity($returnedTotal) ?></strong>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="handover-compact-grid">
@@ -186,7 +207,7 @@ foreach ($lines as $line) {
                 <small>Approved by: <?= e((string) ($handoverRecord['request_approved_by_name'] ?: 'Not approved yet')) ?></small>
             </section>
             <section class="handover-info-card">
-                <span>Closeout</span>
+                <span><?= $isStorageTransfer ? 'Receipt' : 'Closeout' ?></span>
                 <strong><?= !empty($handoverRecord['receipt_reported_at']) ? e(format_datetime_display((string) $handoverRecord['receipt_reported_at'])) : 'Receipt not reported' ?></strong>
                 <small>Submitted: <?= e((string) ($handoverRecord['submitted_by_name'] ?: 'Not submitted')) ?> · Final: <?= e((string) ($handoverRecord['approved_by_name'] ?: 'Not approved')) ?></small>
             </section>
@@ -1075,8 +1096,8 @@ foreach ($lines as $line) {
                 <th>SKU</th>
                 <th>Planned</th>
                 <th>Received</th>
-                <th>Used</th>
-                <th>Returned</th>
+                <th><?= $isStorageTransfer ? 'To Destination' : 'Used' ?></th>
+                <th><?= $isStorageTransfer ? 'Returning To Source' : 'Returned' ?></th>
                 <th>Difference / Unaccounted</th>
             </tr>
             </thead>
@@ -1090,7 +1111,17 @@ foreach ($lines as $line) {
                 $baseQuantity = in_array((string) $handoverRecord['status'], ['requested', 'awaiting_receipt'], true)
                     ? (float) $line['quantity_handed']
                     : (float) $line['quantity_received'];
-                $unaccounted = round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
+                if ($isStorageTransfer) {
+                    $lineReceiptWasReported = in_array((string) $handoverRecord['status'], ['receipt_review', 'closed'], true);
+                    $lineShortage = max(0, round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2));
+                    $lineToDestination = $lineReceiptWasReported ? round((float) $line['quantity_received'], 2) : 0.0;
+                    $lineReturningToSource = $lineReceiptWasReported ? $lineShortage : 0.0;
+                    $unaccounted = max(0, round((float) $line['quantity_handed'] - $lineToDestination - $lineReturningToSource, 2));
+                } else {
+                    $lineToDestination = 0.0;
+                    $lineReturningToSource = 0.0;
+                    $unaccounted = round($baseQuantity - (float) $line['quantity_used'] - (float) $line['quantity_returned'], 2);
+                }
                 ?>
                 <tr>
                     <td data-label="Item">
@@ -1130,8 +1161,13 @@ foreach ($lines as $line) {
                     <td data-label="SKU"><?= e($line['item_sku']) ?></td>
                     <td data-label="Planned"><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Received"><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
-                    <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
-                    <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
+                    <?php if ($isStorageTransfer): ?>
+                        <td data-label="To Destination"><?= format_quantity($lineToDestination) ?> <?= e($line['unit']) ?></td>
+                        <td data-label="Returning To Source"><?= format_quantity($lineReturningToSource) ?> <?= e($line['unit']) ?></td>
+                    <?php else: ?>
+                        <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
+                        <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
+                    <?php endif; ?>
                     <td data-label="Difference / Unaccounted"><?= format_quantity($unaccounted) ?> <?= e($line['unit']) ?></td>
                 </tr>
             <?php endforeach; ?>

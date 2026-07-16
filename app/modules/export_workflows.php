@@ -53,20 +53,26 @@ function handle_export_handovers(): void
 
     foreach ($handovers as $handover) {
         $isStorageTransfer = handover_is_storage_transfer($handover);
+        $handoverStatus = (string) ($handover['status'] ?? '');
+        $storageReceiptWasReported = $isStorageTransfer && in_array($handoverStatus, ['receipt_review', 'closed'], true);
 
         foreach (handover_lines((int) $handover['id']) as $line) {
+            $plannedQuantity = round((float) ($line['quantity_handed'] ?? 0), 2);
+            $receivedQuantity = round((float) ($line['quantity_received'] ?? 0), 2);
+            $shortQuantity = 0.0;
+            $usedQuantity = round((float) ($line['quantity_used'] ?? 0), 2);
+            $returnedQuantity = round((float) ($line['quantity_returned'] ?? 0), 2);
+
             if ($isStorageTransfer) {
-                $remainingQuantity = max(0, round(
-                    (float) ($line['quantity_handed'] ?? 0)
-                    - (float) ($line['quantity_received'] ?? 0)
-                    - (float) ($line['quantity_returned'] ?? 0),
-                    2
-                ));
+                $shortQuantity = max(0, round($plannedQuantity - $receivedQuantity, 2));
+                $usedQuantity = 0.0;
+                $returnedQuantity = $storageReceiptWasReported ? $shortQuantity : 0.0;
+                $remainingQuantity = max(0, round($plannedQuantity - $receivedQuantity - $returnedQuantity, 2));
             } else {
-                $baseQuantity = in_array((string) ($handover['status'] ?? ''), ['requested', 'awaiting_receipt'], true)
-                    ? round((float) ($line['quantity_handed'] ?? 0), 2)
-                    : round((float) ($line['quantity_received'] ?? 0), 2);
-                $remainingQuantity = max(0, round($baseQuantity - (float) ($line['quantity_used'] ?? 0) - (float) ($line['quantity_returned'] ?? 0), 2));
+                $baseQuantity = in_array($handoverStatus, ['requested', 'awaiting_receipt'], true)
+                    ? $plannedQuantity
+                    : $receivedQuantity;
+                $remainingQuantity = max(0, round($baseQuantity - $usedQuantity - $returnedQuantity, 2));
             }
 
             $rows[] = [
@@ -86,10 +92,11 @@ function handle_export_handovers(): void
                 $line['item_name'],
                 $line['item_sku'],
                 $line['unit'],
-                format_quantity($line['quantity_handed']),
-                format_quantity($line['quantity_received']),
-                format_quantity($line['quantity_used']),
-                format_quantity($line['quantity_returned']),
+                format_quantity($plannedQuantity),
+                format_quantity($receivedQuantity),
+                format_quantity($shortQuantity),
+                format_quantity($usedQuantity),
+                format_quantity($returnedQuantity),
                 format_quantity($remainingQuantity),
                 (string) ($line['expected_usage_reason_summary'] ?? ''),
                 (string) ($line['usage_reason_summary'] ?? ''),
@@ -121,6 +128,7 @@ function handle_export_handovers(): void
         'Unit',
         'Planned Quantity',
         'Received Quantity',
+        'Short Quantity',
         'Used Quantity',
         'Returned Quantity',
         'Remaining Quantity',

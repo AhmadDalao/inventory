@@ -3584,6 +3584,7 @@ assert_true(strpos($handoverExport['body'], $handoverRequestClosed['handover_num
 assert_true(strpos($handoverExport['body'], $storageTransferExactClosed['handover_number']) !== false, 'Handover export is missing the exact storage-transfer handover.');
 assert_true(strpos($handoverExport['body'], $storageTransferShortClosed['handover_number']) !== false, 'Handover export is missing the short storage-transfer handover.');
 assert_true(strpos($handoverExport['body'], 'Storage transfer') !== false && strpos($handoverExport['body'], $transferDestination['name']) !== false, 'Handover export is missing storage-transfer target details.');
+assert_true(strpos($handoverExport['body'], 'Short Quantity') !== false, 'Handover export is missing storage-transfer short quantity column.');
 assert_true(strpos($handoverExport['body'], 'Usage Reasons') !== false && strpos($handoverExport['body'], 'Damage 1') !== false, 'Handover export is missing usage reason details.');
 assert_true(strpos($handoverExport['body'], 'Expected Usage Reasons') !== false && strpos($handoverExport['body'], 'Online 12') !== false, 'Handover export is missing expected usage details.');
 assert_true(strpos($handoverExport['body'], 'Usage Variance') !== false && strpos($handoverExport['body'], 'Damage +1') !== false, 'Handover export is missing usage variance details.');
