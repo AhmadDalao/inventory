@@ -9,6 +9,7 @@ $moduleFiles = [
     __DIR__ . '/modules/auth.php',
     __DIR__ . '/modules/users.php',
     __DIR__ . '/modules/inventory.php',
+    __DIR__ . '/modules/inventory_stock.php',
     __DIR__ . '/modules/dashboard.php',
     __DIR__ . '/modules/exports.php',
     __DIR__ . '/modules/scan.php',
@@ -34,6 +35,7 @@ $moduleFiles = [
     __DIR__ . '/modules/labels.php',
     __DIR__ . '/modules/documentation.php',
     __DIR__ . '/modules/assets.php',
+    __DIR__ . '/modules/asset_signoff.php',
 ];
 
 foreach ($moduleFiles as $moduleFile) {

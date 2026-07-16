@@ -43,7 +43,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/options.php` | Shared option lists and labels for statuses, units, supplier types, movement types, roles, and workflow dropdowns. |
 | `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
 | `app/modules/users.php` | Admin users, roles, positions, permission saving, assigned owner controls, reset links, and user exports. |
-| `app/modules/inventory.php` | Items, storages, balances, package presets, item/location filtering, stock movement posting, and stock snapshot sync. |
+| `app/modules/inventory.php` | Items, storages, balances, package presets, item/location filtering, storage views, and item/storage form handling. |
+| `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/dashboard.php` | Dashboard filters, role-specific dashboard data, cards, queue snapshots, latest updates, and chart payloads. |
 | `app/modules/exports.php` | CSV/XLSX exports for items, storages, movements, users, handovers, purchases, suppliers, daily summaries, thumbnails, and barcode output. |
 | `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
@@ -73,7 +74,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/audit.php` | Audit log filters/exports and email log filters/exports. |
 | `app/modules/labels.php` | Label page data, label search, selectable label printing, barcode/SKU scan codes, and label rows. |
 | `app/modules/documentation.php` | In-app documentation page, documentation search data, and employee guidance content. |
-| `app/modules/assets.php` | Fixed assets, categories/subcategories, custody, maintenance, depreciation/book value, warranty status, files, exports, and asset signoff files. |
+| `app/modules/assets.php` | Fixed assets, categories/subcategories, custody, maintenance, depreciation/book value, warranty status, files, and asset exports. |
+| `app/modules/asset_signoff.php` | Asset custody signoff PDF/XLSX payload generation and asset signoff download handlers. |
 | `app/support/permissions.php` | Permission catalog, role defaults, position defaults, and permission input sanitizing. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/http.php` | Request path, URL, asset URL, security headers, download headers, redirects, flash/old input, CSRF, JSON responses, and error page helpers. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/branding.php` | Brand mark/logo helpers, upload/storage directories, UI theme options, export thumbnail sizing, and signoff template/image sizing. Loaded during bootstrap through `app/helpers.php`. |
