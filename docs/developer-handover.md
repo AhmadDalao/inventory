@@ -76,6 +76,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery, and purchase/handover persistence helpers that still need future splitting. Do not add purchase document logic here. |
 | `app/modules/workflow_filters.php` | Shared SQL filter builders for purchases, files, stocktakes, suppliers, audit logs, and email logs. |
 | `app/modules/handover_inventory.php` | Handover stock reservation, staff-use finalization, and storage-transfer buffer/source/destination movement logic. |
+| `app/modules/handover_request_decisions.php` | Handover request approval/rejection handlers and notifications. |
+| `app/modules/handover_decisions.php` | Handover cancellation, recovery, owner status override, and void handlers. |
 | `app/modules/signoff.php` | Signoff loader plus final PDF/XLSX persistence helpers. Keep public `ensure_workflow_signoff_pdf()` here. |
 | `app/modules/signoff_documents.php` | Workflow document labels and workflow document asset registration. |
 | `app/modules/signoff_data.php` | Signoff metadata, item rows, totals, usage summaries, variance, and reconciliation table data. |

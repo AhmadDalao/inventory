@@ -48,6 +48,7 @@ $moduleFiles = [
     'request_exports',
     'handover_pages',
     'handover_create',
+    'handover_request_decisions',
     'handover_decisions',
     'handover_receipts',
     'handover_closeout',
