@@ -123,3 +123,40 @@ function finalize_handover_storage_transfer_inventory(array $handover, array $re
         }
     }
 }
+
+function cancel_handover_inventory(array $handover, array $lines, int $performedBy): void
+{
+    $status = (string) ($handover['status'] ?? '');
+
+    if (!in_array($status, ['awaiting_receipt', 'receipt_review', 'delivered'], true)) {
+        return;
+    }
+
+    $bufferStorageId = system_storage_id('handover_buffer');
+
+    foreach ($lines as $line) {
+        $quantity = $status === 'delivered'
+            ? round((float) (($line['quantity_received'] ?? 0) ?: ($line['quantity_handed'] ?? 0)), 2)
+            : round((float) ($line['quantity_handed'] ?? 0), 2);
+
+        if ($quantity <= 0) {
+            continue;
+        }
+
+        $item = find_item_or_abort((int) $line['item_id']);
+
+        apply_inventory_movement(
+            $item,
+            'transfer',
+            $quantity,
+            $bufferStorageId,
+            (int) $handover['source_storage_id'],
+            date('Y-m-d H:i:s'),
+            (string) $handover['handover_number'],
+            'Cancelled handover returned reserved stock to source storage.',
+            $performedBy,
+            'handover',
+            (int) $handover['id']
+        );
+    }
+}

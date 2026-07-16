@@ -17,6 +17,14 @@ function handover_usage_reason_options(): array
     ];
 }
 
+function normalize_handover_usage_reason(string $code): string
+{
+    $normalized = strtolower(trim($code));
+    $normalized = str_replace(['-', ' '], '', $normalized);
+
+    return array_key_exists($normalized, handover_usage_reason_options()) ? $normalized : 'unspecified';
+}
+
 function handover_usage_reason_label(string $code, string $custom = ''): string
 {
     $code = normalize_handover_usage_reason($code);
@@ -168,6 +176,35 @@ function handover_usage_breakdowns_for_lines(array $lineIds): array
     return $grouped;
 }
 
+function hydrate_handover_lines_usage_breakdowns(array $lines): array
+{
+    $groups = handover_usage_breakdowns_for_lines(array_column($lines, 'id'));
+
+    foreach ($lines as &$line) {
+        $lineId = (int) ($line['id'] ?? 0);
+        $breakdowns = $groups[$lineId] ?? [];
+        $used = round((float) ($line['quantity_used'] ?? 0), 2);
+
+        if ($breakdowns === [] && $used > 0) {
+            $breakdowns[] = [
+                'handover_line_id' => $lineId,
+                'item_id' => (int) ($line['item_id'] ?? 0),
+                'reason_code' => 'unspecified',
+                'reason_custom' => '',
+                'reason_label' => handover_usage_reason_label('unspecified'),
+                'quantity' => $used,
+                'notes' => '',
+            ];
+        }
+
+        $line['usage_breakdowns'] = $breakdowns;
+        $line['usage_reason_summary'] = handover_usage_reason_summary($breakdowns, (string) ($line['unit'] ?? 'pcs'));
+    }
+    unset($line);
+
+    return $lines;
+}
+
 function handover_expected_usage_breakdowns_for_lines(array $lineIds): array
 {
     $lineIds = array_values(array_unique(array_filter(array_map('intval', $lineIds), static fn (int $lineId): bool => $lineId > 0)));
@@ -203,6 +240,27 @@ function handover_expected_usage_breakdowns_for_lines(array $lineIds): array
     }
 
     return $grouped;
+}
+
+function hydrate_handover_lines_expected_usage_breakdowns(array $lines): array
+{
+    $groups = handover_expected_usage_breakdowns_for_lines(array_column($lines, 'id'));
+
+    foreach ($lines as &$line) {
+        $lineId = (int) ($line['id'] ?? 0);
+        $breakdowns = $groups[$lineId] ?? [];
+        $unit = (string) ($line['unit'] ?? 'pcs');
+        $line['expected_usage_breakdowns'] = $breakdowns;
+        $line['expected_usage_reason_summary'] = handover_usage_reason_summary($breakdowns, $unit);
+        $line['usage_variance_summary'] = handover_usage_variance_summary(
+            $breakdowns,
+            (array) ($line['usage_breakdowns'] ?? []),
+            $unit
+        );
+    }
+    unset($line);
+
+    return $lines;
 }
 
 function parse_handover_expected_usage_by_item(array $lines): array
@@ -618,4 +676,152 @@ function build_handover_approval_updates(array $lines, $returnedInput, array $us
     }
 
     return [$updates, $errors];
+}
+
+function save_handover_usage_breakdowns(int $handoverId, array $lineUpdates, int $performedBy): void
+{
+    $lineIds = array_values(array_unique(array_filter(array_map(static fn (array $update): int => (int) ($update['line_id'] ?? 0), $lineUpdates))));
+
+    if ($lineIds === []) {
+        return;
+    }
+
+    $params = ['handover_id' => $handoverId];
+    $placeholders = [];
+
+    foreach ($lineIds as $index => $lineId) {
+        $key = 'line_id_' . $index;
+        $placeholders[] = ':' . $key;
+        $params[$key] = $lineId;
+    }
+
+    Database::execute(
+        'DELETE FROM handover_usage_breakdowns
+         WHERE handover_id = :handover_id
+           AND handover_line_id IN (' . implode(', ', $placeholders) . ')',
+        $params
+    );
+
+    foreach ($lineUpdates as $update) {
+        foreach (($update['breakdowns'] ?? []) as $breakdown) {
+            $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
+
+            if ($quantity <= 0) {
+                continue;
+            }
+
+            Database::execute(
+                'INSERT INTO handover_usage_breakdowns (
+                    handover_id,
+                    handover_line_id,
+                    item_id,
+                    reason_code,
+                    reason_custom,
+                    quantity,
+                    notes,
+                    created_by,
+                    updated_by,
+                    created_at,
+                    updated_at
+                 ) VALUES (
+                    :handover_id,
+                    :handover_line_id,
+                    :item_id,
+                    :reason_code,
+                    :reason_custom,
+                    :quantity,
+                    :notes,
+                    :created_by,
+                    :updated_by,
+                    NOW(),
+                    NOW()
+                 )',
+                [
+                    'handover_id' => $handoverId,
+                    'handover_line_id' => (int) $update['line_id'],
+                    'item_id' => (int) $update['item_id'],
+                    'reason_code' => normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? '')),
+                    'reason_custom' => trim((string) ($breakdown['reason_custom'] ?? '')) !== '' ? trim((string) ($breakdown['reason_custom'] ?? '')) : null,
+                    'quantity' => $quantity,
+                    'notes' => trim((string) ($breakdown['notes'] ?? '')) !== '' ? trim((string) ($breakdown['notes'] ?? '')) : null,
+                    'created_by' => $performedBy,
+                    'updated_by' => $performedBy,
+                ]
+            );
+        }
+    }
+}
+
+function save_handover_expected_usage_breakdowns(int $handoverId, array $lineUpdates, int $performedBy): void
+{
+    $lineIds = array_values(array_unique(array_filter(array_map(static fn (array $update): int => (int) ($update['line_id'] ?? 0), $lineUpdates))));
+
+    if ($lineIds === []) {
+        return;
+    }
+
+    $params = ['handover_id' => $handoverId];
+    $placeholders = [];
+
+    foreach ($lineIds as $index => $lineId) {
+        $key = 'line_id_' . $index;
+        $placeholders[] = ':' . $key;
+        $params[$key] = $lineId;
+    }
+
+    Database::execute(
+        'DELETE FROM handover_expected_usage_breakdowns
+         WHERE handover_id = :handover_id
+           AND handover_line_id IN (' . implode(', ', $placeholders) . ')',
+        $params
+    );
+
+    foreach ($lineUpdates as $update) {
+        foreach (($update['breakdowns'] ?? []) as $breakdown) {
+            $quantity = round((float) ($breakdown['quantity'] ?? 0), 2);
+
+            if ($quantity <= 0) {
+                continue;
+            }
+
+            Database::execute(
+                'INSERT INTO handover_expected_usage_breakdowns (
+                    handover_id,
+                    handover_line_id,
+                    item_id,
+                    reason_code,
+                    reason_custom,
+                    quantity,
+                    notes,
+                    created_by,
+                    updated_by,
+                    created_at,
+                    updated_at
+                 ) VALUES (
+                    :handover_id,
+                    :handover_line_id,
+                    :item_id,
+                    :reason_code,
+                    :reason_custom,
+                    :quantity,
+                    :notes,
+                    :created_by,
+                    :updated_by,
+                    NOW(),
+                    NOW()
+                 )',
+                [
+                    'handover_id' => $handoverId,
+                    'handover_line_id' => (int) $update['line_id'],
+                    'item_id' => (int) $update['item_id'],
+                    'reason_code' => normalize_handover_usage_reason((string) ($breakdown['reason_code'] ?? '')),
+                    'reason_custom' => trim((string) ($breakdown['reason_custom'] ?? '')) !== '' ? trim((string) ($breakdown['reason_custom'] ?? '')) : null,
+                    'quantity' => $quantity,
+                    'notes' => trim((string) ($breakdown['notes'] ?? '')) !== '' ? trim((string) ($breakdown['notes'] ?? '')) : null,
+                    'created_by' => $performedBy,
+                    'updated_by' => $performedBy,
+                ]
+            );
+        }
+    }
 }
