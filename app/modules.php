@@ -1,95 +1,18 @@
 <?php
 declare(strict_types=1);
 
-$moduleFiles = [
-    'core',
-    'frontend_assets',
-    'settings',
-    'email',
-    'options',
-    'auth',
-    'users',
-    'item_support',
-    'items',
-    'storages',
-    'inventory_stock',
-    'item_packages',
-    'movements',
-    'dashboard',
-    'export_items',
-    'export_movements',
-    'export_daily_summary',
-    'export_storages',
-    'export_workflows',
-    'scan',
-    'report_summary',
-    'report_presets',
-    'notifications',
-    'search_reference',
-    'search',
-    'handover_usage_reasons',
-    'handover_usage_breakdowns',
-    'handover_usage_inputs',
-    'handover_receipt_updates',
-    'handover_closeout_updates',
-    'handover_usage_persistence',
-    'handover_queries',
-    'handover_status',
-    'handover_permissions',
-    'workflow_system',
-    'workflow_inputs',
-    'workflow_identity',
-    'workflow_stock_impact',
-    'workflow_core',
-    'workflow_filters',
-    'handover_inventory',
-    'signoff',
-    'request_support',
-    'request_pages',
-    'request_create',
-    'request_decisions',
-    'request_receipts',
-    'request_status',
-    'request_exports',
-    'handover_pages',
-    'handover_create',
-    'handover_line_edits',
-    'handover_request_decisions',
-    'handover_cancellations',
-    'handover_decisions',
-    'handover_receipts',
-    'handover_closeout',
-    'ocr_support',
-    'ocr_parser',
-    'ocr',
-    'ocr_openai',
-    'purchase_documents',
-    'purchase_persistence',
-    'purchase_import',
-    'purchase_pages',
-    'purchase_lifecycle',
-    'purchases',
-    'file_library',
-    'file_uploads',
-    'file_asset_meta',
-    'file_asset_registry',
-    'file_media_settings',
-    'stocktakes',
-    'suppliers',
-    'reorder',
-    'audit',
-    'labels',
-    'documentation_guides',
-    'documentation_content',
-    'documentation',
-    'asset_support',
-    'asset_category_support',
-    'asset_categories',
-    'assets',
-    'asset_lifecycle',
-    'asset_exports',
-    'asset_signoff',
-];
+$moduleGroups = require __DIR__ . '/module_manifest.php';
+$moduleFiles = [];
+
+foreach ($moduleGroups as $groupName => $groupModuleFiles) {
+    if (!is_array($groupModuleFiles)) {
+        throw new RuntimeException('Invalid module group in app/module_manifest.php: ' . (string) $groupName);
+    }
+
+    foreach ($groupModuleFiles as $moduleFile) {
+        $moduleFiles[] = $moduleFile;
+    }
+}
 
 foreach ($moduleFiles as $moduleFile) {
     require_once __DIR__ . '/modules/' . $moduleFile . '.php';

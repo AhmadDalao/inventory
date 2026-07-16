@@ -47,22 +47,46 @@ foreach ($compatibilityLoaders as $relativePath) {
 $modulesPath = $root . '/app/modules.php';
 $modulesContents = read_module_boundary_file($modulesPath);
 
-if (!preg_match('/\$moduleFiles\s*=\s*\[(.*?)\];/s', $modulesContents, $match)) {
-    fail_module_boundary('app/modules.php must expose the explicit $moduleFiles list.');
+if (!str_contains($modulesContents, 'module_manifest.php')) {
+    fail_module_boundary('app/modules.php must load app/module_manifest.php.');
 }
 
-preg_match_all("/'([^']+)'/", $match[1], $moduleMatches);
-$moduleFiles = $moduleMatches[1] ?? [];
+$manifestPath = $root . '/app/module_manifest.php';
+$moduleGroups = require $manifestPath;
+
+if (!is_array($moduleGroups) || $moduleGroups === []) {
+    fail_module_boundary('app/module_manifest.php must return non-empty module groups.');
+}
+
+$moduleFiles = [];
+
+foreach ($moduleGroups as $groupName => $groupModuleFiles) {
+    if (!is_string($groupName) || $groupName === '') {
+        fail_module_boundary('Module manifest group names must be non-empty strings.');
+    }
+
+    if (!is_array($groupModuleFiles) || $groupModuleFiles === []) {
+        fail_module_boundary('Module manifest group must contain modules: ' . $groupName);
+    }
+
+    foreach ($groupModuleFiles as $moduleFile) {
+        if (!is_string($moduleFile) || $moduleFile === '') {
+            fail_module_boundary('Invalid module entry in group: ' . $groupName);
+        }
+
+        $moduleFiles[] = $moduleFile;
+    }
+}
 
 if ($moduleFiles === []) {
-    fail_module_boundary('app/modules.php module list is empty.');
+    fail_module_boundary('app/module_manifest.php module list is empty.');
 }
 
 $seenModules = [];
 
 foreach ($moduleFiles as $moduleFile) {
     if (isset($seenModules[$moduleFile])) {
-        fail_module_boundary('Duplicate module in app/modules.php: ' . $moduleFile);
+        fail_module_boundary('Duplicate module in app/module_manifest.php: ' . $moduleFile);
     }
 
     $seenModules[$moduleFile] = true;
@@ -81,7 +105,7 @@ $forbiddenModuleEntries = [
 
 foreach ($forbiddenModuleEntries as $forbiddenModuleEntry) {
     if (isset($seenModules[$forbiddenModuleEntry])) {
-        fail_module_boundary('Old aggregate module must not be loaded through app/modules.php: ' . $forbiddenModuleEntry);
+        fail_module_boundary('Old aggregate module must not be loaded through app/module_manifest.php: ' . $forbiddenModuleEntry);
     }
 }
 
