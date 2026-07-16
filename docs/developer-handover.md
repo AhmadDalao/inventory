@@ -74,7 +74,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
 | `app/modules/requests.php` | Request lifecycle, approvals, rejection, receipt mismatch, completion, cancellation, recovery, and request line handling. |
-| `app/modules/handovers.php` | Handover lifecycle, staff handovers, storage-owner transfers, expected usage, returned-first closeout, owner final review, and status actions. |
+| `app/modules/handovers.php` | Compatibility shim that loads the focused handover route-handler modules. New handler logic should go into the stage-specific files below. |
+| `app/modules/handover_pages.php` | Handover index/create/show pages and line-edit submit handler. |
+| `app/modules/handover_create.php` | Handover create submit handler for staff-use and storage-transfer handovers. |
+| `app/modules/handover_decisions.php` | Handover request approval/rejection, cancellation, recovery, void, and owner status override handlers. |
+| `app/modules/handover_receipts.php` | Handover receipt confirmation and shortage confirmation handlers. |
+| `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
 | `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
 | `app/modules/files.php` | Protected file library, workflow document access, file asset registration, item/asset/purchase image registration, and file exports. |
