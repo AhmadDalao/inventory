@@ -52,6 +52,7 @@ $moduleFiles = [
     'purchase_persistence',
     'purchase_import',
     'purchase_pages',
+    'purchase_lifecycle',
     'purchases',
     'file_library',
     'file_uploads',
