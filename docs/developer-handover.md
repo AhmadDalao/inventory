@@ -43,7 +43,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/options.php` | Shared option lists and labels for statuses, units, supplier types, movement types, roles, and workflow dropdowns. |
 | `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
 | `app/modules/users.php` | Admin users, roles, positions, permission saving, assigned owner controls, reset links, and user exports. |
-| `app/modules/inventory.php` | Items, storages, balances, item/location filtering, storage views, and item/storage form handling. |
+| `app/modules/inventory.php` | Item catalog, item form handling, item/location filtering, and item movement entry points. |
+| `app/modules/storages.php` | Storage filters, ownership helpers, storage summaries, storage CRUD handlers, and storage detail queries. |
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
 | `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |

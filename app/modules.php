@@ -9,6 +9,7 @@ $moduleFiles = [
     __DIR__ . '/modules/auth.php',
     __DIR__ . '/modules/users.php',
     __DIR__ . '/modules/inventory.php',
+    __DIR__ . '/modules/storages.php',
     __DIR__ . '/modules/inventory_stock.php',
     __DIR__ . '/modules/item_packages.php',
     __DIR__ . '/modules/movements.php',
