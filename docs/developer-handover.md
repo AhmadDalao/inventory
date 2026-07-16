@@ -147,6 +147,7 @@ Do not add new code to these compatibility loaders:
 | `app/maintenance/MaintenanceBoot.php` | Boot trait for upload-directory setup and schema sync entrypoint used by `app/Maintenance.php`. |
 | `app/maintenance/MaintenanceSchemaHelpers.php` | Schema/bootstrap helper trait for setting writes, table/column checks, indexes, and foreign-key checks used by `app/Maintenance.php`. |
 | `app/maintenance/MaintenanceSchemaState.php` | Schema version and current-state inspection trait used by `app/Maintenance.php` to decide whether bootstrapping can be skipped safely. |
+| `app/maintenance/MaintenancePlatformSchemas.php` | Platform table setup for permissions, app settings, report presets, login attempts, password reset tokens, and email delivery logs. |
 | `app/maintenance/MaintenanceFileWorkflowSchemas.php` | File-library and workflow-document table setup used by `app/Maintenance.php`. Keep proof/signoff document schema changes here instead of bloating `syncSchema()`. |
 | `app/maintenance/MaintenanceBackfills.php` | One-time/repair backfill trait for missing storage balances and file asset registration. |
 | `app/maintenance/MaintenancePermissionSeeds.php` | Permission seed trait for owner/admin/staff defaults and module-specific permission grants. |
@@ -330,7 +331,7 @@ If the database changed, restore both files and SQL from the same backup set. Do
 
 Do not bypass `item_storage_balances`. That is how inventory systems become fiction.
 
-Database bootstrapping belongs in `app/Maintenance.php`, but boot setup, reusable schema helpers, schema-current checks, file/workflow document schemas, backfills, and seed routines belong in `app/maintenance/`. Workflow behavior does not belong in maintenance files.
+Database bootstrapping belongs in `app/Maintenance.php`, but boot setup, reusable schema helpers, schema-current checks, platform schemas, file/workflow document schemas, backfills, and seed routines belong in `app/maintenance/`. Workflow behavior does not belong in maintenance files.
 
 ## 12. Current Refactor Boundary
 
@@ -344,6 +345,7 @@ Latest split checkpoint:
 - Long documentation page sections live in `app/modules/documentation_content.php`.
 - OCR parsing helpers live in `app/modules/ocr_parser.php`.
 - Scanned reference lookup lives in `app/modules/search_reference.php`.
+- Permissions/settings/report preset/auth/email log schema setup lives in `app/maintenance/MaintenancePlatformSchemas.php`.
 - File-library and workflow-document schema setup lives in `app/maintenance/MaintenanceFileWorkflowSchemas.php`.
 - `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and `app/modules/search.php` now stay focused on route/page orchestration, engine orchestration, or global result composition.
 
