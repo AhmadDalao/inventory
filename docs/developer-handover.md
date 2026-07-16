@@ -89,7 +89,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
 | `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
-| `app/modules/files.php` | Protected file library, workflow document access, file asset registration, item/asset/purchase image registration, and file exports. |
+| `app/modules/files.php` | Compatibility shim that loads focused file-library modules. |
+| `app/modules/file_library.php` | Protected file library pages, workflow document access/download/view handlers, and file CSV export. |
+| `app/modules/file_uploads.php` | Upload normalization, purchase/workflow/asset document storage, item/asset image storage, and upload validation. |
+| `app/modules/file_asset_meta.php` | File library permissions, groups/status labels, file paths, previews, context labels, and size/mime helpers. |
+| `app/modules/file_asset_registry.php` | File asset registration for item images, asset files, purchase documents, workflow signoffs, and deleted-file markers. |
+| `app/modules/file_media_settings.php` | Item/asset image URL helpers and export media setting checks for thumbnails/barcodes. |
 | `app/modules/stocktakes.php` | Stocktake create/count/submit/approve/cancel flows, variance movements, stocktake exports, and audit trail hooks. |
 | `app/modules/suppliers.php` | Supplier CRUD, required Saudi business fields, custom supplier type, search, archive/recover, exports, and purchase linkage. |
 | `app/modules/reorder.php` | Reorder center, low-stock detection, suggested restock quantities, and purchase draft creation from reorder rows. |
