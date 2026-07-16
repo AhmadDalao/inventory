@@ -64,6 +64,7 @@ $moduleFiles = [
     'reorder',
     'audit',
     'labels',
+    'documentation_content',
     'documentation',
     'asset_support',
     'asset_category_support',
