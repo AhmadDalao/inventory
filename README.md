@@ -42,7 +42,7 @@ If local MySQL is unavailable, run stock invariants on the live server after a b
 
 ## Current Architecture
 
-Routes still live in `index.php`. Domain functions are organized under `app/modules/`, grouped in `app/module_manifest.php`, and loaded by `app/modules.php`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`. Maintenance boot setup, schema helpers, schema-current checks, one-time backfills, and permission seed routines live under `app/maintenance/`.
+Routes still live in `index.php`. Domain functions are organized under `app/modules/`, grouped in `app/module_manifest.php`, and loaded by `app/modules.php`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`. Maintenance boot setup, schema helpers, schema-current checks, file/workflow document schemas, one-time backfills, and permission seed routines live under `app/maintenance/`.
 
 The old aggregate files remain as compatibility loaders:
 
