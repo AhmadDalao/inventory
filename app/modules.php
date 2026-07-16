@@ -46,6 +46,7 @@ $moduleFiles = [
     'handover_receipts',
     'handover_closeout',
     'ocr_support',
+    'ocr_parser',
     'ocr',
     'ocr_openai',
     'purchase_documents',

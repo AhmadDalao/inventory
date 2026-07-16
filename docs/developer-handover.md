@@ -90,7 +90,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_decisions.php` | Handover request approval/rejection, cancellation, recovery, void, and owner status override handlers. |
 | `app/modules/handover_receipts.php` | Handover receipt confirmation and shortage confirmation handlers. |
 | `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
-| `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
+| `app/modules/ocr_parser.php` | Purchase OCR text cleanup, Arabic/English parsing helpers, parsed result normalization, confidence flags, and catalog matching. |
+| `app/modules/ocr.php` | OCR extraction, purchase OCR preview handler, browser OCR payload handling, optional OpenAI fallback orchestration, and OCR logs. |
 | `app/modules/purchase_documents.php` | Purchase document type labels, purchase document queries, protected document download/delete handlers, and purchase document persistence/asset registration. |
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
 | `app/modules/files.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused file modules directly. |
@@ -297,7 +298,8 @@ Latest split checkpoint:
 - Asset lifecycle actions live in `app/modules/asset_lifecycle.php`.
 - Asset category helper logic lives in `app/modules/asset_category_support.php`.
 - Static documentation content lives in `app/modules/documentation_content.php`.
-- `app/modules/assets.php` and `app/modules/documentation.php` now stay focused on route/page orchestration.
+- OCR parsing helpers live in `app/modules/ocr_parser.php`.
+- `app/modules/assets.php`, `app/modules/documentation.php`, and `app/modules/ocr.php` now stay focused on route/page orchestration or engine orchestration.
 
 `app/modules.php` now lists the focused module files directly. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/exports.php`, and `app/modules/reports.php` remain only for older direct includes. They are not the place for new business logic.
 
