@@ -21,9 +21,9 @@ This is a plain PHP and MySQL app. It does not use Laravel. Routes are registere
 The refactor keeps behavior unchanged and introduces a domain loader:
 
 - `index.php` loads `app/bootstrap.php` and `app/modules.php`.
-- `app/modules.php` requires all domain modules.
+- `app/modules.php` is the explicit domain module graph. It lists the focused modules directly instead of routing through aggregate compatibility shims.
 - `app/helpers.php` still loads bootstrap-safe helpers, while permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers now live under `app/support/`.
-- Old aggregate files now only load `app/modules.php` for compatibility.
+- Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
 
 Do not add new code to these compatibility loaders:
@@ -51,7 +51,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
 | `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |
 | `app/modules/dashboard.php` | Dashboard filters, role-specific dashboard data, cards, queue snapshots, latest updates, and chart payloads. |
-| `app/modules/exports.php` | Compatibility shim that loads the focused export modules. New export logic should not be added here. |
+| `app/modules/exports.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused export modules directly. |
 | `app/modules/export_items.php` | Item CSV/XLSX exports, optional thumbnails, barcode text/images, and filtered item export rows. |
 | `app/modules/export_movements.php` | Movement-log CSV/XLSX exports, location/type/date filters, thumbnails, and barcode output. |
 | `app/modules/export_daily_summary.php` | Daily operations summary CSV/XLSX exports, usage-by-reason, people, timeline, and summary image output. |
@@ -73,7 +73,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff_assets.php` | Item thumbnails, official logo assets, barcode generation, QR generation, and image processing for signoff files. |
 | `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
-| `app/modules/requests.php` | Compatibility shim that loads focused request support and route-handler modules. |
+| `app/modules/requests.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused request modules directly. |
 | `app/modules/request_support.php` | Request filters, visibility scope, request lines, inventory issue/receipt helpers, recovery rules, and summary queries. |
 | `app/modules/request_pages.php` | Request index/create/show page handlers. |
 | `app/modules/request_create.php` | Request create and draft submit handlers. |
@@ -81,7 +81,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/request_receipts.php` | Request receipt report and receipt confirmation handlers. |
 | `app/modules/request_status.php` | Request cancellation, recovery, and void handlers. |
 | `app/modules/request_exports.php` | Request CSV export handler. |
-| `app/modules/handovers.php` | Compatibility shim that loads the focused handover route-handler modules. New handler logic should go into the stage-specific files below. |
+| `app/modules/handovers.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused handover modules directly. |
 | `app/modules/handover_pages.php` | Handover index/create/show pages and line-edit submit handler. |
 | `app/modules/handover_create.php` | Handover create submit handler for staff-use and storage-transfer handovers. |
 | `app/modules/handover_decisions.php` | Handover request approval/rejection, cancellation, recovery, void, and owner status override handlers. |
@@ -89,7 +89,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
 | `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
-| `app/modules/files.php` | Compatibility shim that loads focused file-library modules. |
+| `app/modules/files.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused file modules directly. |
 | `app/modules/file_library.php` | Protected file library pages, workflow document access/download/view handlers, and file CSV export. |
 | `app/modules/file_uploads.php` | Upload normalization, purchase/workflow/asset document storage, item/asset image storage, and upload validation. |
 | `app/modules/file_asset_meta.php` | File library permissions, groups/status labels, file paths, previews, context labels, and size/mime helpers. |
@@ -284,6 +284,8 @@ Do not bypass `item_storage_balances`. That is how inventory systems become fict
 ## 12. Current Refactor Boundary
 
 This pass split backend PHP route/workflow code into domain modules and shrank the old monoliths into compatibility loaders. `app/controllers.php`, `app/workflows.php`, `app/company_assets.php`, and `app/report_presets.php` now only load `app/modules.php`.
+
+`app/modules.php` now lists the focused module files directly. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, and `app/modules/exports.php` remain only for older direct includes. They are not the place for new business logic.
 
 Support helpers were separated into:
 

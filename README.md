@@ -40,7 +40,7 @@ If local MySQL is unavailable, run stock invariants on the live server after a b
 
 ## Current Architecture
 
-Routes still live in `index.php`. Domain functions are loaded through `app/modules.php` and organized under `app/modules/`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`.
+Routes still live in `index.php`. Domain functions are loaded through the explicit module graph in `app/modules.php` and organized under `app/modules/`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`.
 
 The old aggregate files remain as compatibility loaders:
 
@@ -50,3 +50,5 @@ The old aggregate files remain as compatibility loaders:
 - `app/report_presets.php`
 
 Do not add new logic to those compatibility files. Put new backend logic in the correct module.
+
+The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/modules.php`, such as `request_create.php`, `handover_closeout.php`, `export_items.php`, or `file_uploads.php`.
