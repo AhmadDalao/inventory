@@ -66,7 +66,8 @@ Do not add new code to these compatibility loaders:
 | `app/modules/search.php` | Global search page/result logic, accessible pages, documentation/settings search, and module-aware result URLs. |
 | `app/modules/handover_usage_reasons.php` | Usage reason options, normalization, labels, expected/actual summaries, and variance summaries. |
 | `app/modules/handover_usage_breakdowns.php` | Handover expected/actual usage breakdown queries and line hydration helpers. |
-| `app/modules/handover_usage.php` | Handover expected usage input parsing, closeout/approval update builders, and breakdown persistence. |
+| `app/modules/handover_usage_inputs.php` | Handover expected usage and actual usage split form input parsing. |
+| `app/modules/handover_usage.php` | Handover receipt, closeout, and approval update builders plus breakdown persistence. |
 | `app/modules/handover_queries.php` | Handover filters, detail queries, line queries, destination storage lists, and storage-transfer detection helpers. |
 | `app/modules/handover_status.php` | Handover recovery, owner status override rules, closed-handover reversal, and receipt shortage inventory correction. |
 | `app/modules/handover_permissions.php` | Handover approval, edit, cancel, receipt, and closeout permission guards. |
