@@ -58,7 +58,9 @@ Do not add new code to these compatibility loaders:
 | `app/modules/export_storages.php` | Storage CSV/XLSX exports, storage item rows, values, thumbnails, and barcode output. |
 | `app/modules/export_workflows.php` | User, handover, purchase, and supplier CSV exports. |
 | `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
-| `app/modules/reports.php` | Reports page, daily operations summary, usage by reason, storage/user activity, and saved report presets. |
+| `app/modules/reports.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused report modules directly. |
+| `app/modules/report_summary.php` | Reports page, daily operations summary, usage by item/reason, storage/user activity, and report shortcut cards. |
+| `app/modules/report_presets.php` | Saved report preset types, permissions, source/export URLs, create/update/duplicate/archive handlers, and filter-state persistence. |
 | `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
 | `app/modules/search.php` | Global search, scanned reference routing, smart reference open, and module-aware result URLs. |
 | `app/modules/handover_usage.php` | Usage reason labels, expected/actual usage summaries, variance summaries, and usage breakdown query helpers. |
@@ -285,7 +287,9 @@ Do not bypass `item_storage_balances`. That is how inventory systems become fict
 
 This pass split backend PHP route/workflow code into domain modules and shrank the old monoliths into compatibility loaders. `app/controllers.php`, `app/workflows.php`, `app/company_assets.php`, and `app/report_presets.php` now only load `app/modules.php`.
 
-`app/modules.php` now lists the focused module files directly. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, and `app/modules/exports.php` remain only for older direct includes. They are not the place for new business logic.
+`app/modules.php` now lists the focused module files directly. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/exports.php`, and `app/modules/reports.php` remain only for older direct includes. They are not the place for new business logic.
+
+The report module was split because daily operations summaries and saved preset CRUD are different responsibilities. Use `app/modules/report_summary.php` for report page and summary data changes. Use `app/modules/report_presets.php` for saved preset definitions, permissions, URLs, and create/update/archive actions.
 
 Support helpers were separated into:
 
