@@ -43,7 +43,9 @@ Do not add new code to these compatibility loaders:
 | `app/modules/options.php` | Shared option lists and labels for statuses, units, supplier types, movement types, roles, and workflow dropdowns. |
 | `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
 | `app/modules/users.php` | Admin users, roles, positions, permission saving, assigned owner controls, reset links, and user exports. |
-| `app/modules/inventory.php` | Item catalog, item form handling, item/location filtering, and item movement entry points. |
+| `app/modules/item_support.php` | Item filters, lookups, storage-balance helpers, payload builders, upload normalization, and item/storage assignment helpers. |
+| `app/modules/items.php` | Item page handlers, create/edit/show/archive/recover, item location removal, and item movement submit flows. |
+| `app/modules/inventory.php` | Compatibility shim for older direct includes. New code should use `item_support.php` and `items.php`. |
 | `app/modules/storages.php` | Storage filters, ownership helpers, storage summaries, storage CRUD handlers, and storage detail queries. |
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
