@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+// Domain module: handover expected and actual usage breakdown persistence.
+
 function save_handover_usage_breakdowns(int $handoverId, array $lineUpdates, int $performedBy): void
 {
     $lineIds = array_values(array_unique(array_filter(array_map(static fn (array $update): int => (int) ($update['line_id'] ?? 0), $lineUpdates))));
