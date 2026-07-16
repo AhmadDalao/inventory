@@ -66,6 +66,7 @@ $moduleFiles = [
     'labels',
     'documentation',
     'asset_support',
+    'asset_category_support',
     'asset_categories',
     'assets',
     'asset_lifecycle',
