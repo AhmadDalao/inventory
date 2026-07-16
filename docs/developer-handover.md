@@ -148,6 +148,7 @@ Do not add new code to these compatibility loaders:
 | `app/maintenance/MaintenanceSchemaHelpers.php` | Schema/bootstrap helper trait for setting writes, table/column checks, indexes, and foreign-key checks used by `app/Maintenance.php`. |
 | `app/maintenance/MaintenanceSchemaState.php` | Schema version and current-state inspection trait used by `app/Maintenance.php` to decide whether bootstrapping can be skipped safely. |
 | `app/maintenance/MaintenancePlatformSchemas.php` | Platform table setup for permissions, app settings, report presets, login attempts, password reset tokens, and email delivery logs. |
+| `app/maintenance/MaintenanceInventorySchemas.php` | Storage, item barcode/image/location, item package preset, storage owner fallback, and item storage balance schema setup used by `app/Maintenance.php`. Keep inventory bootstrap changes here and stock behavior in `app/modules/inventory_stock.php`. |
 | `app/maintenance/MaintenanceFileWorkflowSchemas.php` | File-library and workflow-document table setup used by `app/Maintenance.php`. Keep proof/signoff document schema changes here instead of bloating `syncSchema()`. |
 | `app/maintenance/MaintenanceNotificationSchemas.php` | Notification table setup and legacy actor-column/index repair used by `app/Maintenance.php`. Keep notification schema changes here instead of bloating `syncSchema()`. |
 | `app/maintenance/MaintenanceBackfills.php` | One-time/repair backfill trait for missing storage balances and file asset registration. |
@@ -347,6 +348,7 @@ Latest split checkpoint:
 - OCR parsing helpers live in `app/modules/ocr_parser.php`.
 - Scanned reference lookup lives in `app/modules/search_reference.php`.
 - Permissions/settings/report preset/auth/email log schema setup lives in `app/maintenance/MaintenancePlatformSchemas.php`.
+- Storage/item inventory schema setup lives in `app/maintenance/MaintenanceInventorySchemas.php`.
 - File-library and workflow-document schema setup lives in `app/maintenance/MaintenanceFileWorkflowSchemas.php`.
 - Notification schema setup lives in `app/maintenance/MaintenanceNotificationSchemas.php`.
 - `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and `app/modules/search.php` now stay focused on route/page orchestration, engine orchestration, or global result composition.
