@@ -15,6 +15,7 @@ $moduleFiles = [
     __DIR__ . '/modules/reports.php',
     __DIR__ . '/modules/notifications.php',
     __DIR__ . '/modules/search.php',
+    __DIR__ . '/modules/handover_usage.php',
     __DIR__ . '/modules/workflow_core.php',
     __DIR__ . '/modules/signoff.php',
     __DIR__ . '/modules/requests.php',

@@ -48,6 +48,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/reports.php` | Reports page, daily summary data, saved report presets. |
 | `app/modules/notifications.php` | Notification creation, feed, unread counts, read-all actions. |
 | `app/modules/search.php` | Global search and reference open routing. |
+| `app/modules/handover_usage.php` | Handover usage reason labels, summaries, variance summaries, and expected/actual usage breakdown queries. |
 | `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery helpers. |
 | `app/modules/requests.php` | Request lifecycle, approvals, receipt mismatch, recover, void, exports. |
 | `app/modules/handovers.php` | Handover lifecycle, expected usage, returned-first closeout, approval, status override. |
@@ -233,7 +234,7 @@ Do not bypass `item_storage_balances`. That is how inventory systems become fict
 
 ## 12. Current Refactor Boundary
 
-This pass split backend PHP route/workflow code into domain modules and started shrinking `app/helpers.php` by moving permission/role defaults to `app/support/permissions.php`, request/security helpers to `app/support/http.php`, branding/upload helpers to `app/support/branding.php`, Website Control setting helpers to `app/support/settings.php`, and presentation helpers to `app/support/presentation.php`. It did not split `assets/app.css` or `assets/app.js`.
+This pass split backend PHP route/workflow code into domain modules and started shrinking monoliths by moving permission/role defaults to `app/support/permissions.php`, request/security helpers to `app/support/http.php`, branding/upload helpers to `app/support/branding.php`, Website Control setting helpers to `app/support/settings.php`, presentation helpers to `app/support/presentation.php`, and handover usage breakdown helpers to `app/modules/handover_usage.php`. It did not split `assets/app.css` or `assets/app.js`.
 
 Reason: PHP stock workflow was the high-risk area. Frontend splitting and helper/class cleanup should be a later refactor after production proves stable.
 
