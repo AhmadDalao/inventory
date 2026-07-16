@@ -50,6 +50,7 @@ $moduleFiles = [
     'ocr_openai',
     'purchase_documents',
     'purchase_persistence',
+    'purchase_import',
     'purchase_pages',
     'purchases',
     'file_library',
