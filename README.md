@@ -53,7 +53,7 @@ The old aggregate files remain as compatibility loaders:
 
 Do not add new logic to those compatibility files. Put new backend logic in the correct module.
 
-The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/modules.php`, such as `request_create.php`, `handover_closeout.php`, `workflow_inputs.php`, `workflow_stock_impact.php`, `workflow_filters.php`, `purchase_documents.php`, `report_summary.php`, `report_presets.php`, `export_items.php`, or `file_uploads.php`.
+The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/modules.php`, such as `request_create.php`, `handover_closeout.php`, `workflow_inputs.php`, `workflow_stock_impact.php`, `workflow_filters.php`, `purchase_documents.php`, `report_summary.php`, `report_presets.php`, `export_items.php`, `option_items.php`, `option_workflows.php`, or `file_uploads.php`.
 
 Run `php tests/module_boundaries.php` after backend refactors. It fails if old aggregate files grow logic again or if `app/modules.php` points at missing modules.
 

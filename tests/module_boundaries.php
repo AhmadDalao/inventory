@@ -86,6 +86,7 @@ foreach ($forbiddenModuleEntries as $forbiddenModuleEntry) {
 }
 
 $shimModules = [
+    'app/modules/options.php',
     'app/modules/inventory.php',
     'app/modules/workflow_core.php',
     'app/modules/requests.php',

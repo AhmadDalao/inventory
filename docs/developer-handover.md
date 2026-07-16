@@ -40,7 +40,14 @@ Do not add new code to these compatibility loaders:
 | `app/modules/core.php` | Shared route helpers, CSV/XLSX response helpers, and low-level export payload builders. |
 | `app/modules/settings.php` | Website Control page actions, site setting saves, logo upload, OCR settings display, and email test controls. |
 | `app/modules/email.php` | PHP `mail()` delivery wrapper, email settings, reset email delivery, workflow email copies, and email log writes. |
-| `app/modules/options.php` | Shared option lists and labels for statuses, units, supplier types, movement types, roles, and workflow dropdowns. |
+| `app/modules/options.php` | Compatibility loader for option catalogs. New option logic belongs in focused `option_*` modules. |
+| `app/modules/option_users.php` | User role, position, initials, and position-to-access helpers. |
+| `app/modules/option_suppliers.php` | Supplier type options and labels, including custom `Other` display. |
+| `app/modules/option_workflows.php` | Request, handover, purchase, and stocktake status labels/badge helpers. |
+| `app/modules/option_movements.php` | Movement type options and movement permission filtering. |
+| `app/modules/option_assets.php` | Asset status, condition, tone, and event/action labels. |
+| `app/modules/option_items.php` | Item units, barcode requirement, manual restock setting, and scan-code helpers. |
+| `app/modules/option_reports.php` | Report access helper based on export permissions. |
 | `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
 | `app/modules/users.php` | Admin users, roles, positions, permission saving, assigned owner controls, reset links, and user exports. |
 | `app/modules/item_support.php` | Item filters, lookups, storage-balance helpers, payload builders, upload normalization, and item/storage assignment helpers. |
