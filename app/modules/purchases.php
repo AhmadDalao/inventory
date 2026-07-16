@@ -5,17 +5,6 @@ declare(strict_types=1);
 
 // Moved from workflows.php.
 
-function purchase_document_type_options(): array
-{
-    return [
-        'quote' => 'Quote',
-        'price_list' => 'Price List',
-        'receipt' => 'Receipt',
-        'proof' => 'Proof of Purchase',
-        'other' => 'Other',
-    ];
-}
-
 function purchase_status_options(): array
 {
     return [
@@ -170,27 +159,6 @@ function purchase_lines(int $purchaseId): array
          LEFT JOIN items catalog ON catalog.id = purchase_line.item_id
          WHERE purchase_line.purchase_id = :purchase_id
          ORDER BY purchase_line.id ASC',
-        ['purchase_id' => $purchaseId]
-    );
-}
-
-function purchase_documents(int $purchaseId): array
-{
-    return Database::fetchAll(
-        'SELECT documents.*,
-                uploader.name AS uploader_name
-         FROM purchase_documents documents
-         LEFT JOIN users uploader ON uploader.id = documents.uploaded_by
-         WHERE documents.purchase_id = :purchase_id
-         ORDER BY documents.created_at DESC, documents.id DESC',
-        ['purchase_id' => $purchaseId]
-    );
-}
-
-function purchase_document_count(int $purchaseId): int
-{
-    return (int) Database::scalar(
-        'SELECT COUNT(*) FROM purchase_documents WHERE purchase_id = :purchase_id',
         ['purchase_id' => $purchaseId]
     );
 }
@@ -1349,73 +1317,6 @@ function handle_purchases_cancel_submit(array $params): void
 
     flash('success', 'Purchase cancelled. Stock was not changed.');
     redirect('/purchases/' . $purchase['id']);
-}
-
-function handle_purchase_document_download(array $params): void
-{
-    app_ready_or_redirect();
-    Auth::requirePermission('purchases.files');
-
-    $document = Database::fetch(
-        'SELECT documents.*,
-                purchases.id AS purchase_id
-         FROM purchase_documents documents
-         INNER JOIN purchases ON purchases.id = documents.purchase_id
-         WHERE documents.id = :id
-         LIMIT 1',
-        ['id' => (int) $params['id']]
-    );
-
-    if (!$document) {
-        abort(404, 'Purchase document not found.');
-    }
-
-    $path = purchase_document_path((string) $document['stored_filename']);
-
-    if (!is_file($path)) {
-        abort(404, 'Purchase document file is missing.');
-    }
-
-    while (ob_get_level() > 0) {
-        ob_end_clean();
-    }
-
-    send_download_headers((string) $document['mime_type'], (string) $document['original_filename'], (int) filesize($path));
-    readfile($path);
-    exit;
-}
-
-function handle_purchase_document_delete_submit(array $params): void
-{
-    app_ready_or_redirect();
-    Auth::requirePermission('purchases.files');
-    verify_csrf();
-
-    $document = Database::fetch(
-        'SELECT documents.*,
-                purchases.status,
-                purchases.id AS purchase_id
-         FROM purchase_documents documents
-         INNER JOIN purchases ON purchases.id = documents.purchase_id
-         WHERE documents.id = :id
-         LIMIT 1',
-        ['id' => (int) $params['id']]
-    );
-
-    if (!$document) {
-        abort(404, 'Purchase document not found.');
-    }
-
-    if ((string) $document['status'] !== 'draft') {
-        flash('danger', 'Only draft purchase documents can be deleted.');
-        redirect('/purchases/' . $document['purchase_id']);
-    }
-
-    Database::execute('DELETE FROM purchase_documents WHERE id = :id', ['id' => (int) $document['id']]);
-    delete_purchase_document_file((string) $document['stored_filename']);
-
-    flash('success', 'Purchase document deleted.');
-    redirect('/purchases/' . $document['purchase_id']);
 }
 
 function purchase_history_for_item(int $itemId, int $limit = 10): array

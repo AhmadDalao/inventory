@@ -67,7 +67,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_queries.php` | Handover filters, detail queries, line queries, destination storage lists, and storage-transfer detection helpers. |
 | `app/modules/handover_status.php` | Handover recovery, owner status override rules, closed-handover reversal, and receipt shortage inventory correction. |
 | `app/modules/handover_permissions.php` | Handover approval, edit, cancel, receipt, and closeout permission guards. |
-| `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery, and purchase/handover persistence helpers that still need future splitting. |
+| `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery, and purchase/handover persistence helpers that still need future splitting. Do not add purchase document logic here. |
 | `app/modules/workflow_filters.php` | Shared SQL filter builders for purchases, files, stocktakes, suppliers, audit logs, and email logs. |
 | `app/modules/handover_inventory.php` | Handover stock reservation, staff-use finalization, and storage-transfer buffer/source/destination movement logic. |
 | `app/modules/signoff.php` | Signoff loader plus final PDF/XLSX persistence helpers. Keep public `ensure_workflow_signoff_pdf()` here. |
@@ -91,6 +91,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_receipts.php` | Handover receipt confirmation and shortage confirmation handlers. |
 | `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
 | `app/modules/ocr.php` | OCR health, purchase OCR preview/import, browser OCR payload parsing, optional OpenAI fallback, confidence warnings, and OCR logs. |
+| `app/modules/purchase_documents.php` | Purchase document type labels, purchase document queries, protected document download/delete handlers, and purchase document persistence/asset registration. |
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
 | `app/modules/files.php` | Compatibility shim for older direct includes. Primary loading comes from `app/modules.php`, which lists the focused file modules directly. |
 | `app/modules/file_library.php` | Protected file library pages, workflow document access/download/view handlers, and file CSV export. |
@@ -293,6 +294,8 @@ This pass split backend PHP route/workflow code into domain modules and shrank t
 The report module was split because daily operations summaries and saved preset CRUD are different responsibilities. Use `app/modules/report_summary.php` for report page and summary data changes. Use `app/modules/report_presets.php` for saved preset definitions, permissions, URLs, and create/update/archive actions.
 
 Shared list/export filter builders were moved out of `app/modules/workflow_core.php`. Put cross-module SQL filter changes in `app/modules/workflow_filters.php`; do not put new filter builders back into workflow core.
+
+Purchase document storage and protected file actions were moved out of the purchase lifecycle and workflow core. Put purchase document query/download/delete/persistence changes in `app/modules/purchase_documents.php`; keep purchase approval and receiving changes in `app/modules/purchases.php`.
 
 Support helpers were separated into:
 
