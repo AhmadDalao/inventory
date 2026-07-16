@@ -239,6 +239,7 @@ Static checks:
 php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
+php tests/module_boundaries.php
 git diff --check
 ```
 
@@ -248,6 +249,14 @@ Regression checks:
 php tests/full_regression.php
 php tests/stock_invariants.php
 ```
+
+Module boundary check:
+
+```bash
+php tests/module_boundaries.php
+```
+
+This confirms the old aggregate files are still compatibility loaders only, every file listed in `app/modules.php` exists, and shim modules have not started defining business logic again.
 
 Live workflow testing should use temporary prefixed records and must be done only after backup.
 
@@ -343,6 +352,7 @@ Latest modular-refactor verification should include:
 php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
+php tests/module_boundaries.php
 php tests/full_regression.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMODULARYYYYMMDD
 php tests/stock_invariants.php
 ```
