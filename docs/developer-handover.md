@@ -46,6 +46,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/inventory.php` | Items, storages, balances, item/location filtering, storage views, and item/storage form handling. |
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
+| `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |
 | `app/modules/dashboard.php` | Dashboard filters, role-specific dashboard data, cards, queue snapshots, latest updates, and chart payloads. |
 | `app/modules/exports.php` | CSV/XLSX exports for items, storages, movements, users, handovers, purchases, suppliers, daily summaries, thumbnails, and barcode output. |
 | `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
