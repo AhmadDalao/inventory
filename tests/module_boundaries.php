@@ -47,7 +47,7 @@ foreach ($compatibilityLoaders as $relativePath) {
 $modulesPath = $root . '/app/modules.php';
 $modulesContents = read_module_boundary_file($modulesPath);
 
-if (!str_contains($modulesContents, 'module_manifest.php')) {
+if (strpos($modulesContents, 'module_manifest.php') === false) {
     fail_module_boundary('app/modules.php must load app/module_manifest.php.');
 }
 
