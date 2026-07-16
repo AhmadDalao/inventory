@@ -24,7 +24,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/module_manifest.php` is the explicit grouped domain module graph. It lists the focused modules by domain instead of routing through aggregate compatibility shims.
 - `app/modules.php` is now a loader only. It flattens the manifest and requires each focused module.
 - `app/helpers.php` still loads bootstrap-safe helpers, while permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers now live under `app/support/`.
-- `app/Maintenance.php` is the schema/bootstrap orchestrator. Reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
+- `app/Maintenance.php` is the schema/bootstrap orchestrator. Boot setup, reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
 
@@ -144,6 +144,7 @@ Do not add new code to these compatibility loaders:
 | `app/support/branding.php` | Brand mark/logo helpers, upload/storage directories, UI theme options, export thumbnail sizing, and signoff template/image sizing. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/settings.php` | Website Control setting schema, stored setting accessors, OpenAI OCR setting helpers, grouped settings for forms, and absolute URL helper. Loaded during bootstrap through `app/helpers.php` after `app_config()` is available. |
 | `app/support/presentation.php` | Formatting, UI icon SVGs, active-route helpers, initials, truncation, stock value, and Code39 barcode rendering. Loaded during bootstrap through `app/helpers.php`. |
+| `app/maintenance/MaintenanceBoot.php` | Boot trait for upload-directory setup and schema sync entrypoint used by `app/Maintenance.php`. |
 | `app/maintenance/MaintenanceSchemaHelpers.php` | Schema/bootstrap helper trait for setting writes, table/column checks, indexes, and foreign-key checks used by `app/Maintenance.php`. |
 | `app/maintenance/MaintenanceSchemaState.php` | Schema version and current-state inspection trait used by `app/Maintenance.php` to decide whether bootstrapping can be skipped safely. |
 | `app/maintenance/MaintenanceBackfills.php` | One-time/repair backfill trait for missing storage balances and file asset registration. |
@@ -328,7 +329,7 @@ If the database changed, restore both files and SQL from the same backup set. Do
 
 Do not bypass `item_storage_balances`. That is how inventory systems become fiction.
 
-Database bootstrapping belongs in `app/Maintenance.php`, but reusable schema helpers, schema-current checks, backfills, and seed routines belong in `app/maintenance/`. Workflow behavior does not belong in maintenance files.
+Database bootstrapping belongs in `app/Maintenance.php`, but boot setup, reusable schema helpers, schema-current checks, backfills, and seed routines belong in `app/maintenance/`. Workflow behavior does not belong in maintenance files.
 
 ## 12. Current Refactor Boundary
 

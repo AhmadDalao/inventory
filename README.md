@@ -42,7 +42,7 @@ If local MySQL is unavailable, run stock invariants on the live server after a b
 
 ## Current Architecture
 
-Routes still live in `index.php`. Domain functions are organized under `app/modules/`, grouped in `app/module_manifest.php`, and loaded by `app/modules.php`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`. Schema maintenance helpers, schema-current checks, one-time backfills, and permission seed routines live under `app/maintenance/`.
+Routes still live in `index.php`. Domain functions are organized under `app/modules/`, grouped in `app/module_manifest.php`, and loaded by `app/modules.php`. Bootstrap-safe shared support code, such as permission catalogs, role defaults, request/security helpers, branding/upload options, settings schema/accessors, and presentation helpers, lives under `app/support/`. Maintenance boot setup, schema helpers, schema-current checks, one-time backfills, and permission seed routines live under `app/maintenance/`.
 
 The old aggregate files remain as compatibility loaders:
 
@@ -57,6 +57,6 @@ The compatibility loaders exist only for older direct includes. New code should 
 
 Run `php tests/module_boundaries.php` after backend refactors. It fails if old aggregate files grow logic again or if `app/module_manifest.php` points at missing modules.
 
-When changing database bootstrapping, keep `app/Maintenance.php` as the orchestrator and put reusable helpers, schema-current checks, backfills, and seed routines in `app/maintenance/`. Do not bury workflow behavior there.
+When changing database bootstrapping, keep `app/Maintenance.php` as the orchestrator and put boot setup, reusable helpers, schema-current checks, backfills, and seed routines in `app/maintenance/`. Do not bury workflow behavior there.
 
 Frontend assets are loaded through `app/modules/frontend_assets.php`. Keep the base desktop/global layer in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, the mobile/sidebar/table/dropdown override layer in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JS is split safely.

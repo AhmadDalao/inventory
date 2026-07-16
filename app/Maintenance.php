@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/maintenance/MaintenanceBoot.php';
 require_once __DIR__ . '/maintenance/MaintenanceSchemaHelpers.php';
 require_once __DIR__ . '/maintenance/MaintenanceSchemaState.php';
 require_once __DIR__ . '/maintenance/MaintenanceBackfills.php';
@@ -8,6 +9,7 @@ require_once __DIR__ . '/maintenance/MaintenancePermissionSeeds.php';
 
 final class Maintenance
 {
+    use MaintenanceBoot;
     use MaintenanceSchemaHelpers;
     use MaintenanceSchemaState;
     use MaintenanceBackfills;
@@ -16,28 +18,6 @@ final class Maintenance
     private const SCHEMA_VERSION = '2026-07-15-handover-storage-transfer-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
-
-    public static function boot(): void
-    {
-        if (self::$booted) {
-            return;
-        }
-
-        self::$booted = true;
-        ensure_directory_exists(item_upload_directory());
-        ensure_directory_exists(purchase_upload_directory());
-        ensure_directory_exists(workflow_upload_directory());
-        ensure_directory_exists(file_archive_directory());
-        ensure_directory_exists(asset_upload_directory());
-        ensure_directory_exists(asset_document_upload_directory());
-        ensure_directory_exists(brand_logo_upload_directory());
-
-        try {
-            self::syncSchema();
-        } catch (Throwable $exception) {
-            return;
-        }
-    }
 
     private static function syncSchema(): void
     {
