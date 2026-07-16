@@ -73,7 +73,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_queries.php` | Handover filters, detail queries, line queries, destination storage lists, and storage-transfer detection helpers. |
 | `app/modules/handover_status.php` | Handover recovery, owner status override rules, closed-handover reversal, and receipt shortage inventory correction. |
 | `app/modules/handover_permissions.php` | Handover approval, edit, cancel, receipt, and closeout permission guards. |
-| `app/modules/workflow_core.php` | Shared workflow scope, visibility, reference, stock impact, recovery, and purchase/handover persistence helpers that still need future splitting. Do not add purchase document logic here. |
+| `app/modules/workflow_system.php` | System workflow storages, storage owner lookup, and staff handover visibility scope. |
+| `app/modules/workflow_inputs.php` | Shared workflow date normalization, storage/item picker payloads, storage metadata, and line parsing. |
+| `app/modules/workflow_identity.php` | Workflow reference number generation and absolute workflow URL helpers. |
+| `app/modules/workflow_stock_impact.php` | Request/handover stock impact calculation, neutral-impact checks, and audited void safety rules. |
+| `app/modules/workflow_core.php` | Compatibility shim for older direct includes. New shared workflow logic belongs in the focused workflow modules above. |
 | `app/modules/workflow_filters.php` | Shared SQL filter builders for purchases, files, stocktakes, suppliers, audit logs, and email logs. |
 | `app/modules/handover_inventory.php` | Handover stock reservation, staff-use finalization, and storage-transfer buffer/source/destination movement logic. |
 | `app/modules/handover_request_decisions.php` | Handover request approval/rejection handlers and notifications. |
@@ -326,7 +330,7 @@ Latest split checkpoint:
 
 The report module was split because daily operations summaries and saved preset CRUD are different responsibilities. Use `app/modules/report_summary.php` for report page and summary data changes. Use `app/modules/report_presets.php` for saved preset definitions, permissions, URLs, and create/update/archive actions.
 
-Shared list/export filter builders were moved out of `app/modules/workflow_core.php`. Put cross-module SQL filter changes in `app/modules/workflow_filters.php`; do not put new filter builders back into workflow core.
+Shared workflow helpers were split out of `app/modules/workflow_core.php`. Put form parsing and picker payload changes in `workflow_inputs.php`, stock impact checks in `workflow_stock_impact.php`, system storage helpers in `workflow_system.php`, reference/URL helpers in `workflow_identity.php`, and cross-module SQL filter changes in `workflow_filters.php`.
 
 Purchase document storage and protected file actions were moved out of the purchase lifecycle and workflow core. Put purchase document query/download/delete/persistence changes in `app/modules/purchase_documents.php`; keep purchase approval and receiving changes in `app/modules/purchases.php`.
 
