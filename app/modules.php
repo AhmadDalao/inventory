@@ -20,6 +20,7 @@ $moduleFiles = [
     __DIR__ . '/modules/handover_status.php',
     __DIR__ . '/modules/handover_permissions.php',
     __DIR__ . '/modules/workflow_core.php',
+    __DIR__ . '/modules/handover_inventory.php',
     __DIR__ . '/modules/signoff.php',
     __DIR__ . '/modules/requests.php',
     __DIR__ . '/modules/handovers.php',
