@@ -51,4 +51,4 @@ The old aggregate files remain as compatibility loaders:
 
 Do not add new logic to those compatibility files. Put new backend logic in the correct module.
 
-The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/modules.php`, such as `request_create.php`, `handover_closeout.php`, `report_summary.php`, `report_presets.php`, `export_items.php`, or `file_uploads.php`.
+The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/modules.php`, such as `request_create.php`, `handover_closeout.php`, `workflow_filters.php`, `report_summary.php`, `report_presets.php`, `export_items.php`, or `file_uploads.php`.

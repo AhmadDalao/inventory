@@ -30,6 +30,7 @@ $moduleFiles = [
     'handover_status',
     'handover_permissions',
     'workflow_core',
+    'workflow_filters',
     'handover_inventory',
     'signoff',
     'request_support',
