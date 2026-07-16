@@ -172,3 +172,139 @@ function build_handover_where(array $filters, string $alias = 'h'): array
 
     return [$where . $scopeSql, $params + $scopeParams];
 }
+
+function find_handover_or_abort(int $handoverId): array
+{
+    [$scopeSql, $scopeParams] = visible_handover_scope('h');
+    $handover = Database::fetch(
+        'SELECT h.*,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
+                source_storage.owner_user_id AS source_owner_user_id,
+                destination_storage.owner_user_id AS destination_owner_user_id,
+                creator.name AS creator_name,
+                request_approver.name AS request_approver_name,
+                request_approved_by_user.name AS request_approved_by_name,
+                completer.name AS completed_by_name,
+                submitter.name AS submitted_by_name,
+                approver.name AS approved_by_name,
+                recipient.name AS recipient_user_name,
+                recipient.email AS recipient_user_email,
+                source_owner.name AS source_owner_name,
+                destination_owner.name AS destination_owner_name,
+                destination_owner.email AS destination_owner_email
+         FROM handovers h
+         INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = h.destination_storage_id
+         LEFT JOIN users creator ON creator.id = h.created_by
+         LEFT JOIN users request_approver ON request_approver.id = h.approver_user_id
+         LEFT JOIN users request_approved_by_user ON request_approved_by_user.id = h.request_approved_by
+         LEFT JOIN users submitter ON submitter.id = h.submitted_by
+         LEFT JOIN users approver ON approver.id = h.approved_by
+         LEFT JOIN users completer ON completer.id = h.completed_by
+         LEFT JOIN users recipient ON recipient.id = h.recipient_user_id
+         LEFT JOIN users source_owner ON source_owner.id = source_storage.owner_user_id
+         LEFT JOIN users destination_owner ON destination_owner.id = destination_storage.owner_user_id
+         WHERE h.id = :id' . $scopeSql . '
+         LIMIT 1',
+        ['id' => $handoverId] + $scopeParams
+    );
+
+    if (!$handover) {
+        abort(404, 'Handover not found.');
+    }
+
+    return $handover;
+}
+
+function handover_lines(int $handoverId): array
+{
+    $lines = Database::fetchAll(
+        'SELECT handover_line.*,
+                i.image_path,
+                i.barcode AS item_barcode
+         FROM handover_lines handover_line
+         INNER JOIN items i ON i.id = handover_line.item_id
+         WHERE handover_line.handover_id = :handover_id
+         ORDER BY handover_line.item_name ASC, handover_line.id ASC',
+        ['handover_id' => $handoverId]
+    );
+
+    return hydrate_handover_lines_expected_usage_breakdowns(hydrate_handover_lines_usage_breakdowns($lines));
+}
+
+function handover_summary_rows(array $filters): array
+{
+    [$where, $params] = build_handover_where($filters);
+
+    return Database::fetchAll(
+        "SELECT h.*,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type,
+                creator.name AS creator_name,
+                COALESCE(line_totals.line_count, 0) AS line_count,
+                COALESCE(line_totals.total_handed, 0) AS total_handed,
+                COALESCE(line_totals.total_used, 0) AS total_used,
+                COALESCE(line_totals.total_returned, 0) AS total_returned
+         FROM handovers h
+         INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = h.destination_storage_id
+         LEFT JOIN users creator ON creator.id = h.created_by
+         LEFT JOIN (
+             SELECT handover_id,
+                    COUNT(*) AS line_count,
+                    COALESCE(SUM(quantity_handed), 0) AS total_handed,
+                    COALESCE(SUM(quantity_used), 0) AS total_used,
+                    COALESCE(SUM(quantity_returned), 0) AS total_returned
+             FROM handover_lines
+             GROUP BY handover_id
+         ) line_totals ON line_totals.handover_id = h.id
+         {$where}
+         ORDER BY h.issued_at DESC, h.id DESC
+         LIMIT 250",
+        $params
+    );
+}
+
+function staff_dashboard_handover_cards(int $userId): array
+{
+    return Database::fetchAll(
+        'SELECT h.id,
+                h.handover_number,
+                h.status,
+                h.scheduled_for_date,
+                h.issued_at,
+                h.closed_notes,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                handover_line.item_id,
+                handover_line.item_name,
+                handover_line.item_sku,
+                handover_line.unit,
+                handover_line.quantity_handed,
+                handover_line.quantity_received,
+                handover_line.quantity_used,
+                handover_line.quantity_returned,
+                i.image_path
+         FROM handovers h
+         INNER JOIN handover_lines handover_line ON handover_line.handover_id = h.id
+         INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
+         INNER JOIN items i ON i.id = handover_line.item_id
+         WHERE h.recipient_user_id = :user_id
+           AND COALESCE(h.recipient_type, "staff") = "staff"
+           AND h.status IN ("awaiting_receipt", "receipt_review", "delivered", "pending_approval")
+           AND (
+               CASE
+                   WHEN h.status IN ("awaiting_receipt", "receipt_review") THEN handover_line.quantity_handed
+                   ELSE handover_line.quantity_received
+               END - handover_line.quantity_used - handover_line.quantity_returned
+           ) > 0
+         ORDER BY COALESCE(h.scheduled_for_date, DATE(h.issued_at)) ASC, h.issued_at DESC, handover_line.item_name ASC
+         LIMIT 24',
+        ['user_id' => $userId]
+    );
+}
