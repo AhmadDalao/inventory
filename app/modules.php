@@ -38,7 +38,10 @@ $moduleFiles = [
     __DIR__ . '/modules/audit.php',
     __DIR__ . '/modules/labels.php',
     __DIR__ . '/modules/documentation.php',
+    __DIR__ . '/modules/asset_support.php',
+    __DIR__ . '/modules/asset_categories.php',
     __DIR__ . '/modules/assets.php',
+    __DIR__ . '/modules/asset_exports.php',
     __DIR__ . '/modules/asset_signoff.php',
 ];
 

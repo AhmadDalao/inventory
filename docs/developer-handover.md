@@ -79,7 +79,10 @@ Do not add new code to these compatibility loaders:
 | `app/modules/audit.php` | Audit log filters/exports and email log filters/exports. |
 | `app/modules/labels.php` | Label page data, label search, selectable label printing, barcode/SKU scan codes, and label rows. |
 | `app/modules/documentation.php` | In-app documentation page, documentation search data, and employee guidance content. |
-| `app/modules/assets.php` | Fixed assets, categories/subcategories, custody, maintenance, depreciation/book value, warranty status, files, and asset exports. |
+| `app/modules/asset_support.php` | Asset filters, query helpers, financial/depreciation helpers, category tree/path helpers, event queries, maintenance queries, and asset file lookups. |
+| `app/modules/asset_categories.php` | Asset category index/create/edit/archive/recover/reorder handlers. |
+| `app/modules/assets.php` | Fixed asset CRUD, custody, receipt/return, maintenance, status override, and asset document upload handlers. |
+| `app/modules/asset_exports.php` | Asset CSV/XLSX export rows, thumbnail/barcode image helpers, and asset export handlers. |
 | `app/modules/asset_signoff.php` | Asset custody signoff PDF/XLSX payload generation and asset signoff download handlers. |
 | `app/support/permissions.php` | Permission catalog, role defaults, position defaults, and permission input sanitizing. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/http.php` | Request path, URL, asset URL, security headers, download headers, redirects, flash/old input, CSRF, JSON responses, and error page helpers. Loaded during bootstrap through `app/helpers.php`. |
