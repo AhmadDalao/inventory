@@ -48,6 +48,7 @@ $moduleFiles = [
     'ocr',
     'purchase_documents',
     'purchase_persistence',
+    'purchase_pages',
     'purchases',
     'file_library',
     'file_uploads',
