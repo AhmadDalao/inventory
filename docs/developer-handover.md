@@ -22,7 +22,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 
 - `index.php` loads `app/bootstrap.php` and `app/modules.php`.
 - `app/modules.php` requires all domain modules.
-- `app/helpers.php` still loads bootstrap-safe helpers, while permission catalogs, role defaults, and presentation helpers now live under `app/support/`.
+- `app/helpers.php` still loads bootstrap-safe helpers, while permission catalogs, role defaults, request/security helpers, and presentation helpers now live under `app/support/`.
 - Old aggregate files now only load `app/modules.php` for compatibility.
 - Existing route handler function names are preserved.
 
@@ -63,6 +63,7 @@ Do not add new code to these compatibility loaders:
 | `app/modules/documentation.php` | In-app documentation page. |
 | `app/modules/assets.php` | Fixed assets, categories, custody, maintenance, depreciation, exports, signoff files. |
 | `app/support/permissions.php` | Permission catalog, role defaults, position defaults, and permission input sanitizing. Loaded during bootstrap through `app/helpers.php`. |
+| `app/support/http.php` | Request path, URL, asset URL, security headers, download headers, redirects, flash/old input, CSRF, JSON responses, and error page helpers. Loaded during bootstrap through `app/helpers.php`. |
 | `app/support/presentation.php` | Formatting, UI icon SVGs, active-route helpers, initials, truncation, stock value, and Code39 barcode rendering. Loaded during bootstrap through `app/helpers.php`. |
 
 ## 4. Stock Rules
@@ -230,7 +231,7 @@ Do not bypass `item_storage_balances`. That is how inventory systems become fict
 
 ## 12. Current Refactor Boundary
 
-This pass split backend PHP route/workflow code into domain modules and started shrinking `app/helpers.php` by moving permission/role defaults to `app/support/permissions.php` and presentation helpers to `app/support/presentation.php`. It did not split `assets/app.css` or `assets/app.js`.
+This pass split backend PHP route/workflow code into domain modules and started shrinking `app/helpers.php` by moving permission/role defaults to `app/support/permissions.php`, request/security helpers to `app/support/http.php`, and presentation helpers to `app/support/presentation.php`. It did not split `assets/app.css` or `assets/app.js`.
 
 Reason: PHP stock workflow was the high-risk area. Frontend splitting and helper/class cleanup should be a later refactor after production proves stable.
 
