@@ -10,6 +10,7 @@ $moduleFiles = [
     __DIR__ . '/modules/users.php',
     __DIR__ . '/modules/inventory.php',
     __DIR__ . '/modules/inventory_stock.php',
+    __DIR__ . '/modules/item_packages.php',
     __DIR__ . '/modules/dashboard.php',
     __DIR__ . '/modules/exports.php',
     __DIR__ . '/modules/scan.php',
