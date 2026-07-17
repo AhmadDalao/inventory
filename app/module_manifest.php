@@ -13,7 +13,10 @@ return [
         'email_workflow',
         'options',
         'auth',
-        'users',
+        'user_permissions',
+        'user_queries',
+        'user_pages',
+        'user_actions',
     ],
     'inventory' => [
         'item_support',

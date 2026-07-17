@@ -56,7 +56,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/option_items.php` | Item units, barcode requirement, manual restock setting, and scan-code helpers. |
 | `app/modules/option_reports.php` | Report access helper based on export permissions. |
 | `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
-| `app/modules/users.php` | Admin users, roles, positions, permission saving, assigned owner controls, reset links, and user exports. |
+| `app/modules/users.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused user modules directly. |
+| `app/modules/user_permissions.php` | User permission persistence and Auth permission cache reset after updates. |
+| `app/modules/user_queries.php` | User list data, active user selectors, active staff selectors, and permission-scoped user selectors. |
+| `app/modules/user_pages.php` | User index/create/edit page render handlers and form payload setup. |
+| `app/modules/user_actions.php` | User create, update, disable/restore, and admin-triggered password reset submit handlers. |
 | `app/modules/item_support.php` | Item filters, lookups, storage-balance helpers, payload builders, upload normalization, and item/storage assignment helpers. |
 | `app/modules/item_pages.php` | Item index/create/show/edit page render handlers. |
 | `app/modules/items.php` | Item create/edit persistence handlers. |
