@@ -98,7 +98,11 @@ return [
     ],
     'files_and_operations' => [
         'file_library',
-        'file_uploads',
+        'upload_inputs',
+        'purchase_file_uploads',
+        'workflow_file_uploads',
+        'item_image_uploads',
+        'asset_file_uploads',
         'file_asset_meta',
         'file_asset_registry',
         'file_media_settings',

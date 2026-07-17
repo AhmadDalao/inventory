@@ -116,6 +116,7 @@ $loaderOnlyModules = [
     'app/modules/requests.php',
     'app/modules/handovers.php',
     'app/modules/files.php',
+    'app/modules/file_uploads.php',
     'app/modules/exports.php',
     'app/modules/reports.php',
     'app/modules/signoff.php',

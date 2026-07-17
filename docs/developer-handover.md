@@ -135,7 +135,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
 | `app/modules/files.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused file modules directly. |
 | `app/modules/file_library.php` | Protected file library pages, workflow document access/download/view handlers, and file CSV export. |
-| `app/modules/file_uploads.php` | Upload normalization, purchase/workflow/asset document storage, item/asset image storage, and upload validation. |
+| `app/modules/file_uploads.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused upload modules directly. |
+| `app/modules/upload_inputs.php` | Generic PHP upload array normalization helpers for single, multi, and indexed uploads. |
+| `app/modules/purchase_file_uploads.php` | Purchase document MIME validation, protected purchase document storage, paths, and cleanup hooks. |
+| `app/modules/workflow_file_uploads.php` | Workflow proof image validation, generated PDF/XLSX signoff storage, workflow document paths, and cleanup hooks. |
+| `app/modules/item_image_uploads.php` | Item image validation, upload storage, duplication, and deletion. |
+| `app/modules/asset_file_uploads.php` | Asset image storage/duplication/deletion and protected asset document validation/storage. |
 | `app/modules/file_asset_meta.php` | File library permissions, groups/status labels, file paths, previews, context labels, and size/mime helpers. |
 | `app/modules/file_asset_registry.php` | File asset registration for item images, asset files, purchase documents, workflow signoffs, and deleted-file markers. |
 | `app/modules/file_media_settings.php` | Item/asset image URL helpers and export media setting checks for thumbnails/barcodes. |
