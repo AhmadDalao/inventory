@@ -137,6 +137,7 @@ $loaderOnlyModules = [
     'app/modules/audit.php',
     'app/modules/labels.php',
     'app/modules/scan.php',
+    'app/modules/item_support.php',
 ];
 
 $logicTokens = [

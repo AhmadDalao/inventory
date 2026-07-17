@@ -65,7 +65,13 @@ Do not add new code to these compatibility loaders:
 | `app/modules/user_queries.php` | User list data, active user selectors, active staff selectors, and permission-scoped user selectors. |
 | `app/modules/user_pages.php` | User index/create/edit page render handlers and form payload setup. |
 | `app/modules/user_actions.php` | User create, update, disable/restore, and admin-triggered password reset submit handlers. |
-| `app/modules/item_support.php` | Item filters, lookups, storage-balance helpers, payload builders, upload normalization, and item/storage assignment helpers. |
+| `app/modules/item_support.php` | Compatibility loader for item/catalog helpers. Primary loading comes from the focused item modules below. |
+| `app/modules/item_filters.php` | Item list filters, item SQL where clauses, filtered storage quantity selects, and displayed quantity selection. |
+| `app/modules/item_lookup.php` | Active item SKU/barcode lookup, copy-source lookup, and item detail lookup/404 handling. |
+| `app/modules/item_history.php` | Item movement metrics, latest movement, storage balances, balance map, and AJAX response payloads. |
+| `app/modules/item_uploads.php` | Item image upload normalization before persistence handlers store or duplicate images. |
+| `app/modules/item_storage_assignments.php` | Storage assignment validation, item-location balance records, preferred storage selection, and assignment creation. |
+| `app/modules/item_form_payloads.php` | Item create/edit form default payloads. |
 | `app/modules/item_pages.php` | Item index/create/show/edit page render handlers. |
 | `app/modules/items.php` | Item create/edit persistence handlers. |
 | `app/modules/item_actions.php` | Item archive/recover and item-location removal handlers. |

@@ -1,0 +1,128 @@
+<?php
+declare(strict_types=1);
+
+function item_history_metrics(int $itemId): array
+{
+    return Database::fetch(
+        'SELECT
+             COALESCE(SUM(CASE WHEN movement_type = "usage" THEN movement_quantity ELSE 0 END), 0) AS total_used,
+             COALESCE(SUM(CASE WHEN movement_type = "restock" THEN movement_quantity WHEN movement_type = "adjustment" AND quantity_delta > 0 THEN quantity_delta ELSE 0 END), 0) AS total_added,
+             COALESCE(SUM(CASE WHEN movement_type = "transfer" THEN movement_quantity ELSE 0 END), 0) AS total_transferred,
+             COUNT(*) AS movement_count
+         FROM inventory_movements
+         WHERE item_id = :item_id',
+        ['item_id' => $itemId]
+    ) ?: [
+        'total_used' => 0,
+        'total_added' => 0,
+        'total_transferred' => 0,
+        'movement_count' => 0,
+    ];
+}
+
+function latest_item_movement(int $itemId): ?array
+{
+    return Database::fetch(
+        'SELECT m.*,
+                u.name AS user_name,
+                source_storage.name AS source_storage_name,
+                source_storage.storage_type AS source_storage_type,
+                destination_storage.name AS destination_storage_name,
+                destination_storage.storage_type AS destination_storage_type
+         FROM inventory_movements m
+         LEFT JOIN users u ON u.id = m.performed_by
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
+         WHERE m.item_id = :item_id
+         ORDER BY m.used_at DESC, m.id DESC
+         LIMIT 1',
+        ['item_id' => $itemId]
+    );
+}
+
+function item_storage_balances(int $itemId): array
+{
+    return Database::fetchAll(
+        'SELECT balances.item_id,
+                balances.storage_id,
+                balances.quantity,
+                storage.name,
+                storage.storage_type,
+                storage.is_active,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.source_storage_id = balances.storage_id
+                      AND movements.movement_type = "usage"
+                ) AS total_used,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.source_storage_id = balances.storage_id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_out,
+                (
+                    SELECT COALESCE(SUM(movement_quantity), 0)
+                    FROM inventory_movements movements
+                    WHERE movements.item_id = balances.item_id
+                      AND movements.destination_storage_id = balances.storage_id
+                      AND movements.movement_type = "transfer"
+                ) AS transferred_in
+         FROM item_storage_balances balances
+         INNER JOIN storages storage ON storage.id = balances.storage_id
+         WHERE balances.item_id = :item_id
+         ORDER BY FIELD(storage.storage_type, "warehouse", "storage"), balances.quantity DESC, storage.name ASC',
+        ['item_id' => $itemId]
+    );
+}
+
+function item_balance_map(array $balances): array
+{
+    $map = [];
+
+    foreach ($balances as $balance) {
+        $map[(string) $balance['storage_id']] = (float) $balance['quantity'];
+    }
+
+    return $map;
+}
+
+function item_response_payload(array $item): array
+{
+    $historyMetrics = item_history_metrics((int) $item['id']);
+    $latestMovement = latest_item_movement((int) $item['id']);
+    $balances = item_storage_balances((int) $item['id']);
+    $balanceMap = item_balance_map($balances);
+
+    return [
+        'item' => [
+            'id' => (int) $item['id'],
+            'unit' => $item['unit'],
+            'current_quantity' => format_quantity($item['current_quantity']),
+            'current_quantity_raw' => (float) $item['current_quantity'],
+            'total_used' => format_quantity($historyMetrics['total_used']),
+            'total_used_raw' => (float) $historyMetrics['total_used'],
+            'total_added' => format_quantity($historyMetrics['total_added']),
+            'total_added_raw' => (float) $historyMetrics['total_added'],
+            'total_transferred' => format_quantity($historyMetrics['total_transferred'] ?? 0),
+            'total_transferred_raw' => (float) ($historyMetrics['total_transferred'] ?? 0),
+            'movement_count' => (int) $historyMetrics['movement_count'],
+            'cost_per_unit' => format_money($item['cost_per_unit']),
+            'cost_per_unit_raw' => (float) $item['cost_per_unit'],
+            'stock_value' => format_money(stock_value($item['current_quantity'], $item['cost_per_unit'])),
+            'balance_map_json' => json_encode($balanceMap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'location_balances_html' => View::partialToString('items/location_balances', [
+                'item' => $item,
+                'balances' => $balances,
+            ]),
+        ],
+        'movement' => $latestMovement ? [
+            'row_html' => View::partialToString('items/history_row', [
+                'movement' => $latestMovement,
+                'item' => $item,
+            ]),
+        ] : null,
+    ];
+}
