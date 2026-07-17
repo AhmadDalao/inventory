@@ -2728,6 +2728,7 @@ $storageTransferCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/hando
 assert_true($storageTransferCreatePage['status'] === 200, 'Storage-transfer handover create page did not load.');
 assert_true(strpos($storageTransferCreatePage['body'], 'value="storage"') !== false, 'Handover create page is missing the storage transfer target option.');
 assert_true(strpos($storageTransferCreatePage['body'], 'name="destination_storage_id"') !== false, 'Handover create page is missing the destination storage picker.');
+assert_true(strpos($storageTransferCreatePage['body'], 'data-handover-destination-summary') !== false, 'Handover create page is missing the destination owner summary card.');
 
 $sameStorageTransfer = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
     '_token' => extract_csrf($storageTransferCreatePage['body'], 'storage transfer same-storage guard'),

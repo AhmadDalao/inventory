@@ -3635,6 +3635,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const storageFields = Array.from(form.querySelectorAll('[data-handover-storage-fields]'));
       const destinationSelect = form.querySelector('[data-handover-destination-storage]');
       const destinationCopy = form.querySelector('[data-handover-destination-copy]');
+      const destinationSummary = form.querySelector('[data-handover-destination-summary]');
+      const destinationSummaryName = form.querySelector('[data-handover-destination-summary-name]');
+      const destinationSummaryOwner = form.querySelector('[data-handover-destination-summary-owner]');
       const sourceSelect = form.querySelector('[data-workflow-storage]');
       const lineBuilder = form.querySelector('[data-workflow-line-builder]');
       const formEyebrow = document.querySelector('[data-handover-form-eyebrow]');
@@ -3672,16 +3675,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       };
 
-      const syncDestinationCopy = () => {
+      const syncDestinationCopy = (isStorage = true) => {
         if (!(destinationSelect instanceof HTMLSelectElement) || !destinationCopy) {
           return;
         }
 
         const selected = destinationSelect.selectedOptions[0];
+        const hasSelection = Boolean(destinationSelect.value);
+        const storageName = selected?.dataset?.storageName || selected?.textContent?.trim() || '';
+        const storageType = selected?.dataset?.storageType || 'Storage';
         const ownerName = selected?.dataset?.ownerName || '';
         destinationCopy.textContent = ownerName
           ? `${ownerName} will confirm what arrived into this destination storage.`
           : 'Destination owner confirms what arrived. Same source and destination are blocked.';
+
+        if (destinationSummary instanceof HTMLElement) {
+          destinationSummary.hidden = !isStorage || !hasSelection;
+        }
+
+        if (destinationSummaryName) {
+          destinationSummaryName.textContent = hasSelection
+            ? `${storageType} · ${storageName}`
+            : 'Destination storage';
+        }
+
+        if (destinationSummaryOwner) {
+          destinationSummaryOwner.textContent = ownerName
+            ? `Receipt owner: ${ownerName}`
+            : 'Destination owner confirms receipt.';
+        }
       };
 
       const syncExpectedUsage = (enabled) => {
@@ -3737,7 +3759,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         syncExpectedUsage(!isStorage);
-        syncDestinationCopy();
+        syncDestinationCopy(isStorage);
 
         if (isStorage && sourceSelect instanceof HTMLSelectElement && destinationSelect instanceof HTMLSelectElement && sourceSelect.value !== '' && sourceSelect.value === destinationSelect.value) {
           destinationSelect.setCustomValidity('Destination storage must be different from source storage.');

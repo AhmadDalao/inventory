@@ -193,6 +193,8 @@ $handoverSubmitLabel = $isStaffRequest
                         <?php foreach ($destinationStorages as $storage): ?>
                             <option
                                 value="<?= e((string) $storage['id']) ?>"
+                                data-storage-name="<?= e((string) $storage['name']) ?>"
+                                data-storage-type="<?= e(storage_type_label((string) $storage['storage_type'])) ?>"
                                 data-owner-name="<?= e((string) ($storage['owner_name'] ?? '')) ?>"
                                 <?= selected((string) $storage['id'], (string) ($handoverRecord['destination_storage_id'] ?? '')) ?>
                             >
@@ -201,6 +203,13 @@ $handoverSubmitLabel = $isStaffRequest
                         <?php endforeach; ?>
                     </select>
                     <small data-handover-destination-copy>Destination owner confirms what arrived. Same source and destination are blocked.</small>
+                    <div class="handover-destination-summary" data-handover-destination-summary hidden>
+                        <span><?= ui_icon('storages') ?></span>
+                        <div>
+                            <strong data-handover-destination-summary-name>Destination storage</strong>
+                            <small data-handover-destination-summary-owner>Destination owner confirms receipt.</small>
+                        </div>
+                    </div>
                 </label>
             <?php endif; ?>
         </div>

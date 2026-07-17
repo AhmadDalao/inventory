@@ -912,6 +912,42 @@ textarea {
     line-height: 1.45;
 }
 
+.handover-destination-summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(218, 162, 56, 0.35);
+    border-radius: 16px;
+    background: rgba(244, 223, 181, 0.22);
+}
+
+.handover-destination-summary[hidden] {
+    display: none !important;
+}
+
+.handover-destination-summary > span {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: #8a5d24;
+    background: rgba(244, 223, 181, 0.55);
+}
+
+.handover-destination-summary div {
+    display: grid;
+    gap: 2px;
+}
+
+.handover-destination-summary small {
+    color: var(--muted);
+}
+
 .purchase-ocr-card {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
