@@ -184,7 +184,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
 | `app/modules/signoff_persistence.php` | Public signoff persistence helpers, including `ensure_workflow_signoff_pdf()` and proof upload document registration. |
 | `app/modules/requests.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused request modules directly. |
-| `app/modules/request_support.php` | Request filters, visibility scope, request lines, inventory issue/receipt helpers, recovery rules, and summary queries. |
+| `app/modules/request_support.php` | Compatibility loader for older direct includes. Primary loading comes from the focused request helper modules below. |
+| `app/modules/request_filters.php` | Request destination-storage options, visibility scope, filter parsing, and SQL where-clause construction. |
+| `app/modules/request_lookup.php` | Request detail lookup with visibility scope enforcement. |
+| `app/modules/request_queries.php` | Request line queries and request summary rows. |
+| `app/modules/request_guards.php` | Request approval, receipt, cancel, recovery, and draft-submission guard rules. |
+| `app/modules/request_inventory.php` | Request transit issue, receipt update parsing, and receipt-confirmation stock movements. |
 | `app/modules/request_pages.php` | Request index/create/show page handlers. |
 | `app/modules/request_create.php` | Request create and draft submit handlers. |
 | `app/modules/request_decisions.php` | Request approval and rejection handlers. |
@@ -467,6 +472,11 @@ Latest split checkpoint:
 - Asset depreciation, warranty, and book-value helpers live in `app/modules/asset_financials.php`.
 - Asset upload, select-list, event, maintenance, and file lookup helpers live in `app/modules/asset_uploads.php`, `app/modules/asset_selects.php`, and `app/modules/asset_events.php`.
 - Asset category helper logic lives in `app/modules/asset_category_support.php`.
+- Request filters/scope live in `app/modules/request_filters.php`.
+- Request detail lookup lives in `app/modules/request_lookup.php`.
+- Request line and list queries live in `app/modules/request_queries.php`.
+- Request lifecycle guard rules live in `app/modules/request_guards.php`.
+- Request transit and receipt stock movement helpers live in `app/modules/request_inventory.php`.
 - Documentation landing cards and department guides live in `app/modules/documentation_guides.php`.
 - Long documentation page sections live in `app/modules/documentation_content.php`.
 - OCR parsing helpers live in `app/modules/ocr_parser.php`.

@@ -119,6 +119,7 @@ $loaderOnlyModules = [
     'app/modules/inventory.php',
     'app/modules/workflow_core.php',
     'app/modules/requests.php',
+    'app/modules/request_support.php',
     'app/modules/handovers.php',
     'app/modules/files.php',
     'app/modules/file_uploads.php',
