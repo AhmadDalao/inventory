@@ -186,7 +186,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/file_asset_meta.php` | File library permissions, groups/status labels, file paths, previews, context labels, and size/mime helpers. |
 | `app/modules/file_asset_registry.php` | File asset registration for item images, asset files, purchase documents, workflow signoffs, and deleted-file markers. |
 | `app/modules/file_media_settings.php` | Item/asset image URL helpers and export media setting checks for thumbnails/barcodes. |
-| `app/modules/stocktakes.php` | Stocktake create/count/submit/approve/cancel flows, variance movements, stocktake exports, and audit trail hooks. |
+| `app/modules/stocktakes.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused stocktake modules directly. |
+| `app/modules/stocktake_support.php` | Stocktake status options, filters, summary queries, stocktake lookup, and count-line lookup helpers. |
+| `app/modules/stocktake_pages.php` | Stocktake index, create, and detail page handlers. |
+| `app/modules/stocktake_actions.php` | Stocktake create/count/approve/cancel actions, variance movement posting, notifications, and audit hooks. |
+| `app/modules/stocktake_exports.php` | Stocktake CSV export handler and export row formatting. |
 | `app/modules/suppliers.php` | Supplier CRUD, required Saudi business fields, custom supplier type, search, archive/recover, exports, and purchase linkage. |
 | `app/modules/reorder.php` | Reorder center, low-stock detection, suggested restock quantities, and purchase draft creation from reorder rows. |
 | `app/modules/audit.php` | Audit log filters/exports and email log filters/exports. |
