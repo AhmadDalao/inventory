@@ -102,7 +102,10 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff.php` | Loader-only module for signoff files. Do not put business logic here. |
 | `app/modules/signoff_documents.php` | Workflow document labels and workflow document asset registration. |
 | `app/modules/signoff_data.php` | Signoff metadata, item rows, totals, usage summaries, variance, and reconciliation table data. |
-| `app/modules/signoff_assets.php` | Item thumbnails, official logo assets, barcode generation, QR generation, and image processing for signoff files. |
+| `app/modules/signoff_assets.php` | Loader-only compatibility module for generated signoff asset helpers. Do not put business logic here. |
+| `app/modules/signoff_images.php` | Item thumbnails, official logo assets, and image processing for signoff files. |
+| `app/modules/signoff_barcodes.php` | Code 128 and Code 39 barcode generation for PDF/XLSX signoff files. |
+| `app/modules/signoff_qr.php` | QR matrix, PDF QR rendering, and PNG QR generation for workflow references. |
 | `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
 | `app/modules/signoff_persistence.php` | Public signoff persistence helpers, including `ensure_workflow_signoff_pdf()` and proof upload document registration. |

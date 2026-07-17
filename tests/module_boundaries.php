@@ -119,6 +119,7 @@ $loaderOnlyModules = [
     'app/modules/exports.php',
     'app/modules/reports.php',
     'app/modules/signoff.php',
+    'app/modules/signoff_assets.php',
 ];
 
 $logicTokens = [
