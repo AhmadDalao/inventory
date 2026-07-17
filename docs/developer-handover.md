@@ -94,12 +94,13 @@ Do not add new code to these compatibility loaders:
 | `app/modules/handover_request_decisions.php` | Handover request approval/rejection handlers and notifications. |
 | `app/modules/handover_cancellations.php` | Handover cancellation and audited void handlers. |
 | `app/modules/handover_decisions.php` | Handover recovery and owner status override handlers. |
-| `app/modules/signoff.php` | Signoff loader plus final PDF/XLSX persistence helpers. Keep public `ensure_workflow_signoff_pdf()` here. |
+| `app/modules/signoff.php` | Loader-only module for signoff files. Do not put business logic here. |
 | `app/modules/signoff_documents.php` | Workflow document labels and workflow document asset registration. |
 | `app/modules/signoff_data.php` | Signoff metadata, item rows, totals, usage summaries, variance, and reconciliation table data. |
 | `app/modules/signoff_assets.php` | Item thumbnails, official logo assets, barcode generation, QR generation, and image processing for signoff files. |
 | `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
+| `app/modules/signoff_persistence.php` | Public signoff persistence helpers, including `ensure_workflow_signoff_pdf()` and proof upload document registration. |
 | `app/modules/requests.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused request modules directly. |
 | `app/modules/request_support.php` | Request filters, visibility scope, request lines, inventory issue/receipt helpers, recovery rules, and summary queries. |
 | `app/modules/request_pages.php` | Request index/create/show page handlers. |
@@ -371,7 +372,7 @@ Support helpers were separated into:
 
 Domain logic now lives under `app/modules/`. Keep it that way.
 
-The signoff module was split further because PDF/XLSX generation had become too large for safe edits. `app/modules/signoff.php` now loads the focused signoff files and keeps only the public persistence helpers.
+The signoff module was split further because PDF/XLSX generation had become too large for safe edits. `app/modules/signoff.php` now loads the focused signoff files only; public persistence helpers live in `app/modules/signoff_persistence.php`.
 
 Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding one stylesheet and one script. Keep base desktop/global CSS in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, mobile/sidebar/table/dropdown overrides in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JavaScript can be split safely.
 

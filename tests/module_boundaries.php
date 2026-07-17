@@ -109,7 +109,7 @@ foreach ($forbiddenModuleEntries as $forbiddenModuleEntry) {
     }
 }
 
-$shimModules = [
+$loaderOnlyModules = [
     'app/modules/options.php',
     'app/modules/inventory.php',
     'app/modules/workflow_core.php',
@@ -118,6 +118,7 @@ $shimModules = [
     'app/modules/files.php',
     'app/modules/exports.php',
     'app/modules/reports.php',
+    'app/modules/signoff.php',
 ];
 
 $logicTokens = [
@@ -131,7 +132,7 @@ if (defined('T_ENUM')) {
     $logicTokens[T_ENUM] = 'enum';
 }
 
-foreach ($shimModules as $relativePath) {
+foreach ($loaderOnlyModules as $relativePath) {
     $contents = read_module_boundary_file($root . '/' . $relativePath);
     $tokens = token_get_all($contents);
 
@@ -143,7 +144,7 @@ foreach ($shimModules as $relativePath) {
         [$tokenType] = $token;
 
         if (isset($logicTokens[$tokenType])) {
-            fail_module_boundary($relativePath . ' is a compatibility shim and must not define a ' . $logicTokens[$tokenType] . '.');
+            fail_module_boundary($relativePath . ' is a loader-only module and must not define a ' . $logicTokens[$tokenType] . '.');
         }
     }
 }
