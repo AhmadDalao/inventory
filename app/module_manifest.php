@@ -17,6 +17,8 @@ return [
         'items',
         'item_actions',
         'item_movements',
+        'storage_support',
+        'storage_pages',
         'storages',
         'inventory_stock',
         'item_packages',

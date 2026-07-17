@@ -58,7 +58,9 @@ Do not add new code to these compatibility loaders:
 | `app/modules/item_actions.php` | Item archive/recover and item-location removal handlers. |
 | `app/modules/item_movements.php` | Item detail movement submit handler for usage, restock, adjustment, and transfer. |
 | `app/modules/inventory.php` | Compatibility shim for older direct includes. New code should use `item_support.php` and `items.php`. |
-| `app/modules/storages.php` | Storage filters, ownership helpers, storage summaries, storage CRUD handlers, and storage detail queries. |
+| `app/modules/storage_support.php` | Storage filters, ownership helpers, storage summaries, storage detail queries, storage item rows, and copy-name helpers. |
+| `app/modules/storage_pages.php` | Storage index, detail, create, and edit page render handlers. |
+| `app/modules/storages.php` | Storage create, edit, archive, and recover persistence handlers. |
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
 | `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |
