@@ -146,6 +146,7 @@ $loaderOnlyModules = [
     'app/modules/movements.php',
     'app/modules/asset_support.php',
     'app/modules/asset_category_support.php',
+    'app/modules/asset_lifecycle.php',
 ];
 
 $logicTokens = [

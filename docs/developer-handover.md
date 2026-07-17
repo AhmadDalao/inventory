@@ -271,7 +271,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/asset_category_payloads.php` | Asset category create/edit payload validation and normalization. |
 | `app/modules/asset_categories.php` | Asset category index/create/edit/archive/recover/reorder handlers. |
 | `app/modules/assets.php` | Fixed asset index/create/show/edit pages, asset create/edit persistence, archive/recover entry points, and form payload handling. |
-| `app/modules/asset_lifecycle.php` | Asset custody assignment, receipt/return, maintenance, status override, and asset document upload handlers. |
+| `app/modules/asset_lifecycle.php` | Compatibility loader for older direct includes. Primary loading comes from this loader plus the focused asset lifecycle modules below. |
+| `app/modules/asset_status_actions.php` | Asset archive/recover and owner status override handlers. |
+| `app/modules/asset_custody_actions.php` | Asset assignment, receipt confirmation, return request, and return confirmation handlers. |
+| `app/modules/asset_maintenance_actions.php` | Asset maintenance ticket creation and completion handlers. |
+| `app/modules/asset_document_actions.php` | Asset protected document upload handler. |
 | `app/modules/asset_exports.php` | Asset CSV/XLSX export rows, thumbnail/barcode image helpers, and asset export handlers. |
 | `app/modules/asset_signoff.php` | Asset custody signoff PDF/XLSX payload generation and asset signoff download handlers. |
 | `app/support/permissions.php` | Permission catalog, role defaults, position defaults, and permission input sanitizing. Loaded during bootstrap through `app/helpers.php`. |
@@ -476,13 +480,13 @@ This pass split backend PHP route/workflow code into domain modules and shrank t
 
 Latest split checkpoint:
 
-- Asset lifecycle actions live in `app/modules/asset_lifecycle.php`.
+- Asset lifecycle support is split under `app/modules/asset_*_actions.php`, with `app/modules/asset_lifecycle.php` kept as the compatibility loader.
 - Asset list filters live in `app/modules/asset_filters.php`.
 - Asset query/detail helpers live in `app/modules/asset_queries.php`.
 - Asset form payloads live in `app/modules/asset_forms.php`.
 - Asset identity and scan-code helpers live in `app/modules/asset_identity.php`.
 - Asset depreciation, warranty, and book-value helpers live in `app/modules/asset_financials.php`.
-- Asset upload, select-list, event, maintenance, and file lookup helpers live in `app/modules/asset_uploads.php`, `app/modules/asset_selects.php`, and `app/modules/asset_events.php`.
+- Asset upload, select-list, event, maintenance, and file lookup helpers live in `app/modules/asset_uploads.php`, `app/modules/asset_selects.php`, `app/modules/asset_events.php`, and `app/modules/asset_maintenance_actions.php`.
 - Asset category support is split under `app/modules/asset_category_*.php`, with `app/modules/asset_category_support.php` kept as the compatibility loader.
 - Request filters/scope live in `app/modules/request_filters.php`.
 - Request detail lookup lives in `app/modules/request_lookup.php`.
