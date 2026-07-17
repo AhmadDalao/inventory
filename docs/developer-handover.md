@@ -82,6 +82,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/export_daily_summary.php` | Daily operations summary CSV/XLSX exports, usage-by-reason, people, timeline, and summary image output. |
 | `app/modules/export_storages.php` | Storage CSV/XLSX exports, storage item rows, values, thumbnails, and barcode output. |
 | `app/modules/export_workflows.php` | User, handover, purchase, and supplier CSV exports. |
+| `app/modules/suppliers.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused supplier modules directly. |
+| `app/modules/supplier_queries.php` | Supplier filters, list summaries, detail lookups, purchase history, and active-name duplicate checks. |
+| `app/modules/supplier_forms.php` | Supplier form payload hydration and supplier create/edit validation. |
+| `app/modules/supplier_pages.php` | Supplier index, create, show, and edit page render handlers. |
+| `app/modules/supplier_actions.php` | Supplier create, update, archive, and recover submit handlers. |
 | `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
 | `app/modules/reports.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused report modules directly. |
 | `app/modules/report_summary.php` | Reports page, daily operations summary, usage by item/reason, storage/user activity, and report shortcut cards. |

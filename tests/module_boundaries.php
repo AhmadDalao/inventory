@@ -126,6 +126,7 @@ $loaderOnlyModules = [
     'app/modules/signoff_data.php',
     'app/modules/signoff_assets.php',
     'app/modules/purchase_persistence.php',
+    'app/modules/suppliers.php',
 ];
 
 $logicTokens = [
