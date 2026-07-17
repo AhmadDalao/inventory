@@ -13,7 +13,10 @@ return [
     ],
     'inventory' => [
         'item_support',
+        'item_pages',
         'items',
+        'item_actions',
+        'item_movements',
         'storages',
         'inventory_stock',
         'item_packages',

@@ -53,7 +53,7 @@ The old aggregate files remain as compatibility loaders:
 
 Do not add new logic to those compatibility files. Put new backend logic in the correct module.
 
-The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/module_manifest.php`, such as `request_create.php`, `handover_closeout.php`, `workflow_inputs.php`, `workflow_stock_impact.php`, `workflow_filters.php`, `purchase_documents.php`, `report_summary.php`, `report_presets.php`, `dashboard_filters.php`, `dashboard_metrics.php`, `export_items.php`, `option_items.php`, `option_workflows.php`, or `file_uploads.php`.
+The compatibility loaders exist only for older direct includes. New code should use the focused files already listed in `app/module_manifest.php`, such as `item_pages.php`, `item_actions.php`, `item_movements.php`, `request_create.php`, `handover_closeout.php`, `workflow_inputs.php`, `workflow_stock_impact.php`, `workflow_filters.php`, `purchase_documents.php`, `report_summary.php`, `report_presets.php`, `dashboard_filters.php`, `dashboard_metrics.php`, `export_items.php`, `option_items.php`, `option_workflows.php`, or `file_uploads.php`.
 
 The signoff domain follows the same rule: keep `app/modules/signoff.php` as a loader only. Put signoff data changes in `signoff_data.php`, PDF rendering in `signoff_pdf.php`, Excel rendering in `signoff_xlsx.php`, logo/barcode/image work in `signoff_assets.php`, workflow document rows in `signoff_documents.php`, and PDF/XLSX/proof persistence in `signoff_persistence.php`.
 
