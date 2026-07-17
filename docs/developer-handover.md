@@ -87,7 +87,10 @@ Do not add new code to these compatibility loaders:
 | `app/modules/storages.php` | Storage create, edit, archive, and recover persistence handlers. |
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
-| `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |
+| `app/modules/movements.php` | Compatibility loader for movement-log helpers and page handlers. |
+| `app/modules/movement_filters.php` | Movement-log query filters and shared movement SQL where clauses. |
+| `app/modules/movement_scope.php` | Location-scoped movement quantity and balance display helpers. |
+| `app/modules/movement_pages.php` | Movement-log index page route handler and render payload. |
 | `app/modules/dashboard.php` | Dashboard page route orchestration and final render call. |
 | `app/modules/dashboard_filters.php` | Dashboard date/storage filter parsing, selected storage lookup, movement scope SQL, and filter labels. |
 | `app/modules/dashboard_metrics.php` | Dashboard usage trend, storage value breakdown, workflow queues, purchase queue metrics, stocktake queue, and reorder pressure snapshot. |
