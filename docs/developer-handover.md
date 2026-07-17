@@ -108,7 +108,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/report_preset_urls.php` | Saved preset filter parsing and source/export URL generation. |
 | `app/modules/report_preset_queries.php` | Permission-safe saved preset list query for the reports page. |
 | `app/modules/report_preset_actions.php` | Saved preset create, update, duplicate, and archive submit handlers. |
-| `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
+| `app/modules/notifications.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused notification modules directly. |
+| `app/modules/notifications_dispatch.php` | Notification creation, permission-based fan-out, and optional workflow email-copy dispatch. |
+| `app/modules/notifications_queries.php` | Notification feed data, unread counts, list filters, type options, and entity labels. |
+| `app/modules/notifications_reads.php` | Mark-all, mark-entity, and mark-entity-type read-state helpers. |
+| `app/modules/notifications_pages.php` | Notifications index page and JSON feed handlers. |
+| `app/modules/notifications_actions.php` | Notification read-all submit handler. |
 | `app/modules/search.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused search modules directly. |
 | `app/modules/search_helpers.php` | Global search query normalization, SQL LIKE escaping, result payload formatting, text matching, and fallback URLs. |
 | `app/modules/search_reference.php` | Scanned reference normalization, reference target lookup, exact reference redirects, and smart open routing for QR/barcode references. |
