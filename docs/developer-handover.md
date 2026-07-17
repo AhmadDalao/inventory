@@ -126,6 +126,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/ocr_parser.php` | Purchase OCR text cleanup, Arabic/English parsing helpers, parsed result normalization, confidence flags, and catalog matching. |
 | `app/modules/ocr.php` | OCR extraction, purchase OCR preview handler, browser OCR payload handling, optional OpenAI fallback orchestration, and OCR logs. |
 | `app/modules/purchase_documents.php` | Purchase document type labels, purchase document queries, protected document download/delete handlers, and purchase document persistence/asset registration. |
+| `app/modules/purchase_persistence.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused purchase persistence modules directly. |
+| `app/modules/purchase_lookup.php` | Purchase detail lookup with supplier, storage, requester, approver, receiver, and completion context. |
+| `app/modules/purchase_line_inputs.php` | Purchase line normalization for manual draft forms and OCR/import review forms. |
+| `app/modules/purchase_supplier_persistence.php` | Supplier lookup/create behavior used while saving purchase drafts. |
+| `app/modules/purchase_drafts.php` | Purchase draft create/update, line persistence, document attachment, and submit-for-approval behavior. |
+| `app/modules/purchase_item_creation.php` | Catalog item creation from approved purchase lines. |
 | `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
 | `app/modules/files.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused file modules directly. |
 | `app/modules/file_library.php` | Protected file library pages, workflow document access/download/view handlers, and file CSV export. |
@@ -368,7 +374,7 @@ The report module was split because daily operations summaries and saved preset 
 
 Shared workflow helpers were split out of `app/modules/workflow_core.php`. Put form parsing and picker payload changes in `workflow_inputs.php`, stock impact checks in `workflow_stock_impact.php`, system storage helpers in `workflow_system.php`, reference/URL helpers in `workflow_identity.php`, and cross-module SQL filter changes in `workflow_filters.php`.
 
-Purchase document storage and protected file actions were moved out of the purchase lifecycle and workflow core. Put purchase document query/download/delete/persistence changes in `app/modules/purchase_documents.php`; keep purchase approval and receiving changes in `app/modules/purchases.php`.
+Purchase document storage and protected file actions were moved out of the purchase lifecycle and workflow core. Put purchase document query/download/delete/persistence changes in `app/modules/purchase_documents.php`; purchase draft persistence in `purchase_drafts.php`; line parsing in `purchase_line_inputs.php`; supplier save/link behavior in `purchase_supplier_persistence.php`; catalog item creation from lines in `purchase_item_creation.php`; and purchase approval/receiving changes in `app/modules/purchases.php`.
 
 Support helpers were separated into:
 
