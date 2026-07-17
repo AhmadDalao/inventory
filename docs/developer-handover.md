@@ -39,7 +39,11 @@ Do not add new code to these compatibility loaders:
 
 | Module | Purpose |
 |---|---|
-| `app/modules/core.php` | Shared route helpers, CSV/XLSX response helpers, and low-level export payload builders. |
+| `app/modules/core.php` | Compatibility loader for shared core modules. New shared helpers belong in the focused core files below. |
+| `app/modules/core_feedback.php` | Flash error helper and installed-app redirect guard. |
+| `app/modules/core_selects.php` | Shared item/storage/admin selector queries, entity id normalization, and user lookup/404 helper. |
+| `app/modules/core_exports.php` | CSV and XLSX download response helpers. |
+| `app/modules/core_report_filters.php` | Shared report summary SQL where-clause builder. |
 | `app/modules/settings.php` | Compatibility loader for Website Control modules. New settings logic belongs in the focused settings files below. |
 | `app/modules/settings_payload.php` | Website Control submitted setting normalization, secret clearing, option validation, and range validation. |
 | `app/modules/settings_logo.php` | Brand logo upload validation, logo storage, logo setting persistence, and old-logo cleanup helpers. |

@@ -110,6 +110,7 @@ foreach ($forbiddenModuleEntries as $forbiddenModuleEntry) {
 }
 
 $loaderOnlyModules = [
+    'app/modules/core.php',
     'app/modules/options.php',
     'app/modules/settings.php',
     'app/modules/email.php',
