@@ -77,9 +77,10 @@ Do not add new code to these compatibility loaders:
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
 | `app/modules/item_packages.php` | Item package preset labels, package conversion presets, and package preset save/delete handlers. |
 | `app/modules/movements.php` | Movement-log filters, location-scoped movement display helpers, and the movement log page handler. |
-| `app/modules/dashboard.php` | Dashboard page handler and role-specific render payload assembly. |
+| `app/modules/dashboard.php` | Dashboard page route orchestration and final render call. |
 | `app/modules/dashboard_filters.php` | Dashboard date/storage filter parsing, selected storage lookup, movement scope SQL, and filter labels. |
 | `app/modules/dashboard_metrics.php` | Dashboard usage trend, storage value breakdown, workflow queues, purchase queue metrics, stocktake queue, and reorder pressure snapshot. |
+| `app/modules/dashboard_payloads.php` | Dashboard staff payload, summary cards, recent movements, top usage, and low-stock item query builders. |
 | `app/modules/exports.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused export modules directly. |
 | `app/modules/export_items.php` | Item CSV/XLSX exports, optional thumbnails, barcode text/images, and filtered item export rows. |
 | `app/modules/export_movements.php` | Movement-log CSV/XLSX exports, location/type/date filters, thumbnails, and barcode output. |

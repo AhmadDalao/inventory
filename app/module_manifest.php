@@ -33,6 +33,7 @@ return [
         'inventory_stock',
         'item_packages',
         'movements',
+        'dashboard_payloads',
         'dashboard',
         'scan_payload',
         'scan_pages',
