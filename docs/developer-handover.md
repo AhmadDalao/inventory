@@ -193,7 +193,13 @@ Do not add new code to these compatibility loaders:
 | `app/modules/stocktake_exports.php` | Stocktake CSV export handler and export row formatting. |
 | `app/modules/suppliers.php` | Supplier CRUD, required Saudi business fields, custom supplier type, search, archive/recover, exports, and purchase linkage. |
 | `app/modules/reorder.php` | Reorder center, low-stock detection, suggested restock quantities, and purchase draft creation from reorder rows. |
-| `app/modules/audit.php` | Audit log filters/exports and email log filters/exports. |
+| `app/modules/audit.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused audit and email-log modules directly. |
+| `app/modules/audit_activity.php` | Audit activity persistence, audit filters, and audit row queries. |
+| `app/modules/audit_pages.php` | Audit log page handler. |
+| `app/modules/audit_exports.php` | Audit CSV export handler. |
+| `app/modules/email_log_support.php` | Email delivery log filters, queries, status labels, status counts, type options, and linked-entity URLs. |
+| `app/modules/email_log_pages.php` | Email delivery log page handler. |
+| `app/modules/email_log_exports.php` | Email delivery log CSV export handler. |
 | `app/modules/labels.php` | Label page data, label search, selectable label printing, barcode/SKU scan codes, and label rows. |
 | `app/modules/documentation_guides.php` | Documentation landing cards and department-specific guidance content. |
 | `app/modules/documentation_content.php` | In-app documentation page sections and workflow explanations. |
