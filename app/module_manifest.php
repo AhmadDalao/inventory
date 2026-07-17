@@ -44,7 +44,10 @@ return [
         'export_workflows',
     ],
     'reports_and_search' => [
-        'report_summary',
+        'report_summary_filters',
+        'report_summary_data',
+        'report_summary_cards',
+        'report_summary_pages',
         'report_presets',
         'notifications',
         'search_helpers',

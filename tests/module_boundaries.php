@@ -122,6 +122,7 @@ $loaderOnlyModules = [
     'app/modules/file_uploads.php',
     'app/modules/exports.php',
     'app/modules/reports.php',
+    'app/modules/report_summary.php',
     'app/modules/search.php',
     'app/modules/signoff.php',
     'app/modules/signoff_data.php',
