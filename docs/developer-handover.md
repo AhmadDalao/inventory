@@ -55,7 +55,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/option_assets.php` | Asset status, condition, tone, and event/action labels. |
 | `app/modules/option_items.php` | Item units, barcode requirement, manual restock setting, and scan-code helpers. |
 | `app/modules/option_reports.php` | Report access helper based on export permissions. |
-| `app/modules/auth.php` | Setup, login, logout, forgot-password, reset-password, token creation, login attempt limits, and password reset mail dispatch. |
+| `app/modules/auth.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused auth modules directly. |
+| `app/modules/auth_request.php` | Request IP/user-agent helpers, login throttling, password reset throttling, and login attempt audit writes. |
+| `app/modules/auth_password_resets.php` | Password reset token hashing, token creation, token lookup, and reset email dispatch. |
+| `app/modules/auth_pages.php` | Setup, login, forgot-password, and reset-password page render handlers. |
+| `app/modules/auth_actions.php` | Setup submit, login submit, logout, forgot-password submit, and reset-password submit handlers. |
 | `app/modules/users.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused user modules directly. |
 | `app/modules/user_permissions.php` | User permission persistence and Auth permission cache reset after updates. |
 | `app/modules/user_queries.php` | User list data, active user selectors, active staff selectors, and permission-scoped user selectors. |
