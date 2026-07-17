@@ -192,7 +192,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/stocktake_actions.php` | Stocktake create/count/approve/cancel actions, variance movement posting, notifications, and audit hooks. |
 | `app/modules/stocktake_exports.php` | Stocktake CSV export handler and export row formatting. |
 | `app/modules/suppliers.php` | Supplier CRUD, required Saudi business fields, custom supplier type, search, archive/recover, exports, and purchase linkage. |
-| `app/modules/reorder.php` | Reorder center, low-stock detection, suggested restock quantities, and purchase draft creation from reorder rows. |
+| `app/modules/reorder.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused reorder modules directly. |
+| `app/modules/reorder_support.php` | Reorder filters and low-stock suggestion query helpers. |
+| `app/modules/reorder_pages.php` | Reorder center page handler. |
+| `app/modules/reorder_actions.php` | Purchase draft creation from reorder suggestions. |
+| `app/modules/reorder_exports.php` | Reorder CSV export handler. |
 | `app/modules/audit.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused audit and email-log modules directly. |
 | `app/modules/audit_activity.php` | Audit activity persistence, audit filters, and audit row queries. |
 | `app/modules/audit_pages.php` | Audit log page handler. |
