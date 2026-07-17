@@ -121,6 +121,7 @@ $loaderOnlyModules = [
     'app/modules/files.php',
     'app/modules/file_uploads.php',
     'app/modules/exports.php',
+    'app/modules/export_daily_summary.php',
     'app/modules/reports.php',
     'app/modules/report_summary.php',
     'app/modules/report_presets.php',

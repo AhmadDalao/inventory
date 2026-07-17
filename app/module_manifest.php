@@ -39,7 +39,11 @@ return [
     'exports' => [
         'export_items',
         'export_movements',
-        'export_daily_summary',
+        'export_daily_summary_csv',
+        'export_daily_summary_xlsx_rows',
+        'export_daily_summary_xlsx_sheet',
+        'export_daily_summary_xlsx_payload',
+        'export_daily_summary_xlsx_handler',
         'export_storages',
         'export_workflows',
     ],

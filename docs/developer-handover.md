@@ -83,7 +83,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/exports.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused export modules directly. |
 | `app/modules/export_items.php` | Item CSV/XLSX exports, optional thumbnails, barcode text/images, and filtered item export rows. |
 | `app/modules/export_movements.php` | Movement-log CSV/XLSX exports, location/type/date filters, thumbnails, and barcode output. |
-| `app/modules/export_daily_summary.php` | Daily operations summary CSV/XLSX exports, usage-by-reason, people, timeline, and summary image output. |
+| `app/modules/export_daily_summary.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused daily-summary export modules directly. |
+| `app/modules/export_daily_summary_csv.php` | Daily operations summary CSV export handler and flat section rows. |
+| `app/modules/export_daily_summary_xlsx_rows.php` | Daily operations XLSX row normalization, usage-by-reason text, barcode values, scan codes, and image paths. |
+| `app/modules/export_daily_summary_xlsx_sheet.php` | Daily operations XLSX worksheet XML, headers, column widths, row heights, and image drawing hook. |
+| `app/modules/export_daily_summary_xlsx_payload.php` | Daily operations XLSX ZIP package builder with thumbnails and workbook metadata. |
+| `app/modules/export_daily_summary_xlsx_handler.php` | Daily operations XLSX route handler, permission check, and Website Control thumbnail guard. |
 | `app/modules/export_storages.php` | Storage CSV/XLSX exports, storage item rows, values, thumbnails, and barcode output. |
 | `app/modules/export_workflows.php` | User, handover, purchase, and supplier CSV exports. |
 | `app/modules/suppliers.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused supplier modules directly. |
@@ -412,7 +417,7 @@ Latest split checkpoint:
 
 `app/module_manifest.php` now lists the focused module files by domain group, and `app/modules.php` only loads that manifest. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/file_uploads.php`, `app/modules/exports.php`, `app/modules/reports.php`, and `app/modules/search.php` remain only for older direct includes. They are not the place for new business logic.
 
-The report module was split because daily summaries, shortcut cards, saved preset definitions, and saved preset CRUD are different responsibilities. Use `report_summary_filters.php` for filter parsing and labels, `report_summary_data.php` for daily summary queries, `report_summary_cards.php` for built-in shortcuts, `report_summary_pages.php` for page rendering, `report_preset_definitions.php` for preset types and permissions, `report_preset_urls.php` for filter and URL serialization, `report_preset_queries.php` for listing presets, and `report_preset_actions.php` for create/update/duplicate/archive actions.
+The report module was split because daily summaries, shortcut cards, saved preset definitions, saved preset CRUD, and daily-summary export rendering are different responsibilities. Use `report_summary_filters.php` for filter parsing and labels, `report_summary_data.php` for daily summary queries, `report_summary_cards.php` for built-in shortcuts, `report_summary_pages.php` for page rendering, `report_preset_definitions.php` for preset types and permissions, `report_preset_urls.php` for filter and URL serialization, `report_preset_queries.php` for listing presets, and `report_preset_actions.php` for create/update/duplicate/archive actions. Daily summary exports are also split: CSV rows in `export_daily_summary_csv.php`, XLSX data rows in `export_daily_summary_xlsx_rows.php`, worksheet XML in `export_daily_summary_xlsx_sheet.php`, XLSX package generation in `export_daily_summary_xlsx_payload.php`, and the route handler in `export_daily_summary_xlsx_handler.php`.
 
 Shared workflow helpers were split out of `app/modules/workflow_core.php`. Put form parsing and picker payload changes in `workflow_inputs.php`, stock impact checks in `workflow_stock_impact.php`, system storage helpers in `workflow_system.php`, reference/URL helpers in `workflow_identity.php`, and cross-module SQL filter changes in `workflow_filters.php`.
 
