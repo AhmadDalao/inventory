@@ -77,7 +77,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/item_actions.php` | Item archive/recover and item-location removal handlers. |
 | `app/modules/item_movements.php` | Item detail movement submit handler for usage, restock, adjustment, and transfer. |
 | `app/modules/inventory.php` | Compatibility shim for older direct includes. New code should use `item_support.php` and `items.php`. |
-| `app/modules/storage_support.php` | Storage filters, ownership helpers, storage summaries, storage detail queries, storage item rows, and copy-name helpers. |
+| `app/modules/storage_support.php` | Compatibility loader for storage/location helpers. New storage logic belongs in the focused storage modules below. |
+| `app/modules/storage_filters.php` | Storage list filters and shared storage SQL where clauses. |
+| `app/modules/storage_ownership.php` | Storage owner lookup, owned-storage selectors, active-name checks, storage type labels, and copy-source name helpers. |
+| `app/modules/storage_lookup.php` | Storage detail lookup/404 handling and summary metrics for one storage. |
+| `app/modules/storage_inventory.php` | Storage item rows and storage summary list metrics. |
+| `app/modules/storage_form_payloads.php` | Storage create/edit form default payloads. |
 | `app/modules/storage_pages.php` | Storage index, detail, create, and edit page render handlers. |
 | `app/modules/storages.php` | Storage create, edit, archive, and recover persistence handlers. |
 | `app/modules/inventory_stock.php` | Stock movement posting, item storage balance writes, item quantity snapshot sync, and storage inventory clone helpers. |
