@@ -96,7 +96,10 @@ Do not add new code to these compatibility loaders:
 | `app/modules/supplier_forms.php` | Supplier form payload hydration and supplier create/edit validation. |
 | `app/modules/supplier_pages.php` | Supplier index, create, show, and edit page render handlers. |
 | `app/modules/supplier_actions.php` | Supplier create, update, archive, and recover submit handlers. |
-| `app/modules/scan.php` | Scan Center, barcode/SKU lookup, batch scan, package conversion, manual stock add, and scan payloads. |
+| `app/modules/scan_payload.php` | Scan Center item response payloads, package presets, balances, and refreshed manual-add item payloads. |
+| `app/modules/scan_pages.php` | Scan Center page rendering, manual stock-add page, and scan/manual restock access guards. |
+| `app/modules/scan_lookup.php` | Barcode/SKU/name/reference lookup for items, assets, and workflow references. |
+| `app/modules/scan_manual_restock.php` | Manual stock-add and batch manual restock actions through immutable inventory movements. |
 | `app/modules/reports.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused report modules directly. |
 | `app/modules/report_summary.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused report summary modules directly. |
 | `app/modules/report_summary_filters.php` | Daily report date/storage/type/status filters and report display labels. |

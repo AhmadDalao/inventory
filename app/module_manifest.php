@@ -34,7 +34,10 @@ return [
         'item_packages',
         'movements',
         'dashboard',
-        'scan',
+        'scan_payload',
+        'scan_pages',
+        'scan_lookup',
+        'scan_manual_restock',
     ],
     'exports' => [
         'export_items',
