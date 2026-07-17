@@ -121,6 +121,7 @@ $loaderOnlyModules = [
     'app/modules/reports.php',
     'app/modules/search.php',
     'app/modules/signoff.php',
+    'app/modules/signoff_data.php',
     'app/modules/signoff_assets.php',
     'app/modules/purchase_persistence.php',
 ];
