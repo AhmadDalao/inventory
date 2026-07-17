@@ -209,7 +209,9 @@ Do not add new code to these compatibility loaders:
 | `app/modules/email_log_support.php` | Email delivery log filters, queries, status labels, status counts, type options, and linked-entity URLs. |
 | `app/modules/email_log_pages.php` | Email delivery log page handler. |
 | `app/modules/email_log_exports.php` | Email delivery log CSV export handler. |
-| `app/modules/labels.php` | Label page data, label search, selectable label printing, barcode/SKU scan codes, and label rows. |
+| `app/modules/labels.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused label modules directly. |
+| `app/modules/label_support.php` | Label filters, item/storage label queries, barcode/SKU scan codes, thumbnail URLs, and printable row payloads. |
+| `app/modules/label_pages.php` | Label page handler. |
 | `app/modules/documentation_guides.php` | Documentation landing cards and department-specific guidance content. |
 | `app/modules/documentation_content.php` | In-app documentation page sections and workflow explanations. |
 | `app/modules/documentation.php` | Documentation page handler, screenshot lookup, and visual-helper payloads. |
