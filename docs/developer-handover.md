@@ -41,7 +41,12 @@ Do not add new code to these compatibility loaders:
 |---|---|
 | `app/modules/core.php` | Shared route helpers, CSV/XLSX response helpers, and low-level export payload builders. |
 | `app/modules/settings.php` | Website Control page actions, site setting saves, logo upload, OCR settings display, and email test controls. |
-| `app/modules/email.php` | PHP `mail()` delivery wrapper, email settings, reset email delivery, workflow email copies, and email log writes. |
+| `app/modules/email.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused email modules directly. |
+| `app/modules/email_settings.php` | Email enablement, password reset/workflow alert flags, transport, SMTP, sender, and reply-to setting helpers. |
+| `app/modules/email_headers.php` | Safe email header, display-name, address-header, and CRLF body normalization helpers. |
+| `app/modules/email_smtp.php` | SMTP socket transport, SMTP command/response handling, TLS/authentication, and SMTP message send. |
+| `app/modules/email_delivery.php` | PHP `mail()` transport, delivery orchestration, log-only mode, recipient validation, and email delivery log writes. |
+| `app/modules/email_workflow.php` | Workflow notification email type allowlist and in-app notification email copy dispatcher. |
 | `app/modules/options.php` | Compatibility loader for option catalogs. New option logic belongs in focused `option_*` modules. |
 | `app/modules/option_users.php` | User role, position, initials, and position-to-access helpers. |
 | `app/modules/option_suppliers.php` | Supplier type options and labels, including custom `Other` display. |
