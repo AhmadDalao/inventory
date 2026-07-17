@@ -256,7 +256,13 @@ Do not add new code to these compatibility loaders:
 | `app/modules/asset_uploads.php` | Asset image upload input detection. |
 | `app/modules/asset_selects.php` | Active users, suppliers, and purchases for asset form select inputs. |
 | `app/modules/asset_events.php` | Asset event timeline, maintenance records, pending custody actions, and asset file lookups. |
-| `app/modules/asset_category_support.php` | Asset category filters, tree/path helpers, descendant lookup, cycle checks, and save payload normalization. |
+| `app/modules/asset_category_support.php` | Compatibility loader for older direct includes. Primary loading comes from this loader plus the focused asset-category helper modules below. |
+| `app/modules/asset_category_permissions.php` | Asset category permission checks. |
+| `app/modules/asset_category_filters.php` | Asset category filter parsing and category-code normalization. |
+| `app/modules/asset_category_queries.php` | Asset category list, select-list, lookup, and parent-filter query helpers. |
+| `app/modules/asset_category_tree.php` | Asset category tree building, path labels, display labels, and descendant lookup. |
+| `app/modules/asset_category_guards.php` | Asset category not-found guard, sort-order helper, and parent-cycle prevention. |
+| `app/modules/asset_category_payloads.php` | Asset category create/edit payload validation and normalization. |
 | `app/modules/asset_categories.php` | Asset category index/create/edit/archive/recover/reorder handlers. |
 | `app/modules/assets.php` | Fixed asset index/create/show/edit pages, asset create/edit persistence, archive/recover entry points, and form payload handling. |
 | `app/modules/asset_lifecycle.php` | Asset custody assignment, receipt/return, maintenance, status override, and asset document upload handlers. |
@@ -471,7 +477,7 @@ Latest split checkpoint:
 - Asset identity and scan-code helpers live in `app/modules/asset_identity.php`.
 - Asset depreciation, warranty, and book-value helpers live in `app/modules/asset_financials.php`.
 - Asset upload, select-list, event, maintenance, and file lookup helpers live in `app/modules/asset_uploads.php`, `app/modules/asset_selects.php`, and `app/modules/asset_events.php`.
-- Asset category helper logic lives in `app/modules/asset_category_support.php`.
+- Asset category support is split under `app/modules/asset_category_*.php`, with `app/modules/asset_category_support.php` kept as the compatibility loader.
 - Request filters/scope live in `app/modules/request_filters.php`.
 - Request detail lookup lives in `app/modules/request_lookup.php`.
 - Request line and list queries live in `app/modules/request_queries.php`.
