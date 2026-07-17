@@ -211,7 +211,13 @@ Do not add new code to these compatibility loaders:
 | `app/modules/purchase_supplier_persistence.php` | Supplier lookup/create behavior used while saving purchase drafts. |
 | `app/modules/purchase_drafts.php` | Purchase draft create/update, line persistence, document attachment, and submit-for-approval behavior. |
 | `app/modules/purchase_item_creation.php` | Catalog item creation from approved purchase lines. |
-| `app/modules/purchases.php` | Purchase lifecycle, supplier purchase forms, document requirements, approval, receiving, final confirmation, and weighted average cost. |
+| `app/modules/purchase_lifecycle.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which loads the focused purchase lifecycle modules through this shim. |
+| `app/modules/purchase_decision_rules.php` | Purchase approval and final-receipt guard rules, including self-approval blocking. |
+| `app/modules/purchase_approval_actions.php` | Purchase approval and rejection submit handlers. |
+| `app/modules/purchase_receiving_actions.php` | Purchase received-quantity reporting and receipt-review transition. |
+| `app/modules/purchase_completion_actions.php` | Purchase final receipt confirmation, restock movement posting, and weighted-average cost update. |
+| `app/modules/purchase_cancellation_actions.php` | Purchase cancellation handler for draft, pending approval, and approved purchases before stock posting. |
+| `app/modules/purchases.php` | Purchase create/edit/show/submit route handlers and purchase history helpers for item/storage detail pages. |
 | `app/modules/files.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused file modules directly. |
 | `app/modules/file_library.php` | Protected file library pages, workflow document access/download/view handlers, and file CSV export. |
 | `app/modules/file_uploads.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused upload modules directly. |
@@ -499,7 +505,7 @@ The report module was split because daily summaries, shortcut cards, saved prese
 
 Shared workflow helpers were split out of `app/modules/workflow_core.php`. Put form parsing and picker payload changes in `workflow_inputs.php`, stock impact checks in `workflow_stock_impact.php`, system storage helpers in `workflow_system.php`, reference/URL helpers in `workflow_identity.php`, and cross-module SQL filter changes in `workflow_filters.php`.
 
-Purchase document storage and protected file actions were moved out of the purchase lifecycle and workflow core. Put purchase document query/download/delete/persistence changes in `app/modules/purchase_documents.php`; purchase draft persistence in `purchase_drafts.php`; line parsing in `purchase_line_inputs.php`; supplier save/link behavior in `purchase_supplier_persistence.php`; catalog item creation from lines in `purchase_item_creation.php`; and purchase approval/receiving changes in `app/modules/purchases.php`.
+Purchase document storage and protected file actions were moved out of the purchase lifecycle and workflow core. Put purchase document query/download/delete/persistence changes in `app/modules/purchase_documents.php`; purchase draft persistence in `purchase_drafts.php`; line parsing in `purchase_line_inputs.php`; supplier save/link behavior in `purchase_supplier_persistence.php`; catalog item creation from lines in `purchase_item_creation.php`; guard-rule changes in `purchase_decision_rules.php`; approval/rejection handlers in `purchase_approval_actions.php`; receiving reports in `purchase_receiving_actions.php`; final stock posting and weighted-average cost changes in `purchase_completion_actions.php`; and cancellation changes in `purchase_cancellation_actions.php`.
 
 Support helpers were separated into:
 

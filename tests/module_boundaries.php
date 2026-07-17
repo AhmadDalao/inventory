@@ -134,6 +134,7 @@ $loaderOnlyModules = [
     'app/modules/signoff_data.php',
     'app/modules/signoff_assets.php',
     'app/modules/purchase_persistence.php',
+    'app/modules/purchase_lifecycle.php',
     'app/modules/suppliers.php',
     'app/modules/stocktakes.php',
     'app/modules/reorder.php',
