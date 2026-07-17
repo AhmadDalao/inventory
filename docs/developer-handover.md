@@ -78,8 +78,12 @@ Do not add new code to these compatibility loaders:
 | `app/modules/report_summary.php` | Reports page, daily operations summary, usage by item/reason, storage/user activity, and report shortcut cards. |
 | `app/modules/report_presets.php` | Saved report preset types, permissions, source/export URLs, create/update/duplicate/archive handlers, and filter-state persistence. |
 | `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
+| `app/modules/search.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused search modules directly. |
+| `app/modules/search_helpers.php` | Global search query normalization, SQL LIKE escaping, result payload formatting, text matching, and fallback URLs. |
 | `app/modules/search_reference.php` | Scanned reference normalization, reference target lookup, exact reference redirects, and smart open routing for QR/barcode references. |
-| `app/modules/search.php` | Global search page/result logic, accessible pages, documentation/settings search, and module-aware result URLs. |
+| `app/modules/search_pages.php` | Searchable page, settings, and documentation result builders. |
+| `app/modules/search_results.php` | Global search aggregation across items, storages, movements, requests, handovers, purchases, suppliers, files, stocktakes, reorder, users, audit, and email logs. |
+| `app/modules/search_handlers.php` | Global search JSON endpoint and exact workflow reference open handler. |
 | `app/modules/handover_usage_reasons.php` | Usage reason options, normalization, labels, expected/actual summaries, and variance summaries. |
 | `app/modules/handover_usage_breakdowns.php` | Handover expected/actual usage breakdown queries and line hydration helpers. |
 | `app/modules/handover_usage_inputs.php` | Handover expected usage and actual usage split form input parsing. |
@@ -371,9 +375,9 @@ Latest split checkpoint:
 - Storage/item inventory schema setup lives in `app/maintenance/MaintenanceInventorySchemas.php`.
 - File-library and workflow-document schema setup lives in `app/maintenance/MaintenanceFileWorkflowSchemas.php`.
 - Notification schema setup lives in `app/maintenance/MaintenanceNotificationSchemas.php`.
-- `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and `app/modules/search.php` now stay focused on route/page orchestration, engine orchestration, or global result composition.
+- `app/modules/assets.php`, `app/modules/documentation.php`, `app/modules/ocr.php`, and the focused `search_*` modules now stay focused on route/page orchestration, engine orchestration, or global result composition.
 
-`app/module_manifest.php` now lists the focused module files by domain group, and `app/modules.php` only loads that manifest. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/exports.php`, and `app/modules/reports.php` remain only for older direct includes. They are not the place for new business logic.
+`app/module_manifest.php` now lists the focused module files by domain group, and `app/modules.php` only loads that manifest. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/file_uploads.php`, `app/modules/exports.php`, `app/modules/reports.php`, and `app/modules/search.php` remain only for older direct includes. They are not the place for new business logic.
 
 The report module was split because daily operations summaries and saved preset CRUD are different responsibilities. Use `app/modules/report_summary.php` for report page and summary data changes. Use `app/modules/report_presets.php` for saved preset definitions, permissions, URLs, and create/update/archive actions.
 

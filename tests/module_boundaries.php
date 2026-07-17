@@ -119,6 +119,7 @@ $loaderOnlyModules = [
     'app/modules/file_uploads.php',
     'app/modules/exports.php',
     'app/modules/reports.php',
+    'app/modules/search.php',
     'app/modules/signoff.php',
     'app/modules/signoff_assets.php',
     'app/modules/purchase_persistence.php',

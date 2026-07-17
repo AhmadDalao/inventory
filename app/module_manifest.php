@@ -37,8 +37,11 @@ return [
         'report_summary',
         'report_presets',
         'notifications',
+        'search_helpers',
         'search_reference',
-        'search',
+        'search_pages',
+        'search_results',
+        'search_handlers',
     ],
     'handover_usage' => [
         'handover_usage_reasons',
