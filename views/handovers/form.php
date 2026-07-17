@@ -61,12 +61,28 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
         'notes' => '',
     ]];
 };
+
+$handoverCreateEyebrow = $isStaffRequest
+    ? 'Temporary Use Request'
+    : ($isStorageTransfer ? 'Storage Transfer' : 'Temporary Issue');
+$handoverCreateTitle = $isStaffRequest
+    ? 'Request Handover'
+    : ($isStorageTransfer ? 'Create Storage Transfer' : 'Create Handover');
+$handoverNotesPlaceholder = $isStaffRequest
+    ? 'Why these items are needed and where they will be used'
+    : ($isStorageTransfer ? 'Why this stock is moving to another storage' : 'Where this stock is going and why');
+$handoverLinesTitle = $isStaffRequest
+    ? 'What You Need'
+    : ($isStorageTransfer ? 'What You Are Transferring' : 'What You Handed Over');
+$handoverSubmitLabel = $isStaffRequest
+    ? 'Send Handover Request'
+    : ($isStorageTransfer ? 'Create Storage Transfer' : 'Create Handover');
 ?>
 
 <section class="page-head">
     <div>
-        <p class="eyebrow"><?= $isStaffRequest ? 'Temporary Use Request' : 'Temporary Issue' ?></p>
-        <h3><?= $isStaffRequest ? 'Request Handover' : 'Create Handover' ?></h3>
+        <p class="eyebrow" data-handover-form-eyebrow><?= e($handoverCreateEyebrow) ?></p>
+        <h3 data-handover-form-title><?= e($handoverCreateTitle) ?></h3>
     </div>
     <div class="page-actions">
         <a class="ghost-button" href="<?= e(url('/handovers')) ?>">Back</a>
@@ -189,6 +205,13 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
             <?php endif; ?>
         </div>
 
+        <?php if (!$isStaffRequest): ?>
+            <div class="copy-context-card handover-storage-transfer-note" data-handover-storage-fields <?= $isStorageTransfer ? '' : 'hidden' ?>>
+                <strong>Storage transfer cycle</strong>
+                <p>Stock moves from the source into the handover buffer first. Full receipt closes into the destination. Short receipt waits for source-owner approval and returns missing stock to the source.</p>
+            </div>
+        <?php endif; ?>
+
         <div class="field-row">
             <label class="field">
                 <span><?= $isStaffRequest ? 'Needed For' : 'Scheduled For' ?></span>
@@ -198,7 +221,7 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
 
         <label class="field">
             <span>Notes</span>
-            <textarea name="notes" rows="4" placeholder="<?= $isStaffRequest ? 'Why these items are needed and where they will be used' : 'Where this stock is going and why' ?>"><?= e((string) ($handoverRecord['notes'] ?? '')) ?></textarea>
+            <textarea name="notes" rows="4" placeholder="<?= e($handoverNotesPlaceholder) ?>" data-handover-notes><?= e((string) ($handoverRecord['notes'] ?? '')) ?></textarea>
         </label>
 
         <section
@@ -217,7 +240,7 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
             <div class="panel-head">
                 <div>
                     <p class="eyebrow">Line Items</p>
-                    <h3><?= $isStaffRequest ? 'What You Need' : 'What You Handed Over' ?></h3>
+                    <h3 data-handover-lines-title><?= e($handoverLinesTitle) ?></h3>
                 </div>
                 <button class="ghost-button" type="button" data-add-workflow-line><?= ui_icon('plus') ?><span>Add Item</span></button>
             </div>
@@ -306,6 +329,6 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
             </div>
         </section>
 
-        <button class="primary-button" type="submit"><?= $isStaffRequest ? 'Send Handover Request' : 'Create Handover' ?></button>
+        <button class="primary-button" type="submit" data-handover-submit-label><?= e($handoverSubmitLabel) ?></button>
     </form>
 </section>

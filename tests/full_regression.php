@@ -2742,6 +2742,9 @@ $sameStorageTransfer = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/
 assert_true($sameStorageTransfer['status'] === 302 && location_matches($sameStorageTransfer['location'], '/handovers/create'), 'Same source/destination storage transfer should redirect back to create.');
 $sameStorageTransferReload = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
 assert_true(strpos($sameStorageTransferReload['body'], 'Source and destination storage cannot be the same.') !== false, 'Same source/destination storage transfer error did not render.');
+assert_true(strpos($sameStorageTransferReload['body'], 'Create Storage Transfer') !== false, 'Storage-transfer create page should keep the transfer title after validation errors.');
+assert_true(strpos($sameStorageTransferReload['body'], 'What You Are Transferring') !== false, 'Storage-transfer create page should keep transfer line-item wording after validation errors.');
+assert_true(strpos($sameStorageTransferReload['body'], 'Full receipt closes into the destination') !== false, 'Storage-transfer create page should explain the destination receipt cycle.');
 
 $storageTransferExactSourceBefore = balance_quantity((int) $storageTransferExactItem['id'], (int) $handoverSource['id']);
 $storageTransferExactDestinationBefore = balance_quantity((int) $storageTransferExactItem['id'], (int) $transferDestination['id']);

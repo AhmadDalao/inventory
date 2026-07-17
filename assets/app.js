@@ -3637,6 +3637,27 @@ document.addEventListener('DOMContentLoaded', () => {
       const destinationCopy = form.querySelector('[data-handover-destination-copy]');
       const sourceSelect = form.querySelector('[data-workflow-storage]');
       const lineBuilder = form.querySelector('[data-workflow-line-builder]');
+      const formEyebrow = document.querySelector('[data-handover-form-eyebrow]');
+      const formTitle = document.querySelector('[data-handover-form-title]');
+      const linesTitle = form.querySelector('[data-handover-lines-title]');
+      const notesField = form.querySelector('[data-handover-notes]');
+      const submitLabel = form.querySelector('[data-handover-submit-label]');
+      const modeCopy = {
+        staff: {
+          eyebrow: 'Temporary Issue',
+          title: 'Create Handover',
+          linesTitle: 'What You Handed Over',
+          notesPlaceholder: 'Where this stock is going and why',
+          submit: 'Create Handover'
+        },
+        storage: {
+          eyebrow: 'Storage Transfer',
+          title: 'Create Storage Transfer',
+          linesTitle: 'What You Are Transferring',
+          notesPlaceholder: 'Why this stock is moving to another storage',
+          submit: 'Create Storage Transfer'
+        }
+      };
 
       const setSectionEnabled = (section, enabled) => {
         if (!(section instanceof HTMLElement)) {
@@ -3685,6 +3706,27 @@ document.addEventListener('DOMContentLoaded', () => {
       const sync = () => {
         const targetType = radios.find((radio) => radio.checked)?.value || 'staff';
         const isStorage = targetType === 'storage';
+        const copy = isStorage ? modeCopy.storage : modeCopy.staff;
+
+        if (formEyebrow) {
+          formEyebrow.textContent = copy.eyebrow;
+        }
+
+        if (formTitle) {
+          formTitle.textContent = copy.title;
+        }
+
+        if (linesTitle) {
+          linesTitle.textContent = copy.linesTitle;
+        }
+
+        if (notesField instanceof HTMLTextAreaElement) {
+          notesField.placeholder = copy.notesPlaceholder;
+        }
+
+        if (submitLabel) {
+          submitLabel.textContent = copy.submit;
+        }
 
         staffFields.forEach((section) => setSectionEnabled(section, !isStorage));
         storageFields.forEach((section) => setSectionEnabled(section, isStorage));
