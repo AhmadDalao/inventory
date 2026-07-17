@@ -98,7 +98,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/report_summary_data.php` | Daily operations summary cards, usage-by-item/reason, user breakdown, and movement timeline queries. |
 | `app/modules/report_summary_cards.php` | Built-in report shortcut cards grouped by inventory, workflow, finance, and control areas. |
 | `app/modules/report_summary_pages.php` | Reports page render handler and summary payload assembly. |
-| `app/modules/report_presets.php` | Saved report preset types, permissions, source/export URLs, create/update/duplicate/archive handlers, and filter-state persistence. |
+| `app/modules/report_presets.php` | Compatibility loader for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists focused report preset modules directly. |
+| `app/modules/report_preset_definitions.php` | Saved report preset type definitions, default filters, and view/export permission checks. |
+| `app/modules/report_preset_urls.php` | Saved preset filter parsing and source/export URL generation. |
+| `app/modules/report_preset_queries.php` | Permission-safe saved preset list query for the reports page. |
+| `app/modules/report_preset_actions.php` | Saved preset create, update, duplicate, and archive submit handlers. |
 | `app/modules/notifications.php` | Notification creation, popup/feed data, unread counts, read-all actions, sounds, and workflow notification helpers. |
 | `app/modules/search.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused search modules directly. |
 | `app/modules/search_helpers.php` | Global search query normalization, SQL LIKE escaping, result payload formatting, text matching, and fallback URLs. |
@@ -408,7 +412,7 @@ Latest split checkpoint:
 
 `app/module_manifest.php` now lists the focused module files by domain group, and `app/modules.php` only loads that manifest. The aggregate module files `app/modules/requests.php`, `app/modules/handovers.php`, `app/modules/files.php`, `app/modules/file_uploads.php`, `app/modules/exports.php`, `app/modules/reports.php`, and `app/modules/search.php` remain only for older direct includes. They are not the place for new business logic.
 
-The report module was split because daily summaries, shortcut cards, and saved preset CRUD are different responsibilities. Use `report_summary_filters.php` for filter parsing and labels, `report_summary_data.php` for daily summary queries, `report_summary_cards.php` for built-in shortcuts, `report_summary_pages.php` for page rendering, and `report_presets.php` for saved preset definitions, permissions, URLs, and create/update/archive actions.
+The report module was split because daily summaries, shortcut cards, saved preset definitions, and saved preset CRUD are different responsibilities. Use `report_summary_filters.php` for filter parsing and labels, `report_summary_data.php` for daily summary queries, `report_summary_cards.php` for built-in shortcuts, `report_summary_pages.php` for page rendering, `report_preset_definitions.php` for preset types and permissions, `report_preset_urls.php` for filter and URL serialization, `report_preset_queries.php` for listing presets, and `report_preset_actions.php` for create/update/duplicate/archive actions.
 
 Shared workflow helpers were split out of `app/modules/workflow_core.php`. Put form parsing and picker payload changes in `workflow_inputs.php`, stock impact checks in `workflow_stock_impact.php`, system storage helpers in `workflow_system.php`, reference/URL helpers in `workflow_identity.php`, and cross-module SQL filter changes in `workflow_filters.php`.
 
