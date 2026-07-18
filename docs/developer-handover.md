@@ -180,7 +180,11 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff_images.php` | Item thumbnails, official logo assets, and image processing for signoff files. |
 | `app/modules/signoff_barcodes.php` | Code 128 and Code 39 barcode generation for PDF/XLSX signoff files. |
 | `app/modules/signoff_qr.php` | QR matrix, PDF QR rendering, and PNG QR generation for workflow references. |
-| `app/modules/signoff_xlsx.php` | XLSX XML generation, workbook images/drawings, styles, formulas, and Excel signoff payloads. |
+| `app/modules/signoff_xlsx.php` | Loader-only compatibility module for XLSX signoff generation. Do not put business logic here. |
+| `app/modules/signoff_xlsx_cells.php` | XLSX escaping, column names, text/number/formula cells, and workbook styles. |
+| `app/modules/signoff_xlsx_drawing.php` | XLSX image assets, drawing XML, drawing relationships, content types, and image placement checks. |
+| `app/modules/signoff_xlsx_sheet.php` | XLSX worksheet layout, signoff rows, formulas, signatures, and reconciliation table XML. |
+| `app/modules/signoff_xlsx_payload.php` | XLSX ZIP workbook payload builder, logo/QR/item image insertion, and workbook metadata. |
 | `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
 | `app/modules/signoff_persistence.php` | Public signoff persistence helpers, including `ensure_workflow_signoff_pdf()` and proof upload document registration. |
 | `app/modules/requests.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused request modules directly. |
