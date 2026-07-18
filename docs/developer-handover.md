@@ -185,7 +185,10 @@ Do not add new code to these compatibility loaders:
 | `app/modules/signoff_xlsx_drawing.php` | XLSX image assets, drawing XML, drawing relationships, content types, and image placement checks. |
 | `app/modules/signoff_xlsx_sheet.php` | XLSX worksheet layout, signoff rows, formulas, signatures, and reconciliation table XML. |
 | `app/modules/signoff_xlsx_payload.php` | XLSX ZIP workbook payload builder, logo/QR/item image insertion, and workbook metadata. |
-| `app/modules/signoff_pdf.php` | PDF primitives, PDF signoff rendering, and signoff revision timestamp detection. |
+| `app/modules/signoff_pdf.php` | Loader-only compatibility module for PDF signoff generation. Do not put business logic here. |
+| `app/modules/signoff_pdf_primitives.php` | Low-level PDF text, rectangle, line, and document builder helpers. |
+| `app/modules/signoff_pdf_payload.php` | PDF signoff payload renderer, including item rows, reconciliation, signatures, logo, QR, and barcodes. |
+| `app/modules/signoff_revision.php` | Signoff data and settings revision timestamp detection used to decide when generated files must be rebuilt. |
 | `app/modules/signoff_persistence.php` | Public signoff persistence helpers, including `ensure_workflow_signoff_pdf()` and proof upload document registration. |
 | `app/modules/requests.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused request modules directly. |
 | `app/modules/request_support.php` | Compatibility loader for older direct includes. Primary loading comes from the focused request helper modules below. |
