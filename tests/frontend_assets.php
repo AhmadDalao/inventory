@@ -61,6 +61,10 @@ foreach ([
     }
 }
 
+if (strpos($mobileCss, '.app-shell .data-table-mobile tr[hidden]') === false) {
+    fail_frontend_assets('Mobile table pagination must keep hidden rows out of layout.');
+}
+
 if (strpos($baseCss, 'Sidebar scroll fix') !== false) {
     fail_frontend_assets('Mobile/sidebar CSS should live in assets/css/mobile.css, not the base app.css.');
 }

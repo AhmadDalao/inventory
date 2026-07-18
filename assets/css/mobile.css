@@ -1190,6 +1190,12 @@ body.app-shell {
         box-shadow: none !important;
     }
 
+    .app-shell .data-table-mobile tr[hidden],
+    .app-shell .workflow-line-table tr[hidden],
+    .app-shell .workflow-close-table tr[hidden] {
+        display: none !important;
+    }
+
     .app-shell .data-table-mobile th,
     .app-shell .data-table-mobile td,
     .app-shell .workflow-line-table th,
