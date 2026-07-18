@@ -18,7 +18,8 @@ The backup script creates:
 
 The SQL dump is the database restore source. The zip file contains uploaded item images, purchase documents, and protected file-library assets.
 
-Retention and file inclusion are controlled from `Website Control > Operations Safety`.
+Retention, maximum backup sets, and file inclusion are controlled from `Website Control > Operations Safety`.
+The files archive is only reported as successful after the ZIP is finalized, exists, and has a non-zero size.
 
 ## Daily Reports
 

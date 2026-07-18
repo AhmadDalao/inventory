@@ -26,6 +26,7 @@ if (isset($options['dry-run'])) {
 }
 
 require $root . '/app/bootstrap.php';
+require $root . '/scripts/backup_helpers.php';
 
 function backup_quote_identifier(string $identifier): string
 {
@@ -41,62 +42,11 @@ function backup_quote_value(PDO $pdo, $value): string
     return $pdo->quote((string) $value);
 }
 
-function backup_add_directory_to_zip(ZipArchive $zip, string $directory, string $archivePrefix): void
-{
-    if (!is_dir($directory)) {
-        return;
-    }
-
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::SELF_FIRST
-    );
-
-    foreach ($iterator as $fileInfo) {
-        if (!$fileInfo instanceof SplFileInfo || $fileInfo->isDir()) {
-            continue;
-        }
-
-        $path = $fileInfo->getPathname();
-        $relativePath = ltrim(str_replace('\\', '/', substr($path, strlen($directory))), '/');
-
-        if ($relativePath === '') {
-            continue;
-        }
-
-        $zip->addFile($path, rtrim($archivePrefix, '/') . '/' . $relativePath);
-    }
-}
-
-function backup_cleanup_old_files(string $backupDir, int $retentionDays, array $keepFiles): array
-{
-    $deleted = [];
-    $cutoff = time() - ($retentionDays * 86400);
-    $files = glob(rtrim($backupDir, '/') . '/inventory-backup-*');
-
-    if (!is_array($files)) {
-        return $deleted;
-    }
-
-    foreach ($files as $file) {
-        if (in_array($file, $keepFiles, true) || !is_file($file)) {
-            continue;
-        }
-
-        $mtime = filemtime($file);
-
-        if ($mtime !== false && $mtime < $cutoff && @unlink($file)) {
-            $deleted[] = $file;
-        }
-    }
-
-    return $deleted;
-}
-
 $backupDir = base_path('storage/backups');
 ensure_directory_exists($backupDir);
 
 $retentionDays = max(1, min(365, (int) site_setting('backup.retention_days', '14')));
+$maxSets = max(2, min(100, (int) site_setting('backup.max_sets', '30')));
 $includeUploads = site_setting('backup.include_uploads', '1') === '1';
 $timestamp = date('Ymd-His');
 $baseName = 'inventory-backup-' . $timestamp;
@@ -163,31 +113,33 @@ fclose($handle);
 
 $warnings = [];
 $includedFilesArchive = null;
+$filesArchivedCount = 0;
+$filesArchiveBytes = 0;
+$deletedOldFiles = backup_cleanup_old_sets($backupDir, $retentionDays, $maxSets, [$baseName]);
 
 if ($includeUploads) {
-    if (class_exists('ZipArchive')) {
-        $zip = new ZipArchive();
+    $archiveResult = backup_create_files_archive(
+        $zipPath,
+        [
+            'uploads' => base_path('uploads'),
+            'storage/files' => base_path('storage/files'),
+        ],
+        [
+            'app_url' => app_config('app.url', ''),
+            'database' => app_config('db.database', ''),
+            'sql_backup' => basename($sqlPath),
+        ]
+    );
 
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
-            backup_add_directory_to_zip($zip, base_path('uploads'), 'uploads');
-            backup_add_directory_to_zip($zip, base_path('storage/files'), 'storage/files');
-            $zip->close();
-            $includedFilesArchive = $zipPath;
-        } else {
-            $warnings[] = 'Could not create uploaded-files zip archive.';
-        }
-    } else {
-        $warnings[] = 'ZipArchive is not installed; SQL backup was created without uploaded files.';
+    $filesArchivedCount = (int) ($archiveResult['files_count'] ?? 0);
+    $filesArchiveBytes = (int) ($archiveResult['archive_bytes'] ?? 0);
+
+    if (!empty($archiveResult['ok'])) {
+        $includedFilesArchive = $zipPath;
+    } elseif (!empty($archiveResult['warning'])) {
+        $warnings[] = (string) $archiveResult['warning'];
     }
 }
-
-$keepFiles = [$sqlPath, $manifestPath];
-
-if ($includedFilesArchive !== null) {
-    $keepFiles[] = $includedFilesArchive;
-}
-
-$deletedOldFiles = backup_cleanup_old_files($backupDir, $retentionDays, $keepFiles);
 
 $manifest = [
     'created_at' => date('c'),
@@ -195,7 +147,10 @@ $manifest = [
     'database' => app_config('db.database', ''),
     'sql_path' => $sqlPath,
     'files_archive_path' => $includedFilesArchive,
+    'files_archived_count' => $filesArchivedCount,
+    'files_archive_bytes' => $filesArchiveBytes,
     'retention_days' => $retentionDays,
+    'max_backup_sets' => $maxSets,
     'include_uploads' => $includeUploads,
     'table_counts' => $tableCounts,
     'deleted_old_files' => $deletedOldFiles,
@@ -209,5 +164,8 @@ echo json_encode([
     'sql_path' => $sqlPath,
     'manifest_path' => $manifestPath,
     'files_archive_path' => $includedFilesArchive,
+    'files_archived_count' => $filesArchivedCount,
+    'files_archive_bytes' => $filesArchiveBytes,
+    'deleted_old_files_count' => count($deletedOldFiles),
     'warnings' => $warnings,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;

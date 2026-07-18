@@ -325,6 +325,13 @@ function site_setting_schema(): array
                     'help' => 'How long generated backups are kept before old files are cleaned up.',
                     'maxlength' => 3,
                 ],
+                'backup.max_sets' => [
+                    'label' => 'Maximum backup sets',
+                    'default' => '30',
+                    'help' => 'Caps repeated deploy and cron backups so file archives cannot quietly fill the hosting account.',
+                    'type' => 'number',
+                    'maxlength' => 3,
+                ],
                 'backup.include_uploads' => [
                     'label' => 'Include uploaded files in backups',
                     'default' => '1',
