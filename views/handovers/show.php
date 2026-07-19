@@ -44,9 +44,7 @@ $workflowLinePreviewItem = static function (array $line) use ($workflowCatalogIt
 $statusLabel = handover_status_label((string) $handoverRecord['status']);
 $isRequestMode = (string) ($handoverRecord['handover_mode'] ?? 'direct') === 'request';
 $isStorageTransfer = handover_is_storage_transfer($handoverRecord);
-$isSourceOwner = Auth::isOwner()
-    || (int) ($handoverRecord['source_owner_user_id'] ?? 0) === (int) ($currentUser['id'] ?? 0)
-    || (int) ($handoverRecord['created_by'] ?? 0) === (int) ($currentUser['id'] ?? 0);
+$isSourceOwner = handover_is_source_issuer($handoverRecord, $currentUser);
 $canApproveRequest = Auth::hasPermission('handovers.approve')
     && handover_request_decision_block_reason($handoverRecord, $currentUser) === null;
 $canRejectRequest = $canApproveRequest;
@@ -61,10 +59,7 @@ $canClose = Auth::hasPermission('handovers.close')
         (int) ($handoverRecord['recipient_user_id'] ?? 0) === (int) ($currentUser['id'] ?? 0)
         || ($isSourceOwner && empty($handoverRecord['recipient_user_id']))
     );
-$canApproveClose = Auth::hasPermission('handovers.approve')
-    && !$isStorageTransfer
-    && (string) $handoverRecord['status'] === 'pending_approval'
-    && $isSourceOwner;
+$canApproveClose = handover_close_approval_block_reason($handoverRecord, $currentUser) === null;
 $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $currentUser) === null;
 $canOverrideHandoverStatus = Auth::isOwner();
 $handoverStatusOptions = handover_status_options();
@@ -245,7 +240,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <?php elseif ($canReportReceipt): ?>
                         <?= $isStorageTransfer ? 'Confirm Storage Receipt' : 'Confirm Actual Receipt' ?>
                     <?php elseif ($canConfirmReceipt): ?>
-                        <?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Approve Received Quantities' ?>
+                        <?= $isStorageTransfer ? 'Review Transfer Receipt' : 'Issuer Receipt Review' ?>
                     <?php elseif ($canApproveClose): ?>
                         Approve Return To Storage
                     <?php elseif ($canCancelHandover): ?>
@@ -394,11 +389,11 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
             <?php endif; ?>
         <?php elseif ($canConfirmReceipt): ?>
             <div class="copy-context-card">
-                <strong><?= $isStorageTransfer ? 'Approve the transfer shortage' : 'Approve the received quantities' ?></strong>
-                <p><?= $isStorageTransfer ? 'Approving moves reported received stock into the destination storage and returns missing quantity to the source storage.' : 'The quantities below were reported by the recipient. Approval activates the handover and returns any unreceived difference to the source storage.' ?></p>
+                <strong><?= $isStorageTransfer ? 'Review and confirm the transfer receipt' : 'Review and confirm what the receiver actually got' ?></strong>
+                <p><?= $isStorageTransfer ? 'Check every received quantity before closing the transfer. Confirmed stock moves to the destination and the difference returns to source.' : 'The receiver reported these quantities. Correct any number that is wrong, then confirm. The receiver will report returned stock and usage next.' ?></p>
             </div>
 
-            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/confirm-receipt')) ?>" data-live-action-form>
+            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/confirm-receipt')) ?>" data-live-action-form data-handover-receipt-review>
                 <?= csrf_field() ?>
 
                 <div class="table-wrap">
@@ -407,7 +402,8 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                         <tr>
                             <th>Item</th>
                             <th>Planned</th>
-                            <th>Reported Received</th>
+                            <th>Receiver Reported</th>
+                            <th>Issuer Confirmed</th>
                             <th><?= $isStorageTransfer ? 'Short / Returning To Source' : 'Unreceived / Returning To Source' ?></th>
                         </tr>
                         </thead>
@@ -416,6 +412,10 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                             <?php
                             $lineImageUrl = item_image_url($line['image_path'] ?? null);
                             $shortage = round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2);
+                            $oldConfirmedInput = old('line_received', []);
+                            $confirmedValue = is_array($oldConfirmedInput) && array_key_exists((int) $line['id'], $oldConfirmedInput)
+                                ? (string) $oldConfirmedInput[(int) $line['id']]
+                                : format_quantity((float) $line['quantity_received']);
                             ?>
                             <tr>
                                 <td>
@@ -433,14 +433,28 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                                 </td>
                                 <td><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                                 <td><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
-                                <td><?= format_quantity($shortage) ?> <?= e($line['unit']) ?></td>
+                                <td>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="<?= e(format_quantity($line['quantity_handed'])) ?>"
+                                        name="line_received[<?= e((string) $line['id']) ?>]"
+                                        value="<?= e($confirmedValue) ?>"
+                                        aria-label="Issuer confirmed received quantity for <?= e($line['item_name']) ?>"
+                                        data-handover-receipt-confirmed
+                                        data-handover-planned="<?= e(format_quantity($line['quantity_handed'])) ?>"
+                                        required
+                                    >
+                                </td>
+                                <td><strong data-handover-receipt-difference><?= format_quantity($shortage) ?></strong> <?= e($line['unit']) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
 
-                <button class="primary-button" type="submit" data-confirm="<?= $isStorageTransfer ? 'Approve this transfer shortage and close the transfer?' : 'Approve these received quantities and activate this handover?' ?>"><?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Approve Received Quantities' ?></button>
+                <button class="primary-button" type="submit" data-confirm="<?= $isStorageTransfer ? 'Confirm these transfer quantities and close the transfer?' : 'Confirm these received quantities and let the receiver report usage?' ?>"><?= $isStorageTransfer ? 'Confirm Transfer Receipt' : 'Confirm Receipt And Continue' ?></button>
             </form>
 
             <?php if ($canCancelHandover): ?>

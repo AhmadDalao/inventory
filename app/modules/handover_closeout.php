@@ -210,27 +210,15 @@ function handle_handovers_close_submit(array $params): void
 function handle_handovers_approve_submit(array $params): void
 {
     app_ready_or_redirect();
-    Auth::requirePermission('handovers.approve');
+    Auth::requireLogin();
     verify_csrf();
 
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
-    if (handover_is_storage_transfer($handover)) {
-        flash('danger', 'Storage transfers are approved through receipt confirmation, not usage closeout.');
-        redirect('/handovers/' . $handover['id']);
-    }
+    $approvalBlockReason = handover_close_approval_block_reason($handover, $user);
 
-    $isSourceOwner = Auth::isOwner()
-        || (int) ($handover['source_owner_user_id'] ?? 0) === (int) ($user['id'] ?? 0)
-        || (int) ($handover['created_by'] ?? 0) === (int) ($user['id'] ?? 0);
-
-    if (!$isSourceOwner) {
-        flash('danger', 'Only the storage owner can approve this handover.');
-        redirect('/handovers/' . $handover['id']);
-    }
-
-    if (($handover['status'] ?? '') !== 'pending_approval') {
-        flash('danger', 'Only handovers waiting for approval can be approved.');
+    if ($approvalBlockReason !== null) {
+        flash('danger', $approvalBlockReason);
         redirect('/handovers/' . $handover['id']);
     }
 

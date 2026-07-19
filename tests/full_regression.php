@@ -2838,9 +2838,13 @@ $storageTransferShortAdminReviewPage = http_request($baseUrl, $adminCookie, 'GET
 assert_true($storageTransferShortAdminReviewPage['status'] === 200, 'Short storage-transfer detail page did not load for destination owner after shortage report.');
 assert_true(strpos($storageTransferShortAdminReviewPage['body'], 'Approve Transfer Shortage') === false, 'Destination owner should not approve a source shortage.');
 $storageTransferShortOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $storageTransferShortId);
-assert_true($storageTransferShortOwnerPage['status'] === 200 && strpos($storageTransferShortOwnerPage['body'], 'Approve Transfer Shortage') !== false, 'Source owner should see transfer shortage approval controls.');
+assert_true($storageTransferShortOwnerPage['status'] === 200 && strpos($storageTransferShortOwnerPage['body'], 'Review Transfer Receipt') !== false, 'Source owner should see transfer receipt review controls.');
+assert_true(strpos($storageTransferShortOwnerPage['body'], 'Issuer Confirmed') !== false, 'Transfer receipt review is missing issuer quantity confirmation fields.');
 $storageTransferShortConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $storageTransferShortId . '/confirm-receipt', [
     '_token' => extract_csrf($storageTransferShortOwnerPage['body'], 'storage transfer shortage approval'),
+    'line_received' => [
+        (int) $storageTransferShortLines[0]['id'] => '5',
+    ],
 ]);
 assert_true($storageTransferShortConfirm['status'] === 302, 'Short storage-transfer shortage confirmation did not redirect.');
 $storageTransferShortClosed = find_handover_or_abort($storageTransferShortId);
@@ -3175,8 +3179,10 @@ assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], system_storag
 
 $handoverRequestReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
 assert_true($handoverRequestReviewPage['status'] === 200, 'Requested handover receipt review page did not load for owner.');
+assert_true(strpos($handoverRequestReviewPage['body'], 'Issuer Receipt Review') !== false, 'Requested handover is missing issuer receipt review controls.');
 $handoverRequestConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverRequestId . '/confirm-receipt', [
     '_token' => extract_csrf($handoverRequestReviewPage['body']),
+    'line_received' => $handoverRequestReceivePayload['line_received'],
 ]);
 assert_true($handoverRequestConfirm['status'] === 302, 'Requested handover receipt confirmation did not redirect.');
 $handoverRequestDelivered = find_handover_or_abort($handoverRequestId);
@@ -3202,6 +3208,7 @@ assert_true((string) $handoverRequestPending['status'] === 'pending_approval', '
 
 $handoverRequestApproveClosePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
 assert_true($handoverRequestApproveClosePage['status'] === 200, 'Requested handover close approval page did not load for owner.');
+assert_true(strpos($handoverRequestApproveClosePage['body'], 'Owner Final Review') !== false, 'Requested handover is missing issuer final review controls.');
 $handoverRequestApproveClose = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverRequestId . '/approve', [
     '_token' => extract_csrf($handoverRequestApproveClosePage['body']),
     'closed_notes' => $prefix . ' handover request approved',
@@ -3249,9 +3256,17 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('h
 
 $exactReceiptOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
 assert_true($exactReceiptOwnerPage['status'] === 200, 'Exact receipt review did not load for source owner.');
-assert_true(strpos($exactReceiptOwnerPage['body'], 'Approve Received Quantities') !== false, 'Source owner is missing the exact receipt approval action.');
-$exactReceiptConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/confirm-receipt', [
+assert_true(strpos($exactReceiptOwnerPage['body'], 'Issuer Receipt Review') !== false, 'Source owner is missing the exact receipt review action.');
+assert_true(strpos($exactReceiptOwnerPage['body'], 'Issuer Confirmed') !== false, 'Source owner is missing editable receipt quantity fields.');
+$exactReceiptBlindConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/confirm-receipt', [
     '_token' => extract_csrf($exactReceiptOwnerPage['body']),
+]);
+assert_true($exactReceiptBlindConfirm['status'] === 302, 'Blind receipt confirmation validation did not redirect.');
+assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'receipt_review', 'Receipt confirmation must not accept a blind approval without confirmed quantities.');
+$exactReceiptOwnerConfirmPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
+$exactReceiptConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/confirm-receipt', [
+    '_token' => extract_csrf($exactReceiptOwnerConfirmPage['body']),
+    'line_received' => [(int) $exactReceiptLine['id'] => '3'],
 ]);
 assert_true($exactReceiptConfirm['status'] === 302, 'Exact receipt owner approval did not redirect.');
 assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'delivered', 'Exact receipt should become delivered only after source owner approval.');
@@ -3267,6 +3282,7 @@ assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] =
 $exactReceiptReopenedPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
 $exactReceiptReconfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/confirm-receipt', [
     '_token' => extract_csrf($exactReceiptReopenedPage['body']),
+    'line_received' => [(int) $exactReceiptLine['id'] => '3'],
 ]);
 assert_true($exactReceiptReconfirm['status'] === 302, 'Reopened receipt approval did not redirect.');
 assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'delivered', 'Reopened receipt should return to delivered after approval.');
@@ -3501,15 +3517,26 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSourc
 
 $handoverPageForOwnerReceiptReview = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
 assert_true($handoverPageForOwnerReceiptReview['status'] === 200, 'Handover receipt review page did not load for owner.');
+assert_true(strpos($handoverPageForOwnerReceiptReview['body'], 'Issuer Receipt Review') !== false, 'Handover receipt review is missing the issuer review heading.');
+assert_true(strpos($handoverPageForOwnerReceiptReview['body'], 'Issuer Confirmed') !== false, 'Handover receipt review is missing editable issuer quantities.');
 $handoverConfirmReceiptToken = extract_csrf($handoverPageForOwnerReceiptReview['body']);
+$handoverIssuerConfirmedReceipt = $handoverReceivePayload['line_received'];
+
+foreach ($handoverLines as $line) {
+    if ((int) $line['item_id'] === (int) $handoverItems[0]['id']) {
+        $handoverIssuerConfirmedReceipt[(int) $line['id']] = '17';
+    }
+}
+
 $handoverConfirmReceipt = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/confirm-receipt', [
     '_token' => $handoverConfirmReceiptToken,
+    'line_received' => $handoverIssuerConfirmedReceipt,
 ]);
 assert_true($handoverConfirmReceipt['status'] === 302, 'Handover receipt review confirmation did not redirect.');
 
 $handoverDeliveredRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverDeliveredRecord['status'] === 'delivered', 'Handover should become delivered after receipt review confirmation.');
-assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 18, 2), 'Handover source balance is wrong after receipt review confirmation.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 17, 2), 'Handover source balance did not use the issuer-confirmed receipt quantity.');
 $handoverDeliveredLines = handover_lines($handoverId);
 
 $handoverClosePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
@@ -3565,6 +3592,9 @@ assert_true((string) $handoverPendingRecord['status'] === 'pending_approval', 'H
 
 $handoverPageForOwner = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
 assert_true($handoverPageForOwner['status'] === 200, 'Handover detail page did not load for owner approval.');
+assert_true(strpos($handoverPageForOwner['body'], 'Owner Final Review') !== false, 'Issuer final approval is missing the editable review form.');
+assert_true(strpos($handoverPageForOwner['body'], 'Confirmed Returned') !== false, 'Issuer final approval is missing returned quantity correction fields.');
+assert_true(strpos($handoverPageForOwner['body'], 'Owner Final Usage') !== false, 'Issuer final approval is missing usage reason correction fields.');
 $handoverPreApprovalSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverId]);
 assert_true($handoverPreApprovalSignoffExcelDocumentId > $handoverSignoffExcelDocumentId, 'Handover sign-off XLSX was not regenerated after staff submitted used quantities.');
 $handoverApproveToken = extract_csrf($handoverPageForOwner['body']);

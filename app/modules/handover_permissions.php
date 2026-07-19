@@ -146,6 +146,32 @@ function handover_can_report_receipt(array $handover, ?array $user = null): bool
     return (int) ($handover['recipient_user_id'] ?? 0) === (int) ($user['id'] ?? 0);
 }
 
+function handover_is_source_issuer(array $handover, ?array $user = null): bool
+{
+    $user = $user ?? Auth::user();
+
+    if ($user === null) {
+        return false;
+    }
+
+    if (Auth::isOwner()) {
+        return true;
+    }
+
+    $userId = (int) ($user['id'] ?? 0);
+
+    if ((int) ($handover['source_owner_user_id'] ?? 0) === $userId) {
+        return true;
+    }
+
+    if ((string) ($handover['handover_mode'] ?? 'direct') === 'request') {
+        return (int) ($handover['approver_user_id'] ?? 0) === $userId
+            || (int) ($handover['request_approved_by'] ?? 0) === $userId;
+    }
+
+    return (int) ($handover['created_by'] ?? 0) === $userId;
+}
+
 function handover_receipt_confirm_block_reason(array $handover, ?array $user = null): ?string
 {
     $user = $user ?? Auth::user();
@@ -159,21 +185,38 @@ function handover_receipt_confirm_block_reason(array $handover, ?array $user = n
     }
 
     if (handover_is_storage_transfer($handover)) {
-        $userId = (int) ($user['id'] ?? 0);
-        $isSourceOwner = (int) ($handover['source_owner_user_id'] ?? 0) === $userId
-            || (int) ($handover['approver_user_id'] ?? 0) === $userId;
-
-        if (!Auth::isOwner() && !$isSourceOwner) {
+        if (!handover_is_source_issuer($handover, $user)) {
             return 'Only the source storage owner can confirm this transfer shortage.';
         }
 
         return null;
     }
 
-    if (!Auth::isOwner()
-        && (int) ($handover['source_owner_user_id'] ?? 0) !== (int) ($user['id'] ?? 0)
-        && (int) ($handover['created_by'] ?? 0) !== (int) ($user['id'] ?? 0)) {
-        return 'Only the storage owner can confirm the reported receipt quantity.';
+    if (!handover_is_source_issuer($handover, $user)) {
+        return 'Only the issuing storage owner can confirm the reported receipt quantity.';
+    }
+
+    return null;
+}
+
+function handover_close_approval_block_reason(array $handover, ?array $user = null): ?string
+{
+    $user = $user ?? Auth::user();
+
+    if ($user === null) {
+        return 'Login first.';
+    }
+
+    if (handover_is_storage_transfer($handover)) {
+        return 'Storage transfers close through receipt confirmation, not usage closeout.';
+    }
+
+    if ((string) ($handover['status'] ?? '') !== 'pending_approval') {
+        return 'Only handovers waiting for final approval can be approved.';
+    }
+
+    if (!handover_is_source_issuer($handover, $user)) {
+        return 'Only the issuing storage owner can review and approve this handover.';
     }
 
     return null;

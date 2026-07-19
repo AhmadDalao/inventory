@@ -2225,6 +2225,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const initHandoverReceiptReviews = (root = document) => {
+    root.querySelectorAll('[data-handover-receipt-review]').forEach((form) => {
+      if (!(form instanceof HTMLFormElement) || form.dataset.handoverReceiptReviewBound === 'true') {
+        return;
+      }
+
+      form.dataset.handoverReceiptReviewBound = 'true';
+      form.querySelectorAll('[data-handover-receipt-confirmed]').forEach((field) => {
+        if (!(field instanceof HTMLInputElement)) {
+          return;
+        }
+
+        const row = field.closest('tr');
+        const difference = row?.querySelector('[data-handover-receipt-difference]');
+
+        const syncDifference = () => {
+          const planned = Math.max(0, parseNumber(field.dataset.handoverPlanned || '0'));
+          const confirmed = parseNumber(field.value);
+          const invalid = confirmed < 0 || confirmed > planned;
+          const shortage = Math.max(0, Math.round((planned - Math.max(0, confirmed)) * 100) / 100);
+
+          field.classList.toggle('is-invalid', invalid);
+
+          if (difference instanceof HTMLElement) {
+            difference.textContent = formatQuantity(shortage);
+          }
+        };
+
+        field.addEventListener('input', syncDifference);
+        field.addEventListener('change', syncDifference);
+        syncDifference();
+      });
+    });
+  };
+
   const initTableShell = (shellElement) => {
     if (shellElement.dataset.jsBound === 'true') {
       return;
@@ -8221,6 +8256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLiveActionForms(root);
     initHandoverCloseForms(root);
     initHandoverApprovalForms(root);
+    initHandoverReceiptReviews(root);
     initMovementForm(root);
     initLiveFilters(root);
     initLabelPrintSelection(root);

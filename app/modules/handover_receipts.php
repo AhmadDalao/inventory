@@ -237,20 +237,41 @@ function handle_handovers_confirm_receipt_submit(array $params): void
     }
 
     $lines = handover_lines((int) $handover['id']);
+    [$receiptUpdates, $receiptErrors] = build_handover_receipt_updates($lines, input('line_received', []));
+
+    if ($receiptErrors !== []) {
+        $message = implode(' ', array_unique($receiptErrors));
+
+        if (request_wants_json()) {
+            json_response([
+                'ok' => false,
+                'message' => $message,
+            ], 422);
+        }
+
+        flash_errors($receiptErrors);
+        redirect('/handovers/' . $handover['id']);
+    }
+
     $bufferStorageId = system_storage_id('handover_buffer');
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
     try {
-        if ($isStorageTransfer) {
-            $receiptUpdates = array_map(static fn (array $line): array => [
-                'line_id' => (int) $line['id'],
-                'item_id' => (int) $line['item_id'],
-                'handed' => round((float) $line['quantity_handed'], 2),
-                'received' => round((float) $line['quantity_received'], 2),
-                'shortage' => max(0, round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2)),
-            ], $lines);
+        foreach ($receiptUpdates as $update) {
+            Database::execute(
+                'UPDATE handover_lines
+                 SET quantity_received = :quantity_received,
+                     updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'quantity_received' => (float) $update['received'],
+                    'id' => (int) $update['line_id'],
+                ]
+            );
+        }
 
+        if ($isStorageTransfer) {
             finalize_handover_storage_transfer_inventory($handover, $receiptUpdates, (int) $user['id']);
 
             Database::execute(
@@ -274,16 +295,14 @@ function handle_handovers_confirm_receipt_submit(array $params): void
                 ]
             );
         } else {
-            foreach ($lines as $line) {
-                $received = round((float) $line['quantity_received'], 2);
-                $planned = round((float) $line['quantity_handed'], 2);
-                $shortage = round($planned - $received, 2);
+            foreach ($receiptUpdates as $update) {
+                $shortage = round((float) $update['shortage'], 2);
 
                 if ($shortage <= 0) {
                     continue;
                 }
 
-                $item = find_item_or_abort((int) $line['item_id']);
+                $item = find_item_or_abort((int) $update['item_id']);
 
                 apply_inventory_movement(
                     $item,
