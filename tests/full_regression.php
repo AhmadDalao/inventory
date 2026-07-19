@@ -3211,6 +3211,76 @@ $handoverRequestClosed = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestClosed['status'] === 'closed', 'Requested handover should close after owner approval.');
 assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === round($initialHandoverRequestItemOneQuantity - 3, 2), 'Requested handover source balance is wrong after close approval.');
 
+note('Exact staff receipts still require source owner approval.');
+$exactReceiptSourceBefore = balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']);
+$exactReceiptBufferBefore = balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer'));
+$exactReceiptCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+assert_true($exactReceiptCreatePage['status'] === 200, 'Exact-receipt handover create page did not load.');
+$exactReceiptCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($exactReceiptCreatePage['body']),
+    'source_storage_id' => $handoverSource['id'],
+    'recipient_name' => $prefix . ' Exact Receipt',
+    'recipient_user_id' => $staff['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+2 day')),
+    'notes' => $prefix . ' exact receipt approval workflow',
+    'line_item_id' => [(int) $handoverItems[0]['id']],
+    'line_quantity' => ['3'],
+]);
+assert_true($exactReceiptCreate['status'] === 302, 'Exact-receipt handover create did not redirect.');
+$exactReceiptHandoverId = first_redirect_id($exactReceiptCreate['location'], '/handovers');
+$exactReceiptHandover = find_handover_or_abort($exactReceiptHandoverId);
+assert_true((string) $exactReceiptHandover['status'] === 'awaiting_receipt', 'Exact-receipt handover should wait for recipient confirmation.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($exactReceiptSourceBefore - 3, 2), 'Exact-receipt handover should reserve source stock.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($exactReceiptBufferBefore + 3, 2), 'Exact-receipt handover should move stock into the handover buffer.');
+
+$exactReceiptStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
+assert_true($exactReceiptStaffPage['status'] === 200, 'Exact-receipt handover did not load for recipient.');
+$exactReceiptLine = handover_lines($exactReceiptHandoverId)[0];
+$exactReceiptReport = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/receive', [
+    '_token' => extract_csrf($exactReceiptStaffPage['body']),
+    'receipt_notes' => $prefix . ' exact quantity received',
+    'line_received' => [(int) $exactReceiptLine['id'] => '3'],
+]);
+assert_true($exactReceiptReport['status'] === 302, 'Exact receipt report did not redirect.');
+$exactReceiptReview = find_handover_or_abort($exactReceiptHandoverId);
+assert_true((string) $exactReceiptReview['status'] === 'receipt_review', 'Exact staff receipt must wait for source owner approval.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($exactReceiptSourceBefore - 3, 2), 'Exact receipt report must not change source stock before owner approval.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($exactReceiptBufferBefore + 3, 2), 'Exact receipt report must keep reserved stock in the buffer before owner approval.');
+
+$exactReceiptOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
+assert_true($exactReceiptOwnerPage['status'] === 200, 'Exact receipt review did not load for source owner.');
+assert_true(strpos($exactReceiptOwnerPage['body'], 'Approve Received Quantities') !== false, 'Source owner is missing the exact receipt approval action.');
+$exactReceiptConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/confirm-receipt', [
+    '_token' => extract_csrf($exactReceiptOwnerPage['body']),
+]);
+assert_true($exactReceiptConfirm['status'] === 302, 'Exact receipt owner approval did not redirect.');
+assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'delivered', 'Exact receipt should become delivered only after source owner approval.');
+
+$exactReceiptDeliveredPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
+$exactReceiptReopenReview = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/status-override', [
+    '_token' => extract_csrf($exactReceiptDeliveredPage['body'], 'exact receipt status correction'),
+    'target_status' => 'receipt_review',
+    'status_notes' => $prefix . ' reopen legacy delivered receipt for owner review',
+]);
+assert_true($exactReceiptReopenReview['status'] === 302, 'Owner receipt-review status correction did not redirect.');
+assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'receipt_review', 'Owner should be able to reopen an untouched delivered receipt for review.');
+$exactReceiptReopenedPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
+$exactReceiptReconfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/confirm-receipt', [
+    '_token' => extract_csrf($exactReceiptReopenedPage['body']),
+]);
+assert_true($exactReceiptReconfirm['status'] === 302, 'Reopened receipt approval did not redirect.');
+assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'delivered', 'Reopened receipt should return to delivered after approval.');
+
+$exactReceiptCancelPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
+$exactReceiptCancel = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/cancel', [
+    '_token' => extract_csrf($exactReceiptCancelPage['body'], 'exact receipt cleanup'),
+    'cancelled_notes' => $prefix . ' exact receipt workflow cleanup',
+]);
+assert_true($exactReceiptCancel['status'] === 302, 'Exact-receipt handover cleanup did not redirect.');
+assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] === 'cancelled', 'Exact-receipt handover cleanup should cancel the record.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === $exactReceiptSourceBefore, 'Exact-receipt cleanup should restore source stock.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === $exactReceiptBufferBefore, 'Exact-receipt cleanup should clear buffer stock.');
+
 note('Cancelling an issued handover returns reserved stock.');
 $cancelHandoverSourceBefore = balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']);
 $cancelHandoverBufferBefore = balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer'));

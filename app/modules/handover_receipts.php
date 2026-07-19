@@ -133,14 +133,13 @@ function handle_handovers_receive_submit(array $params): void
         } else {
             Database::execute(
                 'UPDATE handovers
-                 SET status = :status,
+                 SET status = "receipt_review",
                      receipt_notes = :receipt_notes,
                      receipt_reported_at = NOW(),
                      updated_by = :updated_by,
                      updated_at = NOW()
                  WHERE id = :id',
                 [
-                    'status' => $hasVariance ? 'receipt_review' : 'delivered',
                     'receipt_notes' => $receiptNotes !== '' ? $receiptNotes : null,
                     'updated_by' => (int) $user['id'],
                     'id' => (int) $handover['id'],
@@ -184,17 +183,15 @@ function handle_handovers_receive_submit(array $params): void
     if (!empty($handover['source_owner_user_id'])) {
         create_notification(
             (int) $handover['source_owner_user_id'],
-            $hasVariance ? 'handover_receipt_review' : 'handover_received',
-            $hasVariance
-                ? 'Handover ' . $handover['handover_number'] . ' needs receipt review'
-                : 'Handover ' . $handover['handover_number'] . ' was received',
+            $isStorageTransfer && !$hasVariance ? 'handover_received' : 'handover_receipt_review',
+            $isStorageTransfer && !$hasVariance
+                ? 'Handover ' . $handover['handover_number'] . ' was received'
+                : 'Handover ' . $handover['handover_number'] . ' needs receipt review',
             $isStorageTransfer
                 ? ($hasVariance
                     ? ($user['name'] ?? 'Destination owner') . ' reported a transfer shortage and is waiting for source owner confirmation.'
                     : ($user['name'] ?? 'Destination owner') . ' confirmed the transfer receipt and stock moved to the destination storage.')
-                : ($hasVariance
-                    ? ($user['name'] ?? 'Recipient') . ' reported the actual received quantity and is waiting for your confirmation.'
-                    : ($user['name'] ?? 'Recipient') . ' confirmed the delivered quantity and can now track usage.'),
+                : ($user['name'] ?? 'Recipient') . ' reported the actual received quantity and is waiting for your confirmation.',
             url('/handovers/' . $handover['id']),
             'handover',
             (int) $handover['id'],
@@ -209,9 +206,7 @@ function handle_handovers_receive_submit(array $params): void
                 ? ($hasVariance
                     ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
                     : 'Transfer received and closed.')
-                : ($hasVariance
-                    ? 'Receipt report saved. Waiting for the storage owner to confirm the shortage.'
-                    : 'Receipt confirmed. You can now track usage and returns.'),
+                : 'Receipt report saved. Waiting for the storage owner to approve the received quantities.',
             'redirect_url' => url('/handovers/' . $handover['id']),
         ]);
     }
@@ -220,9 +215,7 @@ function handle_handovers_receive_submit(array $params): void
         ? ($hasVariance
             ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
             : 'Transfer received and closed.')
-        : ($hasVariance
-            ? 'Receipt report saved. Waiting for the storage owner to confirm the shortage.'
-            : 'Receipt confirmed. You can now track usage and returns.'));
+        : 'Receipt report saved. Waiting for the storage owner to approve the received quantities.');
     redirect('/handovers/' . $handover['id']);
 }
 
@@ -235,10 +228,6 @@ function handle_handovers_confirm_receipt_submit(array $params): void
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
     $isStorageTransfer = handover_is_storage_transfer($handover);
-    if (!$isStorageTransfer && !Auth::hasPermission('handovers.approve')) {
-        flash('danger', 'You do not have access to that area.');
-        redirect('/handovers/' . $handover['id']);
-    }
 
     $receiptConfirmBlockReason = handover_receipt_confirm_block_reason($handover, $user);
 
@@ -363,13 +352,13 @@ function handle_handovers_confirm_receipt_submit(array $params): void
             'ok' => true,
             'message' => $isStorageTransfer
                 ? 'Transfer shortage approved and closed.'
-                : 'Receipt discrepancy approved. The handover is now active.',
+                : 'Received quantities approved. The handover is now active.',
             'redirect_url' => url('/handovers/' . $handover['id']),
         ]);
     }
 
     flash('success', $isStorageTransfer
         ? 'Transfer shortage approved and closed.'
-        : 'Receipt discrepancy approved. The handover is now active.');
+        : 'Received quantities approved. The handover is now active.');
     redirect('/handovers/' . $handover['id']);
 }

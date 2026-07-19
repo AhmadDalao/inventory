@@ -51,8 +51,7 @@ $canApproveRequest = Auth::hasPermission('handovers.approve')
     && handover_request_decision_block_reason($handoverRecord, $currentUser) === null;
 $canRejectRequest = $canApproveRequest;
 $canCancelHandover = handover_cancel_block_reason($handoverRecord, $currentUser) === null;
-$canConfirmReceipt = handover_receipt_confirm_block_reason($handoverRecord, $currentUser) === null
-    && ($isStorageTransfer || Auth::hasPermission('handovers.approve'));
+$canConfirmReceipt = handover_receipt_confirm_block_reason($handoverRecord, $currentUser) === null;
 $canReportReceipt = handover_can_report_receipt($handoverRecord, $currentUser)
     && !$canConfirmReceipt;
 $canClose = Auth::hasPermission('handovers.close')
@@ -246,7 +245,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <?php elseif ($canReportReceipt): ?>
                         <?= $isStorageTransfer ? 'Confirm Storage Receipt' : 'Confirm Actual Receipt' ?>
                     <?php elseif ($canConfirmReceipt): ?>
-                        <?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Review Receipt Difference' ?>
+                        <?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Approve Received Quantities' ?>
                     <?php elseif ($canApproveClose): ?>
                         Approve Return To Storage
                     <?php elseif ($canCancelHandover): ?>
@@ -306,7 +305,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
         <?php elseif ($canReportReceipt): ?>
             <div class="copy-context-card">
                 <strong><?= $isStorageTransfer ? 'Confirm what arrived into destination storage' : 'Report the exact quantity you got' ?></strong>
-                <p><?= $isStorageTransfer ? 'Full receipt closes the transfer and moves stock into the destination storage. Short receipt waits for source owner confirmation.' : 'If anything arrived short, submit the real number. The storage owner will confirm the shortage before this handover becomes active.' ?></p>
+                <p><?= $isStorageTransfer ? 'Full receipt closes the transfer and moves stock into the destination storage. Short receipt waits for source owner confirmation.' : 'Submit the exact quantity received. The storage owner must approve it before this handover becomes active.' ?></p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/receive')) ?>" enctype="multipart/form-data" data-live-action-form>
@@ -395,8 +394,8 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
             <?php endif; ?>
         <?php elseif ($canConfirmReceipt): ?>
             <div class="copy-context-card">
-                <strong><?= $isStorageTransfer ? 'Approve the transfer shortage' : 'Approve the reported shortage' ?></strong>
-                <p><?= $isStorageTransfer ? 'Approving moves reported received stock into the destination storage and returns missing quantity to the source storage.' : 'The quantities below were reported by the recipient. Approving this will return the missing difference back to the source storage and activate the handover.' ?></p>
+                <strong><?= $isStorageTransfer ? 'Approve the transfer shortage' : 'Approve the received quantities' ?></strong>
+                <p><?= $isStorageTransfer ? 'Approving moves reported received stock into the destination storage and returns missing quantity to the source storage.' : 'The quantities below were reported by the recipient. Approval activates the handover and returns any unreceived difference to the source storage.' ?></p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/confirm-receipt')) ?>" data-live-action-form>
@@ -409,7 +408,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                             <th>Item</th>
                             <th>Planned</th>
                             <th>Reported Received</th>
-                            <th><?= $isStorageTransfer ? 'Short / Returning To Source' : 'Returning' ?></th>
+                            <th><?= $isStorageTransfer ? 'Short / Returning To Source' : 'Unreceived / Returning To Source' ?></th>
                         </tr>
                         </thead>
                         <tbody>
@@ -441,7 +440,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     </table>
                 </div>
 
-                <button class="primary-button" type="submit" data-confirm="<?= $isStorageTransfer ? 'Approve this transfer shortage and close the transfer?' : 'Approve the reported receipt difference and activate this handover?' ?>"><?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Approve Receipt Difference' ?></button>
+                <button class="primary-button" type="submit" data-confirm="<?= $isStorageTransfer ? 'Approve this transfer shortage and close the transfer?' : 'Approve these received quantities and activate this handover?' ?>"><?= $isStorageTransfer ? 'Approve Transfer Shortage' : 'Approve Received Quantities' ?></button>
             </form>
 
             <?php if ($canCancelHandover): ?>
@@ -835,7 +834,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 <?php elseif ((string) $handoverRecord['status'] === 'awaiting_receipt'): ?>
                     <?= $isStorageTransfer ? 'This storage transfer is waiting for the destination storage owner to confirm what arrived.' : 'This handover is waiting for the recipient to confirm what actually arrived.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'receipt_review'): ?>
-                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported shortage.' : 'This handover is waiting for the storage owner to confirm the reported shortage.' ?>
+                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported shortage.' : 'This handover is waiting for the storage owner to approve the received quantities.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'pending_approval'): ?>
                     This handover is waiting for the storage owner to approve the remaining quantity.
                 <?php elseif ((string) $handoverRecord['status'] === 'rejected'): ?>

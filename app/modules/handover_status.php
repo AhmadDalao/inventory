@@ -147,7 +147,23 @@ function handover_status_override_block_reason(array $handover, array $lines, st
     }
 
     if ($targetStatus === 'receipt_review') {
-        return 'Receipt Review needs actual received quantities. Use the receipt form, or override to Delivered if everything was received.';
+        if (handover_is_storage_transfer($handover)) {
+            return 'Storage transfers enter Receipt Review through the destination receipt form when a shortage is reported.';
+        }
+
+        if ($currentStatus !== 'delivered') {
+            return 'Only a delivered staff handover can be reopened for receipt approval.';
+        }
+
+        if (empty($handover['receipt_reported_at'])) {
+            return 'Receipt Review needs actual received quantities from the recipient.';
+        }
+
+        if (handover_lines_have_close_quantities($lines)) {
+            return 'This handover already has usage or returned quantities. Reopen the closeout instead of the receipt.';
+        }
+
+        return null;
     }
 
     if ((string) ($handover['handover_mode'] ?? 'direct') !== 'request' && in_array($targetStatus, ['requested', 'rejected'], true)) {
@@ -451,6 +467,7 @@ function apply_handover_status_override(array $handover, array $lines, string $t
     $timestampSql = [
         'requested' => 'receipt_reported_at = NULL, submitted_at = NULL, submitted_by = NULL, approved_at = NULL, approved_by = NULL, completed_at = NULL, completed_by = NULL, request_rejected_at = NULL, cancelled_at = NULL',
         'awaiting_receipt' => 'request_approved_at = COALESCE(request_approved_at, NOW()), request_approved_by = COALESCE(request_approved_by, ' . $actorIdSql . '), issued_at = COALESCE(issued_at, NOW()), receipt_reported_at = NULL, submitted_at = NULL, submitted_by = NULL, approved_at = NULL, approved_by = NULL, completed_at = NULL, completed_by = NULL, request_rejected_at = NULL, cancelled_at = NULL',
+        'receipt_review' => 'receipt_reported_at = COALESCE(receipt_reported_at, NOW()), submitted_at = NULL, submitted_by = NULL, approved_at = NULL, approved_by = NULL, completed_at = NULL, completed_by = NULL, cancelled_at = NULL',
         'delivered' => 'request_approved_at = COALESCE(request_approved_at, NOW()), request_approved_by = COALESCE(request_approved_by, ' . $actorIdSql . '), issued_at = COALESCE(issued_at, NOW()), receipt_reported_at = COALESCE(receipt_reported_at, NOW()), submitted_at = NULL, submitted_by = NULL, approved_at = NULL, approved_by = NULL, completed_at = NULL, completed_by = NULL, request_rejected_at = NULL, cancelled_at = NULL',
         'pending_approval' => 'submitted_at = COALESCE(submitted_at, NOW()), submitted_by = COALESCE(submitted_by, ' . $actorIdSql . '), approved_at = NULL, approved_by = NULL, completed_at = NULL, completed_by = NULL, cancelled_at = NULL',
         'closed' => 'submitted_at = COALESCE(submitted_at, NOW()), submitted_by = COALESCE(submitted_by, ' . $actorIdSql . '), approved_at = NOW(), approved_by = ' . $actorIdSql . ', completed_at = NOW(), completed_by = ' . $actorIdSql . ', cancelled_at = NULL',
