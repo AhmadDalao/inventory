@@ -2508,7 +2508,10 @@ $bulkDocumentDelete = http_request(
 assert_true(
     $bulkDocumentDelete['status'] === 302
         && location_matches($bulkDocumentDelete['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
-    'Draft purchase document delete did not redirect to the purchase.'
+    'Draft purchase document delete did not redirect to the purchase. Status='
+        . $bulkDocumentDelete['status']
+        . ', Location='
+        . ($bulkDocumentDelete['location'] ?? 'none')
 );
 assert_true(
     (int) Database::scalar(
