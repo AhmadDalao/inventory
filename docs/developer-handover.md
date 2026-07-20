@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-17
+Updated: 2026-07-20
 
 ## 1. What This System Is
 
@@ -27,6 +27,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/Maintenance.php` is the schema/bootstrap orchestrator. Boot setup, reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
+- The current manifest contains 11 domain groups and 146 focused modules.
 
 Do not add new code to these compatibility loaders:
 
@@ -352,13 +353,14 @@ Handovers have two target modes:
 Staff-use cycle:
 
 1. Admin/storage owner creates the handover and optional expected usage plan.
-2. Receiver confirms exact quantity received.
-3. Receiver enters returned quantity first.
-4. System calculates used quantity.
-5. Receiver optionally splits used quantity by reason.
-6. Owner reviews, corrects if needed, and approves.
-7. Stock movements post on owner approval.
-8. PDF/XLSX signoff is regenerated for the final record.
+2. Receiver reports the exact quantity received.
+3. Every receipt report, including an exact receipt, enters Receipt Review.
+4. The source issuer opens editable per-line receipt controls, corrects quantities if needed, and confirms the receipt. Blind approval without submitted quantities is rejected.
+5. After issuer confirmation, the handover becomes Delivered.
+6. Receiver enters returned quantity first.
+7. System calculates used quantity as `received - returned`, then the receiver optionally splits used quantity by reason.
+8. The source issuer performs the final editable review, can correct returned quantity and usage reasons, and approves the closeout.
+9. Usage and return movements post only at issuer approval, then PDF/XLSX signoff is regenerated.
 
 Storage-transfer cycle:
 
@@ -388,6 +390,12 @@ Owner has full access. Admin access is controlled by permission flags and positi
 
 Status override must stay limited to owner/super admin because it can change workflow state outside the normal cycle.
 
+Default admin purchase boundaries are intentional:
+
+- A default admin without `purchases.files` cannot delete protected purchase documents.
+- A default admin without `purchases.cancel` cannot cancel a purchase draft.
+- Owner accounts can perform both actions, and the regression suite verifies the denied and allowed paths separately.
+
 ## 7. Local Setup
 
 1. Copy `.env.example` to `.env`.
@@ -412,6 +420,7 @@ find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
 php tests/module_boundaries.php
 php tests/frontend_assets.php
+php tests/backup_archive.php
 git diff --check
 ```
 
@@ -534,7 +543,20 @@ Frontend assets now load through `app/modules/frontend_assets.php`. `views/layou
 
 ## 13. Verification Notes
 
-Latest modular-refactor verification should include:
+Verified production checkpoint on July 20, 2026:
+
+- Application commit: `7b16698` (`Verify purchase permission boundaries`), deployed from `main`.
+- Backup SQL: `storage/backups/inventory-backup-20260720-111638.sql`.
+- Backup manifest: `storage/backups/inventory-backup-20260720-111638.manifest.json`.
+- Backup files archive: `storage/backups/inventory-backup-20260720-111638.files.zip`.
+- Backup archived 14,700 files totaling 1,604,088,094 bytes with no warnings.
+- Local PHP lint, `node --check assets/app.js`, `git diff --check`, module boundaries, frontend assets, and backup archive checks passed.
+- Live regression prefix `ZZCYCLE20260720E` passed and cleaned its temporary records.
+- Stock invariants passed before the live regression and again after cleanup.
+- The live regression covered auth, users, permissions, settings, dashboard, inventory, scan/manual stock, requests, staff handovers, storage-transfer handovers, issuer receipt review, issuer final review, purchases, protected document permissions, suppliers, OCR, reorder, assets, stocktakes, labels, files, reports, exports, audit, and email logs.
+- Two early purchase test failures were incorrect test assumptions, not product failures: default admins correctly lacked `purchases.files` and `purchases.cancel`. The tests now prove denied default-admin behavior and allowed owner behavior.
+
+Use this verification sequence for the next deployment:
 
 ```bash
 php -l index.php
@@ -542,6 +564,7 @@ find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
 php tests/module_boundaries.php
 php tests/frontend_assets.php
+php tests/backup_archive.php
 php tests/full_regression.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMODULARYYYYMMDD
 php tests/stock_invariants.php
 ```
@@ -552,8 +575,8 @@ If the full regression runs on live, run `php scripts/backup.php` first and use 
 
 Recommended order:
 
-1. Add automated export/filter parity tests across all modules.
-2. Continue mobile field-work polish for handover, scan/manual stock add, assets, and movement tables.
+1. Continue mobile field-work polish for handover, scan/manual stock add, assets, and movement tables.
+2. Keep extending export/filter parity tests whenever a filter or export changes.
 3. Harden OCR review for Arabic scanned PDFs with confidence warnings and optional OpenAI fallback.
-4. Split `assets/app.js` into frontend domain files after the PHP and CSS split stay stable in production.
-5. Consider moving plain functions into classes only after the module split has been stable in production.
+4. Exercise saved report presets with real daily operations, finance, storage-owner, purchase, and asset workflows.
+5. Split `assets/app.js` into frontend domain files only after the current PHP/CSS architecture remains stable in production.

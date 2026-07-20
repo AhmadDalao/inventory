@@ -9,6 +9,8 @@ This is no longer a tiny CRUD app. The current application tracks consumable sto
 Start here:
 
 - [Developer handover](docs/developer-handover.md)
+- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-20.docx)
+- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-20.docx)
 - Production URL: `https://inventory.ahmaddalao.com`
 - Live app path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
 - Main branch: `main`
