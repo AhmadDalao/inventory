@@ -300,7 +300,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
         <?php elseif ($canReportReceipt): ?>
             <div class="copy-context-card">
                 <strong><?= $isStorageTransfer ? 'Confirm what arrived into destination storage' : 'Report the exact quantity you got' ?></strong>
-                <p><?= $isStorageTransfer ? 'Full receipt closes the transfer and moves stock into the destination storage. Short receipt waits for source owner confirmation.' : 'Submit the exact quantity received. The storage owner must approve it before this handover becomes active.' ?></p>
+                <p><?= $isStorageTransfer ? 'Full receipt closes the transfer and moves stock into the destination storage. Short receipt waits for source owner confirmation.' : 'Confirm the exact quantity received. A full receipt starts usage reporting immediately; only a difference waits for issuer review.' ?></p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/receive')) ?>" enctype="multipart/form-data" data-live-action-form>
@@ -848,7 +848,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 <?php elseif ((string) $handoverRecord['status'] === 'awaiting_receipt'): ?>
                     <?= $isStorageTransfer ? 'This storage transfer is waiting for the destination storage owner to confirm what arrived.' : 'This handover is waiting for the recipient to confirm what actually arrived.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'receipt_review'): ?>
-                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported shortage.' : 'This handover is waiting for the storage owner to approve the received quantities.' ?>
+                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported shortage.' : 'This handover has a reported receipt difference and is waiting for the issuer to review it.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'pending_approval'): ?>
                     This handover is waiting for the storage owner to approve the remaining quantity.
                 <?php elseif ((string) $handoverRecord['status'] === 'rejected'): ?>

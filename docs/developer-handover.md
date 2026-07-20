@@ -354,13 +354,12 @@ Staff-use cycle:
 
 1. Admin/storage owner creates the handover and optional expected usage plan.
 2. Receiver reports the exact quantity received.
-3. Every receipt report, including an exact receipt, enters Receipt Review.
-4. The source issuer opens editable per-line receipt controls, corrects quantities if needed, and confirms the receipt. Blind approval without submitted quantities is rejected.
-5. After issuer confirmation, the handover becomes Delivered.
-6. Receiver enters returned quantity first.
-7. System calculates used quantity as `received - returned`, then the receiver optionally splits used quantity by reason.
-8. The source issuer performs the final editable review, can correct returned quantity and usage reasons, and approves the closeout.
-9. Usage and return movements post only at issuer approval, then PDF/XLSX signoff is regenerated.
+3. If every received quantity matches what was issued, the handover becomes Delivered immediately and the receiver can start usage reporting.
+4. If any quantity differs, the handover enters Receipt Review. The source issuer corrects or confirms the reported quantities before it becomes Delivered.
+5. Receiver enters returned quantity first.
+6. System calculates used quantity as `received - returned`, then the receiver optionally splits used quantity by reason.
+7. The source issuer performs the final editable review, can correct returned quantity and usage reasons, and approves the closeout.
+8. Usage and return movements post only at issuer approval, then PDF/XLSX signoff is regenerated.
 
 Storage-transfer cycle:
 

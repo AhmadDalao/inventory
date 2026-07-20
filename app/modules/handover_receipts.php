@@ -133,13 +133,14 @@ function handle_handovers_receive_submit(array $params): void
         } else {
             Database::execute(
                 'UPDATE handovers
-                 SET status = "receipt_review",
+                 SET status = :status,
                      receipt_notes = :receipt_notes,
                      receipt_reported_at = NOW(),
                      updated_by = :updated_by,
                      updated_at = NOW()
                  WHERE id = :id',
                 [
+                    'status' => $hasVariance ? 'receipt_review' : 'delivered',
                     'receipt_notes' => $receiptNotes !== '' ? $receiptNotes : null,
                     'updated_by' => (int) $user['id'],
                     'id' => (int) $handover['id'],
@@ -183,15 +184,17 @@ function handle_handovers_receive_submit(array $params): void
     if (!empty($handover['source_owner_user_id'])) {
         create_notification(
             (int) $handover['source_owner_user_id'],
-            $isStorageTransfer && !$hasVariance ? 'handover_received' : 'handover_receipt_review',
-            $isStorageTransfer && !$hasVariance
+            !$hasVariance ? 'handover_received' : 'handover_receipt_review',
+            !$hasVariance
                 ? 'Handover ' . $handover['handover_number'] . ' was received'
                 : 'Handover ' . $handover['handover_number'] . ' needs receipt review',
             $isStorageTransfer
                 ? ($hasVariance
                     ? ($user['name'] ?? 'Destination owner') . ' reported a transfer shortage and is waiting for source owner confirmation.'
                     : ($user['name'] ?? 'Destination owner') . ' confirmed the transfer receipt and stock moved to the destination storage.')
-                : ($user['name'] ?? 'Recipient') . ' reported the actual received quantity and is waiting for your confirmation.',
+                : ($hasVariance
+                    ? ($user['name'] ?? 'Recipient') . ' reported a receipt difference and is waiting for your confirmation.'
+                    : ($user['name'] ?? 'Recipient') . ' confirmed the full receipt and can now report usage and returns.'),
             url('/handovers/' . $handover['id']),
             'handover',
             (int) $handover['id'],
@@ -206,7 +209,9 @@ function handle_handovers_receive_submit(array $params): void
                 ? ($hasVariance
                     ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
                     : 'Transfer received and closed.')
-                : 'Receipt report saved. Waiting for the storage owner to approve the received quantities.',
+                : ($hasVariance
+                    ? 'Receipt difference saved. Waiting for the issuer to review the quantities.'
+                    : 'Receipt confirmed. You can now report usage and returns.'),
             'redirect_url' => url('/handovers/' . $handover['id']),
         ]);
     }
@@ -215,7 +220,9 @@ function handle_handovers_receive_submit(array $params): void
         ? ($hasVariance
             ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
             : 'Transfer received and closed.')
-        : 'Receipt report saved. Waiting for the storage owner to approve the received quantities.');
+        : ($hasVariance
+            ? 'Receipt difference saved. Waiting for the issuer to review the quantities.'
+            : 'Receipt confirmed. You can now report usage and returns.'));
     redirect('/handovers/' . $handover['id']);
 }
 
