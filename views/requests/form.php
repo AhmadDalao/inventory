@@ -19,7 +19,7 @@ $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id
         <?php if ($isStaffRequest): ?>
             <div class="copy-context-card">
                 <strong>Staff request mode</strong>
-                <p>Pick the storage you need items from, ask for the quantity, and the storage owner handles approval. You do not need to choose a destination storage.</p>
+                <p>Pick the storage you need items from. Item results show the quantity currently available in that selected storage, then the storage owner handles approval. You do not need to choose a destination storage.</p>
             </div>
         <?php endif; ?>
 
@@ -78,8 +78,8 @@ $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id
             data-line-name-quantity="line_quantity[]"
             data-storage-catalog="<?= e((string) $storageCatalogJson) ?>"
             data-storage-meta="<?= e((string) $storageMetaJson) ?>"
-            data-hide-availability="<?= $isStaffRequest ? 'true' : 'false' ?>"
-            data-hide-item-quantity="<?= $isStaffRequest ? 'true' : 'false' ?>"
+            data-hide-availability="false"
+            data-hide-item-quantity="false"
         >
             <div class="panel-head">
                 <div>
@@ -94,9 +94,7 @@ $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id
                     <thead>
                     <tr>
                         <th>Item</th>
-                        <?php if (!$isStaffRequest): ?>
-                            <th>Available</th>
-                        <?php endif; ?>
+                        <th>Available</th>
                         <th>Quantity</th>
                         <th></th>
                     </tr>
@@ -116,11 +114,9 @@ $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id
                                     </div>
                                 </div>
                             </td>
-                            <?php if (!$isStaffRequest): ?>
-                                <td>
-                                    <span class="tiny-copy" data-workflow-available>-</span>
-                                </td>
-                            <?php endif; ?>
+                            <td>
+                                <span class="tiny-copy" data-workflow-available>-</span>
+                            </td>
                             <td>
                                 <input type="number" step="0.01" min="0.01" name="line_quantity[]" value="<?= e((string) ($line['quantity'] ?? '')) ?>" required>
                             </td>

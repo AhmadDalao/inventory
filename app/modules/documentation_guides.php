@@ -9,7 +9,7 @@ function documentation_important_sections(): array
         [
             'title' => 'Staff Daily Flow',
             'icon' => 'handover',
-            'summary' => 'What staff should request, receive, use, return, and close without seeing private stock totals.',
+            'summary' => 'What staff should request, receive, use, return, and close, including availability in permitted source storages.',
             'anchor' => 'doc-handovers',
             'tags' => ['Staff', 'Requests', 'Handovers', 'Received quantity', 'Returned quantity', 'Actual usage'],
         ],

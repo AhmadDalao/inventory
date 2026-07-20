@@ -3356,6 +3356,8 @@ note('Running staff issue request workflow over HTTP.');
 $requestCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/requests/create');
 assert_true($requestCreatePage['status'] === 200, 'Request create page did not load.');
 assert_true(strpos($requestCreatePage['body'], 'name="destination_storage_id"') === false, 'Staff request form should not show the destination storage field.');
+assert_true(strpos($requestCreatePage['body'], 'data-hide-availability="false"') !== false, 'Staff request form should show selected-storage availability.');
+assert_true(strpos($requestCreatePage['body'], 'data-hide-item-quantity="false"') !== false, 'Staff request item picker should show selected-storage quantities.');
 $requestToken = extract_csrf($requestCreatePage['body']);
 $requestCreate = http_request($baseUrl, $staffCookie, 'POST', '/requests/create', [
     '_token' => $requestToken,
@@ -3524,6 +3526,8 @@ $handoverRequestCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/hando
 assert_true($handoverRequestCreatePage['status'] === 200, 'Staff handover request page did not load.');
 assert_true(strpos($handoverRequestCreatePage['body'], 'name="request_owner_user_id"') !== false, 'Staff handover request form is missing the request owner field.');
 assert_true(strpos($handoverRequestCreatePage['body'], 'name="recipient_user_id"') === false, 'Staff handover request form should not show the recipient user field.');
+assert_true(strpos($handoverRequestCreatePage['body'], 'data-hide-availability="false"') !== false, 'Staff handover request form should show selected-storage availability.');
+assert_true(strpos($handoverRequestCreatePage['body'], 'data-hide-item-quantity="false"') !== false, 'Staff handover item picker should show selected-storage quantities.');
 $handoverRequestToken = extract_csrf($handoverRequestCreatePage['body']);
 $handoverRequestCreate = http_request($baseUrl, $staffCookie, 'POST', '/handovers/create', [
     '_token' => $handoverRequestToken,

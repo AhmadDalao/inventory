@@ -81,7 +81,10 @@ function handle_handovers_create_page(): void
         'ownerCandidates' => Auth::isStaff() && !$lockedRequestOwner ? handover_request_owner_candidates_for_select($selectedRequestOwnerId) : [],
         'lockedRequestOwner' => $lockedRequestOwner,
         'isStaffRequest' => Auth::isStaff(),
-        'storageCatalogJson' => json_encode(workflow_storage_item_catalog(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'storageCatalogJson' => json_encode(
+            workflow_storage_item_catalog(array_column($sourceStorages, 'id')),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ),
         'storageMetaJson' => json_encode(workflow_storage_meta($sourceStorages), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }
@@ -128,7 +131,10 @@ function handle_handovers_show(array $params): void
         'canEditHandoverLines' => $lineEditBlockReason === null,
         'lineEditBlockReason' => $lineEditBlockReason,
         'sourceStorages' => $sourceStorage ? [$sourceStorage] : [],
-        'storageCatalogJson' => json_encode(workflow_storage_item_catalog(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'storageCatalogJson' => json_encode(
+            workflow_storage_item_catalog($sourceStorage ? [(int) $sourceStorage['id']] : []),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ),
         'storageMetaJson' => json_encode(workflow_storage_meta($sourceStorage ? [$sourceStorage] : []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }

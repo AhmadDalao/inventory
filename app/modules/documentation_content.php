@@ -217,7 +217,7 @@ function documentation_sections(): array
             'route' => '/requests',
             'summary' => 'Requests are used when someone asks another storage owner/admin for items, or staff ask for items they need to use.',
             'features' => [
-                'Staff can request item quantities without seeing private storage quantities.',
+                'Staff can see the current available quantity for each source storage they are allowed to select.',
                 'Admins can request transfers from one storage owner to another destination storage.',
                 'Approver receives notification and can approve or reject.',
                 'Requester confirms received quantity, including short receipt such as receiving 98 instead of 100.',
@@ -249,6 +249,7 @@ function documentation_sections(): array
                 'Storage owner/admin can create a handover to staff.',
                 'Storage owner/admin can create a storage-transfer handover to move stock from one storage to another owner.',
                 'Staff can request a handover for items they need later that day.',
+                'Staff can see the current available quantity in each permitted source storage while choosing handover items.',
                 'Recipient confirms exact received quantity before use.',
                 'Storage-transfer receipts are confirmed by the destination storage owner, not by staff.',
                 'Closeout is returned-first: recipient enters how many came back and the system calculates used quantity.',

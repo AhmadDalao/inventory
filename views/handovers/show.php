@@ -958,8 +958,8 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 data-line-name-quantity="line_quantity[]"
                 data-storage-catalog="<?= e((string) ($storageCatalogJson ?? '{}')) ?>"
                 data-storage-meta="<?= e((string) ($storageMetaJson ?? '{}')) ?>"
-                data-hide-availability="<?= Auth::isStaff() ? 'true' : 'false' ?>"
-                data-hide-item-quantity="<?= Auth::isStaff() ? 'true' : 'false' ?>"
+                data-hide-availability="false"
+                data-hide-item-quantity="false"
             >
                 <div class="panel-head">
                     <div>
@@ -974,9 +974,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                         <thead>
                         <tr>
                             <th>Item</th>
-                            <?php if (!Auth::isStaff()): ?>
-                                <th>Available</th>
-                            <?php endif; ?>
+                            <th>Available</th>
                             <th>Quantity</th>
                             <th></th>
                         </tr>
@@ -1013,11 +1011,9 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                                         </div>
                                     </div>
                                 </td>
-                                <?php if (!Auth::isStaff()): ?>
-                                    <td>
-                                        <span class="tiny-copy" data-workflow-available>-</span>
-                                    </td>
-                                <?php endif; ?>
+                                <td>
+                                    <span class="tiny-copy" data-workflow-available>-</span>
+                                </td>
                                 <td>
                                     <input type="number" step="0.01" min="0.01" name="line_quantity[]" value="<?= e((string) ($line['quantity'] ?? '')) ?>" required>
                                 </td>

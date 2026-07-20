@@ -61,7 +61,10 @@ function handle_requests_create_page(): void
         'destinationStorages' => $destinationStorages,
         'isStaffRequest' => Auth::isStaff(),
         'usageReasonOptions' => handover_usage_reason_options(),
-        'storageCatalogJson' => json_encode(workflow_storage_item_catalog(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'storageCatalogJson' => json_encode(
+            workflow_storage_item_catalog(array_column($sourceStorages, 'id')),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ),
         'storageMetaJson' => json_encode(workflow_storage_meta($sourceStorages), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
     ]);
 }

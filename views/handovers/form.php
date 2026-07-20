@@ -96,7 +96,7 @@ $handoverSubmitLabel = $isStaffRequest
         <?php if ($isStaffRequest): ?>
             <div class="copy-context-card">
                 <strong>Request a temporary handover</strong>
-                <p>Ask the storage owner for the items you will use later. Once approved, the handover becomes active and you will confirm what you actually received.</p>
+                <p>Ask the storage owner for the items you will use later. Item results show the quantity currently available in the selected source storage. Once approved, the handover becomes active and you will confirm what you actually received.</p>
             </div>
         <?php endif; ?>
 
@@ -240,8 +240,8 @@ $handoverSubmitLabel = $isStaffRequest
             data-line-name-quantity="line_quantity[]"
             data-storage-catalog="<?= e((string) $storageCatalogJson) ?>"
             data-storage-meta="<?= e((string) $storageMetaJson) ?>"
-            data-hide-availability="<?= $isStaffRequest ? 'true' : 'false' ?>"
-            data-hide-item-quantity="<?= $isStaffRequest ? 'true' : 'false' ?>"
+            data-hide-availability="false"
+            data-hide-item-quantity="false"
             data-locked-owner-id="<?= e(!empty($lockedRequestOwner) ? (string) $lockedRequestOwner['id'] : '') ?>"
             data-expected-usage="<?= $isStorageTransfer ? 'false' : 'true' ?>"
             data-usage-reasons="<?= e(json_encode($usageReasonOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
@@ -259,9 +259,7 @@ $handoverSubmitLabel = $isStaffRequest
                     <thead>
                     <tr>
                         <th>Item</th>
-                        <?php if (!$isStaffRequest): ?>
-                            <th>Available</th>
-                        <?php endif; ?>
+                        <th>Available</th>
                         <th>Quantity</th>
                         <th></th>
                     </tr>
@@ -320,11 +318,9 @@ $handoverSubmitLabel = $isStaffRequest
                                     <button class="ghost-button compact-button handover-expected-add" type="button" data-add-expected-usage><?= ui_icon('plus') ?><span>Add Expected Usage</span></button>
                                 </details>
                             </td>
-                            <?php if (!$isStaffRequest): ?>
-                                <td>
-                                    <span class="tiny-copy" data-workflow-available>-</span>
-                                </td>
-                            <?php endif; ?>
+                            <td>
+                                <span class="tiny-copy" data-workflow-available>-</span>
+                            </td>
                             <td>
                                 <input type="number" step="0.01" min="0.01" name="line_quantity[]" value="<?= e((string) ($line['quantity'] ?? '')) ?>" required>
                             </td>

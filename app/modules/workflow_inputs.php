@@ -20,8 +20,36 @@ function normalize_workflow_date(string $value): string
     return $value;
 }
 
-function workflow_storage_item_catalog(): array
+function workflow_storage_item_catalog(?array $storageIds = null): array
 {
+    $conditions = [
+        'i.is_active = 1',
+        's.is_active = 1',
+        's.is_system = 0',
+    ];
+    $params = [];
+
+    if ($storageIds !== null) {
+        $storageIds = array_values(array_unique(array_filter(
+            array_map(static fn ($storageId): int => (int) $storageId, $storageIds),
+            static fn (int $storageId): bool => $storageId > 0
+        )));
+
+        if ($storageIds === []) {
+            return [];
+        }
+
+        $placeholders = [];
+
+        foreach ($storageIds as $index => $storageId) {
+            $key = 'storage_id_' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $storageId;
+        }
+
+        $conditions[] = 'balances.storage_id IN (' . implode(', ', $placeholders) . ')';
+    }
+
     $rows = Database::fetchAll(
         'SELECT balances.storage_id,
                 i.id AS item_id,
@@ -34,10 +62,9 @@ function workflow_storage_item_catalog(): array
          FROM item_storage_balances balances
          INNER JOIN items i ON i.id = balances.item_id
          INNER JOIN storages s ON s.id = balances.storage_id
-         WHERE i.is_active = 1
-           AND s.is_active = 1
-           AND s.is_system = 0
-         ORDER BY s.name ASC, i.name ASC'
+         WHERE ' . implode(' AND ', $conditions) . '
+         ORDER BY s.name ASC, i.name ASC',
+        $params
     );
 
     $catalog = [];
