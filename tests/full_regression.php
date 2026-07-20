@@ -2498,7 +2498,7 @@ $bulkDraftDocument = Database::fetch(
 assert_true(is_array($bulkDraftDocument), 'Bulk import draft is missing its document before delete coverage.');
 $bulkDraftPage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
 assert_true($bulkDraftPage['status'] === 200, 'Bulk import draft detail did not load before document delete.');
-$bulkDocumentDelete = http_request(
+$bulkDocumentDeleteDenied = http_request(
     $baseUrl,
     $adminCookie,
     'POST',
@@ -2506,12 +2506,31 @@ $bulkDocumentDelete = http_request(
     ['_token' => extract_csrf($bulkDraftPage['body'], 'purchase document delete')]
 );
 assert_true(
+    $bulkDocumentDeleteDenied['status'] === 302
+        && location_matches($bulkDocumentDeleteDenied['location'], '/dashboard'),
+    'Admin without purchases.files should be denied purchase document deletion.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM purchase_documents WHERE id = :id',
+        ['id' => (int) $bulkDraftDocument['id']]
+    ) === 1,
+    'Denied purchase document deletion should keep the document record.'
+);
+
+$bulkDraftOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
+assert_true($bulkDraftOwnerPage['status'] === 200, 'Owner could not load the bulk import draft before document delete.');
+$bulkDocumentDelete = http_request(
+    $baseUrl,
+    $ownerCookie,
+    'POST',
+    '/purchases/documents/' . (int) $bulkDraftDocument['id'] . '/delete',
+    ['_token' => extract_csrf($bulkDraftOwnerPage['body'], 'owner purchase document delete')]
+);
+assert_true(
     $bulkDocumentDelete['status'] === 302
         && location_matches($bulkDocumentDelete['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
-    'Draft purchase document delete did not redirect to the purchase. Status='
-        . $bulkDocumentDelete['status']
-        . ', Location='
-        . ($bulkDocumentDelete['location'] ?? 'none')
+    'Owner purchase document delete did not redirect to the purchase.'
 );
 assert_true(
     (int) Database::scalar(
@@ -2522,13 +2541,30 @@ assert_true(
 );
 
 $bulkDraftCancelPage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
-$bulkDraftCancel = http_request($baseUrl, $adminCookie, 'POST', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/cancel', [
-    '_token' => extract_csrf($bulkDraftCancelPage['body'], 'purchase draft cancel'),
+$bulkDraftCancelDenied = http_request($baseUrl, $adminCookie, 'POST', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/cancel', [
+    '_token' => extract_csrf($bulkDraftCancelPage['body'], 'denied purchase draft cancel'),
+]);
+assert_true(
+    $bulkDraftCancelDenied['status'] === 302
+        && location_matches($bulkDraftCancelDenied['location'], '/dashboard'),
+    'Admin without purchases.cancel should be denied purchase cancellation.'
+);
+assert_true(
+    (string) Database::scalar(
+        'SELECT status FROM purchases WHERE id = :id',
+        ['id' => (int) $bulkDraftForCancel['id']]
+    ) === 'draft',
+    'Denied purchase cancellation should leave the draft unchanged.'
+);
+
+$bulkDraftOwnerCancelPage = http_request($baseUrl, $ownerCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
+$bulkDraftCancel = http_request($baseUrl, $ownerCookie, 'POST', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/cancel', [
+    '_token' => extract_csrf($bulkDraftOwnerCancelPage['body'], 'owner purchase draft cancel'),
 ]);
 assert_true(
     $bulkDraftCancel['status'] === 302
         && location_matches($bulkDraftCancel['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
-    'Draft purchase cancel did not redirect to the purchase.'
+    'Owner purchase draft cancel did not redirect to the purchase.'
 );
 assert_true(
     (string) Database::scalar(
