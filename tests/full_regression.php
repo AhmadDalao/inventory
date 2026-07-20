@@ -1323,6 +1323,312 @@ $storagePreselectedItemPage = http_request($baseUrl, $ownerCookie, 'GET', '/item
 assert_true($storagePreselectedItemPage['status'] === 200, 'Storage-preselected item create page did not load.');
 assert_true(str_contains($storagePreselectedItemPage['body'], 'value="' . (int) $locationFilteredStorage['id'] . '" selected'), 'Item create page should preselect the storage from the quick action.');
 
+note('Checking direct storage and item CRUD actions.');
+$httpStorageName = $prefix . ' HTTP Storage';
+$httpStorageEditedName = $httpStorageName . ' Edited';
+$storageCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/storages/create');
+assert_true($storageCreatePage['status'] === 200, 'Storage create page did not load.');
+$storageCreateSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/storages/create', [
+    '_token' => extract_csrf($storageCreatePage['body'], 'storage create'),
+    'name' => $httpStorageName,
+    'storage_type' => 'storage',
+    'owner_user_id' => (string) $owner['id'],
+    'copy_contents_mode' => 'empty',
+    'notes' => $prefix . ' direct storage CRUD regression',
+]);
+assert_true(
+    $storageCreateSubmit['status'] === 302 && location_matches($storageCreateSubmit['location'], '/storages'),
+    'Storage create did not redirect to the storage list.'
+);
+$httpStorage = Database::fetch('SELECT * FROM storages WHERE name = :name LIMIT 1', ['name' => $httpStorageName]);
+assert_true(is_array($httpStorage) && (int) $httpStorage['is_active'] === 1, 'Storage create did not persist an active storage.');
+
+$storageEditPage = http_request($baseUrl, $ownerCookie, 'GET', '/storages/' . (int) $httpStorage['id'] . '/edit');
+assert_true($storageEditPage['status'] === 200, 'Storage edit page did not load.');
+$storageEditSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/storages/' . (int) $httpStorage['id'] . '/edit', [
+    '_token' => extract_csrf($storageEditPage['body'], 'storage edit'),
+    'name' => $httpStorageEditedName,
+    'storage_type' => 'warehouse',
+    'owner_user_id' => (string) $admin['id'],
+    'notes' => $prefix . ' edited direct storage CRUD regression',
+]);
+assert_true(
+    $storageEditSubmit['status'] === 302 && location_matches($storageEditSubmit['location'], '/storages'),
+    'Storage edit did not redirect to the storage list.'
+);
+$httpStorage = Database::fetch('SELECT * FROM storages WHERE id = :id LIMIT 1', ['id' => (int) $httpStorage['id']]);
+assert_true(
+    is_array($httpStorage)
+        && (string) $httpStorage['name'] === $httpStorageEditedName
+        && (string) $httpStorage['storage_type'] === 'warehouse'
+        && (int) $httpStorage['owner_user_id'] === (int) $admin['id'],
+    'Storage edit did not persist the updated profile.'
+);
+
+$storageStatusPage = http_request($baseUrl, $ownerCookie, 'GET', '/storages');
+$storageArchiveSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/storages/' . (int) $httpStorage['id'] . '/status', [
+    '_token' => extract_csrf($storageStatusPage['body'], 'storage archive'),
+]);
+assert_true(
+    $storageArchiveSubmit['status'] === 302 && location_matches($storageArchiveSubmit['location'], '/storages?status=archived'),
+    'Empty storage archive did not redirect to archived storages.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM storages WHERE id = :id', ['id' => (int) $httpStorage['id']]) === 0,
+    'Storage archive did not deactivate the storage.'
+);
+$archivedStoragePage = http_request($baseUrl, $ownerCookie, 'GET', '/storages?status=archived');
+$storageRecoverSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/storages/' . (int) $httpStorage['id'] . '/status', [
+    '_token' => extract_csrf($archivedStoragePage['body'], 'storage recover'),
+]);
+assert_true(
+    $storageRecoverSubmit['status'] === 302 && location_matches($storageRecoverSubmit['location'], '/storages'),
+    'Storage recovery did not redirect to active storages.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM storages WHERE id = :id', ['id' => (int) $httpStorage['id']]) === 1,
+    'Storage recovery did not reactivate the storage.'
+);
+
+$httpItemSku = $prefix . '-HTTP-ITEM';
+$httpItemEditedSku = $httpItemSku . '-EDITED';
+$itemCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/items/create?storage_id=' . (int) $httpStorage['id']);
+assert_true($itemCreatePage['status'] === 200, 'Item create page did not load for direct CRUD.');
+$itemCreateSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/items/create', [
+    '_token' => extract_csrf($itemCreatePage['body'], 'item create'),
+    'name' => $prefix . ' HTTP Item',
+    'sku' => $httpItemSku,
+    'barcode' => $prefix . '-HTTP-BARCODE',
+    'category' => $prefix . ' HTTP Category',
+    'storage_id' => (string) $httpStorage['id'],
+    'unit' => 'pcs',
+    'custom_unit' => '',
+    'current_quantity' => '0',
+    'reorder_level' => '5',
+    'cost_per_unit' => '2.5',
+    'notes' => $prefix . ' direct item CRUD regression',
+    'use_existing_item' => '0',
+]);
+$httpItem = Database::fetch('SELECT * FROM items WHERE sku = :sku LIMIT 1', ['sku' => $httpItemSku]);
+assert_true(
+    $itemCreateSubmit['status'] === 302
+        && is_array($httpItem)
+        && location_matches($itemCreateSubmit['location'], '/items/' . (int) $httpItem['id']),
+    'Item create did not persist and redirect to the new item.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM item_storage_balances WHERE item_id = :item_id AND storage_id = :storage_id',
+        ['item_id' => (int) $httpItem['id'], 'storage_id' => (int) $httpStorage['id']]
+    ) === 1,
+    'Zero-quantity item create did not preserve its storage assignment.'
+);
+
+$itemEditPage = http_request($baseUrl, $ownerCookie, 'GET', '/items/' . (int) $httpItem['id'] . '/edit');
+assert_true($itemEditPage['status'] === 200, 'Item edit page did not load for direct CRUD.');
+$itemEditSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/items/' . (int) $httpItem['id'] . '/edit', [
+    '_token' => extract_csrf($itemEditPage['body'], 'item edit'),
+    'name' => $prefix . ' HTTP Item Edited',
+    'sku' => $httpItemEditedSku,
+    'barcode' => $prefix . '-HTTP-BARCODE-EDITED',
+    'category' => $prefix . ' HTTP Category Edited',
+    'storage_id' => (string) $httpStorage['id'],
+    'unit' => 'pcs',
+    'custom_unit' => '',
+    'reorder_level' => '7',
+    'cost_per_unit' => '3.5',
+    'notes' => $prefix . ' edited direct item CRUD regression',
+]);
+assert_true(
+    $itemEditSubmit['status'] === 302 && location_matches($itemEditSubmit['location'], '/items/' . (int) $httpItem['id']),
+    'Item edit did not redirect to the item detail.'
+);
+$httpItem = Database::fetch('SELECT * FROM items WHERE id = :id LIMIT 1', ['id' => (int) $httpItem['id']]);
+assert_true(
+    is_array($httpItem)
+        && (string) $httpItem['sku'] === $httpItemEditedSku
+        && (string) $httpItem['barcode'] === $prefix . '-HTTP-BARCODE-EDITED'
+        && round((float) $httpItem['reorder_level'], 2) === 7.0
+        && round((float) $httpItem['cost_per_unit'], 2) === 3.5,
+    'Item edit did not persist the updated profile.'
+);
+
+$itemDetailForRemoval = http_request($baseUrl, $ownerCookie, 'GET', '/items/' . (int) $httpItem['id']);
+$itemLocationRemove = http_request(
+    $baseUrl,
+    $ownerCookie,
+    'POST',
+    '/items/' . (int) $httpItem['id'] . '/locations/' . (int) $httpStorage['id'] . '/remove',
+    [
+        '_token' => extract_csrf($itemDetailForRemoval['body'], 'item location removal'),
+        'return_to' => '/items/' . (int) $httpItem['id'],
+    ]
+);
+assert_true($itemLocationRemove['status'] === 302, 'Item location removal did not redirect.');
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM item_storage_balances WHERE item_id = :item_id AND storage_id = :storage_id',
+        ['item_id' => (int) $httpItem['id'], 'storage_id' => (int) $httpStorage['id']]
+    ) === 0,
+    'Item location removal did not remove only the selected assignment.'
+);
+
+$itemArchivePage = http_request($baseUrl, $ownerCookie, 'GET', '/items/' . (int) $httpItem['id']);
+$itemArchiveSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/items/' . (int) $httpItem['id'] . '/status', [
+    '_token' => extract_csrf($itemArchivePage['body'], 'item archive'),
+]);
+assert_true(
+    $itemArchiveSubmit['status'] === 302 && location_matches($itemArchiveSubmit['location'], '/items?status=archived'),
+    'Unassigned item archive did not redirect to archived items.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM items WHERE id = :id', ['id' => (int) $httpItem['id']]) === 0,
+    'Item archive did not deactivate the item.'
+);
+$archivedItemPage = http_request($baseUrl, $ownerCookie, 'GET', '/items?status=archived');
+$itemRecoverSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/items/' . (int) $httpItem['id'] . '/status', [
+    '_token' => extract_csrf($archivedItemPage['body'], 'item recover'),
+]);
+assert_true(
+    $itemRecoverSubmit['status'] === 302 && location_matches($itemRecoverSubmit['location'], '/items'),
+    'Item recovery did not redirect to active items.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM items WHERE id = :id', ['id' => (int) $httpItem['id']]) === 1,
+    'Item recovery did not reactivate the item.'
+);
+assert_stock_invariants('after direct storage and item CRUD', $prefix);
+
+note('Checking notification feed and read-all actions.');
+$notificationTitle = $prefix . ' direct notification regression';
+$notificationUnreadBefore = notification_unread_count((int) $owner['id']);
+create_notification(
+    (int) $owner['id'],
+    'regression_notice',
+    $notificationTitle,
+    $prefix . ' notification body',
+    url('/dashboard'),
+    'user',
+    (int) $owner['id'],
+    (int) $admin['id']
+);
+$notificationFeed = http_request($baseUrl, $ownerCookie, 'GET', '/notifications/feed');
+$notificationFeedPayload = json_decode($notificationFeed['body'], true);
+assert_true(
+    $notificationFeed['status'] === 200
+        && is_array($notificationFeedPayload)
+        && !empty($notificationFeedPayload['ok'])
+        && (int) ($notificationFeedPayload['unread_count'] ?? 0) === $notificationUnreadBefore + 1,
+    'Notification feed did not report the newly created unread notification.'
+);
+assert_true(str_contains($notificationFeed['body'], $notificationTitle), 'Notification feed is missing the new notification.');
+$notificationIndex = http_request($baseUrl, $ownerCookie, 'GET', '/notifications');
+$notificationReadAll = http_request($baseUrl, $ownerCookie, 'POST', '/notifications/read-all', [
+    '_token' => extract_csrf($notificationIndex['body'], 'notification read-all'),
+]);
+assert_true(
+    $notificationReadAll['status'] === 302 && location_matches($notificationReadAll['location'], '/notifications'),
+    'Notification read-all did not redirect to notifications.'
+);
+assert_true(
+    (string) Database::scalar(
+        'SELECT COALESCE(read_at, "") FROM notifications WHERE user_id = :user_id AND title = :title ORDER BY id DESC LIMIT 1',
+        ['user_id' => (int) $owner['id'], 'title' => $notificationTitle]
+    ) !== '',
+    'Notification read-all did not mark the notification as read.'
+);
+
+$notificationFeedAfterRead = http_request($baseUrl, $ownerCookie, 'GET', '/notifications/feed');
+$notificationFeedAfterReadPayload = json_decode($notificationFeedAfterRead['body'], true);
+assert_true(
+    $notificationFeedAfterRead['status'] === 200
+        && is_array($notificationFeedAfterReadPayload)
+        && (int) ($notificationFeedAfterReadPayload['unread_count'] ?? -1) === 0,
+    'Notification feed unread count did not refresh after read-all.'
+);
+
+note('Checking direct admin user create, edit, disable, and recover actions.');
+$httpUserEmail = strtolower($prefix) . '-http-user@example.com';
+$httpUserUpdatedEmail = strtolower($prefix) . '-http-user-updated@example.com';
+$userCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/users/create');
+assert_true($userCreatePage['status'] === 200, 'User create page did not load.');
+$userCreateSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/create', [
+    '_token' => extract_csrf($userCreatePage['body'], 'user create'),
+    'name' => $prefix . ' HTTP User',
+    'email' => $httpUserEmail,
+    'position' => 'staff',
+    'role' => 'staff',
+    'assigned_owner_user_id' => (string) $owner['id'],
+    'password' => $password,
+    'password_confirmation' => $password,
+    'permissions' => [],
+]);
+assert_true(
+    $userCreateSubmit['status'] === 302 && location_matches($userCreateSubmit['location'], '/users'),
+    'User create did not redirect to the user list.'
+);
+$httpUser = Database::fetch('SELECT * FROM users WHERE email = :email LIMIT 1', ['email' => $httpUserEmail]);
+assert_true(
+    is_array($httpUser)
+        && (string) $httpUser['role'] === 'staff'
+        && (string) $httpUser['position'] === 'staff'
+        && (int) $httpUser['assigned_owner_user_id'] === (int) $owner['id']
+        && (int) $httpUser['is_active'] === 1,
+    'User create did not persist the selected role, position, owner, and status.'
+);
+
+$userEditPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (int) $httpUser['id'] . '/edit');
+assert_true($userEditPage['status'] === 200, 'User edit page did not load.');
+$userEditSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/' . (int) $httpUser['id'] . '/edit', [
+    '_token' => extract_csrf($userEditPage['body'], 'user edit'),
+    'name' => $prefix . ' HTTP User Updated',
+    'email' => $httpUserUpdatedEmail,
+    'position' => 'reception_staff',
+    'role' => 'staff',
+    'assigned_owner_user_id' => (string) $admin['id'],
+    'password' => '',
+    'password_confirmation' => '',
+    'permissions' => [],
+]);
+assert_true(
+    $userEditSubmit['status'] === 302 && location_matches($userEditSubmit['location'], '/users'),
+    'User edit did not redirect to the user list.'
+);
+$httpUser = Database::fetch('SELECT * FROM users WHERE id = :id LIMIT 1', ['id' => (int) $httpUser['id']]);
+assert_true(
+    is_array($httpUser)
+        && (string) $httpUser['email'] === $httpUserUpdatedEmail
+        && (string) $httpUser['position'] === 'reception_staff'
+        && (int) $httpUser['assigned_owner_user_id'] === (int) $admin['id'],
+    'User edit did not persist the updated account profile.'
+);
+
+$usersStatusPage = http_request($baseUrl, $ownerCookie, 'GET', '/users');
+$userDisableSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/' . (int) $httpUser['id'] . '/status', [
+    '_token' => extract_csrf($usersStatusPage['body'], 'user disable'),
+]);
+assert_true(
+    $userDisableSubmit['status'] === 302 && location_matches($userDisableSubmit['location'], '/users'),
+    'User disable did not redirect to the user list.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM users WHERE id = :id', ['id' => (int) $httpUser['id']]) === 0,
+    'User disable did not deactivate the account.'
+);
+
+$usersRecoverPage = http_request($baseUrl, $ownerCookie, 'GET', '/users?status=disabled');
+$userRecoverSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/' . (int) $httpUser['id'] . '/status', [
+    '_token' => extract_csrf($usersRecoverPage['body'], 'user recover'),
+]);
+assert_true(
+    $userRecoverSubmit['status'] === 302 && location_matches($userRecoverSubmit['location'], '/users'),
+    'User recovery did not redirect to the user list.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM users WHERE id = :id', ['id' => (int) $httpUser['id']]) === 1,
+    'User recovery did not reactivate the account.'
+);
+
 $failedLoginCookie = create_cookie_file();
 $failedLoginPage = http_request($baseUrl, $failedLoginCookie, 'GET', '/login');
 assert_true($failedLoginPage['status'] === 200, 'Failed-login audit probe could not load login page.');
@@ -2184,6 +2490,55 @@ $bulkRestockMovements = (int) Database::scalar(
 assert_true($bulkRestockMovements === 0, 'Bulk import drafts should not create inventory movements.');
 assert_true(balance_quantity((int) $bulkImportItem['id'], (int) $bulkImportStorage['id']) === $bulkImportBalanceBefore, 'Bulk import drafts should not change storage balances.');
 
+$bulkDraftForCancel = $bulkPurchases[0];
+$bulkDraftDocument = Database::fetch(
+    'SELECT * FROM purchase_documents WHERE purchase_id = :purchase_id ORDER BY id ASC LIMIT 1',
+    ['purchase_id' => (int) $bulkDraftForCancel['id']]
+);
+assert_true(is_array($bulkDraftDocument), 'Bulk import draft is missing its document before delete coverage.');
+$bulkDraftPage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
+assert_true($bulkDraftPage['status'] === 200, 'Bulk import draft detail did not load before document delete.');
+$bulkDocumentDelete = http_request(
+    $baseUrl,
+    $adminCookie,
+    'POST',
+    '/purchases/documents/' . (int) $bulkDraftDocument['id'] . '/delete',
+    ['_token' => extract_csrf($bulkDraftPage['body'], 'purchase document delete')]
+);
+assert_true(
+    $bulkDocumentDelete['status'] === 302
+        && location_matches($bulkDocumentDelete['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
+    'Draft purchase document delete did not redirect to the purchase.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM purchase_documents WHERE id = :id',
+        ['id' => (int) $bulkDraftDocument['id']]
+    ) === 0,
+    'Draft purchase document delete did not remove the document record.'
+);
+
+$bulkDraftCancelPage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
+$bulkDraftCancel = http_request($baseUrl, $adminCookie, 'POST', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/cancel', [
+    '_token' => extract_csrf($bulkDraftCancelPage['body'], 'purchase draft cancel'),
+]);
+assert_true(
+    $bulkDraftCancel['status'] === 302
+        && location_matches($bulkDraftCancel['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
+    'Draft purchase cancel did not redirect to the purchase.'
+);
+assert_true(
+    (string) Database::scalar(
+        'SELECT status FROM purchases WHERE id = :id',
+        ['id' => (int) $bulkDraftForCancel['id']]
+    ) === 'cancelled',
+    'Draft purchase cancel did not set cancelled status.'
+);
+assert_true(
+    balance_quantity((int) $bulkImportItem['id'], (int) $bulkImportStorage['id']) === $bulkImportBalanceBefore,
+    'Cancelling a draft purchase changed storage stock.'
+);
+
 $rejectProof = create_temp_pdf($prefix . ' reject proof');
 $rejectItem = $seededItems[0];
 $rejectBalanceBefore = balance_quantity((int) $rejectItem['id'], (int) $storages[8]['id']);
@@ -2446,6 +2801,32 @@ assert_true((string) $supplierUpdated['commercial_registration'] === $prefix . '
 assert_true((string) $supplierUpdated['national_address'] === $prefix . ' supplier national address updated', 'Supplier national address edit did not persist.');
 assert_true((string) $supplierUpdated['authorized_person'] === $prefix . ' Supplier Authorized Updated', 'Supplier authorized person edit did not persist.');
 
+$supplierArchivePage = http_request($baseUrl, $adminCookie, 'GET', '/suppliers/' . $supplierId);
+$supplierArchive = http_request($baseUrl, $adminCookie, 'POST', '/suppliers/' . $supplierId . '/status', [
+    '_token' => extract_csrf($supplierArchivePage['body'], 'supplier archive'),
+]);
+assert_true(
+    $supplierArchive['status'] === 302 && location_matches($supplierArchive['location'], '/suppliers'),
+    'Supplier archive did not redirect to the supplier list.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM suppliers WHERE id = :id', ['id' => $supplierId]) === 0,
+    'Supplier archive did not deactivate the supplier.'
+);
+
+$supplierRecoverPage = http_request($baseUrl, $adminCookie, 'GET', '/suppliers?status=archived');
+$supplierRecover = http_request($baseUrl, $adminCookie, 'POST', '/suppliers/' . $supplierId . '/status', [
+    '_token' => extract_csrf($supplierRecoverPage['body'], 'supplier recover'),
+]);
+assert_true(
+    $supplierRecover['status'] === 302 && location_matches($supplierRecover['location'], '/suppliers'),
+    'Supplier recovery did not redirect to the supplier list.'
+);
+assert_true(
+    (int) Database::scalar('SELECT is_active FROM suppliers WHERE id = :id', ['id' => $supplierId]) === 1,
+    'Supplier recovery did not reactivate the supplier.'
+);
+
 $reorderStorage = $storages[4];
 $reorderItem = array_values(array_filter($seededItems, static fn (array $item): bool => (int) $item['storage_id'] === (int) $reorderStorage['id']))[0];
 Database::execute(
@@ -2542,6 +2923,41 @@ $stocktakeSectionSearch = http_request($baseUrl, $ownerCookie, 'GET', '/stocktak
 assert_true($stocktakeSectionSearch['status'] === 302 && strpos((string) $stocktakeSectionSearch['location'], '/stocktakes/' . $stocktakeId) !== false, 'Stocktake section search should open exact stocktake references.');
 $stocktakeMovements = (int) Database::scalar('SELECT COUNT(*) FROM inventory_movements WHERE context_type = "stocktake" AND context_id = :stocktake_id', ['stocktake_id' => $stocktakeId]);
 assert_true($stocktakeMovements >= 1, 'Stocktake approval should create inventory movement context rows.');
+
+$cancelStocktakeBalanceBefore = balance_quantity((int) $stocktakeItem['id'], (int) $stocktakeStorage['id']);
+$cancelStocktakeCreatePage = http_request($baseUrl, $adminCookie, 'GET', '/stocktakes/create?storage_id=' . $stocktakeStorage['id']);
+$cancelStocktakeCreate = http_request($baseUrl, $adminCookie, 'POST', '/stocktakes/create', [
+    '_token' => extract_csrf($cancelStocktakeCreatePage['body'], 'cancel stocktake create'),
+    'storage_id' => $stocktakeStorage['id'],
+    'notes' => $prefix . ' cancelled stocktake',
+]);
+assert_true($cancelStocktakeCreate['status'] === 302, 'Cancellation stocktake create did not redirect.');
+$cancelStocktakeId = first_redirect_id($cancelStocktakeCreate['location'], '/stocktakes');
+$cancelStocktakePage = http_request($baseUrl, $adminCookie, 'GET', '/stocktakes/' . $cancelStocktakeId);
+assert_true($cancelStocktakePage['status'] === 200, 'Cancellation stocktake detail did not load.');
+$cancelStocktakeSubmit = http_request($baseUrl, $adminCookie, 'POST', '/stocktakes/' . $cancelStocktakeId . '/cancel', [
+    '_token' => extract_csrf($cancelStocktakePage['body'], 'stocktake cancel'),
+]);
+assert_true(
+    $cancelStocktakeSubmit['status'] === 302
+        && location_matches($cancelStocktakeSubmit['location'], '/stocktakes/' . $cancelStocktakeId),
+    'Stocktake cancel did not redirect to the stocktake detail.'
+);
+assert_true(
+    (string) Database::scalar('SELECT status FROM stocktakes WHERE id = :id', ['id' => $cancelStocktakeId]) === 'cancelled',
+    'Stocktake cancel did not set cancelled status.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM inventory_movements WHERE context_type = "stocktake" AND context_id = :stocktake_id',
+        ['stocktake_id' => $cancelStocktakeId]
+    ) === 0,
+    'Cancelling a draft stocktake should not create inventory movements.'
+);
+assert_true(
+    balance_quantity((int) $stocktakeItem['id'], (int) $stocktakeStorage['id']) === $cancelStocktakeBalanceBefore,
+    'Cancelling a draft stocktake changed storage stock.'
+);
 
 $labelsPage = http_request($baseUrl, $ownerCookie, 'GET', '/labels?type=items&storage_id=' . $stocktakeStorage['id']);
 assert_true($labelsPage['status'] === 200, 'Labels page did not load.');
@@ -3800,6 +4216,106 @@ $scanLookupPayload = json_decode($scanLookup['body'], true);
 assert_true(is_array($scanLookupPayload) && !empty($scanLookupPayload['ok']) && (int) ($scanLookupPayload['count'] ?? 0) >= 1, 'Scan lookup did not return matching item JSON.');
 assert_true(($scanLookupPayload['items'][0]['movement_url'] ?? '') !== '', 'Scan lookup payload is missing movement URL.');
 assert_true(($scanLookupPayload['items'][0]['package_presets'][0]['label'] ?? '') === $prefix . ' Box', 'Scan lookup payload is missing package presets.');
+
+note('Checking single and batch manual stock additions.');
+$manualRestockItemOne = $seededItems[0];
+$manualRestockItemTwo = $seededItems[1];
+$manualRestockStorageOne = (int) $manualRestockItemOne['storage_id'];
+$manualRestockStorageTwo = (int) $manualRestockItemTwo['storage_id'];
+$manualRestockOneBefore = balance_quantity((int) $manualRestockItemOne['id'], $manualRestockStorageOne);
+$manualRestockTwoBefore = balance_quantity((int) $manualRestockItemTwo['id'], $manualRestockStorageTwo);
+$manualRestockToken = extract_csrf($manualScanPage['body'], 'manual stock add');
+$manualRestockSingle = http_request($baseUrl, $ownerCookie, 'POST', '/scan/manual-restock', [
+    '_token' => $manualRestockToken,
+    'item_id' => (string) $manualRestockItemOne['id'],
+    'storage_id' => (string) $manualRestockStorageOne,
+    'quantity' => '2',
+    'reference_code' => $prefix . '-MANUAL-SINGLE',
+    'notes' => $prefix . ' manual single stock add',
+], $globalSearchHeaders);
+$manualRestockSinglePayload = json_decode($manualRestockSingle['body'], true);
+assert_true(
+    $manualRestockSingle['status'] === 200
+        && is_array($manualRestockSinglePayload)
+        && !empty($manualRestockSinglePayload['ok']),
+    'Single manual stock add did not return a successful JSON response.'
+);
+assert_true(
+    balance_quantity((int) $manualRestockItemOne['id'], $manualRestockStorageOne) === round($manualRestockOneBefore + 2, 2),
+    'Single manual stock add did not increase the selected storage balance.'
+);
+
+$manualRestockBatchLines = [
+    [
+        'item_id' => (int) $manualRestockItemOne['id'],
+        'storage_id' => $manualRestockStorageOne,
+        'quantity' => 3,
+        'reference_code' => $prefix . '-MANUAL-BATCH-1',
+        'notes' => $prefix . ' manual batch line one',
+    ],
+    [
+        'item_id' => (int) $manualRestockItemTwo['id'],
+        'storage_id' => $manualRestockStorageTwo,
+        'quantity' => 4,
+        'reference_code' => $prefix . '-MANUAL-BATCH-2',
+        'notes' => $prefix . ' manual batch line two',
+    ],
+];
+$manualRestockBatch = http_request($baseUrl, $ownerCookie, 'POST', '/scan/manual-restock/batch', [
+    '_token' => $manualRestockToken,
+    'lines' => json_encode($manualRestockBatchLines, JSON_UNESCAPED_SLASHES),
+], $globalSearchHeaders);
+$manualRestockBatchPayload = json_decode($manualRestockBatch['body'], true);
+assert_true(
+    $manualRestockBatch['status'] === 200
+        && is_array($manualRestockBatchPayload)
+        && !empty($manualRestockBatchPayload['ok'])
+        && count($manualRestockBatchPayload['items'] ?? []) === 2,
+    'Batch manual stock add did not post both lines.'
+);
+assert_true(
+    balance_quantity((int) $manualRestockItemOne['id'], $manualRestockStorageOne) === round($manualRestockOneBefore + 5, 2),
+    'Batch manual stock add did not add the second quantity to the first item.'
+);
+assert_true(
+    balance_quantity((int) $manualRestockItemTwo['id'], $manualRestockStorageTwo) === round($manualRestockTwoBefore + 4, 2),
+    'Batch manual stock add did not increase the second item storage balance.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM inventory_movements WHERE context_type = "scan_manual" AND reference_code LIKE :reference_code',
+        ['reference_code' => $prefix . '-MANUAL-%']
+    ) === 3,
+    'Manual stock add should create one immutable movement per submitted line.'
+);
+assert_stock_invariants('after manual scan stock additions', $prefix);
+
+$packagePreset = Database::fetch(
+    'SELECT * FROM item_package_presets WHERE item_id = :item_id AND label = :label LIMIT 1',
+    ['item_id' => (int) $seededItems[0]['id'], 'label' => $prefix . ' Box']
+);
+assert_true(is_array($packagePreset), 'Saved package preset is missing before delete coverage.');
+$packagePresetDeletePage = http_request($baseUrl, $ownerCookie, 'GET', '/items/' . (int) $seededItems[0]['id']);
+$packagePresetDelete = http_request(
+    $baseUrl,
+    $ownerCookie,
+    'POST',
+    '/items/' . (int) $seededItems[0]['id'] . '/package-presets/' . (int) $packagePreset['id'] . '/delete',
+    ['_token' => extract_csrf($packagePresetDeletePage['body'], 'package preset delete')]
+);
+assert_true(
+    $packagePresetDelete['status'] === 302
+        && location_matches($packagePresetDelete['location'], '/items/' . (int) $seededItems[0]['id']),
+    'Package preset delete did not redirect to the item detail.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM item_package_presets WHERE id = :id',
+        ['id' => (int) $packagePreset['id']]
+    ) === 0,
+    'Package preset delete did not remove the preset.'
+);
+
 $staffScanPage = http_request($baseUrl, $staffCookie, 'GET', '/scan');
 assert_true($staffScanPage['status'] === 302 && location_matches($staffScanPage['location'], '/dashboard'), 'Staff should be redirected away from Scan Center.');
 $reportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
