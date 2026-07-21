@@ -16,13 +16,23 @@ $scripts = frontend_scripts();
 
 $expectedStylesheets = [
     'css/foundation.css',
-    'css/themes/clean-material.css',
-    'css/themes/clean-console.css',
+    'css/shell.css',
+    'css/components.css',
+    'css/tables.css',
+    'css/workflows.css',
+    'css/domains/inventory.css',
+    'css/domains/scan.css',
+    'css/domains/handovers.css',
+    'css/domains/purchases-ocr.css',
+    'css/domains/reports.css',
+    'css/domains/admin.css',
+    'css/domains/settings.css',
+    'css/domains/documentation.css',
+    'css/domains/assets.css',
+    'css/themes/classic.css',
     'css/themes/kona.css',
-    'css/compatibility.css',
-    'css/print.css',
     'css/themes/official.css',
-    'css/assets.css',
+    'css/print.css',
     'css/mobile.css',
 ];
 
@@ -141,19 +151,24 @@ if (strpos($htaccess, 'max-age=0, must-revalidate') === false) {
 }
 
 $foundationCss = file_get_contents($root . '/assets/css/foundation.css') ?: '';
-$materialThemeCss = file_get_contents($root . '/assets/css/themes/clean-material.css') ?: '';
-$consoleThemeCss = file_get_contents($root . '/assets/css/themes/clean-console.css') ?: '';
+$shellCss = file_get_contents($root . '/assets/css/shell.css') ?: '';
+$componentsCss = file_get_contents($root . '/assets/css/components.css') ?: '';
+$tablesCss = file_get_contents($root . '/assets/css/tables.css') ?: '';
+$workflowsCss = file_get_contents($root . '/assets/css/workflows.css') ?: '';
 $konaThemeCss = file_get_contents($root . '/assets/css/themes/kona.css') ?: '';
-$compatibilityCss = file_get_contents($root . '/assets/css/compatibility.css') ?: '';
+$classicThemeCss = file_get_contents($root . '/assets/css/themes/classic.css') ?: '';
 $officialThemeCss = file_get_contents($root . '/assets/css/themes/official.css') ?: '';
-$assetsCss = file_get_contents($root . '/assets/css/assets.css') ?: '';
+$assetsCss = file_get_contents($root . '/assets/css/domains/assets.css') ?: '';
 $mobileCss = file_get_contents($root . '/assets/css/mobile.css') ?: '';
 
 foreach ([
-    [$materialThemeCss, 'Material-inspired'],
-    [$consoleThemeCss, 'Light admin console'],
-    [$konaThemeCss, 'KONA-style primary'],
-    [$compatibilityCss, 'Focused UI cleanup'],
+    [$foundationCss, 'Foundation:'],
+    [$shellCss, 'Shell:'],
+    [$componentsCss, 'Components:'],
+    [$tablesCss, 'Tables:'],
+    [$workflowsCss, 'Workflows:'],
+    [$classicThemeCss, 'Classic Warm theme:'],
+    [$konaThemeCss, 'KONA theme: consolidated'],
     [$officialThemeCss, 'Official KONA theme'],
 ] as [$css, $marker]) {
     if (strpos($css, $marker) === false) {
@@ -195,7 +210,22 @@ if (strpos($foundationCss, 'Sidebar scroll fix') !== false) {
 }
 
 if (strpos($foundationCss, '.assets-page') !== false) {
-    fail_frontend_assets('Asset CSS should live in assets/css/assets.css, not foundation.css.');
+    fail_frontend_assets('Asset CSS should live in assets/css/domains/assets.css, not foundation.css.');
+}
+
+if (substr_count($foundationCss, "\n") > 500) {
+    fail_frontend_assets('Foundation CSS must remain limited to tokens, reset, and typography.');
+}
+
+foreach ([
+    'assets/css/compatibility.css',
+    'assets/css/assets.css',
+    'assets/css/themes/clean-material.css',
+    'assets/css/themes/clean-console.css',
+] as $retiredAsset) {
+    if (is_file($root . '/' . $retiredAsset)) {
+        fail_frontend_assets('Retired CSS pass must not be restored: ' . $retiredAsset);
+    }
 }
 
 echo '[frontend-assets] PASS' . PHP_EOL;

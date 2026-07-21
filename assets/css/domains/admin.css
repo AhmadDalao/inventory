@@ -1,0 +1,213 @@
+/* Admin domain: users, roles, positions, permissions, audit, and access controls. */
+.permission-builder {
+    display: grid;
+    gap: 18px;
+}
+
+.access-form-panel {
+    max-width: 1180px;
+}
+
+.access-summary-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    padding: 18px;
+    border: 1px solid #ece1d2;
+    border-radius: 22px;
+    background: #fbfaf7;
+}
+
+.access-summary-card h3,
+.access-summary-card p {
+    margin: 0;
+}
+
+.access-summary-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.access-summary-stats span {
+    display: grid;
+    gap: 3px;
+    min-height: 76px;
+    padding: 12px;
+    border: 1px solid #ece1d2;
+    border-radius: 18px;
+    background: #fff;
+}
+
+.access-summary-stats strong {
+    color: var(--ink);
+    font-size: 0.95rem;
+    line-height: 1.15;
+}
+
+.access-summary-stats small {
+    color: var(--muted);
+}
+
+.permission-toolbar {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid #ece1d2;
+    border-radius: 20px;
+    background: #fff;
+}
+
+.access-priority-search {
+    position: sticky;
+    top: 76px;
+    z-index: 8;
+    border-color: rgba(229, 181, 87, 0.45);
+    background: linear-gradient(180deg, #fffdf8, #fff8ea);
+    box-shadow: 0 16px 34px rgba(22, 18, 11, 0.08);
+}
+
+.access-priority-search input {
+    min-height: 50px;
+    font-size: 1rem;
+}
+
+.permission-search-field {
+    margin: 0;
+}
+
+.permission-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.permission-card {
+    border: 1px solid #ece1d2;
+    border-radius: 22px;
+    padding: 18px;
+    background: #faf6ef;
+}
+
+.permission-card[open] {
+    display: grid;
+    gap: 14px;
+}
+
+.permission-card summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.permission-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.permission-card summary span {
+    color: var(--ink);
+    font-weight: 900;
+}
+
+.permission-card summary small {
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: #fff4dc;
+    color: #9f5b0f;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.permission-card h4 {
+    margin: 0;
+}
+
+.permission-list {
+    display: grid;
+    gap: 12px;
+}
+
+.permission-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.permission-option strong,
+.permission-option small {
+    display: block;
+}
+
+.permission-option small {
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+.permission-option[hidden],
+.permission-card[hidden],
+[data-assigned-owner-field][hidden] {
+    display: none !important;
+}
+
+.access-accordion {
+    gap: 16px;
+}
+
+.access-tools-panel .settings-accordion-body {
+    padding-top: 0;
+}
+
+.access-settings-toolbar {
+    grid-template-columns: minmax(320px, 1fr) minmax(320px, auto);
+    align-items: end;
+    border-radius: 18px;
+}
+
+.access-field-grid {
+    margin-top: 16px;
+}
+
+.permission-group-accordion {
+    gap: 10px;
+}
+
+.permission-group-accordion .permission-card {
+    padding: 0;
+    background: #fff;
+}
+
+.permission-group-accordion .settings-accordion-summary {
+    padding: 16px 18px;
+}
+
+.permission-group-accordion .settings-accordion-body {
+    padding: 0 18px 18px;
+}
+
+.permission-group-accordion .permission-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.permission-group-accordion .permission-option {
+    padding: 12px;
+    border: 1px solid #ece1d2;
+    border-radius: 16px;
+    background: #fbfaf7;
+}
+
+.permission-group-accordion .permission-option input {
+    margin-top: 3px;
+    accent-color: var(--accent);
+}
+
+.permission-group-accordion .permission-option:has(input:checked) {
+    border-color: rgba(229, 181, 87, 0.58);
+    background: #fff8ea;
+}
+

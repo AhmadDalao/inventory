@@ -1,0 +1,320 @@
+/* Settings domain: Website Control, configuration groups, email, OCR, and branding. */
+/* Focused UI cleanup for settings, dashboard queues, and notification center. */
+.settings-accordion {
+    display: grid;
+    gap: 14px;
+}
+
+.settings-logo-form {
+    margin: 18px 0 22px;
+}
+
+.settings-logo-card {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr) minmax(260px, 360px);
+    gap: 18px;
+    align-items: center;
+    padding: 18px;
+    border: 1px solid #e8e0d5;
+    border-radius: 26px;
+    background: #fbfaf7;
+}
+
+.settings-logo-preview {
+    display: grid;
+    min-height: 104px;
+    place-items: center;
+    padding: 16px;
+    border: 1px solid #eadcc9;
+    border-radius: 22px;
+    background: #ffffff;
+}
+
+.settings-logo-preview img {
+    max-width: 100%;
+    max-height: 92px;
+    object-fit: contain;
+}
+
+.settings-logo-copy {
+    display: grid;
+    gap: 5px;
+}
+
+.settings-logo-copy h4 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 1.08rem;
+}
+
+.settings-logo-copy p,
+.settings-logo-copy small {
+    margin: 0;
+    color: var(--muted);
+}
+
+.settings-logo-controls {
+    display: grid;
+    gap: 12px;
+}
+
+.settings-file-field {
+    display: grid;
+    gap: 8px;
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 900;
+}
+
+.settings-file-field input {
+    width: 100%;
+    border: 1px solid #e5ded2;
+    border-radius: 16px;
+    padding: 12px;
+    background: #ffffff;
+}
+
+.settings-logo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.settings-search-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    padding: 16px;
+    border: 1px solid #eadcc9;
+    border-radius: 22px;
+    background: #fbfaf7;
+}
+
+.settings-search-field {
+    gap: 8px;
+}
+
+.settings-search-clear {
+    min-height: 52px;
+}
+
+.settings-search-summary {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.settings-accordion-panel.is-setting-search-hidden,
+.settings-field-grid .field.is-setting-search-hidden {
+    display: none;
+}
+
+.settings-field-grid .field.is-setting-search-match {
+    border-color: rgba(229, 179, 79, 0.7);
+    background: #fffaf0;
+    box-shadow: 0 0 0 4px rgba(229, 179, 79, 0.12);
+}
+
+.settings-accordion-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+.settings-accordion-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 20px 24px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.settings-accordion-summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-accordion-summary > span:first-child {
+    display: grid;
+    gap: 4px;
+}
+
+.settings-accordion-summary strong {
+    color: var(--ink);
+    font-size: 1.05rem;
+}
+
+.settings-accordion-summary small {
+    color: var(--muted);
+}
+
+.settings-accordion-summary::after {
+    content: "v";
+    display: inline-grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 999px;
+    background: #f5ead8;
+    color: var(--accent-strong);
+    font-weight: 900;
+    transition: transform 160ms ease;
+}
+
+.settings-accordion-panel[open] .settings-accordion-summary::after {
+    transform: rotate(180deg);
+}
+
+.settings-accordion-meta {
+    margin-left: auto;
+    border-radius: 999px;
+    padding: 7px 12px;
+    background: #fbfaf7;
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.settings-accordion-body {
+    padding: 0 24px 24px;
+}
+
+.settings-health-panel {
+    display: grid;
+    gap: 16px;
+    margin: 18px 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: #fbfaf7;
+}
+
+.settings-health-head,
+.settings-health-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.settings-health-head {
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settings-health-head h4,
+.settings-health-head p,
+.settings-health-card p,
+.settings-health-card small {
+    margin: 0;
+}
+
+.settings-health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.settings-health-card {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: #fff;
+}
+
+.settings-health-card.is-missing {
+    border-color: rgba(199, 90, 66, 0.28);
+    background: #fff8f6;
+}
+
+.settings-health-status {
+    width: fit-content;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(214, 247, 226, 0.78);
+    color: #14743a;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.settings-health-card.is-missing .settings-health-status {
+    background: rgba(255, 223, 218, 0.9);
+    color: #b13b2d;
+}
+
+.settings-health-note {
+    margin: 0;
+    color: var(--muted);
+}
+
+.settings-choice-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px;
+    border: 1px solid #e8e0d5;
+    border-radius: 18px;
+    background: #fbfaf7;
+}
+
+.settings-choice {
+    min-width: 92px;
+    flex: 1 1 auto;
+    cursor: pointer;
+}
+
+.settings-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.settings-choice span {
+    display: grid;
+    min-height: 42px;
+    place-items: center;
+    padding: 9px 12px;
+    border-radius: 14px;
+    color: var(--muted);
+    font-weight: 900;
+    text-align: center;
+    transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.settings-choice input:checked + span {
+    background: var(--ink);
+    color: #ffffff;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.14);
+}
+
+.mailer-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 16px 0 20px;
+}
+
+.mailer-guide-card {
+    display: grid;
+    gap: 6px;
+    padding: 16px;
+    border: 1px solid #eee2d3;
+    border-radius: 18px;
+    background: #fbfaf7;
+}
+
+.mailer-guide-card strong {
+    color: var(--ink);
+}
+
+.mailer-guide-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+}
+

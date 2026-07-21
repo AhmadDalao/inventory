@@ -1,0 +1,183 @@
+/* Workflows: shared request, handover, purchase, and operational form patterns. */
+.workflow-panel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workflow-line-builder,
+.workflow-action-stack {
+    display: grid;
+    gap: 16px;
+}
+
+.workflow-line-table {
+    table-layout: fixed;
+}
+
+.workflow-line-table th:nth-child(1),
+.workflow-line-table td:nth-child(1) {
+    width: 54%;
+}
+
+.workflow-line-table th:nth-child(2),
+.workflow-line-table td:nth-child(2) {
+    width: 14%;
+}
+
+.workflow-line-table th:nth-child(3),
+.workflow-line-table td:nth-child(3) {
+    width: 16%;
+}
+
+.workflow-line-table th:nth-child(4),
+.workflow-line-table td:nth-child(4) {
+    width: 16%;
+}
+
+.workflow-picker {
+    position: relative;
+}
+
+.workflow-picker-toggle {
+    width: 100%;
+    min-height: 74px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: linear-gradient(180deg, #fffdfa, #f7efe4);
+    color: var(--ink);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.workflow-picker-toggle:hover,
+.workflow-picker-toggle:focus-visible {
+    border-color: rgba(11, 110, 105, 0.28);
+    box-shadow: 0 18px 34px rgba(22, 18, 11, 0.08);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.workflow-picker-toggle-copy,
+.workflow-picker-selected,
+.workflow-picker-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+
+.workflow-picker-toggle-copy,
+.workflow-picker-selected {
+    width: 100%;
+}
+
+.workflow-picker-selected > span:last-child,
+.workflow-picker-option > span:last-child {
+    min-width: 0;
+}
+
+.workflow-picker-selected .tiny-copy,
+.workflow-picker-option .tiny-copy {
+    display: block;
+    margin-top: 3px;
+}
+
+.workflow-picker-placeholder {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.workflow-picker-thumb {
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    border-radius: 14px;
+    object-fit: cover;
+    background: #ece4d8;
+    border: 1px solid #e6dbcb;
+    overflow: hidden;
+}
+
+.workflow-picker-thumb-fallback {
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    color: var(--accent-strong);
+}
+
+.workflow-picker-panel {
+    position: static;
+    width: 100%;
+    margin-top: 10px;
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 22px;
+    border: 1px solid #e8dcc9;
+    background: rgba(255, 253, 248, 0.98);
+    box-shadow: 0 28px 60px rgba(22, 18, 11, 0.16);
+    backdrop-filter: blur(12px);
+}
+
+.workflow-picker-panel[hidden] {
+    display: none;
+}
+
+.workflow-line-table td {
+    overflow: visible;
+}
+
+.workflow-line-table input[type="number"] {
+    width: 100%;
+    min-width: 112px;
+}
+
+.workflow-picker-search {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    padding: 12px 14px;
+}
+
+.workflow-picker-search:focus {
+    outline: 2px solid rgba(11, 110, 105, 0.18);
+    border-color: var(--accent);
+}
+
+.workflow-picker-options {
+    display: grid;
+    gap: 10px;
+    max-height: 320px;
+    overflow: auto;
+}
+
+.workflow-picker-option {
+    width: 100%;
+    border: 1px solid #eadfce;
+    border-radius: 18px;
+    padding: 12px;
+    background: #fff;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.workflow-picker-option:hover,
+.workflow-picker-option:focus-visible,
+.workflow-picker-option.is-selected {
+    border-color: rgba(11, 110, 105, 0.28);
+    background: #f4fbfa;
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.workflow-picker-empty {
+    padding: 14px;
+    border-radius: 18px;
+    background: #faf6ef;
+    color: var(--muted);
+    text-align: center;
+}
+

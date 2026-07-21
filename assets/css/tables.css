@@ -1,0 +1,452 @@
+/* Tables: data tables, pagination, row actions, and scrolling behavior. */
+.table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-gutter: stable;
+}
+
+.data-table-shell {
+    display: grid;
+    gap: 20px;
+}
+
+.live-filter-region {
+    display: grid;
+    gap: 20px;
+    transition: opacity 140ms ease;
+}
+
+.live-filter-region.is-loading {
+    opacity: 0.62;
+}
+
+.table-shell-head,
+.data-table-toolbar,
+.table-toolbar-group,
+.data-table-footer {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.table-shell-head,
+.data-table-footer {
+    justify-content: space-between;
+}
+
+.table-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.table-heading strong {
+    font-size: 1.08rem;
+}
+
+.table-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #161d2d;
+    color: #fff;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.table-shell-copy,
+.table-results {
+    margin: 0;
+    color: var(--muted);
+}
+
+.table-heading strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.data-table-toolbar {
+    justify-content: space-between;
+    padding: 18px;
+    border: 1px solid #efe7db;
+    border-radius: 22px;
+    background: #faf6ef;
+}
+
+.table-toolbar-group {
+    flex: 1 1 520px;
+}
+
+.table-page-size {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.table-page-size select,
+.table-search input {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #fff;
+    color: var(--ink);
+}
+
+.table-page-size select {
+    min-width: 86px;
+    padding: 12px 14px;
+}
+
+.table-search {
+    flex: 1 1 280px;
+}
+
+.table-search input {
+    width: 100%;
+    padding: 13px 16px;
+}
+
+.table-page-size select:focus,
+.table-search input:focus {
+    outline: 2px solid rgba(11, 110, 105, 0.18);
+    border-color: var(--accent);
+}
+
+.table-export-button {
+    white-space: nowrap;
+}
+
+.data-table-mobile {
+    min-width: 100%;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 960px;
+    table-layout: auto;
+}
+
+.data-table th,
+.data-table td {
+    padding: 14px 10px;
+    border-bottom: 1px solid #efe7db;
+    text-align: left;
+    vertical-align: top;
+    word-break: normal;
+    overflow-wrap: break-word;
+    hyphens: none;
+    line-height: 1.45;
+}
+
+.data-table th {
+    color: var(--muted);
+    font-size: 0.84rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: #faf6ef;
+    white-space: nowrap;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(11, 110, 105, 0.04);
+}
+
+.data-table .pill {
+    white-space: nowrap;
+}
+
+.data-table td[data-label="Item"],
+.data-table td[data-label="Supplier"],
+.data-table td[data-label="Purchase"],
+.data-table td[data-label="Stocktake"],
+.data-table td[data-label="Handover"],
+.data-table td[data-label="Request"] {
+    min-width: 150px;
+}
+
+.data-table td[data-label="Reference"],
+.data-table td[data-label="Notes"] {
+    min-width: 190px;
+}
+
+.data-table td[data-label="Actions"],
+.table-actions-cell {
+    width: 1%;
+    min-width: 72px;
+    overflow: visible;
+}
+
+.movement-log-table {
+    min-width: 1440px;
+}
+
+.movement-log-table td[data-label="When"],
+.movement-log-table td[data-label="Quantity"],
+.movement-log-table td[data-label="Total Change"],
+.movement-log-table td[data-label="Balance After"],
+.movement-log-table td[data-label="By"] {
+    min-width: 105px;
+}
+
+.movement-log-table td[data-label="Item"] {
+    min-width: 170px;
+}
+
+.movement-log-table td[data-label="Type"] {
+    min-width: 96px;
+}
+
+.movement-log-table td[data-label="From"],
+.movement-log-table td[data-label="To"] {
+    min-width: 140px;
+}
+
+.movement-log-table td[data-label="Reference"] {
+    min-width: 170px;
+}
+
+.movement-log-table td[data-label="Notes"] {
+    min-width: 240px;
+}
+
+.row-action-menu {
+    position: relative;
+    display: inline-grid;
+    justify-items: end;
+    width: 100%;
+}
+
+.row-action-menu[open] {
+    z-index: 40;
+}
+
+.row-action-menu summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fffdfa;
+    color: var(--accent-strong);
+    cursor: pointer;
+    list-style: none;
+    transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.row-action-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.row-action-menu summary::marker {
+    content: "";
+}
+
+.row-action-menu summary:hover,
+.row-action-menu[open] summary {
+    border-color: var(--accent);
+    background: #fbf2df;
+}
+
+.row-action-menu summary:focus-visible {
+    outline: 3px solid rgba(231, 182, 74, 0.24);
+}
+
+.row-action-menu summary .ui-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.row-action-list {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 45;
+    display: grid;
+    gap: 4px;
+    min-width: 180px;
+    margin-top: 0;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(33, 25, 14, 0.08);
+}
+
+.row-action-list a,
+.row-action-list button {
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--ink);
+    padding: 9px 10px;
+    font: inherit;
+    font-weight: 850;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.row-action-list a:hover,
+.row-action-list button:hover {
+    background: #fbf7ef;
+}
+
+.row-action-list .danger-link {
+    color: #a13d2d;
+}
+
+.row-action-list .ui-icon {
+    width: 15px;
+    height: 15px;
+    color: var(--accent-strong);
+}
+
+.row-action-list .danger-link .ui-icon {
+    color: #a13d2d;
+}
+
+.data-table td input[type="number"] {
+    width: 100%;
+    min-width: 110px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    padding: 10px 12px;
+    color: var(--ink);
+}
+
+.data-table td input[type="number"]:focus {
+    outline: 2px solid rgba(11, 110, 105, 0.18);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(11, 110, 105, 0.08);
+}
+
+.compact-field {
+    gap: 0;
+}
+
+.compact-field input {
+    min-width: 110px;
+    padding: 10px 12px;
+}
+
+.pill,
+.stat-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.pill-usage {
+    background: #ffe7cf;
+    color: #9a4d00;
+}
+
+.pill-restock,
+.pill-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pill-transfer {
+    background: #ede9fe;
+    color: #5b21b6;
+}
+
+.pill-adjustment,
+.pill-admin {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.pill-pending,
+.pill-open {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.pill-draft {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.pill-awaiting_receipt {
+    background: #fde68a;
+    color: #92400e;
+}
+
+.pill-delivered {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.pill-pending_approval {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.pill-receipt_review {
+    background: #fde68a;
+    color: #92400e;
+}
+
+.pill-approved,
+.pill-completed,
+.pill-closed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pill-rejected,
+.pill-danger,
+.pill-cancelled {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.pill-owner {
+    background: #efe7ff;
+    color: var(--owner);
+}
+
+.pill-muted {
+    background: #ede7df;
+    color: #766a5c;
+}
+
+.filter-chip {
+    border: 1px solid transparent;
+    transition: 180ms ease;
+}
+
+.filter-chip:hover {
+    border-color: rgba(11, 110, 105, 0.2);
+    background: rgba(11, 110, 105, 0.08);
+    color: var(--accent-strong);
+}
+
+.filter-chip-active {
+    background: rgba(11, 110, 105, 0.14);
+    border-color: rgba(11, 110, 105, 0.22);
+    color: var(--accent-strong);
+}
+

@@ -1,3 +1,4 @@
+/* Assets domain: company assets, category hierarchy, custody, maintenance, and depreciation. */
 /* Asset module: list, filters, forms, and category hierarchy. */
 .assets-page {
     display: grid;
@@ -186,62 +187,6 @@
     background: #f7f0e8;
     color: var(--muted);
     text-align: center;
-}
-
-@media (max-width: 1100px) {
-    .assets-filter-grid {
-        grid-template-columns: repeat(2, minmax(180px, 1fr));
-    }
-
-    .assets-metric-grid {
-        grid-template-columns: repeat(2, minmax(180px, 1fr));
-    }
-
-    .asset-form .item-form-grid,
-    .asset-form .item-form-grid-primary {
-        grid-template-columns: repeat(2, minmax(220px, 1fr));
-    }
-}
-
-@media (max-width: 760px) {
-    .assets-filter-grid,
-    .assets-metric-grid,
-    .asset-form .item-form-grid,
-    .asset-form .item-form-grid-primary,
-    .asset-form .item-form-image-row {
-        grid-template-columns: 1fr;
-    }
-
-    .asset-table {
-        min-width: 0;
-    }
-
-    .asset-table td[data-label="Asset"],
-    .asset-table td[data-label="Scan Code"],
-    .asset-table td[data-label="Serial"],
-    .asset-table td[data-label="Custody"] {
-        min-width: 0;
-    }
-
-    .asset-table td[data-label="Status"],
-    .asset-table td[data-label="Condition"],
-    .asset-table td[data-label="Book Value"] {
-        white-space: normal;
-    }
-
-    .assets-page .data-table-toolbar .button-row {
-        width: 100%;
-    }
-
-    .assets-page .data-table-toolbar .button-row .ghost-button {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .asset-form .item-form-section-note {
-        max-width: none;
-        text-align: left;
-    }
 }
 
 .asset-category-layout {

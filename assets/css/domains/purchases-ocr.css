@@ -1,0 +1,292 @@
+/* Purchases and OCR domain: purchase lines, supplier selection, receiving, and OCR review. */
+.purchase-ocr-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+}
+
+.purchase-ocr-status,
+.purchase-ocr-text,
+.purchase-document-preview,
+.ocr-confidence-panel,
+[data-purchase-ocr-run-holder] {
+    grid-column: 1 / -1;
+}
+
+.purchase-document-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.purchase-document-preview-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: min(100%, 260px);
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.purchase-document-preview-thumb {
+    display: inline-grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #f4ecdf;
+    color: var(--accent-strong);
+    font-weight: 900;
+}
+
+.purchase-document-preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.purchase-ocr-text pre {
+    max-height: 220px;
+    overflow: auto;
+    margin: 10px 0 0;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.78);
+    white-space: pre-wrap;
+    direction: auto;
+    unicode-bidi: plaintext;
+}
+
+.purchase-import-hero,
+.purchase-import-card-head,
+.purchase-import-line-tools,
+.purchase-import-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.78rem;
+}
+
+.purchase-import-actions {
+    justify-content: flex-start;
+}
+
+.purchase-import-review {
+    display: grid;
+    gap: 18px;
+}
+
+.empty-state-card,
+.purchase-import-card {
+    border: 1px solid #ecdccb;
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at top right, rgba(11, 110, 105, 0.08), transparent 36%),
+        #fffdf8;
+}
+
+.empty-state-card {
+    padding: 24px;
+    color: var(--muted);
+}
+
+.empty-state-card strong {
+    display: block;
+    color: var(--ink);
+    margin-bottom: 6px;
+}
+
+.empty-state-card p {
+    margin: 0;
+}
+
+.purchase-import-card {
+    display: grid;
+    gap: 18px;
+    padding: 20px;
+    box-shadow: 0 18px 42px rgba(22, 18, 11, 0.06);
+}
+
+.purchase-import-include {
+    margin: 0;
+    flex: 1 1 360px;
+}
+
+.purchase-import-card-total {
+    display: grid;
+    gap: 4px;
+    min-width: 150px;
+    text-align: right;
+}
+
+.purchase-import-card-total strong {
+    color: var(--accent-strong);
+    font-size: 1.25rem;
+}
+
+.purchase-import-line-tools {
+    padding-top: 4px;
+}
+
+.purchase-import-line-table {
+    min-width: 980px;
+    table-layout: fixed;
+}
+
+.purchase-import-line-table th:nth-child(1),
+.purchase-import-line-table td:nth-child(1) {
+    width: 24%;
+}
+
+.purchase-import-line-table th:nth-child(2),
+.purchase-import-line-table td:nth-child(2) {
+    width: 36%;
+}
+
+.purchase-import-line-table th:nth-child(3),
+.purchase-import-line-table td:nth-child(3),
+.purchase-import-line-table th:nth-child(4),
+.purchase-import-line-table td:nth-child(4),
+.purchase-import-line-table th:nth-child(5),
+.purchase-import-line-table td:nth-child(5) {
+    width: 12%;
+}
+
+.purchase-import-line-table th:nth-child(6),
+.purchase-import-line-table td:nth-child(6) {
+    width: 8%;
+}
+
+.purchase-import-item-preview {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 16px;
+    background: #faf6ef;
+}
+
+.purchase-import-item-preview .workflow-picker-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+}
+
+.ocr-confidence-panel {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.ocr-confidence-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    border-radius: 999px;
+    padding: 8px 12px;
+    background: rgba(214, 247, 226, 0.78);
+    color: #14743a;
+    font-weight: 900;
+    font-size: 13px;
+}
+
+.ocr-confidence-chip.is-medium {
+    background: rgba(255, 235, 189, 0.82);
+    color: #9b5a00;
+}
+
+.ocr-confidence-chip.is-low {
+    background: rgba(255, 223, 218, 0.9);
+    color: #b13b2d;
+}
+
+.ocr-review-flags {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ocr-review-flags li {
+    border: 1px solid rgba(177, 59, 45, 0.18);
+    border-radius: 14px;
+    background: rgba(255, 246, 243, 0.85);
+    padding: 8px 10px;
+    color: #8f352a;
+    font-size: 13px;
+}
+
+.purchase-import-confidence {
+    margin: -4px 0 12px;
+}
+
+.ocr-review-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(220px, .9fr);
+    gap: 14px;
+    align-items: stretch;
+    padding: 14px;
+    border: 1px solid rgba(20, 116, 58, .16);
+    border-radius: 18px;
+    background: rgba(246, 255, 250, .86);
+}
+
+.ocr-review-summary.needs-review {
+    border-color: rgba(177, 59, 45, .2);
+    background: rgba(255, 249, 244, .92);
+}
+
+.ocr-review-summary > div:first-child {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+}
+
+.ocr-review-summary strong {
+    font-size: 1rem;
+}
+
+.ocr-review-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.ocr-review-metrics span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid rgba(224, 216, 203, .72);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .78);
+    color: var(--muted);
+    font-size: .78rem;
+}
+
+.ocr-review-metrics strong {
+    color: var(--text);
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.ocr-review-clean {
+    margin: 0;
+}
+
