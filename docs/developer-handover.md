@@ -473,6 +473,20 @@ php tests/full_regression.php
 php tests/stock_invariants.php
 ```
 
+Responsive browser matrix:
+
+```bash
+NODE_PATH=/Users/ahmaddalao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules \
+BASE_URL=https://inventory.ahmaddalao.com \
+INVENTORY_EMAIL=owner@example.com \
+INVENTORY_PASSWORD='password' \
+CAPTURE_SCREENSHOTS=1 \
+OUTPUT_DIR=storage/test-screenshots/responsive \
+node tests/responsive_ui_smoke.js
+```
+
+This checks 21 authenticated pages at 390px, 430px, 768px, 1024px, 1440px, and 1920px. It fails on page-level horizontal overflow, clipped visible controls, broken same-origin resources, browser console errors, and an unusable mobile sidebar. Dense tables are allowed to scroll inside their own wrapper; the page itself is not.
+
 Module boundary check:
 
 ```bash
@@ -583,20 +597,82 @@ The signoff module was split further because PDF/XLSX generation had become too 
 
 Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding assets. CSS is fully organized into the strict cascade documented above; the retired compatibility stylesheet and temporary theme passes are gone. JavaScript is split into core, shared UI, and domain modules, while `assets/app.js` remains a small native-module bootstrap. New frontend behavior must follow the registry contract rather than growing the entry file again.
 
-## 13. Verification Notes
+## 13. Responsive Layout Contract
 
-Verified production frontend checkpoint on July 21, 2026:
+Responsive behavior is intentionally split into six viewport classes in `assets/css/mobile.css`:
 
-- Application checkpoint: `9a1fe30` (`Update regression for modular frontend`), deployed from `main`.
-- Backup SQL: `storage/backups/inventory-backup-20260721-121301.sql`.
-- Backup manifest: `storage/backups/inventory-backup-20260721-121301.manifest.json`.
-- Backup files archive: `storage/backups/inventory-backup-20260721-121301.files.zip`.
-- Backup archived 15,012 files totaling 1,643,184,153 bytes with no warnings.
-- PHP lint, every JavaScript module syntax check, `git diff --check`, module boundaries, frontend assets, and responsive login smoke checks passed.
-- Live regression prefix `ZZFRONTEND20260721` passed and cleaned its temporary records.
+| Viewport | Width | Expected behavior |
+|---|---:|---|
+| Compact phone | Up to 430px | Tight shell/panel spacing, single-column workflow controls, full-width primary actions where needed. |
+| Phone | 431px to 760px | Single-column field workflow with slightly wider gutters. |
+| Tablet | 761px to 1024px | Two-column form/filter grids where readable; action rows wrap instead of clipping. |
+| Compact desktop | 1025px to 1360px | Desktop information density with controlled gutters and drawer navigation where required. |
+| Standard desktop | 1361px to 1599px | Full desktop navigation and balanced content spacing. |
+| Wide desktop | 1600px and above | Content is centered and capped at 1840px so cards and forms do not stretch into nonsense. |
+
+Rules that must remain true:
+
+- `body`, `.app-shell`, `.main-panel`, and `.content` must not create page-level horizontal overflow.
+- Operational data tables remain real tables at every width. Below 1361px their own wrapper provides touch-friendly horizontal scrolling.
+- Sidebar navigation scrolls inside the viewport when its links exceed the available height.
+- Search/combobox panels and action menus overlay content; opening one must not increase the surrounding row height.
+- Closed notification and account popovers must use `display: none`; otherwise they remain rendered off-canvas and silently widen phone pages.
+- New responsive rules belong in `assets/css/mobile.css`, which remains last in the stylesheet registry.
+- Any new route with authenticated UI must be added to `tests/responsive_ui_smoke.js`.
+
+## 14. Future KONA URL And Domain Cutover
+
+Moving from `https://inventory.ahmaddalao.com` to a KONA-owned URL is an infrastructure/configuration cutover, not a rewrite. Public route paths and database records should stay unchanged.
+
+### Required changes
+
+1. Create the KONA domain or subdomain in Hostinger and point its DNS to the production host.
+2. Configure its document root to the deployed application folder, or deploy a verified copy of the same Git commit to the new document root.
+3. Issue and verify HTTPS before login credentials or protected documents are used.
+4. Change `APP_URL` in production `.env` to the final HTTPS URL. `config/app.php` derives the application base path from this value.
+5. If the folder path changes, update Hostinger cron commands for `scripts/backup.php` and `scripts/daily_report.php`.
+6. Preserve the production database and the complete `storage/`/upload tree together. Protected purchase, handover, asset, and file-library documents depend on those files and permissions.
+7. In Website Control, update sender/reply-to email, SMTP identity, logo/branding, and any text that still names the old inventory domain.
+8. Review hard-coded fallback identities in `app/modules/email_settings.php`, `app/modules/email_smtp.php`, `app/modules/workflow_identity.php`, and `app/support/settings_schema.php`. Normal requests use the configured host, but fallbacks should match the KONA domain before the old host is retired.
+9. Update `.env.example`, `README.md`, production-readiness commands, monitoring links, saved bookmarks, and external documentation after the cutover succeeds.
+10. Run login, password reset, global search/reference open, protected document download, PDF/XLSX generation, exports, OCR, email test, responsive matrix, full regression, and stock invariants on the new URL.
+11. Keep the old URL available during validation. Add a permanent redirect only after the new domain passes all tests and current sessions have been considered.
+
+### Do not change
+
+- Do not rename routes such as `/items`, `/handovers`, `/requests`, `/purchases`, `/company-assets`, or `/reports`.
+- Do not change SKU, barcode, handover, request, purchase, or asset references. QR codes store stable references rather than domain-bound URLs.
+- Do not create a second live database unless an intentional data migration is planned. Two writable databases would split stock history.
+- Do not copy only application code and forget protected uploads or generated signoff files.
+- Do not change stock movement logic, permissions, or workflow statuses as part of the domain move.
+
+### Cutover verification commands
+
+```bash
+php -l index.php
+php tests/frontend_assets.php
+php tests/module_boundaries.php
+php tests/full_regression.php --base-url=https://NEW-KONA-DOMAIN --allow-live --prefix=ZZDOMAINYYYYMMDD
+php tests/stock_invariants.php
+```
+
+Create a complete backup before cutover and retain the old app path until the new host has passed the same checks.
+
+## 15. Verification Notes
+
+Verified production responsive checkpoint on July 21, 2026:
+
+- Application checkpoint: `44de744` (`Harden responsive layouts across viewport classes`), deployed from `main`.
+- Backup SQL: `storage/backups/inventory-backup-20260721-141450.sql`.
+- Backup manifest: `storage/backups/inventory-backup-20260721-141450.manifest.json`.
+- Backup files archive: `storage/backups/inventory-backup-20260721-141450.files.zip`.
+- Backup files archive size: approximately 1.6 GB; SQL size: approximately 1.7 MB.
+- PHP lint passed across 348 PHP files. Every JavaScript module syntax check, `git diff --check`, module boundaries, and frontend asset tests passed.
+- Responsive smoke passed 21 authenticated routes across six viewport sizes: 126 page/viewport combinations with zero page-level horizontal overflow.
+- Live regression prefixes `ZZRESPBASE20260721` and `ZZRESPAFTER20260721` passed and cleaned their temporary records.
 - Stock invariants passed before the live regression and again after cleanup.
 - The live regression covered auth, users, permissions, settings, dashboard, inventory, scan/manual stock, requests, staff handovers, storage-transfer handovers, exact staff receipt flow, issuer final review, purchases, protected documents, suppliers, OCR, reorder, assets, stocktakes, labels, files, reports, exports, audit, and email logs.
-- The live login loaded all 19 registered stylesheets with no console errors and no horizontal page overflow at 390px.
+- Responsive screenshots are stored under `storage/test-screenshots/responsive-after-20260721/` for compact phone, large phone, tablet portrait, tablet landscape, desktop, and wide desktop.
 
 Use this verification sequence for the next deployment:
 
@@ -608,13 +684,14 @@ find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/backup_archive.php
+NODE_PATH=/path/to/node_modules BASE_URL=https://inventory.ahmaddalao.com INVENTORY_EMAIL=owner@example.com INVENTORY_PASSWORD='password' node tests/responsive_ui_smoke.js
 php tests/full_regression.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMODULARYYYYMMDD
 php tests/stock_invariants.php
 ```
 
 If the full regression runs on live, run `php scripts/backup.php` first and use a unique prefix. The regression creates users, storages, items, handovers, purchases, assets, stocktakes, and exports, then cleans them up.
 
-## 14. Next Technical Improvements
+## 16. Next Technical Improvements
 
 Recommended order:
 

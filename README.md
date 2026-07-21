@@ -9,8 +9,8 @@ This is no longer a tiny CRUD app. The current application tracks consumable sto
 Start here:
 
 - [Developer handover](docs/developer-handover.md)
-- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-15.docx)
-- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-20.docx)
+- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-21.docx)
+- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-21.docx)
 - Production URL: `https://inventory.ahmaddalao.com`
 - Live app path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
 - Main branch: `main`
@@ -37,6 +37,7 @@ find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 node --check assets/app.js
 php tests/module_boundaries.php
 php tests/frontend_assets.php
+NODE_PATH=/path/to/playwright/node_modules BASE_URL=https://inventory.ahmaddalao.com INVENTORY_EMAIL=owner@example.com INVENTORY_PASSWORD='password' node tests/responsive_ui_smoke.js
 php tests/full_regression.php
 php tests/stock_invariants.php
 ```
