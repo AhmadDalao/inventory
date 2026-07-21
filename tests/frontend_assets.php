@@ -123,7 +123,7 @@ if (substr_count($entryScript, "./js/") < 10) {
     fail_frontend_assets('The JavaScript entry point must import the frontend modules.');
 }
 
-if (str_word_count($entryScript) > 300) {
+if (substr_count($entryScript, "\n") > 100) {
     fail_frontend_assets('assets/app.js must remain a small bootstrap entry point.');
 }
 

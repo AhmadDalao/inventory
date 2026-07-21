@@ -18,6 +18,9 @@ import { init as initDocumentation } from './js/domains/documentation.js';
 import { init as initReorder } from './js/domains/reorder.js';
 import { init as initSuppliers } from './js/domains/suppliers.js';
 import { init as initAssets } from './js/domains/assets.js';
+import { init as initHandovers } from './js/domains/handovers.js';
+import { init as initMovements } from './js/domains/movements.js';
+import { init as initWorkflowLines } from './js/domains/workflow-lines.js';
 import { init as initLegacyWorkflows } from './js/domains/legacy-workflows.js';
 
 registerInitializer('navigation', initNavigation);
@@ -39,6 +42,9 @@ registerInitializer('documentation', initDocumentation);
 registerInitializer('reorder', initReorder);
 registerInitializer('suppliers', initSuppliers);
 registerInitializer('assets', initAssets);
+registerInitializer('handovers', initHandovers);
+registerInitializer('movements', initMovements);
+registerInitializer('workflow-lines', initWorkflowLines);
 registerInitializer('legacy-workflows', initLegacyWorkflows);
 
 document.addEventListener('DOMContentLoaded', () => {
