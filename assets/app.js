@@ -11,6 +11,13 @@ import { init as initLiveActions } from './js/ui/live-actions.js';
 import { init as initTables } from './js/ui/tables.js';
 import { init as initFilters } from './js/ui/filters.js';
 import { init as initActionMenus } from './js/ui/action-menus.js';
+import { init as initLabels } from './js/domains/labels.js';
+import { init as initPermissions } from './js/domains/permissions.js';
+import { init as initSettings } from './js/domains/settings.js';
+import { init as initDocumentation } from './js/domains/documentation.js';
+import { init as initReorder } from './js/domains/reorder.js';
+import { init as initSuppliers } from './js/domains/suppliers.js';
+import { init as initAssets } from './js/domains/assets.js';
 import { init as initLegacyWorkflows } from './js/domains/legacy-workflows.js';
 
 registerInitializer('navigation', initNavigation);
@@ -25,6 +32,13 @@ registerInitializer('live-actions', initLiveActions);
 registerInitializer('tables', initTables);
 registerInitializer('filters', initFilters);
 registerInitializer('action-menus', initActionMenus);
+registerInitializer('labels', initLabels);
+registerInitializer('permissions', initPermissions);
+registerInitializer('settings', initSettings);
+registerInitializer('documentation', initDocumentation);
+registerInitializer('reorder', initReorder);
+registerInitializer('suppliers', initSuppliers);
+registerInitializer('assets', initAssets);
 registerInitializer('legacy-workflows', initLegacyWorkflows);
 
 document.addEventListener('DOMContentLoaded', () => {
