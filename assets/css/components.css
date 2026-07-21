@@ -542,6 +542,11 @@
     z-index: 30;
 }
 
+.notification-menu:not([open]) > .notification-panel,
+.topbar-user-menu:not([open]) > .topbar-user-panel {
+    display: none;
+}
+
 .notification-menu[open] .notification-toggle {
     border-color: rgba(11, 110, 105, 0.2);
     box-shadow: 0 16px 30px rgba(22, 18, 11, 0.08);

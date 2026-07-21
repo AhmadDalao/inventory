@@ -199,6 +199,12 @@ foreach ([
     }
 }
 
+if (strpos($componentsCss, '.notification-menu:not([open]) > .notification-panel') === false
+    || strpos($componentsCss, '.topbar-user-menu:not([open]) > .topbar-user-panel') === false
+) {
+    fail_frontend_assets('Closed topbar popovers must not remain rendered off-canvas.');
+}
+
 foreach ([
     'Asset module',
     '.assets-page',
@@ -214,9 +220,28 @@ foreach ([
     'Mobile hardening',
     'Mobile table policy',
     'Searchable select dropdowns must overlay',
+    'Responsive viewport matrix',
 ] as $marker) {
     if (strpos($mobileCss, $marker) === false) {
         fail_frontend_assets('Mobile CSS module is missing marker: ' . $marker);
+    }
+}
+
+$responsiveSmoke = file_get_contents($root . '/tests/responsive_ui_smoke.js') ?: '';
+
+foreach ([
+    "name: 'compact-phone', width: 390",
+    "name: 'large-phone', width: 430",
+    "name: 'tablet-portrait', width: 768",
+    "name: 'tablet-landscape', width: 1024",
+    "name: 'desktop', width: 1440",
+    "name: 'wide-desktop', width: 1920",
+    'globalOverflow',
+    'clipped controls',
+    'console errors',
+] as $marker) {
+    if (strpos($responsiveSmoke, $marker) === false) {
+        fail_frontend_assets('Responsive UI smoke test is missing coverage marker: ' . $marker);
     }
 }
 
