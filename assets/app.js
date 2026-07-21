@@ -21,7 +21,10 @@ import { init as initAssets } from './js/domains/assets.js';
 import { init as initHandovers } from './js/domains/handovers.js';
 import { init as initMovements } from './js/domains/movements.js';
 import { init as initWorkflowLines } from './js/domains/workflow-lines.js';
-import { init as initLegacyWorkflows } from './js/domains/legacy-workflows.js';
+import { init as initPurchases } from './js/domains/purchases.js';
+import { init as initOcr } from './js/domains/ocr.js';
+import { init as initManualStock } from './js/domains/manual-stock.js';
+import { init as initScan } from './js/domains/scan.js';
 
 registerInitializer('navigation', initNavigation);
 registerInitializer('dialogs', initDialogs);
@@ -45,7 +48,10 @@ registerInitializer('assets', initAssets);
 registerInitializer('handovers', initHandovers);
 registerInitializer('movements', initMovements);
 registerInitializer('workflow-lines', initWorkflowLines);
-registerInitializer('legacy-workflows', initLegacyWorkflows);
+registerInitializer('purchases', initPurchases);
+registerInitializer('ocr', initOcr);
+registerInitializer('manual-stock', initManualStock);
+registerInitializer('scan', initScan);
 
 document.addEventListener('DOMContentLoaded', () => {
   initInteractiveUi(document);
