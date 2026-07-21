@@ -2368,6 +2368,10 @@ body.app-shell {
     .app-shell .topbar {
         gap: 8px;
     }
+
+    .app-shell .reports-summary-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (min-width: 431px) and (max-width: 760px) {
@@ -2381,6 +2385,10 @@ body.app-shell {
     .theme-clean.app-shell .content,
     .theme-official.app-shell .content {
         padding-inline: 0;
+    }
+
+    .app-shell .reports-summary-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -2409,6 +2417,16 @@ body.app-shell {
     .app-shell .page-actions,
     .app-shell .button-row {
         flex-wrap: wrap;
+    }
+
+    .app-shell .reports-summary-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1025px) and (max-width: 1180px) {
+    .app-shell .reports-summary-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -2459,5 +2477,11 @@ body.app-shell {
     .app-shell .filter-panel,
     .app-shell .data-table-shell {
         scroll-margin-top: 110px;
+    }
+}
+
+@media (max-width: 360px) {
+    .app-shell .reports-summary-metrics {
+        grid-template-columns: 1fr;
     }
 }
