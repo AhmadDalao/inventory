@@ -9,7 +9,7 @@ This is no longer a tiny CRUD app. The current application tracks consumable sto
 Start here:
 
 - [Developer handover](docs/developer-handover.md)
-- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-20.docx)
+- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-15.docx)
 - [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-20.docx)
 - Production URL: `https://inventory.ahmaddalao.com`
 - Live app path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
@@ -33,6 +33,7 @@ php -S 127.0.0.1:8080 router.php
 ```bash
 php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
+find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 node --check assets/app.js
 php tests/module_boundaries.php
 php tests/frontend_assets.php
@@ -63,4 +64,4 @@ Run `php tests/module_boundaries.php` after backend refactors. It fails if old a
 
 When changing database bootstrapping, keep `app/Maintenance.php` as the orchestrator and put boot setup, reusable helpers, schema-current checks, backfills, and seed routines in `app/maintenance/`. Do not bury workflow behavior there.
 
-Frontend assets are loaded through `app/modules/frontend_assets.php`. Keep the base desktop/global layer in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, the mobile/sidebar/table/dropdown override layer in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JS is split safely.
+Frontend assets are loaded through `app/modules/frontend_assets.php`. CSS is split into ordered foundation, shell, component, table, workflow, domain, theme, print, and mobile files. JavaScript uses native ES modules: `assets/app.js` is only the bootstrap entry, while reusable UI and domain behavior lives under `assets/js/`. See the developer handover before adding or moving frontend code.

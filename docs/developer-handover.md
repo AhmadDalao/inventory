@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-20
+Updated: 2026-07-21
 
 ## 1. What This System Is
 
@@ -35,6 +35,48 @@ Do not add new code to these compatibility loaders:
 - `app/workflows.php`
 - `app/company_assets.php`
 - `app/report_presets.php`
+
+### Frontend Asset Architecture
+
+Frontend assets are registered in `app/modules/frontend_assets.php`. The layout adds a file-modification cache key to every registered file, so a deployment changes asset URLs without a build step.
+
+CSS loads in this strict cascade order:
+
+1. `assets/css/foundation.css`: variables, fonts, reset, and typography.
+2. `assets/css/shell.css`: sidebar, topbar, navigation, and page containers.
+3. `assets/css/components.css`: buttons, forms, dialogs, dropdowns, notifications, and shared controls.
+4. `assets/css/tables.css`: tables, pagination, row action menus, and intentional table scrolling.
+5. `assets/css/workflows.css`: shared request, handover, and purchase form patterns.
+6. `assets/css/domains/*.css`: inventory, scan, handovers, purchases/OCR, reports, admin, settings, documentation, and assets.
+7. `assets/css/themes/*.css`: Classic Warm, KONA, and Official KONA.
+8. `assets/css/print.css`: print-only output.
+9. `assets/css/mobile.css`: responsive rules and final mobile precedence.
+
+Do not use CSS `@import`. Add a stylesheet to `frontend_stylesheets()` in the correct cascade position. Keep `mobile.css` last. Desktop data tables intentionally remain tables on phones and scroll inside their table wrapper; do not reintroduce stacked pseudo-table cards.
+
+JavaScript uses native browser ES modules with no Vite, Webpack, or generated bundle:
+
+- `assets/app.js` imports modules, registers their initializers, and starts the application after `DOMContentLoaded`.
+- `assets/js/core/registry.js` owns initializer registration and safe reinitialization.
+- `assets/js/core/` contains DOM, events, formatting, and HTTP/AJAX primitives.
+- `assets/js/ui/` contains navigation, dialogs, media, search, comboboxes, notifications, tables, filters, and action menus.
+- `assets/js/domains/` contains inventory/workflow-specific behavior such as handovers, movements, scan/manual stock, purchases, OCR, assets, reports, settings, permissions, labels, and reorder.
+
+Every UI/domain module exports an idempotent `init(root = document)` function. It must bind only inside `root`, mark or otherwise guard initialized elements, and tolerate being called more than once. Never put one-off page initialization directly in a module body.
+
+AJAX replacements use two stable events:
+
+- `inventory:action-complete`: announces that a user action completed and lets affected metrics or regions refresh.
+- `inventory:content-replaced`: carries the replaced root. The registry reruns all initializers against that root exactly once per element.
+
+When adding frontend behavior:
+
+1. Put reusable interaction in `assets/js/ui/`; put business-page behavior in `assets/js/domains/`.
+2. Export `init(root = document)` and make it safe to rerun.
+3. Import and register it in `assets/app.js` with a unique registry name.
+4. Avoid browser-native `confirm()`; use the shared dialog module.
+5. Dispatch `inventory:content-replaced` after replacing live HTML.
+6. Run `node --check` on every module and `php tests/frontend_assets.php`.
 
 ## 3. Module Map
 
@@ -417,6 +459,7 @@ Static checks:
 php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
+find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/backup_archive.php
@@ -538,22 +581,22 @@ Domain logic now lives under `app/modules/`. Keep it that way.
 
 The signoff module was split further because PDF/XLSX generation had become too large for safe edits. `app/modules/signoff.php` loads the signoff domain and `app/modules/signoff_data.php` loads the focused data-preparation files. Public persistence helpers live in `app/modules/signoff_persistence.php`.
 
-Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding one stylesheet and one script. Keep base desktop/global CSS in `assets/app.css`, asset list/form/category styling in `assets/css/assets.css`, mobile/sidebar/table/dropdown overrides in `assets/css/mobile.css`, and shared behavior in `assets/app.js` until the JavaScript can be split safely.
+Frontend assets now load through `app/modules/frontend_assets.php`. `views/layout.php` reads that registry instead of hard-coding assets. CSS is fully organized into the strict cascade documented above; the retired compatibility stylesheet and temporary theme passes are gone. JavaScript is split into core, shared UI, and domain modules, while `assets/app.js` remains a small native-module bootstrap. New frontend behavior must follow the registry contract rather than growing the entry file again.
 
 ## 13. Verification Notes
 
-Verified production checkpoint on July 20, 2026:
+Verified production frontend checkpoint on July 21, 2026:
 
-- Application commit: `7b16698` (`Verify purchase permission boundaries`), deployed from `main`.
-- Backup SQL: `storage/backups/inventory-backup-20260720-111638.sql`.
-- Backup manifest: `storage/backups/inventory-backup-20260720-111638.manifest.json`.
-- Backup files archive: `storage/backups/inventory-backup-20260720-111638.files.zip`.
-- Backup archived 14,700 files totaling 1,604,088,094 bytes with no warnings.
-- Local PHP lint, `node --check assets/app.js`, `git diff --check`, module boundaries, frontend assets, and backup archive checks passed.
-- Live regression prefix `ZZCYCLE20260720E` passed and cleaned its temporary records.
+- Application checkpoint: `9a1fe30` (`Update regression for modular frontend`), deployed from `main`.
+- Backup SQL: `storage/backups/inventory-backup-20260721-121301.sql`.
+- Backup manifest: `storage/backups/inventory-backup-20260721-121301.manifest.json`.
+- Backup files archive: `storage/backups/inventory-backup-20260721-121301.files.zip`.
+- Backup archived 15,012 files totaling 1,643,184,153 bytes with no warnings.
+- PHP lint, every JavaScript module syntax check, `git diff --check`, module boundaries, frontend assets, and responsive login smoke checks passed.
+- Live regression prefix `ZZFRONTEND20260721` passed and cleaned its temporary records.
 - Stock invariants passed before the live regression and again after cleanup.
-- The live regression covered auth, users, permissions, settings, dashboard, inventory, scan/manual stock, requests, staff handovers, storage-transfer handovers, issuer receipt review, issuer final review, purchases, protected document permissions, suppliers, OCR, reorder, assets, stocktakes, labels, files, reports, exports, audit, and email logs.
-- Two early purchase test failures were incorrect test assumptions, not product failures: default admins correctly lacked `purchases.files` and `purchases.cancel`. The tests now prove denied default-admin behavior and allowed owner behavior.
+- The live regression covered auth, users, permissions, settings, dashboard, inventory, scan/manual stock, requests, staff handovers, storage-transfer handovers, exact staff receipt flow, issuer final review, purchases, protected documents, suppliers, OCR, reorder, assets, stocktakes, labels, files, reports, exports, audit, and email logs.
+- The live login loaded all 19 registered stylesheets with no console errors and no horizontal page overflow at 390px.
 
 Use this verification sequence for the next deployment:
 
@@ -561,6 +604,7 @@ Use this verification sequence for the next deployment:
 php -l index.php
 find app views scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
 node --check assets/app.js
+find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/backup_archive.php
@@ -574,8 +618,8 @@ If the full regression runs on live, run `php scripts/backup.php` first and use 
 
 Recommended order:
 
-1. Continue mobile field-work polish for handover, scan/manual stock add, assets, and movement tables.
+1. Continue mobile field-work polish for handover, scan/manual stock add, assets, and movement tables without changing the intentional mobile table-scroll rule.
 2. Keep extending export/filter parity tests whenever a filter or export changes.
 3. Harden OCR review for Arabic scanned PDFs with confidence warnings and optional OpenAI fallback.
 4. Exercise saved report presets with real daily operations, finance, storage-owner, purchase, and asset workflows.
-5. Split `assets/app.js` into frontend domain files only after the current PHP/CSS architecture remains stable in production.
+5. Keep CSS and JavaScript modules focused; split a domain file again when it starts owning unrelated behavior rather than waiting for another monolith.
