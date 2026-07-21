@@ -87,7 +87,7 @@ foreach ($scripts as $script) {
         }
 
         foreach ($matches[1] as $moduleImport) {
-            if (!str_starts_with($moduleImport, '.')) {
+            if (substr($moduleImport, 0, 1) !== '.') {
                 continue;
             }
 
