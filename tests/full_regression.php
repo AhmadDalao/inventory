@@ -4197,6 +4197,16 @@ foreach ([
     assert_true(strpos($manualScanPage['body'], 'data-manual-stock-draft') !== false, 'Manual stock add page is missing the review draft.');
     assert_true(strpos($manualScanPage['body'], '/scan/manual-restock/batch') !== false, 'Manual stock add page is missing the batch confirmation route.');
     $appJs = file_get_contents(dirname(__DIR__) . '/assets/app.js') ?: '';
+    $javascriptDirectory = dirname(__DIR__) . '/assets/js';
+    $javascriptFiles = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($javascriptDirectory, FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($javascriptFiles as $javascriptFile) {
+        if (!$javascriptFile->isFile() || strtolower($javascriptFile->getExtension()) !== 'js') {
+            continue;
+        }
+        $appJs .= "\n" . (file_get_contents($javascriptFile->getPathname()) ?: '');
+    }
     $appCss = '';
     foreach (frontend_stylesheets() as $stylesheet) {
         $appCss .= file_get_contents(dirname(__DIR__) . '/assets/' . ltrim($stylesheet, '/')) ?: '';
