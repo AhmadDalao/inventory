@@ -239,7 +239,10 @@ if (brand_custom_logo_asset() !== null) {
 <?php endif; ?>
 
 <?php foreach (frontend_scripts() as $script): ?>
-    <script src="<?= e(asset_url($script)) ?>" defer></script>
+    <script
+        src="<?= e(asset_url((string) $script['path'])) ?>"
+        type="<?= e((string) ($script['type'] ?? 'text/javascript')) ?>"
+    ></script>
 <?php endforeach; ?>
 </body>
 </html>

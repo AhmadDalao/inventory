@@ -18,7 +18,7 @@ if ($stylesheets === [] || $scripts === []) {
     fail_frontend_assets('Frontend stylesheet and script registries must not be empty.');
 }
 
-foreach (array_merge($stylesheets, $scripts) as $asset) {
+foreach ($stylesheets as $asset) {
     $path = $root . '/assets/' . ltrim($asset, '/');
 
     if (!is_file($path)) {
@@ -30,10 +30,43 @@ foreach (array_merge($stylesheets, $scripts) as $asset) {
     }
 }
 
+foreach ($scripts as $script) {
+    if (!is_array($script)) {
+        fail_frontend_assets('Frontend scripts must use descriptor arrays.');
+    }
+
+    $asset = (string) ($script['path'] ?? '');
+    $type = (string) ($script['type'] ?? '');
+
+    if ($asset === '' || $type !== 'module') {
+        fail_frontend_assets('Frontend scripts must define a path and use native module type.');
+    }
+
+    $path = $root . '/assets/' . ltrim($asset, '/');
+
+    if (!is_file($path)) {
+        fail_frontend_assets('Registered script is missing: assets/' . $asset);
+    }
+
+    if (filesize($path) === 0) {
+        fail_frontend_assets('Registered script is empty: assets/' . $asset);
+    }
+}
+
 $layout = file_get_contents($root . '/views/layout.php') ?: '';
 
 if (strpos($layout, 'frontend_stylesheets()') === false || strpos($layout, 'frontend_scripts()') === false) {
     fail_frontend_assets('Layout must load frontend assets through the registry.');
+}
+
+if (strpos($layout, "['path']") === false || strpos($layout, "['type']") === false) {
+    fail_frontend_assets('Layout must render native module script descriptors.');
+}
+
+$htaccess = file_get_contents($root . '/.htaccess') ?: '';
+
+if (strpos($htaccess, 'max-age=0, must-revalidate') === false) {
+    fail_frontend_assets('JavaScript modules must be revalidated after deployment.');
 }
 
 $baseCss = file_get_contents($root . '/assets/app.css') ?: '';

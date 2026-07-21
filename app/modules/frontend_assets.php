@@ -13,6 +13,9 @@ function frontend_stylesheets(): array
 function frontend_scripts(): array
 {
     return [
-        'app.js',
+        [
+            'path' => 'app.js',
+            'type' => 'module',
+        ],
     ];
 }
