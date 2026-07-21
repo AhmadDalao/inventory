@@ -65,11 +65,7 @@ foreach ($stylesheets as $asset) {
         $assetReference = trim((string) $assetReference);
 
         if ($assetReference === ''
-            || str_starts_with($assetReference, 'data:')
-            || str_starts_with($assetReference, 'http://')
-            || str_starts_with($assetReference, 'https://')
-            || str_starts_with($assetReference, '#')
-            || str_starts_with($assetReference, 'var(')
+            || preg_match('/^(?:data:|https?:\/\/|#|var\()/i', $assetReference) === 1
         ) {
             continue;
         }
