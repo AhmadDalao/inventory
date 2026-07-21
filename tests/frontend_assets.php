@@ -14,6 +14,22 @@ require_once $root . '/app/modules/frontend_assets.php';
 $stylesheets = frontend_stylesheets();
 $scripts = frontend_scripts();
 
+$expectedStylesheets = [
+    'css/foundation.css',
+    'css/themes/clean-material.css',
+    'css/themes/clean-console.css',
+    'css/themes/kona.css',
+    'css/compatibility.css',
+    'css/print.css',
+    'css/themes/official.css',
+    'css/assets.css',
+    'css/mobile.css',
+];
+
+if ($stylesheets !== $expectedStylesheets) {
+    fail_frontend_assets('Stylesheets must retain the documented cascade order.');
+}
+
 if ($stylesheets === [] || $scripts === []) {
     fail_frontend_assets('Frontend stylesheet and script registries must not be empty.');
 }
@@ -69,9 +85,26 @@ if (strpos($htaccess, 'max-age=0, must-revalidate') === false) {
     fail_frontend_assets('JavaScript modules must be revalidated after deployment.');
 }
 
-$baseCss = file_get_contents($root . '/assets/app.css') ?: '';
+$foundationCss = file_get_contents($root . '/assets/css/foundation.css') ?: '';
+$materialThemeCss = file_get_contents($root . '/assets/css/themes/clean-material.css') ?: '';
+$consoleThemeCss = file_get_contents($root . '/assets/css/themes/clean-console.css') ?: '';
+$konaThemeCss = file_get_contents($root . '/assets/css/themes/kona.css') ?: '';
+$compatibilityCss = file_get_contents($root . '/assets/css/compatibility.css') ?: '';
+$officialThemeCss = file_get_contents($root . '/assets/css/themes/official.css') ?: '';
 $assetsCss = file_get_contents($root . '/assets/css/assets.css') ?: '';
 $mobileCss = file_get_contents($root . '/assets/css/mobile.css') ?: '';
+
+foreach ([
+    [$materialThemeCss, 'Material-inspired'],
+    [$consoleThemeCss, 'Light admin console'],
+    [$konaThemeCss, 'KONA-style primary'],
+    [$compatibilityCss, 'Focused UI cleanup'],
+    [$officialThemeCss, 'Official KONA theme'],
+] as [$css, $marker]) {
+    if (strpos($css, $marker) === false) {
+        fail_frontend_assets('CSS module is missing marker: ' . $marker);
+    }
+}
 
 foreach ([
     'Asset module',
@@ -98,12 +131,16 @@ if (strpos($mobileCss, '.app-shell .data-table-mobile tr[hidden]') === false) {
     fail_frontend_assets('Mobile table pagination must keep hidden rows out of layout.');
 }
 
-if (strpos($baseCss, 'Sidebar scroll fix') !== false) {
-    fail_frontend_assets('Mobile/sidebar CSS should live in assets/css/mobile.css, not the base app.css.');
+if (is_file($root . '/assets/app.css')) {
+    fail_frontend_assets('The retired CSS monolith assets/app.css must not be restored.');
 }
 
-if (strpos($baseCss, '.assets-page') !== false) {
-    fail_frontend_assets('Asset CSS should live in assets/css/assets.css, not the base app.css.');
+if (strpos($foundationCss, 'Sidebar scroll fix') !== false) {
+    fail_frontend_assets('Mobile/sidebar CSS should live in assets/css/mobile.css, not foundation.css.');
+}
+
+if (strpos($foundationCss, '.assets-page') !== false) {
+    fail_frontend_assets('Asset CSS should live in assets/css/assets.css, not foundation.css.');
 }
 
 echo '[frontend-assets] PASS' . PHP_EOL;

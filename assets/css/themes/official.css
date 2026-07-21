@@ -1,0 +1,202 @@
+/* Official KONA theme: real logo, DIN Arabic font, black/gold brand palette. */
+body.theme-official {
+    --bg: #fff8e3;
+    --paper: #ffffff;
+    --panel: #ffffff;
+    --ink: #050505;
+    --muted: #737373;
+    --line: #ece2c7;
+    --accent: #ffc400;
+    --accent-strong: #0b0b0b;
+    --surface: #ffffff;
+    --surface-container: #fffaf0;
+    --surface-container-high: #fff0bf;
+    --primary-container: #ffe58a;
+    --on-primary-container: #111111;
+    --outline: #e7d7a8;
+    --shadow: 0 18px 45px rgba(5, 5, 5, 0.05);
+    background: linear-gradient(180deg, #fffdf5 0%, #fff7df 100%);
+    color: var(--ink);
+    font-family: "KONA DIN Arabic", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+body.theme-official.auth-shell {
+    background:
+        radial-gradient(circle at top right, rgba(255, 196, 0, 0.18), transparent 34%),
+        linear-gradient(180deg, #fffdf5 0%, #fff7df 100%);
+}
+
+.theme-official .brand-logo-official {
+    display: block;
+    width: min(224px, 100%);
+    height: auto;
+    object-fit: contain;
+}
+
+.theme-official.nav-collapsed .brand-logo-official,
+.theme-official .nav-collapsed .brand-logo-official {
+    display: none;
+}
+
+.theme-official .brand-block h1,
+.theme-official .auth-logo-word {
+    display: none;
+}
+
+.theme-official .auth-logo-official {
+    display: block;
+    width: min(260px, 78vw);
+    height: auto;
+    object-fit: contain;
+}
+
+.theme-official .sidebar {
+    background: #ffffff;
+    border-right-color: #f0dfab;
+}
+
+.theme-official .sidebar .eyebrow,
+.theme-official .page-head .eyebrow,
+.theme-official .panel-head .eyebrow,
+.theme-official .auth-login-subtitle {
+    color: #9b7410;
+}
+
+.theme-official .nav-link:hover,
+.theme-official .nav-link.is-active {
+    border-color: #eac044;
+    background: #fff4c7;
+    color: #111111;
+}
+
+.theme-official .primary-button {
+    background: #ffc400;
+    color: #111111;
+}
+
+.theme-official .primary-button:hover {
+    background: #eeb600;
+}
+
+.theme-official .ghost-button,
+.theme-official .table-export-button,
+.theme-official .menu-button,
+.theme-official .notification-toggle {
+    border-color: #ead9a9;
+    color: #111111;
+}
+
+.theme-official .ghost-button:hover,
+.theme-official .table-export-button:hover,
+.theme-official .menu-button:hover,
+.theme-official .notification-toggle:hover {
+    border-color: #ffc400;
+    background: #fff6cf;
+}
+
+.theme-official .field input:focus,
+.theme-official .field select:focus,
+.theme-official .field textarea:focus,
+.theme-official .table-search input:focus,
+.theme-official .table-page-size select:focus,
+.theme-official .data-table td input[type="number"]:focus,
+.theme-official .workflow-picker-toggle:focus-visible,
+.theme-official .workflow-picker-search:focus {
+    border-color: #ffc400;
+    box-shadow: 0 0 0 4px rgba(255, 196, 0, 0.22);
+}
+
+.error-page {
+    display: grid;
+    gap: 22px;
+}
+
+.error-hero-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr);
+    gap: 24px;
+    align-items: stretch;
+    padding: clamp(24px, 4vw, 44px);
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    background:
+        radial-gradient(circle at 12% 18%, rgba(231, 182, 74, .22), transparent 32%),
+        linear-gradient(135deg, #fffaf0 0%, #ffffff 48%, #f6efe4 100%);
+}
+
+.error-code {
+    display: inline-flex;
+    width: max-content;
+    padding: 8px 13px;
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.error-hero-copy h1 {
+    max-width: 760px;
+    margin: 12px 0;
+    font-size: clamp(42px, 7vw, 86px);
+    line-height: .92;
+    letter-spacing: -.06em;
+}
+
+.error-hero-copy p:not(.eyebrow) {
+    max-width: 620px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.08rem;
+    line-height: 1.6;
+}
+
+.error-route-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 230px;
+    padding: 24px;
+    border: 1px solid rgba(231, 182, 74, .35);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, .76);
+}
+
+.error-route-card > span {
+    width: 54px;
+    height: 54px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    background: #111;
+    color: #fff;
+}
+
+.error-route-card strong {
+    font-size: 1.35rem;
+    letter-spacing: -.03em;
+}
+
+.error-route-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+@media (max-width: 780px) {
+    .error-hero-card {
+        grid-template-columns: 1fr;
+    }
+
+    .error-route-card {
+        min-height: auto;
+        gap: 18px;
+    }
+}
