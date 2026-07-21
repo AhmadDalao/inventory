@@ -54,6 +54,33 @@ foreach ($stylesheets as $asset) {
     if (filesize($path) === 0) {
         fail_frontend_assets('Registered asset is empty: assets/' . $asset);
     }
+
+    $stylesheetSource = file_get_contents($path) ?: '';
+
+    if (!preg_match_all('/url\(\s*[\'\"]?([^\'\")]+)[\'\"]?\s*\)/', $stylesheetSource, $urlMatches)) {
+        continue;
+    }
+
+    foreach ($urlMatches[1] as $assetReference) {
+        $assetReference = trim((string) $assetReference);
+
+        if ($assetReference === ''
+            || str_starts_with($assetReference, 'data:')
+            || str_starts_with($assetReference, 'http://')
+            || str_starts_with($assetReference, 'https://')
+            || str_starts_with($assetReference, '#')
+            || str_starts_with($assetReference, 'var(')
+        ) {
+            continue;
+        }
+
+        $assetReference = preg_replace('/[?#].*$/', '', $assetReference) ?: $assetReference;
+        $referencedPath = realpath(dirname($path) . '/' . $assetReference);
+
+        if ($referencedPath === false || !is_file($referencedPath)) {
+            fail_frontend_assets('Stylesheet reference is missing: ' . $assetReference . ' from assets/' . $asset);
+        }
+    }
 }
 
 foreach ($scripts as $script) {
