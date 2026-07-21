@@ -67,6 +67,40 @@ foreach ($scripts as $script) {
     if (filesize($path) === 0) {
         fail_frontend_assets('Registered script is empty: assets/' . $asset);
     }
+
+    $pendingModules = [$path];
+    $checkedModules = [];
+
+    while ($pendingModules !== []) {
+        $modulePath = array_pop($pendingModules);
+        $realModulePath = realpath($modulePath);
+
+        if ($realModulePath === false || isset($checkedModules[$realModulePath])) {
+            continue;
+        }
+
+        $checkedModules[$realModulePath] = true;
+        $moduleSource = file_get_contents($realModulePath) ?: '';
+
+        if (!preg_match_all('/(?:import|export)\s+(?:[^;]*?\s+from\s+)?[\'"]([^\'"]+)[\'"]/', $moduleSource, $matches)) {
+            continue;
+        }
+
+        foreach ($matches[1] as $moduleImport) {
+            if (!str_starts_with($moduleImport, '.')) {
+                continue;
+            }
+
+            $importPath = dirname($realModulePath) . '/' . $moduleImport;
+            $resolvedImport = realpath($importPath);
+
+            if ($resolvedImport === false || !is_file($resolvedImport)) {
+                fail_frontend_assets('JavaScript module import is missing: ' . $moduleImport . ' from ' . $realModulePath);
+            }
+
+            $pendingModules[] = $resolvedImport;
+        }
+    }
 }
 
 $layout = file_get_contents($root . '/views/layout.php') ?: '';
@@ -77,6 +111,27 @@ if (strpos($layout, 'frontend_stylesheets()') === false || strpos($layout, 'fron
 
 if (strpos($layout, "['path']") === false || strpos($layout, "['type']") === false) {
     fail_frontend_assets('Layout must render native module script descriptors.');
+}
+
+$entryScript = file_get_contents($root . '/assets/app.js') ?: '';
+
+if (substr_count($entryScript, 'registerInitializer(') < 10) {
+    fail_frontend_assets('The JavaScript entry point must register the modular initializers.');
+}
+
+if (substr_count($entryScript, "./js/") < 10) {
+    fail_frontend_assets('The JavaScript entry point must import the frontend modules.');
+}
+
+if (str_word_count($entryScript) > 300) {
+    fail_frontend_assets('assets/app.js must remain a small bootstrap entry point.');
+}
+
+$runtimeScript = file_get_contents($root . '/assets/js/core/runtime.js') ?: '';
+$filterScript = file_get_contents($root . '/assets/js/ui/filters.js') ?: '';
+
+if (strpos($runtimeScript, 'inventory:content-replaced') === false || strpos($filterScript, 'inventory:content-replaced') === false) {
+    fail_frontend_assets('AJAX replacements must dispatch inventory:content-replaced with the replaced root.');
 }
 
 $htaccess = file_get_contents($root . '/.htaccess') ?: '';
