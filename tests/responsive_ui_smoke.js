@@ -47,6 +47,7 @@ const routes = [
   ['stocktakes', '/stocktakes'],
   ['reorder', '/reorder'],
   ['reports', '/reports'],
+  ['saved-reports', '/reports/presets'],
   ['labels', '/labels'],
   ['files', '/files'],
   ['suppliers', '/suppliers'],

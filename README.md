@@ -9,6 +9,7 @@ This is no longer a tiny CRUD app. The current application tracks consumable sto
 Start here:
 
 - [Developer handover](docs/developer-handover.md)
+- [System data-flow and use-case diagrams](docs/system-diagrams.md)
 - [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-21.docx)
 - [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-21.docx)
 - Production URL: `https://inventory.ahmaddalao.com`

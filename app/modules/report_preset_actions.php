@@ -22,12 +22,12 @@ function handle_report_preset_save_submit(?array $params = null): void
 
     if ($name === '') {
         flash('danger', 'Preset name is required.');
-        redirect('/reports');
+        redirect('/reports/presets');
     }
 
     if (!saved_report_can_view_type($type)) {
         flash('danger', 'You do not have permission for that report type.');
-        redirect('/reports');
+        redirect('/reports/presets');
     }
 
     $definition = saved_report_preset_type($type);
@@ -77,7 +77,7 @@ function handle_report_preset_save_submit(?array $params = null): void
             'filters' => $filters,
         ]);
         flash('success', 'Report preset updated.');
-        redirect('/reports');
+        redirect('/reports/presets');
     }
 
     Database::execute(
@@ -124,7 +124,7 @@ function handle_report_preset_save_submit(?array $params = null): void
         'filters' => $filters,
     ]);
     flash('success', 'Report preset saved.');
-    redirect('/reports');
+    redirect('/reports/presets');
 }
 
 function handle_report_preset_duplicate_submit(array $params): void
@@ -183,7 +183,7 @@ function handle_report_preset_duplicate_submit(array $params): void
     );
 
     flash('success', 'Report preset duplicated.');
-    redirect('/reports');
+    redirect('/reports/presets');
 }
 
 function handle_report_preset_archive_submit(array $params): void
@@ -225,5 +225,5 @@ function handle_report_preset_archive_submit(array $params): void
 
     record_activity('report_preset_archived', 'report_preset', $id, 'Archived report preset ' . (string) $preset['name'] . '.');
     flash('success', 'Report preset archived.');
-    redirect('/reports');
+    redirect('/reports/presets');
 }

@@ -4354,15 +4354,18 @@ assert_true(strpos($reportsPage['body'], 'name="item_status"') !== false && strp
 assert_true(strpos($reportsPage['body'], 'summary-usage-tag') !== false && strpos($reportsPage['body'], 'Used Damage') !== false, 'Reports page is missing handover usage reason chips.');
 assert_true(strpos($reportsPage['body'], $prefix . ' owner confirmed damage') !== false, 'Reports page is missing owner-approved usage notes.');
 assert_true(strpos($reportsPage['body'], 'Who Used Or Moved Stock') !== false, 'Reports page is missing the user movement summary.');
-assert_true(strpos($reportsPage['body'], 'Saved report presets') !== false, 'Reports page is missing saved report presets.');
-assert_true(strpos($reportsPage['body'], '/reports/presets') !== false, 'Reports page is missing saved report preset actions.');
+assert_true(strpos($reportsPage['body'], 'Saved Reports') !== false && strpos($reportsPage['body'], '/reports/presets') !== false, 'Reports page is missing the saved reports link.');
+assert_true(strpos($reportsPage['body'], 'saved-report-form') === false, 'Reports page should not render the saved report management form inline.');
 assert_true(strpos($reportsPage['body'], 'report-preset-card') !== false, 'Reports page is missing preset cards.');
 assert_true(strpos($reportsPage['body'], 'Today Stock Activity') !== false, 'Reports page is missing the today stock activity preset.');
 assert_true(strpos($reportsPage['body'], 'Requests Needing Decisions') !== false, 'Reports page is missing the request decision preset.');
 assert_true(strpos($reportsPage['body'], 'Purchase Receiving Queue') !== false, 'Reports page is missing the purchase receiving preset.');
 $savedPresetName = $prefix . ' Daily Ops Saved Preset';
+$savedPresetPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports/presets');
+assert_true($savedPresetPage['status'] === 200, 'Saved reports page did not load for owner.');
+assert_true(strpos($savedPresetPage['body'], 'Reusable Filters And Exports') !== false, 'Saved reports page is missing preset management.');
 $savedPresetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/reports/presets', [
-    '_token' => extract_csrf($reportsPage['body'], 'report preset create'),
+    '_token' => extract_csrf($savedPresetPage['body'], 'report preset create'),
     'name' => $savedPresetName,
     'report_type' => 'daily_operations',
     'export_format' => 'csv',
@@ -4371,15 +4374,15 @@ $savedPresetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/reports/pres
     'description' => $prefix . ' saved report preset regression',
 ]);
 assert_true(
-    $savedPresetCreate['status'] === 302 && location_matches($savedPresetCreate['location'], '/reports'),
+    $savedPresetCreate['status'] === 302 && location_matches($savedPresetCreate['location'], '/reports/presets'),
     'Saved report preset create did not redirect. Status=' . $savedPresetCreate['status']
         . ' Location=' . (string) ($savedPresetCreate['location'] ?? '')
         . ' Body=' . substr(trim(strip_tags((string) $savedPresetCreate['body'])), 0, 240)
 );
 $savedPresetRecord = Database::fetch('SELECT * FROM report_presets WHERE name = :name LIMIT 1', ['name' => $savedPresetName]);
 assert_true(is_array($savedPresetRecord) && (string) $savedPresetRecord['report_type'] === 'daily_operations', 'Saved report preset was not stored.');
-$savedPresetReload = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
-assert_true(strpos($savedPresetReload['body'], $savedPresetName) !== false, 'Saved report preset does not appear on reports page.');
+$savedPresetReload = http_request($baseUrl, $ownerCookie, 'GET', '/reports/presets');
+assert_true(strpos($savedPresetReload['body'], $savedPresetName) !== false, 'Saved report preset does not appear on saved reports page.');
 assert_true(strpos($savedPresetReload['body'], '/exports/daily-summary?') !== false, 'Saved report preset export link was not generated.');
 $savedPresetEditedName = $prefix . ' Daily Ops Saved Preset Edited';
 $savedPresetEdit = http_request($baseUrl, $ownerCookie, 'POST', '/reports/presets/' . (int) $savedPresetRecord['id'] . '/edit', [
@@ -4391,21 +4394,21 @@ $savedPresetEdit = http_request($baseUrl, $ownerCookie, 'POST', '/reports/preset
     'filter_query' => 'date=' . date('Y-m-d') . '&movement_type=usage&item_status=all',
     'description' => $prefix . ' saved report preset edited',
 ]);
-assert_true($savedPresetEdit['status'] === 302 && location_matches($savedPresetEdit['location'], '/reports'), 'Saved report preset edit did not redirect.');
+assert_true($savedPresetEdit['status'] === 302 && location_matches($savedPresetEdit['location'], '/reports/presets'), 'Saved report preset edit did not redirect.');
 $savedPresetEdited = Database::fetch('SELECT * FROM report_presets WHERE id = :id LIMIT 1', ['id' => (int) $savedPresetRecord['id']]);
 assert_true(is_array($savedPresetEdited) && (string) $savedPresetEdited['report_type'] === 'usage_by_reason' && (string) $savedPresetEdited['export_format'] === 'xlsx', 'Saved report preset edit was not stored.');
-$savedPresetEditedReload = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
+$savedPresetEditedReload = http_request($baseUrl, $ownerCookie, 'GET', '/reports/presets');
 $savedPresetDuplicate = http_request($baseUrl, $ownerCookie, 'POST', '/reports/presets/' . (int) $savedPresetRecord['id'] . '/duplicate', [
     '_token' => extract_csrf($savedPresetEditedReload['body'], 'report preset duplicate'),
 ]);
-assert_true($savedPresetDuplicate['status'] === 302 && location_matches($savedPresetDuplicate['location'], '/reports'), 'Saved report preset duplicate did not redirect.');
+assert_true($savedPresetDuplicate['status'] === 302 && location_matches($savedPresetDuplicate['location'], '/reports/presets'), 'Saved report preset duplicate did not redirect.');
 $savedPresetCopy = Database::fetch('SELECT * FROM report_presets WHERE name LIKE :name ORDER BY id DESC LIMIT 1', ['name' => $savedPresetEditedName . ' Copy%']);
 assert_true(is_array($savedPresetCopy) && (string) $savedPresetCopy['report_type'] === 'usage_by_reason', 'Saved report preset duplicate was not stored.');
-$savedPresetArchiveReload = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
+$savedPresetArchiveReload = http_request($baseUrl, $ownerCookie, 'GET', '/reports/presets');
 $savedPresetArchive = http_request($baseUrl, $ownerCookie, 'POST', '/reports/presets/' . (int) $savedPresetRecord['id'] . '/archive', [
     '_token' => extract_csrf($savedPresetArchiveReload['body'], 'report preset archive'),
 ]);
-assert_true($savedPresetArchive['status'] === 302 && location_matches($savedPresetArchive['location'], '/reports'), 'Saved report preset archive did not redirect.');
+assert_true($savedPresetArchive['status'] === 302 && location_matches($savedPresetArchive['location'], '/reports/presets'), 'Saved report preset archive did not redirect.');
 $savedPresetArchived = Database::fetch('SELECT is_active, archived_at FROM report_presets WHERE id = :id LIMIT 1', ['id' => (int) $savedPresetRecord['id']]);
 assert_true(is_array($savedPresetArchived) && (int) $savedPresetArchived['is_active'] === 0 && trim((string) $savedPresetArchived['archived_at']) !== '', 'Saved report preset archive was not stored.');
 $dailySummaryExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?date=' . rawurlencode(date('Y-m-d')));

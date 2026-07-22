@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-21
+Updated: 2026-07-22
 
 ## 1. What This System Is
 
@@ -13,6 +13,8 @@ Production path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
 Repository: `https://github.com/AhmadDalao/inventory.git`
 
 Main branch: `main`
+
+System data-flow and use-case diagrams: [`docs/system-diagrams.md`](system-diagrams.md)
 
 ## 2. Current Architecture
 
@@ -177,6 +179,7 @@ When adding frontend behavior:
 | `app/modules/report_preset_definitions.php` | Saved report preset type definitions, default filters, and view/export permission checks. |
 | `app/modules/report_preset_urls.php` | Saved preset filter parsing and source/export URL generation. |
 | `app/modules/report_preset_queries.php` | Permission-safe saved preset list query for the reports page. |
+| `app/modules/report_preset_pages.php` | Dedicated saved report management page. The daily Reports page only links to it and never embeds its editor. |
 | `app/modules/report_preset_actions.php` | Saved preset create, update, duplicate, and archive submit handlers. |
 | `app/modules/notifications.php` | Compatibility shim for older direct includes. Primary loading comes from `app/module_manifest.php`, which lists the focused notification modules directly. |
 | `app/modules/notifications_dispatch.php` | Notification creation, permission-based fan-out, and optional workflow email-copy dispatch. |
@@ -423,7 +426,7 @@ Assets are durable company property: laptops, radios, tools, equipment. They are
 
 ### Reports
 
-Reports summarize daily activity, usage by item, usage by reason, users, transfers, stock movement, purchases, assets, and saved report presets. Filters must match export scope.
+Reports summarize daily activity, usage by item, usage by reason, users, transfers, stock movement, purchases, and assets. Filters must match export scope. Saved filter management is intentionally separated at `/reports/presets`; do not put the management editor back into the operational `/reports` page.
 
 ## 6. Permissions And Roles
 

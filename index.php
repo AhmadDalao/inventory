@@ -477,6 +477,9 @@ $router->get('/email-logs', static function (): void {
 $router->get('/reports', static function (): void {
     handle_reports_index();
 });
+$router->get('/reports/presets', static function (): void {
+    handle_report_presets_index();
+});
 $router->post('/reports/presets', static function (): void {
     handle_report_preset_save_submit();
 });

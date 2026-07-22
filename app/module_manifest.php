@@ -59,6 +59,7 @@ return [
         'report_preset_definitions',
         'report_preset_urls',
         'report_preset_queries',
+        'report_preset_pages',
         'report_preset_actions',
         'notifications_dispatch',
         'notifications_queries',
