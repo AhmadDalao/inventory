@@ -4352,6 +4352,9 @@ assert_true(strpos($reportsPage['body'], 'name="date_from"') !== false, 'Reports
 assert_true(strpos($reportsPage['body'], 'name="date_to"') !== false, 'Reports page is missing the end date filter.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'Reports page is missing the daily summary export link.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary.xlsx') !== false, 'Reports page is missing the daily summary XLSX export link.');
+assert_true(strpos($reportsPage['body'], 'What Each Item Used Each Day') !== false, 'Reports page is missing the usage-by-day breakdown.');
+assert_true(strpos($reportsPage['body'], 'Usage CSV') !== false && strpos($reportsPage['body'], 'Usage Excel') !== false, 'Reports page is missing focused usage export actions.');
+assert_true(strpos($reportsPage['body'], 'Date / Time') !== false, 'Reports timeline is missing full date and timestamp labels.');
 assert_true(strpos($reportsPage['body'], 'name="item_status"') !== false && strpos($reportsPage['body'], 'Deleted items') !== false, 'Reports page is missing the item status filter.');
 assert_true(strpos($reportsPage['body'], 'summary-usage-tag') !== false && strpos($reportsPage['body'], 'Used Damage') !== false, 'Reports page is missing handover usage reason chips.');
 assert_true(strpos($reportsPage['body'], $prefix . ' owner confirmed damage') !== false, 'Reports page is missing owner-approved usage notes.');
@@ -4424,12 +4427,16 @@ $legacyDateReportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports?d
 assert_true(strpos($legacyDateReportsPage['body'], 'Everything That Happened On ' . date('M j, Y', strtotime($reportRangeTo))) !== false, 'Reports page no longer supports legacy single-date links.');
 $dailySummaryExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo));
 assert_true($dailySummaryExport['status'] === 200, 'Daily summary export failed.');
-assert_true(strpos($dailySummaryExport['body'], 'Section,"From Date","To Date",Storage') !== false, 'Daily summary export is missing the date range CSV headers.');
+assert_true(strpos($dailySummaryExport['body'], 'Section,"From Date","To Date","Usage Date",Storage') !== false, 'Daily summary export is missing the date range and usage date CSV headers.');
 assert_true(strpos($dailySummaryExport['body'], $reportRangeFrom . ',' . $reportRangeTo) !== false, 'Daily summary export does not include the selected date range.');
 assert_true(strpos($dailySummaryExport['body'], 'Item Status') !== false, 'Daily summary export is missing the item status column.');
+assert_true(strpos($dailySummaryExport['body'], 'Usage By Day') !== false, 'Daily summary export is missing per-day item usage rows.');
+assert_true(strpos($dailySummaryExport['body'], 'Image URL') !== false, 'Daily summary export is missing item image references.');
 $dailySummaryXlsxExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo) . '&item_status=active');
 assert_true($dailySummaryXlsxExport['status'] === 200, 'Daily summary XLSX export failed.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Usage By Item', 'Daily summary XLSX export is missing usage rows.');
+assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Usage By Day', 'Daily summary XLSX export is missing per-day usage rows.');
+assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Usage Date', 'Daily summary XLSX export is missing the usage date column.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Scan Code', 'Daily summary XLSX export is missing scan code details.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'From Date', 'Daily summary XLSX export is missing the start date column.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'To Date', 'Daily summary XLSX export is missing the end date column.');

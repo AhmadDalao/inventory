@@ -10,6 +10,7 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
         'Section',
         'From Date',
         'To Date',
+        'Usage Date',
         'Storage',
         'Movement Filter',
         'Item Status',
@@ -52,6 +53,7 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
             (string) $row['section'],
             (string) $row['date_from'],
             (string) $row['date_to'],
+            (string) $row['usage_date'],
             (string) $row['storage'],
             (string) $row['movement_filter'],
             (string) $row['item_status'],
@@ -86,6 +88,7 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
     $columnWidths = [
         $imageColumnWidth,
         18,
+        14,
         14,
         14,
         24,

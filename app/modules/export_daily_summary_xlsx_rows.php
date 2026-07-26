@@ -18,6 +18,7 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
         'section' => '',
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
+        'usage_date' => '',
         'storage' => $storageLabel,
         'movement_filter' => $movementLabel,
         'item_status' => $itemStatusLabel,
@@ -63,14 +64,10 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
     }
 
     foreach ($summary['usage_by_item'] as $row) {
-        $usageReasonText = [];
-
-        foreach ((array) ($row['usage_reasons'] ?? []) as $reason) {
-            $reasonLabel = (string) ($reason['label'] ?? 'Unspecified');
-            $reasonQuantity = format_quantity($reason['quantity'] ?? 0) . ' ' . (string) ($reason['unit'] ?? $row['unit']);
-            $reasonNotes = trim((string) ($reason['notes'] ?? ''));
-            $usageReasonText[] = $reasonLabel . ' ' . $reasonQuantity . ($reasonNotes !== '' ? ' (' . $reasonNotes . ')' : '');
-        }
+        $usageReasonText = report_summary_usage_reason_text(
+            (array) ($row['usage_reasons'] ?? []),
+            (string) ($row['unit'] ?: 'pcs')
+        );
 
         $barcodeValue = normalize_item_barcode($row['barcode'] ?? '');
         $scanCode = item_scan_code($row);
@@ -90,7 +87,37 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'source' => (string) ($row['locations'] ?: ''),
             'reference' => (string) ($row['references_list'] ?: ''),
             'used_at' => (string) ($row['last_activity_at'] ?: ''),
-            'notes' => $usageReasonText !== [] ? 'Usage: ' . implode('; ', $usageReasonText) : '',
+            'notes' => $usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '',
+        ]);
+    }
+
+    foreach ($summary['usage_by_day'] as $row) {
+        $usageReasonText = report_summary_usage_reason_text(
+            (array) ($row['usage_reasons'] ?? []),
+            (string) ($row['unit'] ?: 'pcs')
+        );
+        $movementNotes = trim((string) ($row['notes_list'] ?? ''));
+        $barcodeValue = normalize_item_barcode($row['barcode'] ?? '');
+        $scanCode = item_scan_code($row);
+
+        $rows[] = array_merge($base, [
+            'image_path' => (string) ($row['image_path'] ?? ''),
+            'section' => 'Usage By Day',
+            'usage_date' => (string) ($row['usage_date'] ?? ''),
+            'item_status' => report_summary_item_record_status_label($row['item_is_active'] ?? null),
+            'item' => (string) $row['item_name'],
+            'sku' => (string) $row['sku'],
+            'barcode_value' => $barcodeValue !== '' ? $barcodeValue : 'Not set',
+            'scan_code' => $scanCode,
+            'unit' => (string) $row['unit'],
+            'user' => (string) ($row['users'] ?: ''),
+            'movement_type' => 'Usage',
+            'quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'movement_count' => (string) $row['movement_count'],
+            'source' => (string) ($row['locations'] ?: ''),
+            'reference' => (string) ($row['references_list'] ?: ''),
+            'used_at' => (string) ($row['last_activity_at'] ?: ''),
+            'notes' => trim(($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '') . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')),
         ]);
     }
 
@@ -119,6 +146,7 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
         $rows[] = array_merge($base, [
             'image_path' => (string) ($movement['image_path'] ?? ''),
             'section' => 'Timeline',
+            'usage_date' => date('Y-m-d', strtotime((string) $movement['used_at'])),
             'item_status' => report_summary_item_record_status_label($movement['item_is_active'] ?? null),
             'item' => (string) $movement['item_name'],
             'sku' => (string) $movement['sku'],

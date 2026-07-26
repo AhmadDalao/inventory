@@ -323,6 +323,7 @@ function documentation_sections(): array
             'summary' => 'Reports shows an operations summary for a selected date range plus export presets for the business reports used most often.',
             'features' => [
                 'Operations summary answers what happened between the selected From and To dates: used quantities, touched items, users, locations, and movement timeline.',
+                'Usage By Day separates each item and calendar date, including quantity, reason split, user, location, reference, exact timestamp, and thumbnail.',
                 'Groups export shortcuts by Inventory, Workflow, Finance, Supplier, Files, and Audit.',
                 'Keeps reports permission-aware so users only see presets they can export.',
                 'Provides date, status, and storage preset links where the underlying module supports filters.',
@@ -332,7 +333,7 @@ function documentation_sections(): array
                 'Open Reports from the sidebar.',
                 'Use the Daily Operations filter to pick From and To dates, location, and movement type.',
                 'Review usage by item, who moved stock, and the activity timeline.',
-                'Export CSV or Excel when you need the filtered date-range summary.',
+                'Use Usage CSV or Usage Excel for the per-day item breakdown, or export the full filtered date-range summary.',
                 'Pick the report card that matches the question.',
                 'Use Download CSV for the preset export or Open Source Page to review records first.',
                 'Use the target module filters when you need a more specific report.',
@@ -341,6 +342,7 @@ function documentation_sections(): array
                 'Reports do not create new data; they reuse existing movements and exports.',
                 'Movement logs remain the source of truth for stock history.',
                 'CSV exports are permission-checked the same way as the source pages.',
+                'Excel report exports include item thumbnails when report thumbnails are enabled in Website Control.',
             ],
         ],
         [

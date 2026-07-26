@@ -678,9 +678,35 @@
     -webkit-overflow-scrolling: touch;
 }
 
+.summary-daily-usage {
+    min-width: 0;
+}
+
+.summary-daily-usage-scroll {
+    max-height: 620px;
+}
+
+.summary-table-item {
+    display: inline-grid;
+    grid-template-columns: 44px minmax(120px, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-width: 190px;
+}
+
+.summary-table-item .item-thumb {
+    width: 44px;
+    height: 44px;
+}
+
 .compact-summary-table th,
 .compact-summary-table td {
     white-space: nowrap;
+}
+
+.compact-summary-table td[data-label="Breakdown / Notes"] {
+    min-width: 260px;
+    white-space: normal;
 }
 
 .reports-card-grid {

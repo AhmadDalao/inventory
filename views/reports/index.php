@@ -203,20 +203,118 @@ $dateTitle = report_summary_period_label($summaryFilters);
         </section>
     </div>
 
+    <section class="summary-card summary-daily-usage">
+        <div class="summary-card-head">
+            <div>
+                <p class="eyebrow">Usage By Day</p>
+                <h4>What Each Item Used Each Day</h4>
+                <p class="muted-copy">Daily item totals stay separate inside the selected range, with the latest usage timestamp and reason breakdown.</p>
+            </div>
+            <div class="report-summary-actions">
+                <span class="pill pill-muted"><?= number_format(count($summary['usage_by_day'] ?? [])) ?></span>
+                <?php if (Auth::hasPermission('movements.export')): ?>
+                    <a class="ghost-button" href="<?= e((string) $summary['usage_export_url']) ?>"><?= ui_icon('export') ?><span>Usage CSV</span></a>
+                    <?php if (report_xlsx_thumbnail_export_enabled()): ?>
+                        <a class="primary-button" href="<?= e((string) $summary['usage_export_xlsx_url']) ?>"><?= ui_icon('items') ?><span>Usage Excel</span></a>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="summary-table-scroll summary-daily-usage-scroll">
+            <table class="data-table compact-summary-table">
+                <thead>
+                <tr>
+                    <th>Date / Time</th>
+                    <th>Item</th>
+                    <th>Used</th>
+                    <th>Breakdown / Notes</th>
+                    <th>By</th>
+                    <th>Location</th>
+                    <th>Reference</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php if (($summary['usage_by_day'] ?? []) === []): ?>
+                    <tr>
+                        <td colspan="7" class="empty-cell">No usage was recorded for this date range and filter.</td>
+                    </tr>
+                <?php endif; ?>
+                <?php foreach (($summary['usage_by_day'] ?? []) as $row): ?>
+                    <?php
+                    $imageUrl = item_image_url($row['image_path'] ?? null);
+                    $usageReasons = (array) ($row['usage_reasons'] ?? []);
+                    $lastActivity = trim((string) ($row['last_activity_at'] ?? ''));
+                    ?>
+                    <tr>
+                        <td data-label="Date / Time">
+                            <strong><?= e(date('M j, Y', strtotime((string) $row['usage_date']))) ?></strong>
+                            <?php if ($lastActivity !== ''): ?>
+                                <div class="tiny-copy"><?= e(date('g:i:s A', strtotime($lastActivity))) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="Item">
+                            <div class="summary-table-item">
+                                <?php if ($imageUrl): ?>
+                                    <img class="item-thumb expandable-image" src="<?= e($imageUrl) ?>" alt="<?= e((string) $row['item_name']) ?>" data-expand-image tabindex="0">
+                                <?php else: ?>
+                                    <span class="item-thumb item-thumb-fallback"><?= e(item_initial((string) $row['item_name'])) ?></span>
+                                <?php endif; ?>
+                                <div>
+                                    <strong><?= e((string) $row['item_name']) ?></strong>
+                                    <div class="tiny-copy"><?= e((string) $row['sku']) ?> · <?= e((string) $row['unit']) ?></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="Used"><strong><?= e(format_quantity($row['used_quantity'] ?? 0)) ?> <?= e((string) $row['unit']) ?></strong></td>
+                        <td data-label="Breakdown / Notes">
+                            <?php if ($usageReasons !== []): ?>
+                                <div class="summary-usage-tags">
+                                    <?php foreach ($usageReasons as $reason): ?>
+                                        <span class="summary-usage-tag">
+                                            <?= e((string) $reason['label']) ?> · <?= e(format_quantity($reason['quantity'] ?? 0)) ?> <?= e((string) ($reason['unit'] ?? $row['unit'])) ?>
+                                        </span>
+                                        <?php if (trim((string) ($reason['notes'] ?? '')) !== ''): ?>
+                                            <span class="summary-usage-note">Note: <?= e(truncate_text((string) $reason['notes'], 72)) ?></span>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php elseif (trim((string) ($row['notes_list'] ?? '')) !== ''): ?>
+                                <span class="tiny-copy"><?= e(truncate_text((string) $row['notes_list'], 140)) ?></span>
+                            <?php else: ?>
+                                <span class="tiny-copy">Unspecified</span>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="By"><?= e(truncate_text((string) ($row['users'] ?: 'System'), 80)) ?></td>
+                        <td data-label="Location"><?= e(truncate_text((string) ($row['locations'] ?: 'Unassigned'), 90)) ?></td>
+                        <td data-label="Reference"><?= e(truncate_text((string) ($row['references_list'] ?: '-'), 70)) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <section class="summary-card">
         <div class="summary-card-head">
             <div>
                 <p class="eyebrow">Timeline</p>
                 <h4>Activity In Order</h4>
+                <p class="muted-copy">Newest activity first, with the exact date and timestamp recorded by the movement log.</p>
             </div>
-            <span class="pill pill-muted"><?= number_format(count($summary['timeline'] ?? [])) ?></span>
+            <div class="report-summary-actions">
+                <span class="pill pill-muted"><?= number_format(count($summary['timeline'] ?? [])) ?></span>
+                <?php if (Auth::hasPermission('movements.export')): ?>
+                    <a class="ghost-button" href="<?= e((string) $summary['export_url']) ?>"><?= ui_icon('export') ?><span>Export Timeline</span></a>
+                <?php endif; ?>
+            </div>
         </div>
 
         <div class="summary-table-scroll">
             <table class="data-table compact-summary-table">
                 <thead>
                 <tr>
-                    <th>Time</th>
+                    <th>Date / Time</th>
                     <th>Item</th>
                     <th>Type</th>
                     <th>Qty</th>
@@ -243,10 +341,23 @@ $dateTitle = report_summary_period_label($summaryFilters);
                         : abs((float) ($movement['quantity_delta'] ?? 0));
                     ?>
                     <tr>
-                        <td data-label="Time"><?= e(date('g:i A', strtotime((string) $movement['used_at']))) ?></td>
+                        <td data-label="Date / Time">
+                            <strong><?= e(date('M j, Y', strtotime((string) $movement['used_at']))) ?></strong>
+                            <div class="tiny-copy"><?= e(date('g:i:s A', strtotime((string) $movement['used_at']))) ?></div>
+                        </td>
                         <td data-label="Item">
-                            <strong><?= e((string) $movement['item_name']) ?></strong>
-                            <div class="tiny-copy"><?= e((string) $movement['sku']) ?></div>
+                            <div class="summary-table-item">
+                                <?php $timelineImageUrl = item_image_url($movement['image_path'] ?? null); ?>
+                                <?php if ($timelineImageUrl): ?>
+                                    <img class="item-thumb expandable-image" src="<?= e($timelineImageUrl) ?>" alt="<?= e((string) $movement['item_name']) ?>" data-expand-image tabindex="0">
+                                <?php else: ?>
+                                    <span class="item-thumb item-thumb-fallback"><?= e(item_initial((string) $movement['item_name'])) ?></span>
+                                <?php endif; ?>
+                                <div>
+                                    <strong><?= e((string) $movement['item_name']) ?></strong>
+                                    <div class="tiny-copy"><?= e((string) $movement['sku']) ?></div>
+                                </div>
+                            </div>
                         </td>
                         <td data-label="Type"><?= e(ucfirst((string) $movement['movement_type'])) ?></td>
                         <td data-label="Qty"><?= e(format_quantity($movementQuantity)) ?> <?= e((string) $movement['unit']) ?></td>

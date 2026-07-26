@@ -22,6 +22,7 @@ function handle_export_daily_summary(): void
         'Overall',
         $dateFrom,
         $dateTo,
+        '',
         $storageLabel,
         $movementLabel,
         $itemStatusLabel,
@@ -40,6 +41,7 @@ function handle_export_daily_summary(): void
         '',
         '',
         'Items touched: ' . number_format((int) $cards['item_count']) . '; People: ' . number_format((int) $cards['user_count']),
+        '',
     ];
 
     foreach ([
@@ -52,6 +54,7 @@ function handle_export_daily_summary(): void
             'Overall',
             $dateFrom,
             $dateTo,
+            '',
             $storageLabel,
             $movementLabel,
             $itemStatusLabel,
@@ -70,6 +73,7 @@ function handle_export_daily_summary(): void
             '',
             '',
             '',
+            '',
         ];
     }
 
@@ -78,6 +82,7 @@ function handle_export_daily_summary(): void
             'Usage By Item',
             $dateFrom,
             $dateTo,
+            '',
             $storageLabel,
             $movementLabel,
             report_summary_item_record_status_label($row['item_is_active'] ?? null),
@@ -96,6 +101,41 @@ function handle_export_daily_summary(): void
             (string) ($row['references_list'] ?: ''),
             (string) ($row['last_activity_at'] ?: ''),
             '',
+            item_image_url($row['image_path'] ?? null) ?? '',
+        ];
+    }
+
+    foreach ($summary['usage_by_day'] as $row) {
+        $usageReasonText = report_summary_usage_reason_text(
+            (array) ($row['usage_reasons'] ?? []),
+            (string) ($row['unit'] ?: 'pcs')
+        );
+        $movementNotes = trim((string) ($row['notes_list'] ?? ''));
+
+        $rows[] = [
+            'Usage By Day',
+            $dateFrom,
+            $dateTo,
+            (string) ($row['usage_date'] ?? ''),
+            $storageLabel,
+            'Usage',
+            report_summary_item_record_status_label($row['item_is_active'] ?? null),
+            (string) $row['item_name'],
+            (string) $row['sku'],
+            (string) $row['unit'],
+            (string) ($row['users'] ?: ''),
+            'Usage',
+            format_quantity($row['used_quantity'] ?? 0),
+            (string) $row['movement_count'],
+            '',
+            '',
+            '',
+            (string) ($row['locations'] ?: ''),
+            '',
+            (string) ($row['references_list'] ?: ''),
+            (string) ($row['last_activity_at'] ?: ''),
+            trim(($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '') . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')),
+            item_image_url($row['image_path'] ?? null) ?? '',
         ];
     }
 
@@ -104,6 +144,7 @@ function handle_export_daily_summary(): void
             'Who Did What',
             $dateFrom,
             $dateTo,
+            '',
             $storageLabel,
             $movementLabel,
             $itemStatusLabel,
@@ -126,6 +167,7 @@ function handle_export_daily_summary(): void
                 . '; Restocked: ' . format_quantity($row['restocked_units'] ?? 0)
                 . '; Transferred: ' . format_quantity($row['transferred_units'] ?? 0)
                 . '; Adjusted: ' . format_quantity($row['adjusted_units'] ?? 0),
+            '',
         ];
     }
 
@@ -138,6 +180,7 @@ function handle_export_daily_summary(): void
             'Timeline',
             $dateFrom,
             $dateTo,
+            date('Y-m-d', strtotime((string) $movement['used_at'])),
             $storageLabel,
             $movementLabel,
             report_summary_item_record_status_label($movement['item_is_active'] ?? null),
@@ -156,6 +199,7 @@ function handle_export_daily_summary(): void
             (string) ($movement['reference_code'] ?: ''),
             (string) $movement['used_at'],
             (string) ($movement['notes'] ?: ''),
+            item_image_url($movement['image_path'] ?? null) ?? '',
         ];
     }
 
@@ -163,6 +207,7 @@ function handle_export_daily_summary(): void
         'Section',
         'From Date',
         'To Date',
+        'Usage Date',
         'Storage',
         'Movement Filter',
         'Item Status',
@@ -181,5 +226,6 @@ function handle_export_daily_summary(): void
         'Reference',
         'Used At',
         'Notes',
+        'Image URL',
     ], $rows);
 }

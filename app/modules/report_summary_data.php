@@ -49,6 +49,69 @@ function report_summary_usage_reason_groups(array $filters): array
     return $groups;
 }
 
+function report_summary_usage_reason_groups_by_day(array $filters): array
+{
+    $usageFilters = $filters;
+    $usageFilters['movement_type'] = 'usage';
+    [$usageWhere, $usageParams] = build_report_summary_where($usageFilters);
+    $reasonWhere = $usageWhere . " AND m.context_type = 'handover'";
+
+    $rows = Database::fetchAll(
+        "SELECT DATE(m.used_at) AS usage_date,
+                m.item_id,
+                COALESCE(i.unit, 'pcs') AS unit,
+                hub.reason_code,
+                hub.reason_custom,
+                hub.notes,
+                COALESCE(SUM(hub.quantity), 0) AS quantity
+         FROM inventory_movements m
+         INNER JOIN handover_usage_breakdowns hub
+            ON hub.handover_id = m.context_id
+           AND hub.item_id = m.item_id
+         LEFT JOIN items i ON i.id = m.item_id
+         {$reasonWhere}
+         GROUP BY DATE(m.used_at), m.item_id, i.unit, hub.reason_code, hub.reason_custom, hub.notes
+         HAVING quantity > 0
+         ORDER BY usage_date DESC, m.item_id ASC, quantity DESC",
+        $usageParams
+    );
+
+    $groups = [];
+
+    foreach ($rows as $row) {
+        $itemId = (int) ($row['item_id'] ?? 0);
+        $usageDate = trim((string) ($row['usage_date'] ?? ''));
+
+        if ($itemId <= 0 || $usageDate === '') {
+            continue;
+        }
+
+        $groups[$usageDate . ':' . $itemId][] = [
+            'label' => handover_usage_reason_label((string) ($row['reason_code'] ?? 'unspecified'), (string) ($row['reason_custom'] ?? '')),
+            'quantity' => (float) ($row['quantity'] ?? 0),
+            'unit' => (string) ($row['unit'] ?: 'pcs'),
+            'notes' => trim((string) ($row['notes'] ?? '')),
+        ];
+    }
+
+    return $groups;
+}
+
+function report_summary_usage_reason_text(array $reasons, string $fallbackUnit = 'pcs'): string
+{
+    $parts = [];
+
+    foreach ($reasons as $reason) {
+        $label = trim((string) ($reason['label'] ?? 'Unspecified'));
+        $quantity = format_quantity($reason['quantity'] ?? 0);
+        $unit = trim((string) ($reason['unit'] ?? $fallbackUnit)) ?: $fallbackUnit;
+        $notes = trim((string) ($reason['notes'] ?? ''));
+        $parts[] = $label . ' ' . $quantity . ' ' . $unit . ($notes !== '' ? ' (' . $notes . ')' : '');
+    }
+
+    return implode('; ', $parts);
+}
+
 function report_summary_data(array $filters): array
 {
     [$where, $params] = build_report_summary_where($filters);
@@ -104,6 +167,42 @@ function report_summary_data(array $filters): array
     }
 
     unset($usageRow);
+
+    $usageByDay = Database::fetchAll(
+        "SELECT DATE(m.used_at) AS usage_date,
+                m.item_id,
+                COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
+                COALESCE(i.sku, '') AS sku,
+                COALESCE(i.unit, '') AS unit,
+                COALESCE(i.barcode, '') AS barcode,
+                i.is_active AS item_is_active,
+                i.image_path,
+                COALESCE(SUM({$usageQuantity}), 0) AS used_quantity,
+                COUNT(*) AS movement_count,
+                GROUP_CONCAT(DISTINCT COALESCE(u.name, 'System') ORDER BY COALESCE(u.name, 'System') SEPARATOR ', ') AS users,
+                GROUP_CONCAT(DISTINCT COALESCE(source_storage.name, destination_storage.name, 'Unassigned') ORDER BY COALESCE(source_storage.name, destination_storage.name, 'Unassigned') SEPARATOR ', ') AS locations,
+                MIN(m.used_at) AS first_activity_at,
+                MAX(m.used_at) AS last_activity_at,
+                GROUP_CONCAT(DISTINCT NULLIF(m.reference_code, '') ORDER BY m.reference_code SEPARATOR ', ') AS references_list,
+                GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.notes), '') ORDER BY m.notes SEPARATOR ' | ') AS notes_list
+         FROM inventory_movements m
+         LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
+         LEFT JOIN users u ON u.id = m.performed_by
+         {$usageWhere}
+         GROUP BY DATE(m.used_at), m.item_id, i.name, i.sku, i.unit, i.barcode, i.is_active, i.image_path
+         ORDER BY usage_date DESC, last_activity_at DESC, used_quantity DESC, item_name ASC",
+        $usageParams
+    );
+    $usageReasonGroupsByDay = report_summary_usage_reason_groups_by_day($filters);
+
+    foreach ($usageByDay as &$usageDayRow) {
+        $usageKey = (string) ($usageDayRow['usage_date'] ?? '') . ':' . (int) ($usageDayRow['item_id'] ?? 0);
+        $usageDayRow['usage_reasons'] = $usageReasonGroupsByDay[$usageKey] ?? [];
+    }
+
+    unset($usageDayRow);
 
     $userBreakdown = Database::fetchAll(
         "SELECT COALESCE(u.name, 'System') AS user_name,
@@ -163,6 +262,8 @@ function report_summary_data(array $filters): array
         'storage_id' => $filters['storage_id'] ?? null,
         'movement_type' => $filters['movement_type'] ?? '',
     ], static fn ($value): bool => $value !== '' && $value !== null);
+    $usageExportQuery = $query;
+    $usageExportQuery['movement_type'] = 'usage';
 
     return [
         'cards' => [
@@ -175,11 +276,14 @@ function report_summary_data(array $filters): array
             'adjusted_units' => (float) ($cards['adjusted_units'] ?? 0),
         ],
         'usage_by_item' => $usageByItem,
+        'usage_by_day' => $usageByDay,
         'user_breakdown' => $userBreakdown,
         'timeline' => $timeline,
         'storage_label' => report_summary_storage_label($filters['storage_id'] ?? null),
         'export_url' => url('/exports/daily-summary' . ($query ? '?' . http_build_query($query) : '')),
         'export_xlsx_url' => url('/exports/daily-summary.xlsx' . ($query ? '?' . http_build_query($query) : '')),
+        'usage_export_url' => url('/exports/daily-summary?' . http_build_query($usageExportQuery)),
+        'usage_export_xlsx_url' => url('/exports/daily-summary.xlsx?' . http_build_query($usageExportQuery)),
         'movement_url' => url('/movements' . ($movementQuery ? '?' . http_build_query($movementQuery) : '')),
     ];
 }
