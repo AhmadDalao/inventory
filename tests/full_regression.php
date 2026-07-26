@@ -4424,7 +4424,7 @@ $legacyDateReportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports?d
 assert_true(strpos($legacyDateReportsPage['body'], 'Everything That Happened On ' . date('M j, Y', strtotime($reportRangeTo))) !== false, 'Reports page no longer supports legacy single-date links.');
 $dailySummaryExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo));
 assert_true($dailySummaryExport['status'] === 200, 'Daily summary export failed.');
-assert_true(strpos($dailySummaryExport['body'], 'Section,\"From Date\",\"To Date\",Storage') !== false, 'Daily summary export is missing the date range CSV headers.');
+assert_true(strpos($dailySummaryExport['body'], 'Section,"From Date","To Date",Storage') !== false, 'Daily summary export is missing the date range CSV headers.');
 assert_true(strpos($dailySummaryExport['body'], $reportRangeFrom . ',' . $reportRangeTo) !== false, 'Daily summary export does not include the selected date range.');
 assert_true(strpos($dailySummaryExport['body'], 'Item Status') !== false, 'Daily summary export is missing the item status column.');
 $dailySummaryXlsxExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo) . '&item_status=active');
