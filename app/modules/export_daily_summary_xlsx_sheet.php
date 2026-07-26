@@ -8,7 +8,8 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
     $headers = [
         'Image',
         'Section',
-        'Date',
+        'From Date',
+        'To Date',
         'Storage',
         'Movement Filter',
         'Item Status',
@@ -49,7 +50,8 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
         $rowValues = [
             workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : ((string) ($row['image_path'] ?? '') !== '' ? 'Image unavailable' : ''),
             (string) $row['section'],
-            (string) $row['date'],
+            (string) $row['date_from'],
+            (string) $row['date_to'],
             (string) $row['storage'],
             (string) $row['movement_filter'],
             (string) $row['item_status'],
@@ -84,6 +86,7 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
     $columnWidths = [
         $imageColumnWidth,
         18,
+        14,
         14,
         24,
         18,

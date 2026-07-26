@@ -14,7 +14,7 @@ function saved_report_preset_types(): array
             'export_xlsx_path' => '/exports/daily-summary.xlsx',
             'view_permission' => 'movements.view',
             'export_permission' => 'movements.export',
-            'default_filters' => ['date' => date('Y-m-d')],
+            'default_filters' => ['date_from' => date('Y-m-d'), 'date_to' => date('Y-m-d')],
         ],
         'finance' => [
             'label' => 'Finance purchases',
@@ -34,7 +34,7 @@ function saved_report_preset_types(): array
             'export_xlsx_path' => '/exports/daily-summary.xlsx',
             'view_permission' => 'movements.view',
             'export_permission' => 'movements.export',
-            'default_filters' => ['date' => date('Y-m-d'), 'movement_type' => 'usage'],
+            'default_filters' => ['date_from' => date('Y-m-d'), 'date_to' => date('Y-m-d'), 'movement_type' => 'usage'],
         ],
         'storage_owner' => [
             'label' => 'Storage owner summary',

@@ -320,9 +320,9 @@ function documentation_sections(): array
             'icon' => 'reports',
             'audience' => 'Owner, CFO, Accountant, Operations, Admin',
             'route' => '/reports',
-            'summary' => 'Reports shows a daily operations summary plus export presets for the business reports used most often.',
+            'summary' => 'Reports shows an operations summary for a selected date range plus export presets for the business reports used most often.',
             'features' => [
-                'Daily summary answers what happened on one date: used quantities, touched items, users, locations, and movement timeline.',
+                'Operations summary answers what happened between the selected From and To dates: used quantities, touched items, users, locations, and movement timeline.',
                 'Groups export shortcuts by Inventory, Workflow, Finance, Supplier, Files, and Audit.',
                 'Keeps reports permission-aware so users only see presets they can export.',
                 'Provides date, status, and storage preset links where the underlying module supports filters.',
@@ -330,9 +330,9 @@ function documentation_sections(): array
             ],
             'steps' => [
                 'Open Reports from the sidebar.',
-                'Use the Daily Operations filter to pick a date, location, and movement type.',
+                'Use the Daily Operations filter to pick From and To dates, location, and movement type.',
                 'Review usage by item, who moved stock, and the activity timeline.',
-                'Export Summary when you need a day-end CSV.',
+                'Export CSV or Excel when you need the filtered date-range summary.',
                 'Pick the report card that matches the question.',
                 'Use Download CSV for the preset export or Open Source Page to review records first.',
                 'Use the target module filters when you need a more specific report.',

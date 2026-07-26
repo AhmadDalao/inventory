@@ -16,7 +16,7 @@ function handle_export_daily_summary_xlsx(): void
     $summary = report_summary_data($filters);
 
     try {
-        export_xlsx('daily-summary-' . str_replace('-', '', (string) $filters['date']) . '-' . date('His') . '.xlsx', daily_summary_xlsx_payload($summary, $filters));
+        export_xlsx('daily-summary-' . report_summary_period_filename($filters) . '-' . date('His') . '.xlsx', daily_summary_xlsx_payload($summary, $filters));
     } catch (Throwable $exception) {
         abort(500, 'Could not export report thumbnails. ' . $exception->getMessage());
     }

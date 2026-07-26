@@ -11,11 +11,12 @@
 
 <?php
 $summaryCards = $summary['cards'] ?? [];
-$selectedDate = (string) ($summaryFilters['date'] ?? date('Y-m-d'));
+$selectedDateFrom = (string) ($summaryFilters['date_from'] ?? date('Y-m-d'));
+$selectedDateTo = (string) ($summaryFilters['date_to'] ?? $selectedDateFrom);
 $selectedType = (string) ($summaryFilters['movement_type'] ?? '');
 $selectedItemStatus = (string) ($summaryFilters['item_status'] ?? 'all');
 $isSummaryLocationScoped = !empty($summaryFilters['storage_id']);
-$dateTitle = date('M j, Y', strtotime($selectedDate));
+$dateTitle = report_summary_period_label($summaryFilters);
 ?>
 
 <div class="live-filter-region" data-live-filter-region="reports-summary">
@@ -24,7 +25,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
     <div class="reports-summary-head">
         <div>
             <p class="eyebrow">Daily operations</p>
-            <h3>Everything That Happened On <?= e($dateTitle) ?></h3>
+            <h3>Everything That Happened <?= e($dateTitle) ?></h3>
             <p class="muted-copy">Usage, restocks, transfers, adjustments, who did them, and which items were affected.</p>
         </div>
         <div class="report-summary-actions">
@@ -40,8 +41,13 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
 
     <form class="filter-grid reports-summary-filter" method="get" action="<?= e(url('/reports')) ?>" data-live-filter-form>
         <label class="field">
-            <span>Date</span>
-            <input type="date" name="date" value="<?= e($selectedDate) ?>">
+            <span>From</span>
+            <input type="date" name="date_from" value="<?= e($selectedDateFrom) ?>">
+        </label>
+
+        <label class="field">
+            <span>To</span>
+            <input type="date" name="date_to" value="<?= e($selectedDateTo) ?>">
         </label>
 
         <label class="field">
@@ -92,7 +98,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
         <article class="metric-card metric-card-active">
             <span class="metric-card-icon"><?= ui_icon('movements') ?><span>Used Units</span></span>
             <strong><?= e(format_quantity($summaryCards['used_units'] ?? 0)) ?></strong>
-            <span class="metric-card-note">Items consumed on this date</span>
+            <span class="metric-card-note">Items consumed in this range</span>
         </article>
         <article class="metric-card">
             <span class="metric-card-icon"><?= ui_icon('items') ?><span>Items Touched</span></span>
@@ -133,7 +139,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
 
             <div class="summary-list">
                 <?php if (($summary['usage_by_item'] ?? []) === []): ?>
-                    <p class="empty-state">No usage recorded for this date and filter.</p>
+                    <p class="empty-state">No usage recorded for this date range and filter.</p>
                 <?php endif; ?>
 
                 <?php foreach (($summary['usage_by_item'] ?? []) as $row): ?>
@@ -179,7 +185,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
 
             <div class="summary-user-grid">
                 <?php if (($summary['user_breakdown'] ?? []) === []): ?>
-                    <p class="empty-state">No users recorded activity for this date and filter.</p>
+                    <p class="empty-state">No users recorded activity for this date range and filter.</p>
                 <?php endif; ?>
 
                 <?php foreach (($summary['user_breakdown'] ?? []) as $row): ?>
@@ -227,7 +233,7 @@ $dateTitle = date('M j, Y', strtotime($selectedDate));
                 <tbody>
                 <?php if (($summary['timeline'] ?? []) === []): ?>
                     <tr>
-                        <td colspan="<?= $isSummaryLocationScoped ? '10' : '8' ?>" class="empty-cell">No movement activity found for this date and filter.</td>
+                        <td colspan="<?= $isSummaryLocationScoped ? '10' : '8' ?>" class="empty-cell">No movement activity found for this date range and filter.</td>
                     </tr>
                 <?php endif; ?>
                 <?php foreach (($summary['timeline'] ?? []) as $movement): ?>

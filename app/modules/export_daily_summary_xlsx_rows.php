@@ -6,7 +6,8 @@ declare(strict_types=1);
 function daily_summary_xlsx_rows(array $summary, array $filters): array
 {
     $cards = $summary['cards'];
-    $date = (string) $filters['date'];
+    $dateFrom = (string) $filters['date_from'];
+    $dateTo = (string) $filters['date_to'];
     $storageLabel = (string) $summary['storage_label'];
     $movementLabel = report_summary_movement_label((string) ($filters['movement_type'] ?? ''));
     $itemStatusLabel = report_summary_item_status_label((string) ($filters['item_status'] ?? 'all'));
@@ -15,7 +16,8 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
     $base = [
         'image_path' => '',
         'section' => '',
-        'date' => $date,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
         'storage' => $storageLabel,
         'movement_filter' => $movementLabel,
         'item_status' => $itemStatusLabel,

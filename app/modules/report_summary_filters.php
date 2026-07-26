@@ -5,20 +5,54 @@ declare(strict_types=1);
 
 function report_summary_filters(): array
 {
-    $date = trim((string) query('date', date('Y-m-d')));
+    $today = date('Y-m-d');
+    $legacyDate = trim((string) query('date', ''));
+    $dateFrom = trim((string) query('date_from', $legacyDate !== '' ? $legacyDate : $today));
+    $dateTo = trim((string) query('date_to', $legacyDate !== '' ? $legacyDate : $today));
     $type = trim((string) query('movement_type', ''));
     $itemStatus = trim((string) query('item_status', 'all'));
 
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-        $date = date('Y-m-d');
+    $dateFrom = report_summary_valid_date($dateFrom) ? $dateFrom : $today;
+    $dateTo = report_summary_valid_date($dateTo) ? $dateTo : $today;
+
+    if ($dateFrom > $dateTo) {
+        [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
     }
 
     return [
-        'date' => $date,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'movement_type' => in_array($type, ['restock', 'usage', 'adjustment', 'transfer'], true) ? $type : '',
         'item_status' => in_array($itemStatus, ['all', 'active', 'deleted'], true) ? $itemStatus : 'all',
     ];
+}
+
+function report_summary_valid_date(string $value): bool
+{
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+    return $date instanceof DateTimeImmutable && $date->format('Y-m-d') === $value;
+}
+
+function report_summary_period_label(array $filters): string
+{
+    $dateFrom = (string) ($filters['date_from'] ?? date('Y-m-d'));
+    $dateTo = (string) ($filters['date_to'] ?? $dateFrom);
+    $fromLabel = date('M j, Y', strtotime($dateFrom));
+    $toLabel = date('M j, Y', strtotime($dateTo));
+
+    return $dateFrom === $dateTo
+        ? 'On ' . $fromLabel
+        : 'From ' . $fromLabel . ' To ' . $toLabel;
+}
+
+function report_summary_period_filename(array $filters): string
+{
+    $dateFrom = str_replace('-', '', (string) ($filters['date_from'] ?? date('Y-m-d')));
+    $dateTo = str_replace('-', '', (string) ($filters['date_to'] ?? $filters['date_from'] ?? date('Y-m-d')));
+
+    return $dateFrom === $dateTo ? $dateFrom : $dateFrom . '-to-' . $dateTo;
 }
 
 function report_summary_quantity_expression(string $alias = 'm'): string

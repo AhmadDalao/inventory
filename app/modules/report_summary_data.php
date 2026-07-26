@@ -150,15 +150,16 @@ function report_summary_data(array $filters): array
     );
 
     $query = array_filter([
-        'date' => $filters['date'],
+        'date_from' => $filters['date_from'],
+        'date_to' => $filters['date_to'],
         'storage_id' => $filters['storage_id'] ?? null,
         'movement_type' => $filters['movement_type'] ?? '',
         'item_status' => ($filters['item_status'] ?? 'all') !== 'all' ? $filters['item_status'] : null,
     ], static fn ($value): bool => $value !== '' && $value !== null);
 
     $movementQuery = array_filter([
-        'date_from' => $filters['date'],
-        'date_to' => $filters['date'],
+        'date_from' => $filters['date_from'],
+        'date_to' => $filters['date_to'],
         'storage_id' => $filters['storage_id'] ?? null,
         'movement_type' => $filters['movement_type'] ?? '',
     ], static fn ($value): bool => $value !== '' && $value !== null);

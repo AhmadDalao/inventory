@@ -521,7 +521,7 @@
 }
 
 .reports-summary-filter {
-    grid-template-columns: minmax(150px, 0.75fr) minmax(240px, 1.1fr) minmax(190px, 0.9fr) minmax(170px, 0.8fr) auto;
+    grid-template-columns: repeat(2, minmax(145px, 0.65fr)) minmax(220px, 1fr) minmax(180px, 0.85fr) minmax(160px, 0.75fr) auto;
 }
 
 .reports-summary-metrics {
@@ -725,4 +725,3 @@
     color: var(--muted);
     line-height: 1.55;
 }
-

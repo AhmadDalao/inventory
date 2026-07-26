@@ -11,7 +11,8 @@ function handle_export_daily_summary(): void
     $filters = report_summary_filters();
     $summary = report_summary_data($filters);
     $cards = $summary['cards'];
-    $date = (string) $filters['date'];
+    $dateFrom = (string) $filters['date_from'];
+    $dateTo = (string) $filters['date_to'];
     $storageLabel = (string) $summary['storage_label'];
     $movementLabel = report_summary_movement_label((string) ($filters['movement_type'] ?? ''));
     $itemStatusLabel = report_summary_item_status_label((string) ($filters['item_status'] ?? 'all'));
@@ -19,7 +20,8 @@ function handle_export_daily_summary(): void
 
     $rows[] = [
         'Overall',
-        $date,
+        $dateFrom,
+        $dateTo,
         $storageLabel,
         $movementLabel,
         $itemStatusLabel,
@@ -48,7 +50,8 @@ function handle_export_daily_summary(): void
     ] as $label => $key) {
         $rows[] = [
             'Overall',
-            $date,
+            $dateFrom,
+            $dateTo,
             $storageLabel,
             $movementLabel,
             $itemStatusLabel,
@@ -73,7 +76,8 @@ function handle_export_daily_summary(): void
     foreach ($summary['usage_by_item'] as $row) {
         $rows[] = [
             'Usage By Item',
-            $date,
+            $dateFrom,
+            $dateTo,
             $storageLabel,
             $movementLabel,
             report_summary_item_record_status_label($row['item_is_active'] ?? null),
@@ -98,7 +102,8 @@ function handle_export_daily_summary(): void
     foreach ($summary['user_breakdown'] as $row) {
         $rows[] = [
             'Who Did What',
-            $date,
+            $dateFrom,
+            $dateTo,
             $storageLabel,
             $movementLabel,
             $itemStatusLabel,
@@ -131,7 +136,8 @@ function handle_export_daily_summary(): void
 
         $rows[] = [
             'Timeline',
-            $date,
+            $dateFrom,
+            $dateTo,
             $storageLabel,
             $movementLabel,
             report_summary_item_record_status_label($movement['item_is_active'] ?? null),
@@ -153,9 +159,10 @@ function handle_export_daily_summary(): void
         ];
     }
 
-    export_csv('daily-summary-' . str_replace('-', '', $date) . '-' . date('His') . '.csv', [
+    export_csv('daily-summary-' . report_summary_period_filename($filters) . '-' . date('His') . '.csv', [
         'Section',
-        'Date',
+        'From Date',
+        'To Date',
         'Storage',
         'Movement Filter',
         'Item Status',

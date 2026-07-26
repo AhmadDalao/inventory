@@ -4348,6 +4348,8 @@ assert_true(strpos($reportsPage['body'], 'reports-summary-panel') !== false, 'Re
 assert_true(strpos($reportsPage['body'], 'data-live-filter-region="reports-summary"') !== false, 'Reports page is missing live filter region.');
 assert_true(strpos($reportsPage['body'], 'data-live-filter-form') !== false, 'Reports page is missing live filter form.');
 assert_true(strpos($reportsPage['body'], 'Everything That Happened On') !== false, 'Reports page is missing the daily summary title.');
+assert_true(strpos($reportsPage['body'], 'name="date_from"') !== false, 'Reports page is missing the start date filter.');
+assert_true(strpos($reportsPage['body'], 'name="date_to"') !== false, 'Reports page is missing the end date filter.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'Reports page is missing the daily summary export link.');
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary.xlsx') !== false, 'Reports page is missing the daily summary XLSX export link.');
 assert_true(strpos($reportsPage['body'], 'name="item_status"') !== false && strpos($reportsPage['body'], 'Deleted items') !== false, 'Reports page is missing the item status filter.');
@@ -4370,7 +4372,7 @@ $savedPresetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/reports/pres
     'report_type' => 'daily_operations',
     'export_format' => 'csv',
     'visibility' => 'private',
-    'filter_query' => 'date=' . date('Y-m-d') . '&movement_type=usage&item_status=active',
+    'filter_query' => 'date_from=' . date('Y-m-d') . '&date_to=' . date('Y-m-d') . '&movement_type=usage&item_status=active',
     'description' => $prefix . ' saved report preset regression',
 ]);
 assert_true(
@@ -4391,7 +4393,7 @@ $savedPresetEdit = http_request($baseUrl, $ownerCookie, 'POST', '/reports/preset
     'report_type' => 'usage_by_reason',
     'export_format' => 'xlsx',
     'visibility' => 'shared',
-    'filter_query' => 'date=' . date('Y-m-d') . '&movement_type=usage&item_status=all',
+    'filter_query' => 'date_from=' . date('Y-m-d') . '&date_to=' . date('Y-m-d') . '&movement_type=usage&item_status=all',
     'description' => $prefix . ' saved report preset edited',
 ]);
 assert_true($savedPresetEdit['status'] === 302 && location_matches($savedPresetEdit['location'], '/reports/presets'), 'Saved report preset edit did not redirect.');
@@ -4411,14 +4413,26 @@ $savedPresetArchive = http_request($baseUrl, $ownerCookie, 'POST', '/reports/pre
 assert_true($savedPresetArchive['status'] === 302 && location_matches($savedPresetArchive['location'], '/reports/presets'), 'Saved report preset archive did not redirect.');
 $savedPresetArchived = Database::fetch('SELECT is_active, archived_at FROM report_presets WHERE id = :id LIMIT 1', ['id' => (int) $savedPresetRecord['id']]);
 assert_true(is_array($savedPresetArchived) && (int) $savedPresetArchived['is_active'] === 0 && trim((string) $savedPresetArchived['archived_at']) !== '', 'Saved report preset archive was not stored.');
-$dailySummaryExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?date=' . rawurlencode(date('Y-m-d')));
+$reportRangeFrom = date('Y-m-d', strtotime('-1 day'));
+$reportRangeTo = date('Y-m-d');
+$rangeReportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo));
+assert_true($rangeReportsPage['status'] === 200, 'Reports date range filter failed.');
+assert_true(strpos($rangeReportsPage['body'], 'From ' . date('M j, Y', strtotime($reportRangeFrom)) . ' To ' . date('M j, Y', strtotime($reportRangeTo))) !== false, 'Reports page does not show the selected date range.');
+$reverseRangeReportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports?date_from=' . rawurlencode($reportRangeTo) . '&date_to=' . rawurlencode($reportRangeFrom));
+assert_true(strpos($reverseRangeReportsPage['body'], 'From ' . date('M j, Y', strtotime($reportRangeFrom)) . ' To ' . date('M j, Y', strtotime($reportRangeTo))) !== false, 'Reports page does not normalize a reversed date range.');
+$legacyDateReportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports?date=' . rawurlencode($reportRangeTo));
+assert_true(strpos($legacyDateReportsPage['body'], 'Everything That Happened On ' . date('M j, Y', strtotime($reportRangeTo))) !== false, 'Reports page no longer supports legacy single-date links.');
+$dailySummaryExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo));
 assert_true($dailySummaryExport['status'] === 200, 'Daily summary export failed.');
-assert_true(strpos($dailySummaryExport['body'], 'Section,Date,Storage') !== false, 'Daily summary export is missing the CSV header.');
+assert_true(strpos($dailySummaryExport['body'], 'Section,\"From Date\",\"To Date\",Storage') !== false, 'Daily summary export is missing the date range CSV headers.');
+assert_true(strpos($dailySummaryExport['body'], $reportRangeFrom . ',' . $reportRangeTo) !== false, 'Daily summary export does not include the selected date range.');
 assert_true(strpos($dailySummaryExport['body'], 'Item Status') !== false, 'Daily summary export is missing the item status column.');
-$dailySummaryXlsxExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?date=' . rawurlencode(date('Y-m-d')) . '&item_status=active');
+$dailySummaryXlsxExport = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?date_from=' . rawurlencode($reportRangeFrom) . '&date_to=' . rawurlencode($reportRangeTo) . '&item_status=active');
 assert_true($dailySummaryXlsxExport['status'] === 200, 'Daily summary XLSX export failed.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Usage By Item', 'Daily summary XLSX export is missing usage rows.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Scan Code', 'Daily summary XLSX export is missing scan code details.');
+assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'From Date', 'Daily summary XLSX export is missing the start date column.');
+assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'To Date', 'Daily summary XLSX export is missing the end date column.');
 assert_xlsx_contains_media($dailySummaryXlsxExport['body'], 'Daily summary XLSX export is missing embedded item thumbnails.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/reports?item_status=active')['status'] === 200, 'Reports active item-status filter failed.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/reports?item_status=deleted')['status'] === 200, 'Reports deleted item-status filter failed.');

@@ -62,7 +62,7 @@ $dateTitle = date('M j, Y');
             </label>
             <label class="field saved-report-filter-query">
                 <span>Filter query</span>
-                <input type="text" name="filter_query" value="<?= e($currentReportQuery) ?>" placeholder="date=2026-07-22&amp;storage_id=1">
+                <input type="text" name="filter_query" value="<?= e($currentReportQuery) ?>" placeholder="date_from=2026-07-01&amp;date_to=2026-07-31&amp;storage_id=1">
                 <small>Use URL query format. Blank uses the default filters for the selected report type.</small>
             </label>
             <label class="field saved-report-description">

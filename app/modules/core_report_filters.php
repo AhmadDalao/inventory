@@ -8,8 +8,8 @@ function build_report_summary_where(array $filters, string $alias = 'm'): array
         "{$alias}.used_at <= :summary_date_to",
     ];
     $params = [
-        'summary_date_from' => $filters['date'] . ' 00:00:00',
-        'summary_date_to' => $filters['date'] . ' 23:59:59',
+        'summary_date_from' => $filters['date_from'] . ' 00:00:00',
+        'summary_date_to' => $filters['date_to'] . ' 23:59:59',
     ];
 
     if (!empty($filters['storage_id'])) {
