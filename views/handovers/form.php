@@ -243,7 +243,7 @@ $handoverSubmitLabel = $isStaffRequest
             data-hide-availability="false"
             data-hide-item-quantity="false"
             data-locked-owner-id="<?= e(!empty($lockedRequestOwner) ? (string) $lockedRequestOwner['id'] : '') ?>"
-            data-expected-usage="<?= $isStorageTransfer ? 'false' : 'true' ?>"
+            data-expected-usage="false"
             data-usage-reasons="<?= e(json_encode($usageReasonOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
         >
             <div class="panel-head">
@@ -295,28 +295,6 @@ $handoverSubmitLabel = $isStaffRequest
                                         <div class="workflow-picker-options" data-workflow-picker-options></div>
                                     </div>
                                 </div>
-                                <details class="handover-expected-usage" data-expected-usage-editor data-handover-transfer-sensitive <?= $isStorageTransfer ? 'hidden' : '' ?> open>
-                                    <summary><span>Expected usage plan</span></summary>
-                                    <p class="tiny-copy">Optional: split what you expect to use before the handover, like Online 250 and Walk-in 30.</p>
-                                    <div class="handover-expected-usage-list" data-expected-usage-list>
-                                        <?php foreach ($expectedRowsForIndex((int) $lineIndex) as $expectedRow): ?>
-                                            <div class="handover-expected-usage-row" data-expected-usage-row>
-                                                <select class="handover-expected-field" data-expected-usage-reason data-expected-usage-name="expected_usage_reason" name="expected_usage_reason[<?= (int) $lineIndex ?>][]">
-                                                    <?php foreach ($usageReasonOptions as $reasonCode => $reasonLabel): ?>
-                                                        <option value="<?= e((string) $reasonCode) ?>" <?= selected((string) $reasonCode, (string) ($expectedRow['reason'] ?? 'unspecified')) ?>>
-                                                            <?= e((string) $reasonLabel) ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <input class="handover-expected-field" type="number" step="0.01" min="0" placeholder="Expected qty" data-expected-usage-name="expected_usage_quantity" name="expected_usage_quantity[<?= (int) $lineIndex ?>][]" value="<?= e((string) ($expectedRow['quantity'] ?? '')) ?>">
-                                                <input class="handover-expected-field" type="text" placeholder="Other reason" data-expected-usage-other data-expected-usage-name="expected_usage_other" name="expected_usage_other[<?= (int) $lineIndex ?>][]" value="<?= e((string) ($expectedRow['other'] ?? '')) ?>" <?= (string) ($expectedRow['reason'] ?? '') === 'other' ? '' : 'hidden' ?>>
-                                                <input class="handover-expected-field" type="text" placeholder="Optional note" data-expected-usage-name="expected_usage_notes" name="expected_usage_notes[<?= (int) $lineIndex ?>][]" value="<?= e((string) ($expectedRow['notes'] ?? '')) ?>">
-                                                <button class="handover-expected-remove" type="button" data-remove-expected-usage>Remove</button>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <button class="ghost-button compact-button handover-expected-add" type="button" data-add-expected-usage><?= ui_icon('plus') ?><span>Add Expected Usage</span></button>
-                                </details>
                             </td>
                             <td>
                                 <span class="tiny-copy" data-workflow-available>-</span>

@@ -74,6 +74,7 @@ return [
     ],
     'handover_usage' => [
         'handover_usage_reasons',
+        'handover_reconciliation',
         'handover_usage_breakdowns',
         'handover_usage_inputs',
         'handover_receipt_updates',

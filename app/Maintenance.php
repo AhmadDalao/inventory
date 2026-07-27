@@ -35,7 +35,7 @@ final class Maintenance
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-07-15-handover-storage-transfer-v1';
+    private const SCHEMA_VERSION = '2026-07-26-handover-operational-reconciliation-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 

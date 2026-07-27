@@ -10,6 +10,113 @@ function handle_export_daily_summary(): void
 
     $filters = report_summary_filters();
     $summary = report_summary_data($filters);
+
+    if ((string) query('report_scope', '') === 'operational_usage') {
+        $rows = [];
+
+        foreach ($summary['operational_usage'] as $row) {
+            $rows[] = [
+                (string) ($row['activity_date'] ?? ''),
+                trim((string) ($row['activity_at'] ?? '')) !== ''
+                    ? date('g:i:s A', strtotime((string) $row['activity_at']))
+                    : '',
+                (string) ($row['handover_number'] ?? ''),
+                (string) ($row['unit'] ?? 'pcs'),
+                format_quantity($row['issued_total'] ?? 0),
+                format_quantity($row['received_total'] ?? 0),
+                format_quantity($row['online_quantity'] ?? 0),
+                format_quantity($row['walkin_quantity'] ?? 0),
+                format_quantity($row['event_quantity'] ?? 0),
+                format_quantity($row['sport_quantity'] ?? 0),
+                format_quantity($row['damage_quantity'] ?? 0),
+                format_quantity($row['complimentary_quantity'] ?? 0),
+                format_quantity($row['noshow_quantity'] ?? 0),
+                format_quantity($row['other_quantity'] ?? 0),
+                format_quantity($row['returned_total'] ?? 0),
+                format_quantity($row['physical_used_total'] ?? 0),
+                format_quantity($row['operational_used_total'] ?? 0),
+                format_quantity($row['difference_total'] ?? 0),
+                (string) ($row['receiver_name'] ?? ''),
+                (string) ($row['approver_name'] ?? ''),
+                (string) ($row['source_storage_name'] ?? ''),
+                (string) ($row['discrepancy_notes'] ?? ''),
+                (string) ($row['variance_reason_label'] ?? ''),
+                (string) ($row['variance_notes'] ?? ''),
+            ];
+        }
+
+        export_csv('operational-usage-' . report_summary_period_filename($filters) . '-' . date('His') . '.csv', [
+            'Usage Date',
+            'Approval Time',
+            'Handover',
+            'Unit',
+            'Issued',
+            'Confirmed Received',
+            'Online',
+            'Walk-in',
+            'Event',
+            'Sport',
+            'Damage',
+            'Complimentary',
+            'No Show',
+            'Other',
+            'Total Returned',
+            'Physical Used',
+            'Operational Used',
+            'Difference',
+            'Receiver',
+            'Approver',
+            'Source Storage',
+            'Receiver Discrepancy',
+            'Variance Reason',
+            'Approval Notes',
+        ], $rows);
+    }
+
+    if ((string) query('report_scope', '') === 'usage_by_day') {
+        $rows = [];
+
+        foreach ($summary['usage_by_day'] as $row) {
+            $usageReasons = report_summary_usage_reason_text(
+                (array) ($row['usage_reasons'] ?? []),
+                (string) ($row['unit'] ?: 'pcs')
+            );
+            $lastActivity = trim((string) ($row['last_activity_at'] ?? ''));
+
+            $rows[] = [
+                (string) ($row['usage_date'] ?? ''),
+                $lastActivity !== '' ? date('g:i:s A', strtotime($lastActivity)) : '',
+                (string) $row['item_name'],
+                (string) $row['sku'],
+                (string) $row['unit'],
+                format_quantity($row['used_quantity'] ?? 0),
+                $usageReasons !== '' ? $usageReasons : 'Unspecified',
+                report_summary_usage_notes_text($row),
+                (string) ($row['staff_name'] ?: 'System'),
+                (string) ($row['approver_name'] ?: ''),
+                (string) ($row['usage_location'] ?: 'Unassigned'),
+                (string) ($row['references_list'] ?: ''),
+                item_image_url($row['image_path'] ?? null) ?? '',
+            ];
+        }
+
+        export_csv('usage-by-day-' . report_summary_period_filename($filters) . '-' . date('His') . '.csv', [
+            'Usage Date',
+            'Usage Time',
+            'Item',
+            'SKU',
+            'Unit',
+            'Used Quantity',
+            'Usage Breakdown',
+            'Notes',
+            'Staff',
+            'Approver',
+            'Location',
+            'Reference',
+            'Image URL',
+        ], $rows);
+    }
+
     $cards = $summary['cards'];
     $dateFrom = (string) $filters['date_from'];
     $dateTo = (string) $filters['date_to'];
@@ -123,19 +230,71 @@ function handle_export_daily_summary(): void
             (string) $row['item_name'],
             (string) $row['sku'],
             (string) $row['unit'],
-            (string) ($row['users'] ?: ''),
+            (string) ($row['staff_name'] ?: 'System'),
             'Usage',
             format_quantity($row['used_quantity'] ?? 0),
             (string) $row['movement_count'],
             '',
             '',
             '',
-            (string) ($row['locations'] ?: ''),
+            (string) ($row['usage_location'] ?: 'Unassigned'),
             '',
             (string) ($row['references_list'] ?: ''),
             (string) ($row['last_activity_at'] ?: ''),
             trim(($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '') . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')),
             item_image_url($row['image_path'] ?? null) ?? '',
+        ];
+    }
+
+    foreach ($summary['operational_usage'] as $row) {
+        $operationalNotes = [
+            'Online: ' . format_quantity($row['online_quantity'] ?? 0),
+            'Walk-in: ' . format_quantity($row['walkin_quantity'] ?? 0),
+            'Event: ' . format_quantity($row['event_quantity'] ?? 0),
+            'Sport: ' . format_quantity($row['sport_quantity'] ?? 0),
+            'Damage: ' . format_quantity($row['damage_quantity'] ?? 0),
+            'Complimentary: ' . format_quantity($row['complimentary_quantity'] ?? 0),
+            'No Show: ' . format_quantity($row['noshow_quantity'] ?? 0),
+            'Other: ' . format_quantity($row['other_quantity'] ?? 0),
+            'Returned: ' . format_quantity($row['returned_total'] ?? 0),
+            'Operational Used: ' . format_quantity($row['operational_used_total'] ?? 0),
+            'Difference: ' . format_quantity($row['difference_total'] ?? 0),
+            'Approver: ' . (string) ($row['approver_name'] ?? ''),
+        ];
+        $varianceNotes = array_filter([
+            trim((string) ($row['discrepancy_notes'] ?? '')),
+            trim((string) ($row['variance_reason_label'] ?? '')),
+            trim((string) ($row['variance_notes'] ?? '')),
+        ], static fn (string $value): bool => $value !== '');
+
+        if ($varianceNotes !== []) {
+            $operationalNotes[] = 'Variance: ' . implode(' / ', $varianceNotes);
+        }
+
+        $rows[] = [
+            'Operational Usage',
+            $dateFrom,
+            $dateTo,
+            (string) ($row['activity_date'] ?? ''),
+            (string) ($row['source_storage_name'] ?? $storageLabel),
+            'Usage',
+            'Handover',
+            'Handover reconciliation',
+            '',
+            (string) ($row['unit'] ?? 'pcs'),
+            (string) ($row['receiver_name'] ?? ''),
+            'Operational Summary',
+            format_quantity($row['physical_used_total'] ?? 0),
+            '1',
+            'Source storage',
+            '',
+            '',
+            (string) ($row['source_storage_name'] ?? ''),
+            '',
+            (string) ($row['handover_number'] ?? ''),
+            (string) ($row['activity_at'] ?? ''),
+            implode('; ', $operationalNotes),
+            '',
         ];
     }
 

@@ -8,7 +8,10 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
     $meta = workflow_signoff_meta($workflowType, $record);
     $rows = workflow_signoff_rows($workflowType, $lines, $record);
     $totals = workflow_signoff_totals($workflowType, $rows, $record);
-    $handoverUsesReconciliation = $workflowType === 'handover' && workflow_signoff_template() === 'reconciliation';
+    $handoverUsesOperationalReconciliation = $workflowType === 'handover'
+        && !empty($totals['uses_operational_reconciliation']);
+    $handoverUsesReconciliation = $workflowType === 'handover'
+        && ($handoverUsesOperationalReconciliation || workflow_signoff_template() === 'reconciliation');
     $pdfImageSize = workflow_signoff_effective_image_size('pdf');
     $pdfImageWidth = (int) $pdfImageSize['width'];
     $pdfImageHeight = (int) $pdfImageSize['height'];
@@ -41,7 +44,32 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         $rowChunks[] = [];
     }
 
-    $totalPdfPages = count($rowChunks) + ($workflowType === 'handover' ? 1 : 0);
+    $operationalReconciliationPageChunks = [];
+
+    if ($handoverUsesOperationalReconciliation) {
+        $currentReconciliationChunk = [];
+
+        foreach ((array) ($totals['reconciliation_table_rows'] ?? []) as $reconciliationRow) {
+            if ((string) ($reconciliationRow['type'] ?? '') === 'unit_header'
+                && $currentReconciliationChunk !== []) {
+                $operationalReconciliationPageChunks[] = $currentReconciliationChunk;
+                $currentReconciliationChunk = [];
+            }
+
+            $currentReconciliationChunk[] = $reconciliationRow;
+        }
+
+        if ($currentReconciliationChunk !== []) {
+            $operationalReconciliationPageChunks[] = $currentReconciliationChunk;
+        }
+    }
+
+    if ($workflowType === 'handover' && $operationalReconciliationPageChunks === []) {
+        $operationalReconciliationPageChunks[] = (array) ($totals['reconciliation_table_rows'] ?? []);
+    }
+
+    $totalPdfPages = count($rowChunks)
+        + ($workflowType === 'handover' ? max(1, count($operationalReconciliationPageChunks)) : 0);
 
     $registerImage = static function (?string $imagePath) use (&$images, &$imageNamesByPath, $pdfImageWidth, $pdfImageHeight): ?string {
         $path = workflow_item_image_file($imagePath);
@@ -236,6 +264,11 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
     }
 
     if ($workflowType === 'handover') {
+        $handoverReconciliationPages = $handoverUsesOperationalReconciliation
+            ? $operationalReconciliationPageChunks
+            : [(array) ($totals['reconciliation_table_rows'] ?? [])];
+
+        foreach ($handoverReconciliationPages as $reconciliationPageRows) {
         $pageIndex = count($pages);
         $commands = '';
         $pageImages = [];
@@ -262,71 +295,134 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
         $isStorageTransfer = !empty($totals['is_storage_transfer']);
         $notesText = $isStorageTransfer
             ? 'Transfer accounting: received stock moves to destination, short quantity returns to source. Difference / Unaccounted should be 0.'
-            : ($handoverUsesReconciliation ? 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.' : 'Legacy layout keeps the old stock accounting and usage variance summary.');
-        $reconciliationTitle = $isStorageTransfer ? 'Transfer Reconciliation' : 'Usage Reconciliation';
-        $issuedHeader = $isStorageTransfer ? 'Issued / Planned' : 'Expected Usage / Issued';
+            : ($handoverUsesOperationalReconciliation
+                ? 'Returned is entered per item. Operational totals describe the whole handover. Difference should be 0.'
+                : ($handoverUsesReconciliation ? 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.' : 'Legacy layout keeps the old stock accounting and usage variance summary.'));
+        $reconciliationTitle = $isStorageTransfer
+            ? 'Transfer Reconciliation'
+            : ($handoverUsesOperationalReconciliation ? 'Operational Reconciliation' : 'Usage Reconciliation');
+        $issuedHeader = $isStorageTransfer
+            ? 'Issued / Planned'
+            : ($handoverUsesOperationalReconciliation ? 'Quantity' : 'Expected Usage / Issued');
         $differenceNote = $isStorageTransfer
             ? 'Difference = planned - received into destination - returned to source. 0 means the transfer is fully accounted for.'
-            : 'Difference = received - used - returned. 0 means all handed stock is accounted for.';
+            : ($handoverUsesOperationalReconciliation
+                ? 'Difference = physical used - operational used. 0 means the handover is reconciled.'
+                : 'Difference = received - used - returned. 0 means all handed stock is accounted for.');
 
         $commands .= workflow_pdf_text('Notes', 12, 42, 654, 'F2');
         $commands .= workflow_pdf_text($notesText, 8, 42, 640);
 
         if ($handoverUsesReconciliation) {
+            $reconciliationRows = $reconciliationPageRows;
             $commands .= workflow_pdf_text($reconciliationTitle, 12, 42, 614, 'F2');
-            $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
-            $commands .= workflow_pdf_text('Type', 8, 56, 592, 'F2');
-            $commands .= workflow_pdf_text($issuedHeader, 8, 182, 592, 'F2');
-            $commands .= workflow_pdf_text('Actual', 8, 294, 592, 'F2');
-            $commands .= workflow_pdf_text('Difference', 8, 376, 592, 'F2');
-            $commands .= workflow_pdf_text('Notes', 8, 464, 592, 'F2');
-            $y = 554;
-            $reconciliationRows = (array) ($totals['reconciliation_table_rows'] ?? []);
-            $formatReconciliationValue = static function ($value, string $unit): string {
-                if ($value === '' || $value === null) {
-                    return '';
-                }
 
-                if (is_numeric($value)) {
-                    $suffix = $unit !== '' ? ' ' . $unit : '';
+            if ($handoverUsesOperationalReconciliation) {
+                $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
+                $commands .= workflow_pdf_text('Type', 8, 56, 592, 'F2');
+                $commands .= workflow_pdf_text('Quantity', 8, 300, 592, 'F2');
+                $commands .= workflow_pdf_text('Unit', 8, 400, 592, 'F2');
+                $commands .= workflow_pdf_text('Notes', 8, 454, 592, 'F2');
+                $y = 554;
 
-                    return format_quantity((float) $value) . $suffix;
-                }
+                if ($reconciliationRows === []) {
+                    $commands .= workflow_pdf_rect(42, $y, 528, 32, 'S', '0.86 0.80 0.72');
+                    $commands .= workflow_pdf_text('No operational reconciliation has been reported.', 9, 56, $y + 12);
+                    $y -= 38;
+                } else {
+                    foreach ($reconciliationRows as $summaryRow) {
+                        $rowType = (string) ($summaryRow['type'] ?? '');
+                        $label = (string) ($summaryRow['label'] ?? '');
+                        $unit = (string) ($summaryRow['unit'] ?? '');
+                        $quantity = $summaryRow['actual'] ?? '';
+                        $notes = (string) ($summaryRow['notes'] ?? '');
 
-                return (string) $value;
-            };
+                        if ($rowType === 'unit_header') {
+                            $commands .= workflow_pdf_rect(42, $y, 528, 24, 'B', '0.86 0.80 0.72', '0.99 0.97 0.92');
+                            $commands .= workflow_pdf_text('UNIT: ' . truncate_text($label, 48), 8, 56, $y + 8, 'F2');
+                            $y -= 24;
+                            continue;
+                        }
 
-            if ($reconciliationRows === []) {
-                $commands .= workflow_pdf_rect(42, $y, 528, 32, 'S', '0.86 0.80 0.72');
-                $commands .= workflow_pdf_text('No expected or actual usage reported.', 9, 56, $y + 12);
-                $y -= 38;
-            } else {
-                foreach ($reconciliationRows as $summaryRow) {
-                    $unit = (string) ($summaryRow['unit'] ?? 'pcs');
-                    $expected = $formatReconciliationValue($summaryRow['expected'] ?? '', $unit);
-                    $actual = $formatReconciliationValue($summaryRow['actual'] ?? '', $unit);
-                    $difference = $formatReconciliationValue($summaryRow['difference'] ?? '', $unit);
-                    $notes = (string) ($summaryRow['notes'] ?? '');
-                    $rowFont = (string) ($summaryRow['type'] ?? '') === 'difference' ? 'F2' : 'F1';
-                    $commands .= workflow_pdf_rect(42, $y, 528, 30, 'S', '0.86 0.80 0.72');
-                    $commands .= workflow_pdf_line(170, $y, 170, $y + 30);
-                    $commands .= workflow_pdf_line(282, $y, 282, $y + 30);
-                    $commands .= workflow_pdf_line(364, $y, 364, $y + 30);
-                    $commands .= workflow_pdf_line(454, $y, 454, $y + 30);
-                    $commands .= workflow_pdf_text(truncate_text((string) ($summaryRow['label'] ?? ''), 24), 8, 56, $y + 12, $rowFont);
-                    $commands .= workflow_pdf_text(truncate_text($expected, 20), 8, 182, $y + 12);
-                    $commands .= workflow_pdf_text(truncate_text($actual, 18), 8, 294, $y + 12);
-                    $commands .= workflow_pdf_text(truncate_text($difference, 18), 8, 376, $y + 12);
-                    $commands .= workflow_pdf_text(truncate_text($notes, 22), 7, 464, $y + 12);
-                    $y -= 30;
-
-                    if ($y < 225) {
-                        break;
+                        $isDifference = $rowType === 'difference';
+                        $differenceValue = $isDifference && is_numeric($quantity)
+                            ? round((float) $quantity, 2)
+                            : 0.0;
+                        $fill = $isDifference
+                            ? ($differenceValue == 0.0 ? '0.29 0.29 0.29' : '0.75 0.22 0.17')
+                            : null;
+                        $textColor = $isDifference ? '1 1 1' : '0 0 0';
+                        $font = in_array($rowType, ['total_issued', 'confirmed_received', 'total_returned', 'physical_used', 'operational_used', 'difference'], true)
+                            ? 'F2'
+                            : 'F1';
+                        $commands .= workflow_pdf_rect(42, $y, 528, 24, $fill === null ? 'S' : 'B', '0.86 0.80 0.72', $fill);
+                        $commands .= workflow_pdf_line(286, $y, 286, $y + 24);
+                        $commands .= workflow_pdf_line(386, $y, 386, $y + 24);
+                        $commands .= workflow_pdf_line(442, $y, 442, $y + 24);
+                        $commands .= workflow_pdf_colored_text(truncate_text($label, 44), 8, 56, $y + 8, $font, $textColor);
+                        $quantityText = is_numeric($quantity) ? format_quantity((float) $quantity) : (string) $quantity;
+                        $commands .= workflow_pdf_colored_text(truncate_text($quantityText, 16), 8, 300, $y + 8, $font, $textColor);
+                        $commands .= workflow_pdf_colored_text(truncate_text($unit, 8), 8, 400, $y + 8, $font, $textColor);
+                        $commands .= workflow_pdf_colored_text(truncate_text($notes, 24), 7, 454, $y + 8, $font, $textColor);
+                        $y -= 24;
                     }
                 }
-            }
 
-            $commands .= workflow_pdf_text($differenceNote, 8, 42, max(208, $y - 8));
+                $commands .= workflow_pdf_text($differenceNote, 8, 42, max(184, $y - 8));
+            } else {
+                $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
+                $commands .= workflow_pdf_text('Type', 8, 56, 592, 'F2');
+                $commands .= workflow_pdf_text($issuedHeader, 8, 182, 592, 'F2');
+                $commands .= workflow_pdf_text('Actual', 8, 294, 592, 'F2');
+                $commands .= workflow_pdf_text('Difference', 8, 376, 592, 'F2');
+                $commands .= workflow_pdf_text('Notes', 8, 464, 592, 'F2');
+                $y = 554;
+                $formatReconciliationValue = static function ($value, string $unit): string {
+                    if ($value === '' || $value === null) {
+                        return '';
+                    }
+
+                    if (is_numeric($value)) {
+                        $suffix = $unit !== '' ? ' ' . $unit : '';
+
+                        return format_quantity((float) $value) . $suffix;
+                    }
+
+                    return (string) $value;
+                };
+
+                if ($reconciliationRows === []) {
+                    $commands .= workflow_pdf_rect(42, $y, 528, 32, 'S', '0.86 0.80 0.72');
+                    $commands .= workflow_pdf_text('No expected or actual usage reported.', 9, 56, $y + 12);
+                    $y -= 38;
+                } else {
+                    foreach ($reconciliationRows as $summaryRow) {
+                        $unit = (string) ($summaryRow['unit'] ?? 'pcs');
+                        $expected = $formatReconciliationValue($summaryRow['expected'] ?? '', $unit);
+                        $actual = $formatReconciliationValue($summaryRow['actual'] ?? '', $unit);
+                        $difference = $formatReconciliationValue($summaryRow['difference'] ?? '', $unit);
+                        $notes = (string) ($summaryRow['notes'] ?? '');
+                        $rowFont = (string) ($summaryRow['type'] ?? '') === 'difference' ? 'F2' : 'F1';
+                        $commands .= workflow_pdf_rect(42, $y, 528, 30, 'S', '0.86 0.80 0.72');
+                        $commands .= workflow_pdf_line(170, $y, 170, $y + 30);
+                        $commands .= workflow_pdf_line(282, $y, 282, $y + 30);
+                        $commands .= workflow_pdf_line(364, $y, 364, $y + 30);
+                        $commands .= workflow_pdf_line(454, $y, 454, $y + 30);
+                        $commands .= workflow_pdf_text(truncate_text((string) ($summaryRow['label'] ?? ''), 24), 8, 56, $y + 12, $rowFont);
+                        $commands .= workflow_pdf_text(truncate_text($expected, 20), 8, 182, $y + 12);
+                        $commands .= workflow_pdf_text(truncate_text($actual, 18), 8, 294, $y + 12);
+                        $commands .= workflow_pdf_text(truncate_text($difference, 18), 8, 376, $y + 12);
+                        $commands .= workflow_pdf_text(truncate_text($notes, 22), 7, 464, $y + 12);
+                        $y -= 30;
+
+                        if ($y < 225) {
+                            break;
+                        }
+                    }
+                }
+
+                $commands .= workflow_pdf_text($differenceNote, 8, 42, max(208, $y - 8));
+            }
         } else {
             $commands .= workflow_pdf_text('Stock Accounting', 12, 42, 614, 'F2');
             $commands .= workflow_pdf_rect(42, 584, 528, 24, 'B', '0.86 0.80 0.72', '0.96 0.93 0.86');
@@ -408,6 +504,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             'commands' => $commands,
             'images' => $pageImages,
         ];
+        }
     }
 
     return workflow_pdf_build($pages, $images);

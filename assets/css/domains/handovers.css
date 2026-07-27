@@ -752,3 +752,154 @@
     padding: 8px 12px;
 }
 
+.handover-operational-workspace {
+    display: grid;
+    gap: 18px;
+}
+
+.handover-operational-items-wrap {
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: #fff;
+}
+
+.handover-operational-items {
+    min-width: 720px;
+}
+
+.handover-operational-items td {
+    vertical-align: middle;
+}
+
+.handover-operational-items input {
+    width: 100%;
+    min-width: 130px;
+}
+
+.handover-reconciliation-panel {
+    display: grid;
+    gap: 16px;
+    padding: 18px;
+    border: 1px solid rgba(231, 182, 74, 0.36);
+    border-radius: 22px;
+    background: #fffaf1;
+}
+
+.handover-reconciliation-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.handover-reconciliation-head h4,
+.handover-reconciliation-head p {
+    margin: 0;
+}
+
+.handover-reconciliation-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.handover-reconciliation-state.is-reconciled,
+.handover-reconciliation-totals .is-reconciled {
+    background: #ddf8e7;
+    color: #16723c;
+}
+
+.handover-reconciliation-state.is-difference,
+.handover-reconciliation-totals .is-difference {
+    background: #ffe3dd;
+    color: #a43425;
+}
+
+.handover-reconciliation-reasons {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.handover-reconciliation-reasons .field,
+.handover-reconciliation-discrepancy,
+.handover-reconciliation-approval .field {
+    min-width: 0;
+}
+
+.handover-reconciliation-totals {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.handover-reconciliation-totals > div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #fff;
+}
+
+.handover-reconciliation-totals span {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.handover-reconciliation-totals strong {
+    font-size: 1.25rem;
+}
+
+.handover-reconciliation-approval {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1.3fr);
+    gap: 12px;
+}
+
+.danger-copy[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 1024px) {
+    .handover-reconciliation-reasons {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .handover-reconciliation-totals {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .handover-reconciliation-panel {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    .handover-reconciliation-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .handover-reconciliation-state {
+        width: 100%;
+        white-space: normal;
+    }
+
+    .handover-reconciliation-reasons,
+    .handover-reconciliation-totals,
+    .handover-reconciliation-approval {
+        grid-template-columns: 1fr;
+    }
+}

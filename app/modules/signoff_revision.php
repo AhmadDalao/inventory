@@ -50,6 +50,32 @@ function workflow_signoff_revision_timestamp(array $record, array $lines): int
         }
     }
 
+    if ((int) ($record['id'] ?? 0) > 0
+        && (string) ($record['usage_reporting_mode'] ?? '') === 'operational_summary') {
+        try {
+            $reconciliationUpdatedAt = Database::scalar(
+                'SELECT MAX(revision_at)
+                 FROM (
+                     SELECT MAX(updated_at) AS revision_at
+                     FROM handover_reconciliations
+                     WHERE handover_id = ?
+                     UNION ALL
+                     SELECT MAX(e.updated_at) AS revision_at
+                     FROM handover_reconciliation_entries e
+                     INNER JOIN handover_reconciliations r ON r.id = e.reconciliation_id
+                     WHERE r.handover_id = ?
+                 ) reconciliation_revisions',
+                [(int) $record['id'], (int) $record['id']]
+            );
+
+            if ($reconciliationUpdatedAt) {
+                $timestamps[] = strtotime((string) $reconciliationUpdatedAt) ?: 0;
+            }
+        } catch (Throwable $exception) {
+            // Legacy installations can generate signoff files before the migration runs.
+        }
+    }
+
     return max(0, ...$timestamps);
 }
 

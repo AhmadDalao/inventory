@@ -21,7 +21,7 @@ function handle_handovers_create_submit(): void
     [$lines, $lineErrors] = parse_workflow_lines();
     $recipientType = $isStaffRequest ? 'staff' : (in_array((string) input('recipient_type', 'staff'), ['staff', 'storage'], true) ? (string) input('recipient_type', 'staff') : 'staff');
     $isStorageTransfer = $recipientType === 'storage';
-    [$expectedUsageByItem, $expectedUsageErrors] = $isStorageTransfer ? [[], []] : parse_handover_expected_usage_by_item($lines);
+    $usageReportingMode = $isStorageTransfer ? 'legacy_per_item' : 'operational_summary';
     $payload = [
         'source_storage_id' => normalize_entity_id(input('source_storage_id')),
         'destination_storage_id' => $isStorageTransfer ? normalize_entity_id(input('destination_storage_id')) : null,
@@ -46,13 +46,9 @@ function handle_handovers_create_submit(): void
             'item_id' => (string) $line['item_id'],
             'quantity' => format_quantity($line['quantity']),
         ], $lines),
-        'expected_usage_reason' => input('expected_usage_reason', []),
-        'expected_usage_quantity' => input('expected_usage_quantity', []),
-        'expected_usage_other' => input('expected_usage_other', []),
-        'expected_usage_notes' => input('expected_usage_notes', []),
     ]);
 
-    $errors = array_merge($lineErrors, $expectedUsageErrors);
+    $errors = $lineErrors;
 
     if (!$payload['source_storage_id'] || !storage_exists_for_assignment($payload['source_storage_id'])) {
         $errors[] = 'Pick a valid source storage.';
@@ -171,6 +167,7 @@ function handle_handovers_create_submit(): void
                 recipient_name,
                 recipient_user_id,
                 recipient_type,
+                usage_reporting_mode,
                 handover_mode,
                 status,
                 scheduled_for_date,
@@ -197,6 +194,7 @@ function handle_handovers_create_submit(): void
                 :recipient_name,
                 :recipient_user_id,
                 :recipient_type,
+                :usage_reporting_mode,
                 :handover_mode,
                 :status,
                 :scheduled_for_date,
@@ -224,6 +222,7 @@ function handle_handovers_create_submit(): void
                 'recipient_name' => $payload['recipient_name'],
                 'recipient_user_id' => $payload['recipient_user_id'],
                 'recipient_type' => $payload['recipient_type'],
+                'usage_reporting_mode' => $usageReportingMode,
                 'handover_mode' => $isStaffRequest ? 'request' : 'direct',
                 'status' => $initialStatus,
                 'scheduled_for_date' => $payload['scheduled_for_date'] !== '' ? $payload['scheduled_for_date'] : null,
@@ -235,8 +234,6 @@ function handle_handovers_create_submit(): void
         );
 
         $handoverId = Database::lastInsertId();
-        $expectedUsageUpdates = [];
-
         foreach ($lines as $line) {
             $item = $itemsById[(int) $line['item_id']];
 
@@ -277,18 +274,7 @@ function handle_handovers_create_submit(): void
                 ]
             );
 
-            $lineId = Database::lastInsertId();
-
-            if (!$isStorageTransfer && !empty($expectedUsageByItem[(int) $item['id']])) {
-                $expectedUsageUpdates[] = [
-                    'line_id' => $lineId,
-                    'item_id' => (int) $item['id'],
-                    'breakdowns' => $expectedUsageByItem[(int) $item['id']],
-                ];
-            }
         }
-
-        save_handover_expected_usage_breakdowns($handoverId, $expectedUsageUpdates, (int) $user['id']);
 
         if (!$isStaffRequest) {
             issue_handover_inventory([

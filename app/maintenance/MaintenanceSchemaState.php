@@ -96,7 +96,14 @@ trait MaintenanceSchemaState
             && self::columnExists('handover_expected_usage_breakdowns', 'handover_line_id')
             && self::columnExists('handover_expected_usage_breakdowns', 'reason_code')
             && self::columnExists('handover_expected_usage_breakdowns', 'reason_custom')
-            && self::columnExists('handover_expected_usage_breakdowns', 'quantity');
+            && self::columnExists('handover_expected_usage_breakdowns', 'quantity')
+            && self::columnExists('handovers', 'usage_reporting_mode')
+            && self::tableExists('handover_reconciliations')
+            && self::columnExists('handover_reconciliations', 'unit')
+            && self::columnExists('handover_reconciliations', 'difference_total')
+            && self::tableExists('handover_reconciliation_entries')
+            && self::columnExists('handover_reconciliation_entries', 'reason_code')
+            && self::columnExists('handover_reconciliation_entries', 'quantity');
     }
 
     private static function userSchemaIsCurrent(): bool

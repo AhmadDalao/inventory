@@ -110,14 +110,63 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'barcode_value' => $barcodeValue !== '' ? $barcodeValue : 'Not set',
             'scan_code' => $scanCode,
             'unit' => (string) $row['unit'],
-            'user' => (string) ($row['users'] ?: ''),
+            'user' => (string) ($row['staff_name'] ?: 'System'),
             'movement_type' => 'Usage',
             'quantity' => format_quantity($row['used_quantity'] ?? 0),
             'movement_count' => (string) $row['movement_count'],
-            'source' => (string) ($row['locations'] ?: ''),
+            'source' => (string) ($row['usage_location'] ?: 'Unassigned'),
             'reference' => (string) ($row['references_list'] ?: ''),
             'used_at' => (string) ($row['last_activity_at'] ?: ''),
-            'notes' => trim(($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '') . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')),
+            'notes' => trim(
+                (($row['approver_name'] ?? '') !== '' ? 'Approver: ' . (string) $row['approver_name'] . '; ' : '')
+                . ($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '')
+                . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')
+            ),
+        ]);
+    }
+
+    foreach ($summary['operational_usage'] as $row) {
+        $operationalNotes = [
+            'Online: ' . format_quantity($row['online_quantity'] ?? 0),
+            'Walk-in: ' . format_quantity($row['walkin_quantity'] ?? 0),
+            'Event: ' . format_quantity($row['event_quantity'] ?? 0),
+            'Sport: ' . format_quantity($row['sport_quantity'] ?? 0),
+            'Damage: ' . format_quantity($row['damage_quantity'] ?? 0),
+            'Complimentary: ' . format_quantity($row['complimentary_quantity'] ?? 0),
+            'No Show: ' . format_quantity($row['noshow_quantity'] ?? 0),
+            'Other: ' . format_quantity($row['other_quantity'] ?? 0),
+            'Returned: ' . format_quantity($row['returned_total'] ?? 0),
+            'Operational Used: ' . format_quantity($row['operational_used_total'] ?? 0),
+            'Difference: ' . format_quantity($row['difference_total'] ?? 0),
+            'Approver: ' . (string) ($row['approver_name'] ?? ''),
+        ];
+        $varianceNotes = array_filter([
+            trim((string) ($row['discrepancy_notes'] ?? '')),
+            trim((string) ($row['variance_reason_label'] ?? '')),
+            trim((string) ($row['variance_notes'] ?? '')),
+        ], static fn (string $value): bool => $value !== '');
+
+        if ($varianceNotes !== []) {
+            $operationalNotes[] = 'Variance: ' . implode(' / ', $varianceNotes);
+        }
+
+        $rows[] = array_merge($base, [
+            'section' => 'Operational Usage',
+            'usage_date' => (string) ($row['activity_date'] ?? ''),
+            'storage' => (string) ($row['source_storage_name'] ?? $storageLabel),
+            'movement_filter' => 'Usage',
+            'item_status' => 'Handover',
+            'item' => 'Handover reconciliation',
+            'unit' => (string) ($row['unit'] ?? 'pcs'),
+            'user' => (string) ($row['receiver_name'] ?? ''),
+            'movement_type' => 'Operational Summary',
+            'quantity' => format_quantity($row['physical_used_total'] ?? 0),
+            'movement_count' => '1',
+            'location_scope' => 'Source storage',
+            'source' => (string) ($row['source_storage_name'] ?? ''),
+            'reference' => (string) ($row['handover_number'] ?? ''),
+            'used_at' => (string) ($row['activity_at'] ?? ''),
+            'notes' => implode('; ', $operationalNotes),
         ]);
     }
 
@@ -166,6 +215,75 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'used_at' => (string) $movement['used_at'],
             'notes' => (string) ($movement['notes'] ?: ''),
         ]);
+    }
+
+    return $rows;
+}
+
+function daily_usage_xlsx_rows(array $summary): array
+{
+    $rows = [];
+
+    foreach ($summary['usage_by_day'] as $row) {
+        $usageReasons = report_summary_usage_reason_text(
+            (array) ($row['usage_reasons'] ?? []),
+            (string) ($row['unit'] ?: 'pcs')
+        );
+        $lastActivity = trim((string) ($row['last_activity_at'] ?? ''));
+
+        $rows[] = [
+            'image_path' => (string) ($row['image_path'] ?? ''),
+            'usage_date' => (string) ($row['usage_date'] ?? ''),
+            'usage_time' => $lastActivity !== '' ? date('g:i:s A', strtotime($lastActivity)) : '',
+            'item' => (string) $row['item_name'],
+            'sku' => (string) $row['sku'],
+            'unit' => (string) $row['unit'],
+            'used_quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'usage_breakdown' => $usageReasons !== '' ? $usageReasons : 'Unspecified',
+            'notes' => report_summary_usage_notes_text($row),
+            'staff' => (string) ($row['staff_name'] ?: 'System'),
+            'approver' => (string) ($row['approver_name'] ?: ''),
+            'location' => (string) ($row['usage_location'] ?: 'Unassigned'),
+            'reference' => (string) ($row['references_list'] ?: ''),
+        ];
+    }
+
+    return $rows;
+}
+
+function daily_operational_usage_xlsx_rows(array $summary): array
+{
+    $rows = [];
+
+    foreach ($summary['operational_usage'] as $row) {
+        $rows[] = [
+            'activity_date' => (string) ($row['activity_date'] ?? ''),
+            'activity_time' => trim((string) ($row['activity_at'] ?? '')) !== ''
+                ? date('g:i:s A', strtotime((string) $row['activity_at']))
+                : '',
+            'handover' => (string) ($row['handover_number'] ?? ''),
+            'unit' => (string) ($row['unit'] ?? 'pcs'),
+            'issued' => format_quantity($row['issued_total'] ?? 0),
+            'received' => format_quantity($row['received_total'] ?? 0),
+            'online' => format_quantity($row['online_quantity'] ?? 0),
+            'walkin' => format_quantity($row['walkin_quantity'] ?? 0),
+            'event' => format_quantity($row['event_quantity'] ?? 0),
+            'sport' => format_quantity($row['sport_quantity'] ?? 0),
+            'damage' => format_quantity($row['damage_quantity'] ?? 0),
+            'complimentary' => format_quantity($row['complimentary_quantity'] ?? 0),
+            'noshow' => format_quantity($row['noshow_quantity'] ?? 0),
+            'other' => format_quantity($row['other_quantity'] ?? 0),
+            'returned' => format_quantity($row['returned_total'] ?? 0),
+            'physical_used' => format_quantity($row['physical_used_total'] ?? 0),
+            'operational_used' => format_quantity($row['operational_used_total'] ?? 0),
+            'difference' => format_quantity($row['difference_total'] ?? 0),
+            'receiver' => (string) ($row['receiver_name'] ?? ''),
+            'approver' => (string) ($row['approver_name'] ?? ''),
+            'source_storage' => (string) ($row['source_storage_name'] ?? ''),
+            'receiver_discrepancy' => (string) ($row['discrepancy_notes'] ?? ''),
+            'variance_reason' => (string) ($row['variance_reason_label'] ?? ''),
+            'approval_notes' => (string) ($row['variance_notes'] ?? ''),
+        ];
     }
 
     return $rows;

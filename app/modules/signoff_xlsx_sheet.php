@@ -30,14 +30,22 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     $hasBrandLogo = workflow_xlsx_has_image_at($images, 1, 0);
     $isHandover = array_key_exists('reconciliation_rows', $totals);
     $isStorageTransfer = !empty($totals['is_storage_transfer']);
-    $handoverUsesReconciliation = $isHandover && workflow_signoff_template() === 'reconciliation';
+    $handoverUsesOperationalReconciliation = $isHandover && !empty($totals['uses_operational_reconciliation']);
+    $handoverUsesReconciliation = $isHandover
+        && ($handoverUsesOperationalReconciliation || workflow_signoff_template() === 'reconciliation');
     $headerNote = $isStorageTransfer
         ? 'Transfer stock accounting is listed at the bottom. Received stock goes to destination; short quantity returns to source.'
-        : ($handoverUsesReconciliation ? 'Expected usage, actual usage, variance, and stock difference are listed at the bottom.' : 'Legacy layout keeps expected and actual usage details inside the item table.');
+        : ($handoverUsesOperationalReconciliation
+            ? 'Item quantities and handover-level operational reconciliation are listed separately.'
+            : ($handoverUsesReconciliation ? 'Expected usage, actual usage, variance, and stock difference are listed at the bottom.' : 'Legacy layout keeps expected and actual usage details inside the item table.'));
     $reconciliationNote = $isStorageTransfer
         ? 'Transfer Accounting. Received stock goes to destination. Short quantity returns to source. Difference means planned minus destination received minus returned to source.'
-        : 'Stock Accounting. Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.';
-    $issuedHeader = $isStorageTransfer ? 'Issued / Planned' : 'Expected Usage / Issued';
+        : ($handoverUsesOperationalReconciliation
+            ? 'Operational reconciliation. Returned is entered per item. Operational totals describe the whole handover, not individual SKUs.'
+            : 'Stock Accounting. Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.');
+    $issuedHeader = $isStorageTransfer
+        ? 'Issued / Planned'
+        : ($handoverUsesOperationalReconciliation ? 'Quantity' : 'Expected Usage / Issued');
     $sheetRows = [];
     $sheetRows[] = '<row r="1" ht="44" customHeight="1">' . workflow_xlsx_cell('A1', $hasBrandLogo ? '' : 'KONA', 5) . workflow_xlsx_cell('B1', $meta['title'], 1) . workflow_xlsx_cell('I1', (string) ($meta['open_label'] ?? 'Scan/Search reference'), 5) . '</row>';
     $sheetRows[] = '<row r="2">' . workflow_xlsx_cell('B2', $meta['number'], 5) . workflow_xlsx_cell('I2', (string) ($meta['number'] ?? ''), 3) . '</row>';
@@ -144,7 +152,120 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
         'B4:C4',
     ];
 
-    if ($handoverUsesReconciliation) {
+    if ($handoverUsesOperationalReconciliation) {
+        $reconciliationTitleRow = $rowNumber + 2;
+        $sheetRows[] = '<row r="' . $reconciliationTitleRow . '" ht="28" customHeight="1">'
+            . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Operational Reconciliation', 1)
+            . '</row>';
+        $mergeCells[] = 'A' . $reconciliationTitleRow . ':J' . $reconciliationTitleRow;
+
+        $reconciliationNoteRow = $reconciliationTitleRow + 1;
+        $sheetRows[] = '<row r="' . $reconciliationNoteRow . '" ht="24" customHeight="1">'
+            . workflow_xlsx_cell('A' . $reconciliationNoteRow, 'Notes', 4)
+            . workflow_xlsx_cell('B' . $reconciliationNoteRow, $reconciliationNote, 3)
+            . '</row>';
+        $mergeCells[] = 'B' . $reconciliationNoteRow . ':J' . $reconciliationNoteRow;
+
+        $reconciliationHeaderRow = $reconciliationNoteRow + 1;
+        $sheetRows[] = '<row r="' . $reconciliationHeaderRow . '" ht="22" customHeight="1">'
+            . workflow_xlsx_cell('A' . $reconciliationHeaderRow, 'Type', 2)
+            . workflow_xlsx_cell('B' . $reconciliationHeaderRow, 'Quantity', 2)
+            . workflow_xlsx_cell('C' . $reconciliationHeaderRow, 'Unit', 2)
+            . workflow_xlsx_cell('D' . $reconciliationHeaderRow, 'Notes', 2)
+            . '</row>';
+        $mergeCells[] = 'D' . $reconciliationHeaderRow . ':J' . $reconciliationHeaderRow;
+
+        $rowNumber = $reconciliationHeaderRow + 1;
+        $reconciliationRows = (array) ($totals['reconciliation_table_rows'] ?? []);
+        $unitCells = [];
+
+        if ($reconciliationRows === []) {
+            $sheetRows[] = '<row r="' . $rowNumber . '">'
+                . workflow_xlsx_cell('A' . $rowNumber, 'No operational totals reported.', 3)
+                . '</row>';
+            $mergeCells[] = 'A' . $rowNumber . ':J' . $rowNumber;
+            $rowNumber++;
+        } else {
+            foreach ($reconciliationRows as $summaryRow) {
+                $type = (string) ($summaryRow['type'] ?? '');
+                $unit = (string) ($summaryRow['unit'] ?? '');
+
+                if ($type === 'unit_header') {
+                    $sheetRows[] = '<row r="' . $rowNumber . '" ht="22" customHeight="1">'
+                        . workflow_xlsx_cell('A' . $rowNumber, (string) ($summaryRow['label'] ?? ''), 4)
+                        . '</row>';
+                    $mergeCells[] = 'A' . $rowNumber . ':J' . $rowNumber;
+                    $rowNumber++;
+                    continue;
+                }
+
+                $unitKey = $unit !== '' ? $unit : 'pcs';
+                $unitCells[$unitKey] ??= [
+                    'reasons' => [],
+                ];
+                $actual = $summaryRow['actual'] ?? '';
+                $differenceValue = round((float) ($actual !== '' ? $actual : 0), 2);
+                $rowStyle = $type === 'difference'
+                    ? ($differenceValue == 0.0 ? 6 : 7)
+                    : 3;
+                $cells = workflow_xlsx_cell('A' . $rowNumber, (string) ($summaryRow['label'] ?? ''), $rowStyle);
+
+                if ($type === 'physical_used'
+                    && isset($unitCells[$unitKey]['received'], $unitCells[$unitKey]['returned'])) {
+                    $cells .= workflow_xlsx_formula_cell(
+                        'B' . $rowNumber,
+                        $unitCells[$unitKey]['received'] . '-' . $unitCells[$unitKey]['returned'],
+                        $rowStyle
+                    );
+                } elseif ($type === 'operational_used' && $unitCells[$unitKey]['reasons'] !== []) {
+                    $reasonCells = $unitCells[$unitKey]['reasons'];
+                    $onlineCell = $reasonCells['online'] ?? '0';
+                    $noShowCell = $reasonCells['noshow'] ?? '0';
+                    $additionCells = [];
+
+                    foreach (['walkin', 'event', 'sport', 'damage', 'complimentary', 'other'] as $reasonCode) {
+                        $additionCells[] = $reasonCells[$reasonCode] ?? '0';
+                    }
+
+                    $cells .= workflow_xlsx_formula_cell(
+                        'B' . $rowNumber,
+                        $onlineCell . '-' . $noShowCell . '+' . implode('+', $additionCells),
+                        $rowStyle
+                    );
+                } elseif ($type === 'difference'
+                    && isset($unitCells[$unitKey]['physical_used'], $unitCells[$unitKey]['operational_used'])) {
+                    $cells .= workflow_xlsx_formula_cell(
+                        'B' . $rowNumber,
+                        $unitCells[$unitKey]['physical_used'] . '-' . $unitCells[$unitKey]['operational_used'],
+                        $rowStyle
+                    );
+                } else {
+                    $cells .= is_numeric($actual)
+                        ? workflow_xlsx_number_cell('B' . $rowNumber, (float) $actual, $rowStyle)
+                        : workflow_xlsx_cell('B' . $rowNumber, (string) $actual, $rowStyle);
+                }
+
+                $cells .= workflow_xlsx_cell('C' . $rowNumber, $unit, $rowStyle);
+                $cells .= workflow_xlsx_cell('D' . $rowNumber, (string) ($summaryRow['notes'] ?? ''), $rowStyle);
+                $sheetRows[] = '<row r="' . $rowNumber . '" ht="22" customHeight="1">' . $cells . '</row>';
+                $mergeCells[] = 'D' . $rowNumber . ':J' . $rowNumber;
+
+                if ($type === 'confirmed_received') {
+                    $unitCells[$unitKey]['received'] = 'B' . $rowNumber;
+                } elseif ($type === 'total_returned') {
+                    $unitCells[$unitKey]['returned'] = 'B' . $rowNumber;
+                } elseif ($type === 'operational_reason') {
+                    $unitCells[$unitKey]['reasons'][(string) ($summaryRow['reason_code'] ?? '')] = 'B' . $rowNumber;
+                } elseif ($type === 'physical_used') {
+                    $unitCells[$unitKey]['physical_used'] = 'B' . $rowNumber;
+                } elseif ($type === 'operational_used') {
+                    $unitCells[$unitKey]['operational_used'] = 'B' . $rowNumber;
+                }
+
+                $rowNumber++;
+            }
+        }
+    } elseif ($handoverUsesReconciliation) {
         $reconciliationTitleRow = $rowNumber + 2;
         $sheetRows[] = '<row r="' . $reconciliationTitleRow . '" ht="28" customHeight="1">'
             . workflow_xlsx_cell('A' . $reconciliationTitleRow, 'Notes And Reconciliation', 1)

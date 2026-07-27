@@ -7,6 +7,12 @@ function workflow_pdf_text(string $text, int $size, float $x, float $y, string $
 {
     return 'BT /' . $font . ' ' . $size . ' Tf 1 0 0 1 ' . number_format($x, 2, '.', '') . ' ' . number_format($y, 2, '.', '') . ' Tm (' . workflow_pdf_escape($text) . ") Tj ET\n";
 }
+
+function workflow_pdf_colored_text(string $text, int $size, float $x, float $y, string $font = 'F1', string $color = '0 0 0'): string
+{
+    return "q\n" . $color . " rg\n" . workflow_pdf_text($text, $size, $x, $y, $font) . "Q\n";
+}
+
 function workflow_pdf_rect(float $x, float $y, float $width, float $height, string $mode = 'S', string $color = '0 0 0', ?string $fill = null): string
 {
     $command = "q\n";

@@ -314,6 +314,7 @@ CREATE TABLE IF NOT EXISTS handovers (
     recipient_name VARCHAR(160) NOT NULL,
     recipient_user_id BIGINT UNSIGNED NULL,
     recipient_type ENUM('staff', 'storage') NOT NULL DEFAULT 'staff',
+    usage_reporting_mode ENUM('legacy_per_item', 'operational_summary') NOT NULL DEFAULT 'operational_summary',
     handover_mode ENUM('direct', 'request') NOT NULL DEFAULT 'direct',
     status ENUM('requested', 'awaiting_receipt', 'receipt_review', 'delivered', 'pending_approval', 'closed', 'rejected', 'cancelled') NOT NULL DEFAULT 'delivered',
     scheduled_for_date DATE NULL,
@@ -423,6 +424,47 @@ CREATE TABLE IF NOT EXISTS handover_expected_usage_breakdowns (
     CONSTRAINT fk_handover_expected_usage_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE RESTRICT,
     CONSTRAINT fk_handover_expected_usage_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_handover_expected_usage_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS handover_reconciliations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    handover_id BIGINT UNSIGNED NOT NULL,
+    unit VARCHAR(40) NOT NULL DEFAULT 'pcs',
+    issued_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    received_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    returned_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    physical_used_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    operational_used_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    difference_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    discrepancy_notes TEXT NULL,
+    variance_reason_code VARCHAR(40) NULL,
+    variance_notes TEXT NULL,
+    submitted_by BIGINT UNSIGNED NULL,
+    approved_by BIGINT UNSIGNED NULL,
+    submitted_at DATETIME NULL,
+    approved_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uniq_handover_reconciliation_unit (handover_id, unit),
+    INDEX idx_handover_reconciliation_handover (handover_id),
+    INDEX idx_handover_reconciliation_submitted_by (submitted_by),
+    INDEX idx_handover_reconciliation_approved_by (approved_by),
+    CONSTRAINT fk_handover_reconciliation_handover FOREIGN KEY (handover_id) REFERENCES handovers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_handover_reconciliation_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_handover_reconciliation_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS handover_reconciliation_entries (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    reconciliation_id BIGINT UNSIGNED NOT NULL,
+    reason_code VARCHAR(40) NOT NULL,
+    quantity DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    notes VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uniq_handover_reconciliation_reason (reconciliation_id, reason_code),
+    INDEX idx_handover_reconciliation_entry_reason (reason_code),
+    CONSTRAINT fk_handover_reconciliation_entry_header FOREIGN KEY (reconciliation_id) REFERENCES handover_reconciliations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS workflow_documents (

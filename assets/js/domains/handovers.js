@@ -624,6 +624,184 @@ export const initHandoverReceiptReviews = (root = document) => {
     });
   });
 };
+export const initHandoverOperationalReconciliation = (root = document) => {
+  root.querySelectorAll('[data-handover-operational-form]').forEach((form) => {
+    if (!(form instanceof HTMLFormElement) || form.dataset.handoverOperationalBound === 'true') {
+      return;
+    }
+
+    form.dataset.handoverOperationalBound = 'true';
+
+    const lineRows = Array.from(form.querySelectorAll('[data-handover-operational-line]'));
+    const panels = Array.from(form.querySelectorAll('[data-handover-reconciliation]'));
+
+    const calculatePanel = (panel) => {
+      if (!(panel instanceof HTMLElement)) {
+        return { valid: true, difference: 0 };
+      }
+
+      const unit = panel.dataset.handoverUnit || 'pcs';
+      const unitLines = lineRows.filter((line) => line instanceof HTMLElement && (line.dataset.handoverUnit || 'pcs') === unit);
+      let received = 0;
+      let returned = 0;
+      let valid = true;
+
+      unitLines.forEach((line) => {
+        const receivedValue = Math.max(0, parseNumber(line.dataset.handoverReceived || '0'));
+        const returnedField = line.querySelector('[data-handover-operational-returned]');
+        const usedLabel = line.querySelector('[data-handover-operational-used]');
+        const returnedValue = returnedField instanceof HTMLInputElement ? parseNumber(returnedField.value) : 0;
+        const lineValid = returnedValue >= 0 && returnedValue <= receivedValue;
+        const used = Math.round(Math.max(0, receivedValue - Math.max(0, returnedValue)) * 100) / 100;
+
+        received += receivedValue;
+        returned += Math.max(0, returnedValue);
+        valid = valid && lineValid;
+
+        if (usedLabel instanceof HTMLElement) {
+          usedLabel.textContent = formatQuantity(used);
+        }
+
+        if (returnedField instanceof HTMLInputElement) {
+          returnedField.classList.toggle('is-invalid', !lineValid);
+        }
+      });
+
+      const reasonValue = (code) => {
+        const field = panel.querySelector(`[data-handover-reconciliation-reason="${code}"]`);
+        const value = field instanceof HTMLInputElement ? parseNumber(field.value) : 0;
+
+        if (field instanceof HTMLInputElement) {
+          field.classList.toggle('is-invalid', value < 0);
+        }
+
+        valid = valid && value >= 0;
+        return Math.max(0, value);
+      };
+
+      const online = reasonValue('online');
+      const walkin = reasonValue('walkin');
+      const event = reasonValue('event');
+      const sport = reasonValue('sport');
+      const damage = reasonValue('damage');
+      const complimentary = reasonValue('complimentary');
+      const noShow = reasonValue('noshow');
+      const other = reasonValue('other');
+      const physicalUsed = Math.round((received - returned) * 100) / 100;
+      const operationalUsed = Math.round((online - noShow + walkin + event + sport + damage + complimentary + other) * 100) / 100;
+      const difference = Math.round((physicalUsed - operationalUsed) * 100) / 100;
+      const noShowField = panel.querySelector('[data-handover-reconciliation-reason="noshow"]');
+      const noShowValid = noShow <= online;
+
+      valid = valid && noShowValid;
+
+      if (noShowField instanceof HTMLInputElement) {
+        noShowField.classList.toggle('is-invalid', !noShowValid);
+      }
+
+      const setText = (selector, value) => {
+        const element = panel.querySelector(selector);
+        if (element instanceof HTMLElement) {
+          element.textContent = formatQuantity(value);
+        }
+      };
+
+      setText('[data-handover-reconciliation-received]', received);
+      setText('[data-handover-reconciliation-returned]', returned);
+      setText('[data-handover-reconciliation-physical]', physicalUsed);
+      setText('[data-handover-reconciliation-operational]', operationalUsed);
+      setText('[data-handover-reconciliation-difference]', difference);
+
+      const state = panel.querySelector('[data-handover-reconciliation-state]');
+      const differenceCard = panel.querySelector('[data-handover-reconciliation-difference-card]');
+      const reconciled = Math.abs(difference) < 0.01;
+
+      [state, differenceCard].forEach((element) => {
+        if (!(element instanceof HTMLElement)) {
+          return;
+        }
+
+        element.classList.toggle('is-reconciled', reconciled);
+        element.classList.toggle('is-difference', !reconciled);
+      });
+
+      if (state instanceof HTMLElement) {
+        state.textContent = reconciled ? 'Reconciled' : `Difference ${formatQuantity(difference)} ${unit}`;
+      }
+
+      const warning = panel.querySelector('[data-handover-reconciliation-warning]');
+      if (warning instanceof HTMLElement) {
+        warning.hidden = reconciled && valid;
+      }
+
+      panel.dataset.handoverDifference = String(difference);
+      panel.dataset.handoverReconciliationValid = valid ? 'true' : 'false';
+
+      return { valid, difference, noShowValid };
+    };
+
+    const syncAll = () => panels.forEach((panel) => calculatePanel(panel));
+
+    form.querySelectorAll('[data-handover-operational-returned], [data-handover-reconciliation-reason]').forEach((field) => {
+      field.addEventListener('input', syncAll);
+      field.addEventListener('change', syncAll);
+    });
+
+    form.addEventListener('submit', (event) => {
+      let firstInvalid = null;
+      let message = '';
+
+      panels.some((panel) => {
+        const result = calculatePanel(panel);
+        const discrepancy = panel.querySelector('[data-handover-reconciliation-discrepancy]');
+        const varianceReason = panel.querySelector('[data-handover-reconciliation-variance-reason]');
+        const varianceNote = panel.querySelector('[data-handover-reconciliation-variance-note]');
+
+        if (!result.valid) {
+          message = result.noShowValid === false
+            ? 'No Show cannot be greater than Online.'
+            : 'Fix the returned quantities or operational totals before submitting.';
+          firstInvalid = panel;
+          return true;
+        }
+
+        if (result.difference < -0.009) {
+          message = 'Operational usage cannot exceed physically used stock.';
+          firstInvalid = panel;
+          return true;
+        }
+
+        if (result.difference > 0.009 && (!(discrepancy instanceof HTMLTextAreaElement) || discrepancy.value.trim() === '')) {
+          message = 'Explain the positive Difference before submitting.';
+          firstInvalid = panel;
+          return true;
+        }
+
+        if (
+          result.difference > 0.009
+          && varianceReason instanceof HTMLSelectElement
+          && varianceNote instanceof HTMLTextAreaElement
+          && (varianceReason.value === '' || varianceNote.value.trim() === '')
+        ) {
+          message = 'Select an audited variance reason and add an approval note.';
+          firstInvalid = panel;
+          return true;
+        }
+
+        return false;
+      });
+
+      if (firstInvalid) {
+        event.preventDefault();
+        event.stopPropagation();
+        showGlobalFlash(message, 'danger');
+        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, true);
+
+    syncAll();
+  });
+};
 export const initHandoverTargetSwitchers = (root = document) => {
   root.querySelectorAll('[data-handover-target-switcher]').forEach((switcher) => {
     if (switcher.dataset.jsBound === 'true') {
@@ -764,7 +942,7 @@ export const initHandoverTargetSwitchers = (root = document) => {
         destinationSelect.disabled = !isStorage;
       }
 
-      syncExpectedUsage(!isStorage);
+      syncExpectedUsage(false);
       syncDestinationCopy(isStorage);
 
       if (isStorage && sourceSelect instanceof HTMLSelectElement && destinationSelect instanceof HTMLSelectElement && sourceSelect.value !== '' && sourceSelect.value === destinationSelect.value) {
@@ -792,6 +970,7 @@ export const initHandoverTargetSwitchers = (root = document) => {
 export const init = (root = document) => {
   initHandoverCloseForms(root);
   initHandoverApprovalForms(root);
+  initHandoverOperationalReconciliation(root);
   initHandoverReceiptReviews(root);
   initHandoverTargetSwitchers(root);
 };

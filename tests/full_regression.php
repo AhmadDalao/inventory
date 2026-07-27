@@ -42,6 +42,17 @@ function assert_true(bool $condition, string $message): void
     }
 }
 
+function csv_header_cells(string $bytes): array
+{
+    $firstLine = strtok(ltrim($bytes, "\xEF\xBB\xBF"), "\r\n");
+
+    if ($firstLine === false) {
+        return [];
+    }
+
+    return str_getcsv($firstLine, ',', '"', '\\');
+}
+
 function assert_pdf_preview_response(array $response, string $message): void
 {
     $disposition = strtolower((string) ($response['headers']['content-disposition'][0] ?? ''));
@@ -3175,6 +3186,172 @@ assert_true((string) $transferRequestRecord['status'] === 'completed', 'Transfer
 assert_true(balance_quantity((int) $transferItems[0]['id'], (int) $transferSource['id']) === round($initialTransferItemOneQuantity - 7, 2), 'Transfer source balance is wrong for the first item.');
 assert_true(balance_quantity((int) $transferItems[0]['id'], (int) $transferDestination['id']) === 7.0, 'Transfer destination balance is wrong for the first item.');
 
+note('Checking handover operational reconciliation calculations.');
+$reconciliationLines = [
+    [
+        'id' => 9101,
+        'item_id' => 9201,
+        'item_name' => 'Reconciliation Item A',
+        'unit' => 'pcs',
+        'quantity_handed' => 200,
+        'quantity_received' => 200,
+        'quantity_returned' => 0,
+    ],
+    [
+        'id' => 9102,
+        'item_id' => 9202,
+        'item_name' => 'Reconciliation Item B',
+        'unit' => 'pcs',
+        'quantity_handed' => 126,
+        'quantity_received' => 126,
+        'quantity_returned' => 0,
+    ],
+];
+$reconciliationLineUpdates = [
+    [
+        'line_id' => 9101,
+        'item_id' => 9201,
+        'unit' => 'pcs',
+        'used' => 160,
+        'returned' => 40,
+        'breakdowns' => [],
+    ],
+    [
+        'line_id' => 9102,
+        'item_id' => 9202,
+        'unit' => 'pcs',
+        'used' => 100,
+        'returned' => 26,
+        'breakdowns' => [],
+    ],
+];
+$reconciliationExactRow = [
+    'unit' => 'pcs',
+    'reasons' => [
+        'online' => '244',
+        'walkin' => '11',
+        'event' => '0',
+        'sport' => '0',
+        'damage' => '0',
+        'complimentary' => '10',
+        'noshow' => '5',
+        'other' => '0',
+    ],
+    'discrepancy_notes' => '',
+    'variance_reason_code' => '',
+    'variance_notes' => '',
+];
+[$reconciliationPayloads, $reconciliationErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $reconciliationLineUpdates,
+    [$reconciliationExactRow]
+);
+assert_true($reconciliationErrors === [], 'The exact 326-unit reconciliation should pass without errors.');
+assert_true(count($reconciliationPayloads) === 1, 'The exact 326-unit reconciliation should create one unit summary.');
+assert_true((float) $reconciliationPayloads[0]['issued_total'] === 326.0, 'The exact reconciliation issued total should be 326.');
+assert_true((float) $reconciliationPayloads[0]['received_total'] === 326.0, 'The exact reconciliation received total should be 326.');
+assert_true((float) $reconciliationPayloads[0]['returned_total'] === 66.0, 'The exact reconciliation returned total should be 66.');
+assert_true((float) $reconciliationPayloads[0]['physical_used_total'] === 260.0, 'The exact reconciliation physical used total should be 260.');
+assert_true((float) $reconciliationPayloads[0]['operational_used_total'] === 260.0, 'The exact reconciliation operational used total should be 260.');
+assert_true((float) $reconciliationPayloads[0]['difference_total'] === 0.0, 'The exact reconciliation Difference should be zero.');
+
+$noShowRow = $reconciliationExactRow;
+$noShowRow['reasons']['noshow'] = '245';
+[, $noShowErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $reconciliationLineUpdates,
+    [$noShowRow]
+);
+assert_true(
+    count(array_filter($noShowErrors, static fn (string $error): bool => str_contains($error, 'No Show cannot exceed Online'))) === 1,
+    'No Show greater than Online should be rejected.'
+);
+
+$negativeDifferenceUpdates = $reconciliationLineUpdates;
+$negativeDifferenceUpdates[1]['returned'] = 30;
+$negativeDifferenceUpdates[1]['used'] = 96;
+[, $negativeDifferenceErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $negativeDifferenceUpdates,
+    [$reconciliationExactRow]
+);
+assert_true(
+    count(array_filter($negativeDifferenceErrors, static fn (string $error): bool => str_contains($error, 'exceeds physical used stock'))) === 1,
+    'A negative Difference should be rejected.'
+);
+
+$positiveDifferenceUpdates = $reconciliationLineUpdates;
+$positiveDifferenceUpdates[1]['returned'] = 20;
+$positiveDifferenceUpdates[1]['used'] = 106;
+[, $positiveDifferenceErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $positiveDifferenceUpdates,
+    [$reconciliationExactRow]
+);
+assert_true(
+    count(array_filter($positiveDifferenceErrors, static fn (string $error): bool => str_contains($error, 'Explain the positive Difference'))) === 1,
+    'A positive Difference should require a receiver discrepancy note.'
+);
+
+$positiveDifferenceRow = $reconciliationExactRow;
+$positiveDifferenceRow['discrepancy_notes'] = 'Six pieces were not categorized by the receiver.';
+[, $positiveReceiverErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $positiveDifferenceUpdates,
+    [$positiveDifferenceRow]
+);
+assert_true($positiveReceiverErrors === [], 'A receiver should be able to submit a positive Difference with a discrepancy note.');
+[, $positiveApprovalErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $positiveDifferenceUpdates,
+    [$positiveDifferenceRow],
+    true
+);
+assert_true(count($positiveApprovalErrors) === 2, 'Owner approval should require a variance reason and approval note for a positive Difference.');
+$positiveDifferenceRow['variance_reason_code'] = 'counting_error';
+$positiveDifferenceRow['variance_notes'] = 'Issuer confirmed the six-piece counting variance.';
+[, $positiveApprovalErrors] = build_handover_reconciliation_payloads(
+    $reconciliationLines,
+    $positiveDifferenceUpdates,
+    [$positiveDifferenceRow],
+    true
+);
+assert_true($positiveApprovalErrors === [], 'Owner approval should accept an audited positive Difference.');
+
+$mixedUnitLines = [
+    [
+        'id' => 9301,
+        'item_id' => 9401,
+        'item_name' => 'Piece Item',
+        'unit' => 'pcs',
+        'quantity_handed' => 10,
+        'quantity_received' => 10,
+        'quantity_returned' => 0,
+    ],
+    [
+        'id' => 9302,
+        'item_id' => 9402,
+        'item_name' => 'Box Item',
+        'unit' => 'box',
+        'quantity_handed' => 2,
+        'quantity_received' => 2,
+        'quantity_returned' => 0,
+    ],
+];
+$mixedUnitUpdates = [
+    ['line_id' => 9301, 'item_id' => 9401, 'unit' => 'pcs', 'used' => 8, 'returned' => 2, 'breakdowns' => []],
+    ['line_id' => 9302, 'item_id' => 9402, 'unit' => 'box', 'used' => 1, 'returned' => 1, 'breakdowns' => []],
+];
+[$mixedUnitPayloads, $mixedUnitErrors] = build_handover_reconciliation_payloads(
+    $mixedUnitLines,
+    $mixedUnitUpdates,
+    [
+        ['unit' => 'pcs', 'reasons' => ['online' => '8']],
+        ['unit' => 'box', 'reasons' => ['online' => '1']],
+    ]
+);
+assert_true($mixedUnitErrors === [] && count($mixedUnitPayloads) === 2, 'Mixed-unit handovers should create one reconciliation table per unit.');
+
 note('Running storage-transfer handover workflow over HTTP.');
 $storageTransferExactItem = create_item_record($prefix . ' Handover Transfer Exact Item', $prefix . '-HDO-XFER-EXACT', (int) $handoverSource['id'], 30, 1.50, (int) $owner['id']);
 $storageTransferShortItem = create_item_record($prefix . ' Handover Transfer Short Item', $prefix . '-HDO-XFER-SHORT', (int) $handoverSource['id'], 40, 1.75, (int) $owner['id']);
@@ -3529,11 +3706,12 @@ assert_true(strpos($handoverRequestCreatePage['body'], 'name="recipient_user_id"
 assert_true(strpos($handoverRequestCreatePage['body'], 'data-hide-availability="false"') !== false, 'Staff handover request form should show selected-storage availability.');
 assert_true(strpos($handoverRequestCreatePage['body'], 'data-hide-item-quantity="false"') !== false, 'Staff handover item picker should show selected-storage quantities.');
 $handoverRequestToken = extract_csrf($handoverRequestCreatePage['body']);
+$handoverRequestScheduledDate = date('Y-m-d');
 $handoverRequestCreate = http_request($baseUrl, $staffCookie, 'POST', '/handovers/create', [
     '_token' => $handoverRequestToken,
     'request_owner_user_id' => $owner['id'],
     'source_storage_id' => $handoverRequestSource['id'],
-    'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
+    'scheduled_for_date' => $handoverRequestScheduledDate,
     'notes' => $prefix . ' staff handover request workflow',
     'line_item_id' => [(int) $handoverRequestItems[0]['id'], (int) $handoverRequestItems[1]['id']],
     'line_quantity' => ['9', '5'],
@@ -3542,6 +3720,8 @@ assert_true($handoverRequestCreate['status'] === 302, 'Staff handover request cr
 $handoverRequestId = first_redirect_id($handoverRequestCreate['location'], '/handovers');
 $handoverRequestRecord = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestRecord['status'] === 'requested', 'Staff handover request should start as requested.');
+assert_true((string) $handoverRequestRecord['usage_reporting_mode'] === 'operational_summary', 'New staff handover requests should use handover-level operational reconciliation.');
+assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_expected_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => $handoverRequestId]) === 0, 'New operational handovers should not store expected per-item usage.');
 assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === $initialHandoverRequestItemOneQuantity, 'Requested handover should not reserve stock before approval.');
 $handoverRequestOpen = http_request($baseUrl, $ownerCookie, 'GET', '/open/' . rawurlencode((string) $handoverRequestRecord['handover_number']));
 assert_true($handoverRequestOpen['status'] === 302 && strpos((string) $handoverRequestOpen['location'], '/handovers/' . $handoverRequestId) !== false, 'Handover QR open route did not redirect to the handover detail.');
@@ -3582,8 +3762,8 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_pdf_preview_response($requestedHandoverSignoffPreview, 'Requested handover sign-off PDF could not be previewed inline.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Barcode:') !== false || strpos($requestedHandoverSignoffDownload['body'], 'SKU scan:') !== false, 'Requested handover sign-off PDF is missing item scan code text.');
     assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Total Items') !== false, 'Requested handover sign-off PDF is missing total item quantity.');
-    assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Notes And Reconciliation') !== false, 'Requested handover sign-off PDF is missing bottom notes and reconciliation section.');
-    assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Difference = received - used - returned') !== false, 'Requested handover sign-off PDF is missing stock difference explanation.');
+    assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Operational Reconciliation') !== false, 'Requested handover sign-off PDF is missing the operational reconciliation section.');
+    assert_true(strpos($requestedHandoverSignoffDownload['body'], 'Difference = physical used - operational used') !== false, 'Requested handover sign-off PDF is missing operational difference explanation.');
     assert_pdf_image_min_dimensions($requestedHandoverSignoffDownload['body'], 400, 300, 'Requested handover sign-off PDF image quality is too low.');
     $requestedHandoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffExcelDocumentId > 0, 'Requested handover sign-off Excel sheet document was not created.');
@@ -3593,12 +3773,12 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     assert_true($requestedHandoverSignoffExcelDownload['status'] === 200 && strpos($requestedHandoverSignoffExcelDownload['body'], 'PK') === 0, 'Requested handover sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestedHandoverSignoffExcelDownload['body'], 'Requested handover sign-off XLSX is missing embedded item images.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Total Items', 'Requested handover sign-off XLSX is missing total item quantity.');
-    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Notes And Reconciliation', 'Requested handover sign-off XLSX is missing bottom notes and reconciliation section.');
-    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Difference means received minus used minus returned', 'Requested handover sign-off XLSX is missing stock difference explanation.');
-    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Stock Accounting', 'Requested handover sign-off XLSX is missing stock accounting table.');
-    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Usage Reconciliation', 'Requested handover sign-off XLSX is missing usage reconciliation table.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Operational Reconciliation', 'Requested handover sign-off XLSX is missing the operational reconciliation table.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Confirmed Received', 'Requested handover sign-off XLSX is missing confirmed received totals.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Physical Used', 'Requested handover sign-off XLSX is missing physical used totals.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Operational Used', 'Requested handover sign-off XLSX is missing operational used totals.');
+    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Difference', 'Requested handover sign-off XLSX is missing operational difference totals.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Barcode / Scan Code', 'Requested handover sign-off XLSX is missing barcode column.');
-    assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Notes And Reconciliation', 'Requested handover sign-off XLSX is missing reconciliation summary.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], 'Received', 'Requested handover sign-off XLSX is missing received quantity column.');
     assert_xlsx_contains_text($requestedHandoverSignoffExcelDownload['body'], (string) $handoverRequestRecord['handover_number'], 'Requested handover sign-off XLSX is missing the scannable reference.');
     assert_xlsx_media_min_dimensions($requestedHandoverSignoffExcelDownload['body'], 400, 300, 'Requested handover sign-off XLSX image quality is too low.');
@@ -3653,6 +3833,24 @@ $handoverRequestClosePayload = [
     '_token' => extract_csrf(http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverRequestId)['body']),
     'closed_notes' => $prefix . ' handover request submitted',
     'line_returned' => [],
+    'reconciliation' => [
+        'pcs' => [
+            'unit' => 'pcs',
+            'reasons' => [
+                'online' => '5',
+                'walkin' => '0',
+                'event' => '0',
+                'sport' => '0',
+                'damage' => '0',
+                'complimentary' => '0',
+                'noshow' => '0',
+                'other' => '0',
+            ],
+            'discrepancy_notes' => '',
+            'variance_reason_code' => '',
+            'variance_notes' => '',
+        ],
+    ],
 ];
 
 foreach ($handoverRequestLines as $line) {
@@ -3664,18 +3862,67 @@ $handoverRequestClose = http_request($baseUrl, $staffCookie, 'POST', '/handovers
 assert_true($handoverRequestClose['status'] === 302, 'Requested handover close did not redirect.');
 $handoverRequestPending = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestPending['status'] === 'pending_approval', 'Requested handover should wait for owner close approval.');
+$handoverRequestReconciliations = handover_reconciliations_for_handover($handoverRequestId);
+$handoverRequestReconciliation = $handoverRequestReconciliations['pcs'] ?? null;
+assert_true(is_array($handoverRequestReconciliation), 'Requested handover reconciliation was not stored.');
+assert_true((float) $handoverRequestReconciliation['received_total'] === 12.0, 'Requested handover reconciliation received total is wrong.');
+assert_true((float) $handoverRequestReconciliation['returned_total'] === 7.0, 'Requested handover reconciliation returned total is wrong.');
+assert_true((float) $handoverRequestReconciliation['physical_used_total'] === 5.0, 'Requested handover physical used total is wrong.');
+assert_true((float) $handoverRequestReconciliation['operational_used_total'] === 5.0, 'Requested handover operational used total is wrong.');
+assert_true((float) $handoverRequestReconciliation['difference_total'] === 0.0, 'Requested handover should reconcile to zero.');
+assert_true((float) ($handoverRequestReconciliation['entries']['online']['quantity'] ?? -1) === 5.0, 'Requested handover online total was not stored.');
+assert_true((int) $handoverRequestReconciliation['submitted_by'] === (int) $staff['id'], 'Requested handover reconciliation submitter is wrong.');
+assert_true(empty($handoverRequestReconciliation['approved_at']), 'Requested handover reconciliation should not be approved before owner review.');
+assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => $handoverRequestId]) === 0, 'Operational handover should not fabricate per-item reason allocations.');
 
 $handoverRequestApproveClosePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
 assert_true($handoverRequestApproveClosePage['status'] === 200, 'Requested handover close approval page did not load for owner.');
-assert_true(strpos($handoverRequestApproveClosePage['body'], 'Owner Final Review') !== false, 'Requested handover is missing issuer final review controls.');
+assert_true(strpos($handoverRequestApproveClosePage['body'], 'Owner Final Reconciliation') !== false, 'Requested handover is missing issuer final reconciliation controls.');
 $handoverRequestApproveClose = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverRequestId . '/approve', [
     '_token' => extract_csrf($handoverRequestApproveClosePage['body']),
     'closed_notes' => $prefix . ' handover request approved',
+    'line_returned' => $handoverRequestClosePayload['line_returned'],
+    'reconciliation' => $handoverRequestClosePayload['reconciliation'],
 ]);
 assert_true($handoverRequestApproveClose['status'] === 302, 'Requested handover close approval did not redirect.');
 $handoverRequestClosed = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestClosed['status'] === 'closed', 'Requested handover should close after owner approval.');
 assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === round($initialHandoverRequestItemOneQuantity - 3, 2), 'Requested handover source balance is wrong after close approval.');
+$handoverRequestApprovedReconciliation = handover_reconciliations_for_handover($handoverRequestId)['pcs'] ?? null;
+assert_true(is_array($handoverRequestApprovedReconciliation), 'Approved requested handover reconciliation is missing.');
+assert_true((int) $handoverRequestApprovedReconciliation['approved_by'] === (int) $owner['id'], 'Requested handover reconciliation approver is wrong.');
+assert_true(!empty($handoverRequestApprovedReconciliation['approved_at']), 'Requested handover reconciliation approval timestamp is missing.');
+$handoverRequestFinalPdfId = (int) Database::scalar(
+    'SELECT id
+     FROM workflow_documents
+     WHERE workflow_type = "handover"
+       AND workflow_id = :workflow_id
+       AND document_type = "signoff_pdf"
+     ORDER BY id DESC
+     LIMIT 1',
+    ['workflow_id' => $handoverRequestId]
+);
+$handoverRequestFinalExcelId = (int) Database::scalar(
+    'SELECT id
+     FROM workflow_documents
+     WHERE workflow_type = "handover"
+       AND workflow_id = :workflow_id
+       AND document_type = "signoff_excel"
+     ORDER BY id DESC
+     LIMIT 1',
+    ['workflow_id' => $handoverRequestId]
+);
+assert_true($handoverRequestFinalPdfId > $requestedHandoverSignoffDocumentId, 'Owner approval should regenerate the operational sign-off PDF.');
+assert_true($handoverRequestFinalExcelId > $requestedHandoverSignoffExcelDocumentId, 'Owner approval should regenerate the operational sign-off XLSX.');
+$handoverRequestFinalPdf = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $handoverRequestFinalPdfId . '/download');
+assert_true($handoverRequestFinalPdf['status'] === 200 && strpos($handoverRequestFinalPdf['body'], '%PDF-') === 0, 'Final operational handover PDF could not be downloaded.');
+assert_true(strpos($handoverRequestFinalPdf['body'], 'Operational Reconciliation') !== false, 'Final operational handover PDF is missing reconciliation.');
+assert_true(strpos($handoverRequestFinalPdf['body'], 'Online') !== false, 'Final operational handover PDF is missing the Online total.');
+$handoverRequestFinalExcel = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $handoverRequestFinalExcelId . '/download');
+assert_true($handoverRequestFinalExcel['status'] === 200 && strpos($handoverRequestFinalExcel['body'], 'PK') === 0, 'Final operational handover XLSX could not be downloaded.');
+assert_xlsx_contains_text($handoverRequestFinalExcel['body'], 'Operational Reconciliation', 'Final operational handover XLSX is missing reconciliation.');
+assert_xlsx_contains_text($handoverRequestFinalExcel['body'], 'Online', 'Final operational handover XLSX is missing the Online total.');
+assert_xlsx_contains_text($handoverRequestFinalExcel['body'], 'Difference', 'Final operational handover XLSX is missing Difference.');
 
 note('Exact staff receipts start usage reporting without duplicate issuer approval.');
 $exactReceiptSourceBefore = balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']);
@@ -3715,7 +3962,10 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('h
 
 $exactReceiptUsagePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
 assert_true($exactReceiptUsagePage['status'] === 200, 'Exact receipt did not reopen the handover for recipient usage reporting.');
-assert_true(strpos($exactReceiptUsagePage['body'], 'Actual Usage Report') !== false, 'Exact receipt did not expose the returned-first usage report.');
+assert_true(
+    strpos($exactReceiptUsagePage['body'], 'Returned Stock And Operational Totals') !== false,
+    'Exact receipt did not expose the handover-level operational reconciliation report.'
+);
 
 $exactReceiptCancelPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $exactReceiptHandoverId);
 $exactReceiptCancel = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $exactReceiptHandoverId . '/cancel', [
@@ -3868,6 +4118,36 @@ assert_true($handoverCreate['status'] === 302, 'Handover create did not redirect
 $handoverId = first_redirect_id($handoverCreate['location'], '/handovers');
 $handoverCreatedRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverCreatedRecord['status'] === 'awaiting_receipt', 'Handover should wait for receipt confirmation after creation.');
+usleep(1100000);
+Database::execute(
+    'UPDATE handovers
+     SET usage_reporting_mode = "legacy_per_item",
+         updated_at = NOW()
+     WHERE id = :id',
+    ['id' => $handoverId]
+);
+$handoverLegacyExpectedUpdates = [];
+
+foreach (handover_lines($handoverId) as $line) {
+    $breakdowns = (int) $line['item_id'] === (int) $handoverItems[0]['id']
+        ? [
+            ['reason_code' => 'online', 'quantity' => 12, 'notes' => $prefix . ' expected online use'],
+            ['reason_code' => 'walkin', 'quantity' => 6, 'notes' => $prefix . ' expected walk-in use'],
+        ]
+        : [
+            ['reason_code' => 'event', 'quantity' => 10, 'notes' => $prefix . ' expected event use'],
+        ];
+    $handoverLegacyExpectedUpdates[] = [
+        'line_id' => (int) $line['id'],
+        'item_id' => (int) $line['item_id'],
+        'breakdowns' => $breakdowns,
+    ];
+}
+
+save_handover_expected_usage_breakdowns($handoverId, $handoverLegacyExpectedUpdates, (int) $owner['id']);
+$handoverCreatedRecord = find_handover_or_abort($handoverId);
+ensure_workflow_signoff_pdf('handover', $handoverCreatedRecord, handover_lines($handoverId));
+assert_true((string) $handoverCreatedRecord['usage_reporting_mode'] === 'legacy_per_item', 'Legacy fixture should retain per-item usage behavior.');
 assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_expected_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => $handoverId]) === 3, 'Handover expected usage breakdown rows were not stored.');
 $handoverOpen = http_request($baseUrl, $ownerCookie, 'GET', '/open/' . rawurlencode((string) $handoverCreatedRecord['handover_number']));
 assert_true($handoverOpen['status'] === 302 && strpos((string) $handoverOpen['location'], '/handovers/' . $handoverId) !== false, 'Direct handover QR open route did not redirect to the handover detail.');
@@ -4354,6 +4634,9 @@ assert_true(strpos($reportsPage['body'], '/exports/daily-summary') !== false, 'R
 assert_true(strpos($reportsPage['body'], '/exports/daily-summary.xlsx') !== false, 'Reports page is missing the daily summary XLSX export link.');
 assert_true(strpos($reportsPage['body'], 'What Each Item Used Each Day') !== false, 'Reports page is missing the usage-by-day breakdown.');
 assert_true(strpos($reportsPage['body'], 'Usage CSV') !== false && strpos($reportsPage['body'], 'Usage Excel') !== false, 'Reports page is missing focused usage export actions.');
+assert_true(strpos($reportsPage['body'], 'Operational Usage') !== false, 'Reports page is missing the operational usage section.');
+assert_true(strpos($reportsPage['body'], 'Handover Reconciliation') !== false, 'Reports page is missing handover reconciliation reporting.');
+assert_true(strpos($reportsPage['body'], (string) $handoverRequestClosed['handover_number']) !== false, 'Reports page is missing the approved operational handover.');
 assert_true(strpos($reportsPage['body'], 'Date / Time') !== false, 'Reports timeline is missing full date and timestamp labels.');
 assert_true(strpos($reportsPage['body'], 'name="item_status"') !== false && strpos($reportsPage['body'], 'Deleted items') !== false, 'Reports page is missing the item status filter.');
 assert_true(strpos($reportsPage['body'], 'summary-usage-tag') !== false && strpos($reportsPage['body'], 'Used Damage') !== false, 'Reports page is missing handover usage reason chips.');
@@ -4441,6 +4724,64 @@ assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'Scan Code', 'Daily s
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'From Date', 'Daily summary XLSX export is missing the start date column.');
 assert_xlsx_contains_text($dailySummaryXlsxExport['body'], 'To Date', 'Daily summary XLSX export is missing the end date column.');
 assert_xlsx_contains_media($dailySummaryXlsxExport['body'], 'Daily summary XLSX export is missing embedded item thumbnails.');
+$usageAccountabilityQuery = 'date_from=' . rawurlencode($reportRangeFrom)
+    . '&date_to=' . rawurlencode($reportRangeTo)
+    . '&movement_type=usage&report_scope=usage_by_day';
+$usageAccountabilityCsv = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?' . $usageAccountabilityQuery);
+assert_true($usageAccountabilityCsv['status'] === 200, 'Usage accountability CSV export failed.');
+$usageAccountabilityHeaders = csv_header_cells($usageAccountabilityCsv['body']);
+assert_true(
+    array_slice($usageAccountabilityHeaders, 0, 5) === ['Usage Date', 'Usage Time', 'Item', 'SKU', 'Unit'],
+    'Usage accountability CSV is missing its compact daily columns.'
+);
+assert_true(
+    array_values(array_intersect(['Staff', 'Approver', 'Location', 'Reference'], $usageAccountabilityHeaders))
+        === ['Staff', 'Approver', 'Location', 'Reference'],
+    'Usage accountability CSV is missing accountability columns.'
+);
+assert_true(strpos($usageAccountabilityCsv['body'], 'Overall') === false, 'Usage accountability CSV should not contain generic summary sections.');
+assert_true(strpos($usageAccountabilityCsv['body'], (string) $staff['name']) !== false, 'Usage accountability CSV is missing the receiving staff member.');
+assert_true(strpos($usageAccountabilityCsv['body'], (string) $owner['name']) !== false, 'Usage accountability CSV is missing the approving owner.');
+assert_true(strpos($usageAccountabilityCsv['body'], (string) $handoverSource['name']) !== false, 'Usage accountability CSV is missing the issuing storage.');
+assert_true(strpos($usageAccountabilityCsv['body'], 'System Handover Buffer') === false, 'Usage accountability CSV exposes the internal handover buffer as a business location.');
+$usageAccountabilityXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?' . $usageAccountabilityQuery);
+assert_true($usageAccountabilityXlsx['status'] === 200, 'Usage accountability XLSX export failed.');
+assert_xlsx_contains_text($usageAccountabilityXlsx['body'], 'Usage By Day', 'Usage accountability XLSX is missing its worksheet.');
+assert_xlsx_contains_text($usageAccountabilityXlsx['body'], 'Staff', 'Usage accountability XLSX is missing the staff column.');
+assert_xlsx_contains_text($usageAccountabilityXlsx['body'], 'Approver', 'Usage accountability XLSX is missing the approver column.');
+assert_xlsx_contains_text($usageAccountabilityXlsx['body'], (string) $staff['name'], 'Usage accountability XLSX is missing the receiving staff member.');
+assert_xlsx_contains_text($usageAccountabilityXlsx['body'], (string) $owner['name'], 'Usage accountability XLSX is missing the approving owner.');
+assert_xlsx_contains_text($usageAccountabilityXlsx['body'], (string) $handoverSource['name'], 'Usage accountability XLSX is missing the issuing storage.');
+assert_xlsx_contains_media($usageAccountabilityXlsx['body'], 'Usage accountability XLSX is missing embedded item thumbnails.');
+$operationalUsageQuery = 'date_from=' . rawurlencode($reportRangeFrom)
+    . '&date_to=' . rawurlencode($reportRangeTo)
+    . '&movement_type=usage&report_scope=operational_usage';
+$operationalUsageCsv = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary?' . $operationalUsageQuery);
+assert_true($operationalUsageCsv['status'] === 200, 'Operational usage CSV export failed.');
+$operationalUsageHeaders = csv_header_cells($operationalUsageCsv['body']);
+assert_true(
+    array_slice($operationalUsageHeaders, 0, 5) === ['Usage Date', 'Approval Time', 'Handover', 'Unit', 'Issued'],
+    'Operational usage CSV is missing its reconciliation columns.'
+);
+assert_true(strpos($operationalUsageCsv['body'], $handoverRequestScheduledDate) !== false, 'Operational usage CSV is not attributed to the scheduled handover date.');
+assert_true(
+    array_values(array_intersect(['Receiver', 'Approver', 'Source Storage'], $operationalUsageHeaders))
+        === ['Receiver', 'Approver', 'Source Storage'],
+    'Operational usage CSV is missing accountability columns.'
+);
+assert_true(strpos($operationalUsageCsv['body'], (string) $handoverRequestClosed['handover_number']) !== false, 'Operational usage CSV is missing the approved handover.');
+assert_true(strpos($operationalUsageCsv['body'], (string) $staff['name']) !== false, 'Operational usage CSV is missing the receiver.');
+assert_true(strpos($operationalUsageCsv['body'], (string) $owner['name']) !== false, 'Operational usage CSV is missing the approver.');
+assert_true(strpos($operationalUsageCsv['body'], (string) $handoverRequestSource['name']) !== false, 'Operational usage CSV is missing the source storage.');
+assert_true(strpos($operationalUsageCsv['body'], 'System Handover Buffer') === false, 'Operational usage CSV exposes the internal handover buffer.');
+$operationalUsageXlsx = http_request($baseUrl, $ownerCookie, 'GET', '/exports/daily-summary.xlsx?' . $operationalUsageQuery);
+assert_true($operationalUsageXlsx['status'] === 200, 'Operational usage XLSX export failed.');
+assert_xlsx_contains_text($operationalUsageXlsx['body'], 'Operational Usage', 'Operational usage XLSX is missing its worksheet.');
+assert_xlsx_contains_text($operationalUsageXlsx['body'], 'Difference', 'Operational usage XLSX is missing the reconciliation difference.');
+assert_xlsx_contains_text($operationalUsageXlsx['body'], (string) $handoverRequestClosed['handover_number'], 'Operational usage XLSX is missing the approved handover.');
+assert_xlsx_contains_text($operationalUsageXlsx['body'], (string) $staff['name'], 'Operational usage XLSX is missing the receiver.');
+assert_xlsx_contains_text($operationalUsageXlsx['body'], (string) $owner['name'], 'Operational usage XLSX is missing the approver.');
+assert_xlsx_contains_text($operationalUsageXlsx['body'], (string) $handoverRequestSource['name'], 'Operational usage XLSX is missing the source storage.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/reports?item_status=active')['status'] === 200, 'Reports active item-status filter failed.');
 assert_true(http_request($baseUrl, $ownerCookie, 'GET', '/reports?item_status=deleted')['status'] === 200, 'Reports deleted item-status filter failed.');
 $staffReportsPage = http_request($baseUrl, $staffCookie, 'GET', '/reports');

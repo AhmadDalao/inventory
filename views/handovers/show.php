@@ -64,6 +64,10 @@ $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $curren
 $canOverrideHandoverStatus = Auth::isOwner();
 $handoverStatusOptions = handover_status_options();
 $usageReasonOptions = handover_usage_reason_options();
+$usesOperationalReconciliation = handover_uses_operational_reconciliation($handoverRecord);
+$reconciliations = is_array($reconciliations ?? null) ? $reconciliations : [];
+$operationalReasonOptions = handover_operational_reason_options();
+$varianceReasonOptions = handover_reconciliation_variance_reason_options();
 $handoverRecoveryTargetStatus = Auth::isOwner()
     ? handover_recovery_target_status($handoverRecord, $lines)
     : null;
@@ -473,14 +477,24 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 </form>
             <?php endif; ?>
         <?php elseif ($canClose): ?>
-            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/close')) ?>" enctype="multipart/form-data" data-live-action-form data-handover-close-form>
+            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/close')) ?>" enctype="multipart/form-data" data-live-action-form data-handover-close-form <?= $usesOperationalReconciliation ? 'data-handover-operational-form' : '' ?>>
                 <?= csrf_field() ?>
 
                 <div class="copy-context-card handover-usage-help">
-                    <strong>Actual Usage Report</strong>
-                    <p>Type how many pieces came back. The system calculates used quantity automatically, then the storage owner reviews and approves the final stock posting.</p>
+                    <strong><?= $usesOperationalReconciliation ? 'Returned Stock And Operational Totals' : 'Actual Usage Report' ?></strong>
+                    <p><?= $usesOperationalReconciliation
+                        ? 'Enter returned quantities first. Used stock calculates automatically, then complete one operational summary for each unit.'
+                        : 'Type how many pieces came back. The system calculates used quantity automatically, then the storage owner reviews and approves the final stock posting.' ?></p>
                 </div>
 
+                <?php if ($usesOperationalReconciliation): ?>
+                    <?php
+                    $operationalApprovalMode = false;
+                    $operationalLines = $lines;
+                    $operationalReconciliations = $reconciliations;
+                    require __DIR__ . '/_operational_reconciliation.php';
+                    ?>
+                <?php else: ?>
                 <div class="handover-close-cards">
                     <?php foreach ($lines as $lineIndex => $line): ?>
                         <?php
@@ -630,6 +644,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                         </details>
                     <?php endforeach; ?>
                 </div>
+                <?php endif; ?>
 
                 <label class="field">
                     <span>Close Notes</span>
@@ -661,14 +676,24 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 </form>
             <?php endif; ?>
         <?php elseif ($canApproveClose): ?>
-            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/approve')) ?>" data-live-action-form data-handover-approval-form>
+            <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/approve')) ?>" data-live-action-form data-handover-approval-form <?= $usesOperationalReconciliation ? 'data-handover-operational-form' : '' ?>>
                 <?= csrf_field() ?>
 
                 <div class="copy-context-card">
                     <strong>Owner Final Review</strong>
-                    <p>Correct returned quantity and actual usage reasons before closing. Stock posts only after this approval.</p>
+                    <p><?= $usesOperationalReconciliation
+                        ? 'Correct returned quantities or operational totals before closing. Stock posts only after this approval.'
+                        : 'Correct returned quantity and actual usage reasons before closing. Stock posts only after this approval.' ?></p>
                 </div>
 
+                <?php if ($usesOperationalReconciliation): ?>
+                    <?php
+                    $operationalApprovalMode = true;
+                    $operationalLines = $lines;
+                    $operationalReconciliations = $reconciliations;
+                    require __DIR__ . '/_operational_reconciliation.php';
+                    ?>
+                <?php else: ?>
                 <div class="handover-approval-cards">
                     <?php foreach ($lines as $line): ?>
                         <?php
@@ -819,6 +844,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                         </section>
                     <?php endforeach; ?>
                 </div>
+                <?php endif; ?>
 
                 <label class="field">
                     <span>Approval Notes</span>

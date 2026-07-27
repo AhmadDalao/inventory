@@ -13,9 +13,26 @@ function build_report_summary_where(array $filters, string $alias = 'm'): array
     ];
 
     if (!empty($filters['storage_id'])) {
-        $conditions[] = "({$alias}.source_storage_id = :summary_source_storage_id OR {$alias}.destination_storage_id = :summary_destination_storage_id)";
+        $conditions[] = "(
+            {$alias}.source_storage_id = :summary_source_storage_id
+            OR {$alias}.destination_storage_id = :summary_destination_storage_id
+            OR (
+                {$alias}.context_type = 'handover'
+                AND EXISTS (
+                    SELECT 1
+                    FROM handovers summary_handover_storage
+                    WHERE summary_handover_storage.id = {$alias}.context_id
+                      AND (
+                          summary_handover_storage.source_storage_id = :summary_handover_source_storage_id
+                          OR summary_handover_storage.destination_storage_id = :summary_handover_destination_storage_id
+                      )
+                )
+            )
+        )";
         $params['summary_source_storage_id'] = (int) $filters['storage_id'];
         $params['summary_destination_storage_id'] = (int) $filters['storage_id'];
+        $params['summary_handover_source_storage_id'] = (int) $filters['storage_id'];
+        $params['summary_handover_destination_storage_id'] = (int) $filters['storage_id'];
     }
 
     if (($filters['movement_type'] ?? '') !== '') {

@@ -143,3 +143,102 @@ function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorage
 
     return $tableRows;
 }
+
+function workflow_signoff_operational_reconciliation_table_rows(array $reconciliations): array
+{
+    $tableRows = [];
+    $reasonOptions = handover_operational_reason_options();
+    $varianceOptions = handover_reconciliation_variance_reason_options();
+    $showUnitHeaders = count($reconciliations) > 1;
+
+    foreach ($reconciliations as $unit => $reconciliation) {
+        $unit = normalize_handover_reconciliation_unit((string) ($reconciliation['unit'] ?? $unit));
+        $entries = (array) ($reconciliation['entries'] ?? []);
+
+        if ($showUnitHeaders) {
+            $tableRows[] = [
+                'type' => 'unit_header',
+                'label' => strtoupper($unit),
+                'actual' => '',
+                'unit' => '',
+                'notes' => 'Separate reconciliation for this unit.',
+            ];
+        }
+
+        $tableRows[] = [
+            'type' => 'total_issued',
+            'label' => 'Total Issued',
+            'actual' => round((float) ($reconciliation['issued_total'] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => '',
+        ];
+        $tableRows[] = [
+            'type' => 'confirmed_received',
+            'label' => 'Confirmed Received',
+            'actual' => round((float) ($reconciliation['received_total'] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => '',
+        ];
+
+        foreach ($reasonOptions as $reasonCode => $reasonLabel) {
+            $entry = (array) ($entries[$reasonCode] ?? []);
+            $tableRows[] = [
+                'type' => 'operational_reason',
+                'reason_code' => $reasonCode,
+                'label' => $reasonLabel,
+                'actual' => round((float) ($entry['quantity'] ?? 0), 2),
+                'unit' => $unit,
+                'notes' => trim((string) ($entry['notes'] ?? '')),
+            ];
+        }
+
+        $tableRows[] = [
+            'type' => 'total_returned',
+            'label' => 'Total Returned',
+            'actual' => round((float) ($reconciliation['returned_total'] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => '',
+        ];
+        $tableRows[] = [
+            'type' => 'physical_used',
+            'label' => 'Physical Used',
+            'actual' => round((float) ($reconciliation['physical_used_total'] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => 'Confirmed received - total returned.',
+        ];
+        $tableRows[] = [
+            'type' => 'operational_used',
+            'label' => 'Operational Used',
+            'actual' => round((float) ($reconciliation['operational_used_total'] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => 'Online - No Show + all other operational categories.',
+        ];
+
+        $differenceNotes = [];
+        $discrepancyNotes = trim((string) ($reconciliation['discrepancy_notes'] ?? ''));
+        $varianceReasonCode = trim((string) ($reconciliation['variance_reason_code'] ?? ''));
+        $varianceNotes = trim((string) ($reconciliation['variance_notes'] ?? ''));
+
+        if ($discrepancyNotes !== '') {
+            $differenceNotes[] = 'Receiver: ' . $discrepancyNotes;
+        }
+
+        if ($varianceReasonCode !== '') {
+            $differenceNotes[] = 'Variance: ' . ($varianceOptions[$varianceReasonCode] ?? $varianceReasonCode);
+        }
+
+        if ($varianceNotes !== '') {
+            $differenceNotes[] = 'Approval: ' . $varianceNotes;
+        }
+
+        $tableRows[] = [
+            'type' => 'difference',
+            'label' => 'Difference',
+            'actual' => round((float) ($reconciliation['difference_total'] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => implode(' | ', $differenceNotes),
+        ];
+    }
+
+    return $tableRows;
+}

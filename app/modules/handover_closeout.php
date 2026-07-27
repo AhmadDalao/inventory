@@ -27,16 +27,31 @@ function handle_handovers_close_submit(array $params): void
     }
 
     $returnedInput = input('line_returned', []);
-    $usedInput = input('line_used', []);
-    $usageInput = [
-        'quantity' => input('line_usage_quantity', []),
-        'reason' => input('line_usage_reason', []),
-        'other' => input('line_usage_other', []),
-        'notes' => input('line_usage_notes', []),
-    ];
     $closedNotes = trim((string) input('closed_notes'));
     $lines = handover_lines((int) $handover['id']);
-    [$lineUpdates, $errors] = build_handover_close_updates($lines, $returnedInput, $usageInput, $usedInput);
+    $usesOperationalReconciliation = handover_uses_operational_reconciliation($handover);
+    $autoApprove = $isSourceOwner && empty($handover['recipient_user_id']);
+    $reconciliationPayloads = [];
+
+    if ($usesOperationalReconciliation) {
+        [$lineUpdates, $errors] = build_handover_operational_line_updates($lines, $returnedInput);
+        [$reconciliationPayloads, $reconciliationErrors] = build_handover_reconciliation_payloads(
+            $lines,
+            $lineUpdates,
+            input('reconciliation', []),
+            $autoApprove
+        );
+        $errors = array_merge($errors, $reconciliationErrors);
+    } else {
+        $usedInput = input('line_used', []);
+        $usageInput = [
+            'quantity' => input('line_usage_quantity', []),
+            'reason' => input('line_usage_reason', []),
+            'other' => input('line_usage_other', []),
+            'notes' => input('line_usage_notes', []),
+        ];
+        [$lineUpdates, $errors] = build_handover_close_updates($lines, $returnedInput, $usageInput, $usedInput);
+    }
     $proofFile = uploaded_file('proof_image');
     $proofError = validate_workflow_proof_upload($proofFile);
 
@@ -97,9 +112,19 @@ function handle_handovers_close_submit(array $params): void
             );
         }
 
-        save_handover_usage_breakdowns((int) $handover['id'], $lineUpdates, (int) $user['id']);
+        if ($usesOperationalReconciliation) {
+            clear_legacy_handover_usage_breakdowns((int) $handover['id']);
+            save_handover_reconciliations(
+                (int) $handover['id'],
+                $reconciliationPayloads,
+                (int) $user['id'],
+                $autoApprove
+            );
+        } else {
+            save_handover_usage_breakdowns((int) $handover['id'], $lineUpdates, (int) $user['id']);
+        }
 
-        if ($isSourceOwner && empty($handover['recipient_user_id'])) {
+        if ($autoApprove) {
             finalize_handover_inventory($handover, $lineUpdates, (int) $user['id']);
 
             Database::execute(
@@ -169,7 +194,14 @@ function handle_handovers_close_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
-    if ($isSourceOwner && empty($handover['recipient_user_id'])) {
+    try {
+        $updatedHandover = find_handover_or_abort((int) $handover['id']);
+        ensure_workflow_signoff_pdf('handover', $updatedHandover, handover_lines((int) $handover['id']));
+    } catch (Throwable $exception) {
+        // Attachment regeneration should not block a valid closeout submission.
+    }
+
+    if ($autoApprove) {
         if (request_wants_json()) {
             json_response([
                 'ok' => true,
@@ -224,13 +256,27 @@ function handle_handovers_approve_submit(array $params): void
 
     $closedNotes = trim((string) input('closed_notes', (string) ($handover['closed_notes'] ?? '')));
     $lines = handover_lines((int) $handover['id']);
-    $usageInput = [
-        'quantity' => input('line_usage_quantity', []),
-        'reason' => input('line_usage_reason', []),
-        'other' => input('line_usage_other', []),
-        'notes' => input('line_usage_notes', []),
-    ];
-    [$lineUpdates, $errors] = build_handover_approval_updates($lines, input('line_returned', []), $usageInput);
+    $usesOperationalReconciliation = handover_uses_operational_reconciliation($handover);
+    $reconciliationPayloads = [];
+
+    if ($usesOperationalReconciliation) {
+        [$lineUpdates, $errors] = build_handover_operational_line_updates($lines, input('line_returned', []));
+        [$reconciliationPayloads, $reconciliationErrors] = build_handover_reconciliation_payloads(
+            $lines,
+            $lineUpdates,
+            input('reconciliation', []),
+            true
+        );
+        $errors = array_merge($errors, $reconciliationErrors);
+    } else {
+        $usageInput = [
+            'quantity' => input('line_usage_quantity', []),
+            'reason' => input('line_usage_reason', []),
+            'other' => input('line_usage_other', []),
+            'notes' => input('line_usage_notes', []),
+        ];
+        [$lineUpdates, $errors] = build_handover_approval_updates($lines, input('line_returned', []), $usageInput);
+    }
 
     if ($errors !== []) {
         if (request_wants_json()) {
@@ -263,7 +309,17 @@ function handle_handovers_approve_submit(array $params): void
             );
         }
 
-        save_handover_usage_breakdowns((int) $handover['id'], $lineUpdates, (int) $user['id']);
+        if ($usesOperationalReconciliation) {
+            clear_legacy_handover_usage_breakdowns((int) $handover['id']);
+            save_handover_reconciliations(
+                (int) $handover['id'],
+                $reconciliationPayloads,
+                (int) $user['id'],
+                true
+            );
+        } else {
+            save_handover_usage_breakdowns((int) $handover['id'], $lineUpdates, (int) $user['id']);
+        }
         finalize_handover_inventory($handover, $lineUpdates, (int) $user['id']);
 
         Database::execute(

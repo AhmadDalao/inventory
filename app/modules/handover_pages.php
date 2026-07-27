@@ -127,6 +127,7 @@ function handle_handovers_show(array $params): void
         'title' => $handover['handover_number'],
         'handoverRecord' => $handover,
         'lines' => $lines,
+        'reconciliations' => handover_reconciliations_for_handover((int) $handover['id']),
         'documents' => workflow_documents('handover', (int) $handover['id']),
         'canEditHandoverLines' => $lineEditBlockReason === null,
         'lineEditBlockReason' => $lineEditBlockReason,

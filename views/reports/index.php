@@ -203,6 +203,109 @@ $dateTitle = report_summary_period_label($summaryFilters);
         </section>
     </div>
 
+    <section class="summary-card summary-operational-usage">
+        <div class="summary-card-head">
+            <div>
+                <p class="eyebrow">Operational Usage</p>
+                <h4>Handover Reconciliation</h4>
+                <p class="muted-copy">Operational totals belong to the whole handover. Exact SKU quantities remain in the item usage table below.</p>
+            </div>
+            <div class="report-summary-actions">
+                <span class="pill pill-muted"><?= number_format(count($summary['operational_usage'] ?? [])) ?></span>
+                <?php if (Auth::hasPermission('movements.export')): ?>
+                    <a class="ghost-button" href="<?= e((string) $summary['operational_export_url']) ?>"><?= ui_icon('export') ?><span>Operational CSV</span></a>
+                    <?php if (report_xlsx_thumbnail_export_enabled()): ?>
+                        <a class="primary-button" href="<?= e((string) $summary['operational_export_xlsx_url']) ?>"><?= ui_icon('items') ?><span>Operational Excel</span></a>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="summary-table-scroll">
+            <table class="data-table compact-summary-table">
+                <thead>
+                <tr>
+                    <th>Date / Time</th>
+                    <th>Handover</th>
+                    <th>Unit</th>
+                    <th>Issued</th>
+                    <th>Received</th>
+                    <th>Online</th>
+                    <th>Walk-in</th>
+                    <th>Event</th>
+                    <th>Sport</th>
+                    <th>Damage</th>
+                    <th>Complimentary</th>
+                    <th>No Show</th>
+                    <th>Other</th>
+                    <th>Returned</th>
+                    <th>Physical Used</th>
+                    <th>Operational Used</th>
+                    <th>Difference</th>
+                    <th>Receiver</th>
+                    <th>Approver</th>
+                    <th>Source Storage</th>
+                    <th>Notes</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php if (($summary['operational_usage'] ?? []) === []): ?>
+                    <tr>
+                        <td colspan="21" class="empty-cell">No approved operational handover reconciliation was found for this date range and filter.</td>
+                    </tr>
+                <?php endif; ?>
+                <?php foreach (($summary['operational_usage'] ?? []) as $row): ?>
+                    <?php
+                    $difference = (float) ($row['difference_total'] ?? 0);
+                    $activityAt = trim((string) ($row['activity_at'] ?? ''));
+                    $operationalNotes = array_filter([
+                        trim((string) ($row['discrepancy_notes'] ?? '')),
+                        trim((string) ($row['variance_reason_label'] ?? '')),
+                        trim((string) ($row['variance_notes'] ?? '')),
+                    ], static fn (string $value): bool => $value !== '');
+                    ?>
+                    <tr>
+                        <td data-label="Date / Time">
+                            <strong><?= e(date('M j, Y', strtotime((string) $row['activity_date']))) ?></strong>
+                            <?php if ($activityAt !== ''): ?>
+                                <div class="tiny-copy"><?= e(date('g:i:s A', strtotime($activityAt))) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="Handover">
+                            <a href="<?= e(url('/handovers/' . (int) $row['handover_id'])) ?>">
+                                <?= e((string) $row['handover_number']) ?>
+                            </a>
+                        </td>
+                        <td data-label="Unit"><?= e((string) $row['unit']) ?></td>
+                        <td data-label="Issued"><?= e(format_quantity($row['issued_total'] ?? 0)) ?></td>
+                        <td data-label="Received"><?= e(format_quantity($row['received_total'] ?? 0)) ?></td>
+                        <td data-label="Online"><?= e(format_quantity($row['online_quantity'] ?? 0)) ?></td>
+                        <td data-label="Walk-in"><?= e(format_quantity($row['walkin_quantity'] ?? 0)) ?></td>
+                        <td data-label="Event"><?= e(format_quantity($row['event_quantity'] ?? 0)) ?></td>
+                        <td data-label="Sport"><?= e(format_quantity($row['sport_quantity'] ?? 0)) ?></td>
+                        <td data-label="Damage"><?= e(format_quantity($row['damage_quantity'] ?? 0)) ?></td>
+                        <td data-label="Complimentary"><?= e(format_quantity($row['complimentary_quantity'] ?? 0)) ?></td>
+                        <td data-label="No Show"><?= e(format_quantity($row['noshow_quantity'] ?? 0)) ?></td>
+                        <td data-label="Other"><?= e(format_quantity($row['other_quantity'] ?? 0)) ?></td>
+                        <td data-label="Returned"><?= e(format_quantity($row['returned_total'] ?? 0)) ?></td>
+                        <td data-label="Physical Used"><?= e(format_quantity($row['physical_used_total'] ?? 0)) ?></td>
+                        <td data-label="Operational Used"><?= e(format_quantity($row['operational_used_total'] ?? 0)) ?></td>
+                        <td data-label="Difference">
+                            <span class="pill <?= abs($difference) < 0.009 ? 'pill-approved' : 'pill-danger' ?>">
+                                <?= e(format_quantity($difference)) ?>
+                            </span>
+                        </td>
+                        <td data-label="Receiver"><?= e((string) $row['receiver_name']) ?></td>
+                        <td data-label="Approver"><?= e((string) $row['approver_name']) ?></td>
+                        <td data-label="Source Storage"><?= e((string) $row['source_storage_name']) ?></td>
+                        <td data-label="Notes"><?= e($operationalNotes !== [] ? implode(' · ', $operationalNotes) : '-') ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <section class="summary-card summary-daily-usage">
         <div class="summary-card-head">
             <div>
@@ -229,7 +332,8 @@ $dateTitle = report_summary_period_label($summaryFilters);
                     <th>Item</th>
                     <th>Used</th>
                     <th>Breakdown / Notes</th>
-                    <th>By</th>
+                    <th>Staff</th>
+                    <th>Approver</th>
                     <th>Location</th>
                     <th>Reference</th>
                 </tr>
@@ -237,7 +341,7 @@ $dateTitle = report_summary_period_label($summaryFilters);
                 <tbody>
                 <?php if (($summary['usage_by_day'] ?? []) === []): ?>
                     <tr>
-                        <td colspan="7" class="empty-cell">No usage was recorded for this date range and filter.</td>
+                        <td colspan="8" class="empty-cell">No usage was recorded for this date range and filter.</td>
                     </tr>
                 <?php endif; ?>
                 <?php foreach (($summary['usage_by_day'] ?? []) as $row): ?>
@@ -285,8 +389,9 @@ $dateTitle = report_summary_period_label($summaryFilters);
                                 <span class="tiny-copy">Unspecified</span>
                             <?php endif; ?>
                         </td>
-                        <td data-label="By"><?= e(truncate_text((string) ($row['users'] ?: 'System'), 80)) ?></td>
-                        <td data-label="Location"><?= e(truncate_text((string) ($row['locations'] ?: 'Unassigned'), 90)) ?></td>
+                        <td data-label="Staff"><?= e(truncate_text((string) ($row['staff_name'] ?: 'System'), 80)) ?></td>
+                        <td data-label="Approver"><?= e(truncate_text((string) ($row['approver_name'] ?: '-'), 80)) ?></td>
+                        <td data-label="Location"><?= e(truncate_text((string) ($row['usage_location'] ?: 'Unassigned'), 90)) ?></td>
                         <td data-label="Reference"><?= e(truncate_text((string) ($row['references_list'] ?: '-'), 70)) ?></td>
                     </tr>
                 <?php endforeach; ?>
