@@ -80,6 +80,7 @@ return [
         'handover_receipt_updates',
         'handover_closeout_updates',
         'handover_usage_persistence',
+        'handover_custody_support',
         'handover_queries',
         'handover_status',
         'handover_permissions',
@@ -106,6 +107,8 @@ return [
     'handovers' => [
         'handover_pages',
         'handover_create',
+        'handover_custody_pages',
+        'handover_custody_actions',
         'handover_line_edits',
         'handover_request_decisions',
         'handover_cancellations',

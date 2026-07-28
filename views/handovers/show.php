@@ -44,6 +44,13 @@ $workflowLinePreviewItem = static function (array $line) use ($workflowCatalogIt
 $statusLabel = handover_status_label((string) $handoverRecord['status']);
 $isRequestMode = (string) ($handoverRecord['handover_mode'] ?? 'direct') === 'request';
 $isStorageTransfer = handover_is_storage_transfer($handoverRecord);
+$isStaffCustody = handover_is_staff_custody($handoverRecord);
+$custodyReturns = is_array($custodyReturns ?? null) ? $custodyReturns : [];
+$custodyTotals = is_array($custodyTotals ?? null) ? $custodyTotals : [];
+$custodyLineTotals = is_array($custodyLineTotals ?? null) ? $custodyLineTotals : [];
+$pendingCustodyReturn = is_array($pendingCustodyReturn ?? null) ? $pendingCustodyReturn : null;
+$canReportCustodyReturn = !empty($canReportCustodyReturn);
+$canReviewCustodyReturn = !empty($canReviewCustodyReturn);
 $isSourceOwner = handover_is_source_issuer($handoverRecord, $currentUser);
 $canApproveRequest = Auth::hasPermission('handovers.approve')
     && handover_request_decision_block_reason($handoverRecord, $currentUser) === null;
@@ -54,6 +61,7 @@ $canReportReceipt = handover_can_report_receipt($handoverRecord, $currentUser)
     && !$canConfirmReceipt;
 $canClose = Auth::hasPermission('handovers.close')
     && !$isStorageTransfer
+    && !$isStaffCustody
     && (string) $handoverRecord['status'] === 'delivered'
     && (
         (int) ($handoverRecord['recipient_user_id'] ?? 0) === (int) ($currentUser['id'] ?? 0)
@@ -155,6 +163,24 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <span>Difference</span>
                     <strong><?= format_quantity($storageDifferenceTotal) ?></strong>
                 </div>
+            <?php elseif ($isStaffCustody): ?>
+                <div>
+                    <span>Received</span>
+                    <strong><?= format_quantity((float) ($custodyTotals['received'] ?? $receivedTotal)) ?></strong>
+                </div>
+                <div>
+                    <span>Still Held</span>
+                    <strong><?= format_quantity((float) ($custodyTotals['held'] ?? 0)) ?></strong>
+                </div>
+                <div>
+                    <span>Returned / Processed</span>
+                    <strong><?= format_quantity(
+                        (float) ($custodyTotals['serviceable'] ?? 0)
+                        + (float) ($custodyTotals['damaged'] ?? 0)
+                        + (float) ($custodyTotals['consumed'] ?? 0)
+                        + (float) ($custodyTotals['lost'] ?? 0)
+                    ) ?></strong>
+                </div>
             <?php else: ?>
                 <div>
                     <span>Received</span>
@@ -179,8 +205,12 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
             </section>
             <section class="handover-info-card">
                 <span>Mode</span>
-                <strong><?= $isStorageTransfer ? 'Storage transfer' : ($isRequestMode ? 'Requested by staff' : 'Direct handover') ?></strong>
-                <small><?= $isStorageTransfer ? 'Destination owner confirms receipt' : (!empty($handoverRecord['requested_at']) ? e(format_datetime_display((string) $handoverRecord['requested_at'])) : 'No request timestamp') ?></small>
+                <strong><?= $isStorageTransfer ? 'Storage transfer' : ($isStaffCustody ? 'Long-term staff custody' : ($isRequestMode ? 'Requested by staff' : 'Direct handover')) ?></strong>
+                <small><?= $isStorageTransfer
+                    ? 'Destination owner confirms receipt'
+                    : ($isStaffCustody
+                        ? 'Partial condition-based returns'
+                        : (!empty($handoverRecord['requested_at']) ? e(format_datetime_display((string) $handoverRecord['requested_at'])) : 'No request timestamp')) ?></small>
             </section>
             <section class="handover-info-card">
                 <span><?= $isStorageTransfer ? 'Destination Owner' : 'Recipient' ?></span>
@@ -199,6 +229,18 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 <strong><?= !empty($handoverRecord['scheduled_for_date']) ? e(date('M j, Y', strtotime((string) $handoverRecord['scheduled_for_date']))) : 'Not set' ?></strong>
                 <small><?= $isRequestMode ? 'Requested by' : 'Created by' ?> <?= e((string) ($handoverRecord['creator_name'] ?: 'Unknown')) ?></small>
             </section>
+            <?php if ($isStaffCustody): ?>
+            <section class="handover-info-card">
+                <span>Issue Condition</span>
+                <strong><?= e(handover_issue_condition_options()[(string) ($handoverRecord['issue_condition'] ?? 'good')] ?? ucfirst((string) ($handoverRecord['issue_condition'] ?? 'good'))) ?></strong>
+                <small>Condition recorded when custody began</small>
+            </section>
+            <section class="handover-info-card">
+                <span>Review / Return Date</span>
+                <strong><?= !empty($handoverRecord['custody_review_date']) ? e(date('M j, Y', strtotime((string) $handoverRecord['custody_review_date']))) : 'Not set' ?></strong>
+                <small><?= !empty($handoverRecord['custody_review_date']) && (string) $handoverRecord['custody_review_date'] < date('Y-m-d') && (float) ($custodyTotals['held'] ?? 0) > 0.009 ? 'Overdue review' : 'Scheduled custody review' ?></small>
+            </section>
+            <?php endif; ?>
             <section class="handover-info-card">
                 <span>Approval</span>
                 <strong><?= e((string) ($handoverRecord['request_approver_name'] ?: 'Not assigned')) ?></strong>
@@ -245,6 +287,16 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                         <?= $isStorageTransfer ? 'Confirm Storage Receipt' : 'Confirm Actual Receipt' ?>
                     <?php elseif ($canConfirmReceipt): ?>
                         <?= $isStorageTransfer ? 'Review Transfer Receipt' : 'Issuer Receipt Review' ?>
+                    <?php elseif ($isStaffCustody): ?>
+                        <?php if ($pendingCustodyReturn && (string) ($pendingCustodyReturn['status'] ?? '') === 'submitted' && $canReviewCustodyReturn): ?>
+                            Review Custody Return
+                        <?php elseif ($pendingCustodyReturn && $canReportCustodyReturn): ?>
+                            Continue Custody Return
+                        <?php elseif ($canReportCustodyReturn && (float) ($custodyTotals['held'] ?? 0) > 0.009): ?>
+                            Return Custody Items
+                        <?php else: ?>
+                            Custody Status
+                        <?php endif; ?>
                     <?php elseif ($canApproveClose): ?>
                         Approve Return To Storage
                     <?php elseif ($canCancelHandover): ?>
@@ -476,6 +528,49 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <button class="ghost-button danger-button" type="submit" data-confirm="<?= e($cancelHandoverConfirm) ?>"><?= e($cancelHandoverLabel) ?></button>
                 </form>
             <?php endif; ?>
+        <?php elseif ($isStaffCustody): ?>
+            <div class="copy-context-card">
+                <strong>Long-term staff custody</strong>
+                <p>Items remain assigned to the staff member until an issuer-approved return records them as serviceable, damaged, consumed, or lost.</p>
+            </div>
+
+            <?php if ($pendingCustodyReturn): ?>
+                <?php
+                $pendingReturnStatus = (string) ($pendingCustodyReturn['status'] ?? 'draft');
+                $pendingReturnUrl = url('/handovers/' . (int) $handoverRecord['id'] . '/custody-returns/' . (int) $pendingCustodyReturn['id']);
+                ?>
+                <section class="handover-info-card">
+                    <span>Current Return</span>
+                    <strong><?= e((string) $pendingCustodyReturn['return_number']) ?></strong>
+                    <small><?= e(handover_custody_return_status_label($pendingReturnStatus)) ?></small>
+                </section>
+
+                <?php if ($pendingReturnStatus === 'submitted' && $canReviewCustodyReturn): ?>
+                    <a class="primary-button" href="<?= e($pendingReturnUrl) ?>"><?= ui_icon('approve') ?><span>Review Quantities And Evidence</span></a>
+                <?php elseif (in_array($pendingReturnStatus, ['draft', 'rejected'], true) && $canReportCustodyReturn): ?>
+                    <a class="primary-button" href="<?= e($pendingReturnUrl) ?>"><?= ui_icon('edit') ?><span>Continue Return Report</span></a>
+                <?php else: ?>
+                    <a class="ghost-button" href="<?= e($pendingReturnUrl) ?>"><?= ui_icon('open') ?><span>Open Return Record</span></a>
+                    <p class="muted-copy">This return is waiting for the source issuer to review it.</p>
+                <?php endif; ?>
+            <?php elseif ((float) ($custodyTotals['held'] ?? 0) > 0.009 && $canReportCustodyReturn): ?>
+                <form class="stack-form" method="post" action="<?= e(url('/handovers/' . (int) $handoverRecord['id'] . '/custody-returns')) ?>">
+                    <?= csrf_field() ?>
+                    <p class="muted-copy">Create a partial return. You can return some items now and keep the rest assigned.</p>
+                    <button class="primary-button" type="submit"><?= ui_icon('handover') ?><span>Start Partial Return</span></button>
+                </form>
+            <?php elseif ((float) ($custodyTotals['held'] ?? 0) <= 0.009): ?>
+                <p class="empty-state">Nothing remains with the staff member. This custody handover is complete.</p>
+            <?php else: ?>
+                <p class="empty-state">The assigned staff member can report a partial return. The source issuer will review it before stock changes.</p>
+            <?php endif; ?>
+
+            <div class="button-row">
+                <a class="ghost-button" href="<?= e(url('/handovers/custody')) ?>"><?= ui_icon('reports') ?><span>Staff Custody Report</span></a>
+                <?php if (Auth::isOwner()): ?>
+                    <a class="ghost-button" href="<?= e(url('/handovers/custody/quarantine')) ?>"><?= ui_icon('archive') ?><span>Damaged / Quarantine</span></a>
+                <?php endif; ?>
+            </div>
         <?php elseif ($canClose): ?>
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/close')) ?>" enctype="multipart/form-data" data-live-action-form data-handover-close-form <?= $usesOperationalReconciliation ? 'data-handover-operational-form' : '' ?>>
                 <?= csrf_field() ?>
@@ -956,6 +1051,54 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
     </article>
 </section>
 
+<?php if ($isStaffCustody): ?>
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <p class="eyebrow">Custody History</p>
+                <h3>Partial Returns And Outcomes</h3>
+                <p class="muted-copy">Approved rows are permanent. Rejected rows remain visible without changing stock.</p>
+            </div>
+            <span class="count-badge"><?= count($custodyReturns) ?></span>
+        </div>
+
+        <?php if ($custodyReturns): ?>
+            <div class="table-wrap">
+                <table class="data-table data-table-mobile">
+                    <thead>
+                    <tr>
+                        <th>Return</th>
+                        <th>Date</th>
+                        <th>Serviceable</th>
+                        <th>Damaged</th>
+                        <th>Consumed</th>
+                        <th>Lost</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($custodyReturns as $custodyReturn): ?>
+                        <tr>
+                            <td data-label="Return"><strong><?= e((string) $custodyReturn['return_number']) ?></strong></td>
+                            <td data-label="Date"><?= e(!empty($custodyReturn['return_date']) ? date('M j, Y', strtotime((string) $custodyReturn['return_date'])) : 'Draft') ?></td>
+                            <td data-label="Serviceable"><?= format_quantity((float) ($custodyReturn['serviceable_total'] ?? 0)) ?></td>
+                            <td data-label="Damaged"><?= format_quantity((float) ($custodyReturn['damaged_total'] ?? 0)) ?></td>
+                            <td data-label="Consumed"><?= format_quantity((float) ($custodyReturn['consumed_total'] ?? 0)) ?></td>
+                            <td data-label="Lost"><?= format_quantity((float) ($custodyReturn['lost_total'] ?? 0)) ?></td>
+                            <td data-label="Status"><span class="pill"><?= e(handover_custody_return_status_label((string) $custodyReturn['status'])) ?></span></td>
+                            <td><a class="text-button" href="<?= e(url('/handovers/' . (int) $handoverRecord['id'] . '/custody-returns/' . (int) $custodyReturn['id'])) ?>">Open</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <p class="empty-state">No custody returns have been reported yet.</p>
+        <?php endif; ?>
+    </section>
+<?php endif; ?>
+
 <?php if ($canEditHandoverLines): ?>
     <section class="panel form-panel">
         <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/lines')) ?>">
@@ -1131,9 +1274,9 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 <th>SKU</th>
                 <th>Planned</th>
                 <th>Received</th>
-                <th><?= $isStorageTransfer ? 'To Destination' : 'Used' ?></th>
-                <th><?= $isStorageTransfer ? 'Returning To Source' : 'Returned' ?></th>
-                <th>Difference / Unaccounted</th>
+                <th><?= $isStorageTransfer ? 'To Destination' : ($isStaffCustody ? 'Consumed / Lost' : 'Used') ?></th>
+                <th><?= $isStorageTransfer ? 'Returning To Source' : ($isStaffCustody ? 'Returned / Quarantined' : 'Returned') ?></th>
+                <th><?= $isStaffCustody ? 'Still Held' : 'Difference / Unaccounted' ?></th>
             </tr>
             </thead>
             <tbody>
@@ -1152,6 +1295,11 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     $lineToDestination = $lineReceiptWasReported ? round((float) $line['quantity_received'], 2) : 0.0;
                     $lineReturningToSource = $lineReceiptWasReported ? $lineShortage : 0.0;
                     $unaccounted = max(0, round((float) $line['quantity_handed'] - $lineToDestination - $lineReturningToSource, 2));
+                } elseif ($isStaffCustody) {
+                    $lineCustody = (array) ($custodyLineTotals[(int) $line['id']] ?? []);
+                    $lineToDestination = (float) ($lineCustody['consumed_total'] ?? 0) + (float) ($lineCustody['lost_total'] ?? 0);
+                    $lineReturningToSource = (float) ($lineCustody['serviceable_total'] ?? 0) + (float) ($lineCustody['damaged_total'] ?? 0);
+                    $unaccounted = max(0, round((float) $line['quantity_received'] - $lineToDestination - $lineReturningToSource, 2));
                 } else {
                     $lineToDestination = 0.0;
                     $lineReturningToSource = 0.0;
@@ -1196,14 +1344,14 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <td data-label="SKU"><?= e($line['item_sku']) ?></td>
                     <td data-label="Planned"><?= format_quantity($line['quantity_handed']) ?> <?= e($line['unit']) ?></td>
                     <td data-label="Received"><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
-                    <?php if ($isStorageTransfer): ?>
-                        <td data-label="To Destination"><?= format_quantity($lineToDestination) ?> <?= e($line['unit']) ?></td>
-                        <td data-label="Returning To Source"><?= format_quantity($lineReturningToSource) ?> <?= e($line['unit']) ?></td>
+                    <?php if ($isStorageTransfer || $isStaffCustody): ?>
+                        <td data-label="<?= $isStorageTransfer ? 'To Destination' : 'Consumed / Lost' ?>"><?= format_quantity($lineToDestination) ?> <?= e($line['unit']) ?></td>
+                        <td data-label="<?= $isStorageTransfer ? 'Returning To Source' : 'Returned / Quarantined' ?>"><?= format_quantity($lineReturningToSource) ?> <?= e($line['unit']) ?></td>
                     <?php else: ?>
                         <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
                         <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>
                     <?php endif; ?>
-                    <td data-label="Difference / Unaccounted"><?= format_quantity($unaccounted) ?> <?= e($line['unit']) ?></td>
+                    <td data-label="<?= $isStaffCustody ? 'Still Held' : 'Difference / Unaccounted' ?>"><?= format_quantity($unaccounted) ?> <?= e($line['unit']) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

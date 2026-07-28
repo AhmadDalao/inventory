@@ -516,6 +516,10 @@
     gap: 10px;
 }
 
+.item-stock-position-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .item-summary-stat {
     display: grid;
     gap: 5px;
@@ -601,4 +605,3 @@
 .item-summary-actions .tiny-copy {
     margin: 0;
 }
-

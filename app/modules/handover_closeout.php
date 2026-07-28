@@ -11,8 +11,10 @@ function handle_handovers_close_submit(array $params): void
 
     $handover = find_handover_or_abort((int) $params['id']);
     $user = Auth::user();
-    if (handover_is_storage_transfer($handover)) {
-        flash('danger', 'Storage transfers close through receipt confirmation, not usage closeout.');
+    if (handover_is_storage_transfer($handover) || handover_is_staff_custody($handover)) {
+        flash('danger', handover_is_staff_custody($handover)
+            ? 'Long-term custody uses partial custody returns, not temporary-use closeout.'
+            : 'Storage transfers close through receipt confirmation, not usage closeout.');
         redirect('/handovers/' . $handover['id']);
     }
 

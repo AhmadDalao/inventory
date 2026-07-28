@@ -16,6 +16,11 @@ function system_storage_blueprints(): array
             'storage_type' => 'storage',
             'notes' => 'Internal buffer for open handovers before used or returned stock is finalized.',
         ],
+        'damaged_quarantine' => [
+            'name' => 'Damaged / Quarantine',
+            'storage_type' => 'storage',
+            'notes' => 'Hidden holding location for damaged inventory awaiting repair, return to service, or audited disposal.',
+        ],
     ];
 }
 

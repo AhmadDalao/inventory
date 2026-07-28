@@ -315,6 +315,39 @@ $router->get('/handovers/create', static function (): void {
 $router->post('/handovers/create', static function (): void {
     handle_handovers_create_submit();
 });
+$router->get('/handovers/custody', static function (): void {
+    handle_handover_custody_index();
+});
+$router->get('/handovers/custody/export', static function (): void {
+    handle_export_handover_custody();
+});
+$router->get('/handovers/custody/quarantine', static function (): void {
+    handle_handover_custody_quarantine();
+});
+$router->post('/handovers/custody/quarantine/{line_id}/return-to-service', static function (array $params): void {
+    handle_handover_custody_quarantine_return_to_service($params);
+});
+$router->post('/handovers/custody/quarantine/{line_id}/dispose', static function (array $params): void {
+    handle_handover_custody_quarantine_dispose($params);
+});
+$router->post('/handovers/{id}/custody-returns', static function (array $params): void {
+    handle_handover_custody_return_create($params);
+});
+$router->get('/handovers/{id}/custody-returns/{return_id}', static function (array $params): void {
+    handle_handover_custody_return_show($params);
+});
+$router->post('/handovers/{id}/custody-returns/{return_id}/submit', static function (array $params): void {
+    handle_handover_custody_return_submit($params);
+});
+$router->post('/handovers/{id}/custody-returns/{return_id}/approve', static function (array $params): void {
+    handle_handover_custody_return_approve($params);
+});
+$router->post('/handovers/{id}/custody-returns/{return_id}/reject', static function (array $params): void {
+    handle_handover_custody_return_reject($params);
+});
+$router->post('/handovers/{id}/custody-returns/{return_id}/replacement', static function (array $params): void {
+    handle_handover_custody_replacement_create($params);
+});
 $router->get('/handovers/{id}', static function (array $params): void {
     handle_handovers_show($params);
 });

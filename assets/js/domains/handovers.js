@@ -817,6 +817,8 @@ export const initHandoverTargetSwitchers = (root = document) => {
       .filter((radio) => radio instanceof HTMLInputElement);
     const staffFields = Array.from(form.querySelectorAll('[data-handover-staff-fields]'));
     const storageFields = Array.from(form.querySelectorAll('[data-handover-storage-fields]'));
+    const custodyFields = Array.from(form.querySelectorAll('[data-handover-custody-fields]'));
+    const recipientUserSelect = form.querySelector('[data-handover-recipient-user]');
     const destinationSelect = form.querySelector('[data-handover-destination-storage]');
     const destinationCopy = form.querySelector('[data-handover-destination-copy]');
     const destinationSummary = form.querySelector('[data-handover-destination-summary]');
@@ -830,14 +832,21 @@ export const initHandoverTargetSwitchers = (root = document) => {
     const notesField = form.querySelector('[data-handover-notes]');
     const submitLabel = form.querySelector('[data-handover-submit-label]');
     const modeCopy = {
-      staff: {
+      temporary_use: {
         eyebrow: 'Temporary Issue',
         title: 'Create Handover',
         linesTitle: 'What You Handed Over',
         notesPlaceholder: 'Where this stock is going and why',
         submit: 'Create Handover'
       },
-      storage: {
+      staff_custody: {
+        eyebrow: 'Long-Term Staff Custody',
+        title: 'Create Staff Custody',
+        linesTitle: 'What Staff Will Hold',
+        notesPlaceholder: 'What these items are assigned for and any care instructions',
+        submit: 'Create Staff Custody'
+      },
+      storage_transfer: {
         eyebrow: 'Storage Transfer',
         title: 'Create Storage Transfer',
         linesTitle: 'What You Are Transferring',
@@ -910,9 +919,10 @@ export const initHandoverTargetSwitchers = (root = document) => {
     };
 
     const sync = () => {
-      const targetType = radios.find((radio) => radio.checked)?.value || 'staff';
-      const isStorage = targetType === 'storage';
-      const copy = isStorage ? modeCopy.storage : modeCopy.staff;
+      const targetType = radios.find((radio) => radio.checked)?.value || 'temporary_use';
+      const isStorage = targetType === 'storage_transfer';
+      const isCustody = targetType === 'staff_custody';
+      const copy = modeCopy[targetType] || modeCopy.temporary_use;
 
       if (formEyebrow) {
         formEyebrow.textContent = copy.eyebrow;
@@ -936,6 +946,15 @@ export const initHandoverTargetSwitchers = (root = document) => {
 
       staffFields.forEach((section) => setSectionEnabled(section, !isStorage));
       storageFields.forEach((section) => setSectionEnabled(section, isStorage));
+      custodyFields.forEach((section) => setSectionEnabled(section, isCustody));
+
+      if (recipientUserSelect instanceof HTMLSelectElement) {
+        recipientUserSelect.required = isCustody;
+        const placeholder = recipientUserSelect.options[0];
+        if (placeholder) {
+          placeholder.textContent = isCustody ? 'Select staff member' : 'Optional linked staff';
+        }
+      }
 
       if (destinationSelect instanceof HTMLSelectElement) {
         destinationSelect.required = isStorage;

@@ -30,6 +30,9 @@
                 <tr>
                     <td data-label="Location">
                         <strong><?= e($balance['name']) ?></strong>
+                        <?php if ((int) ($balance['is_system'] ?? 0) === 1): ?>
+                            <div class="tiny-copy">System-controlled location</div>
+                        <?php endif; ?>
                         <?php if ((int) $balance['is_active'] === 0): ?>
                             <div class="tiny-copy">Deleted location</div>
                         <?php endif; ?>
@@ -41,7 +44,7 @@
                     <td data-label="Transferred Out"><?= format_quantity($balance['transferred_out']) ?> <?= e($item['unit']) ?></td>
                     <td data-label="Stock Value"><?= format_money(stock_value($balance['quantity'], $item['cost_per_unit'])) ?></td>
                     <td data-label="Actions" class="table-actions-cell">
-                        <?php if ((int) $item['is_active'] === 1 && (int) $balance['is_active'] === 1 && Auth::hasPermission('items.remove_from_storage')): ?>
+                        <?php if ((int) $item['is_active'] === 1 && (int) $balance['is_active'] === 1 && (int) ($balance['is_system'] ?? 0) === 0 && Auth::hasPermission('items.remove_from_storage')): ?>
                             <details class="row-action-menu">
                                 <summary aria-label="Location balance actions"><?= ui_icon('menu') ?></summary>
                                 <div class="row-action-list">

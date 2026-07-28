@@ -20,6 +20,7 @@ function default_permissions_for_role(string $role): array
             'handovers.view',
             'handovers.request',
             'handovers.close',
+            'handovers.custody_return',
         ];
     }
 
@@ -63,6 +64,7 @@ function default_permissions_for_role(string $role): array
         'handovers.create',
         'handovers.close',
         'handovers.approve',
+        'handovers.custody_approve',
         'handovers.export',
         'purchases.view',
         'purchases.create',
@@ -215,6 +217,7 @@ function default_permissions_for_position(string $position): array
                 'handovers.request',
                 'handovers.close',
                 'handovers.approve',
+                'handovers.custody_approve',
                 'handovers.export',
                 'purchases.view',
                 'purchases.create',
@@ -286,6 +289,7 @@ function default_permissions_for_position(string $position): array
                 'handovers.request',
                 'handovers.close',
                 'handovers.approve',
+                'handovers.custody_approve',
                 'handovers.export',
                 'purchases.view',
                 'purchases.receive',
@@ -312,6 +316,7 @@ function default_permissions_for_position(string $position): array
                 'handovers.view',
                 'handovers.request',
                 'handovers.close',
+                'handovers.custody_return',
             ];
 
         case 'staff':

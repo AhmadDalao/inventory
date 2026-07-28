@@ -79,6 +79,10 @@
         grid-template-columns: 1fr;
     }
 
+    .item-stock-position-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .item-summary-stock,
     .item-summary-actions {
         align-items: flex-start;

@@ -135,9 +135,13 @@ function cancel_handover_inventory(array $handover, array $lines, int $performed
     $bufferStorageId = system_storage_id('handover_buffer');
 
     foreach ($lines as $line) {
-        $quantity = $status === 'delivered'
-            ? round((float) (($line['quantity_received'] ?? 0) ?: ($line['quantity_handed'] ?? 0)), 2)
-            : round((float) ($line['quantity_handed'] ?? 0), 2);
+        if ($status === 'delivered' && handover_is_staff_custody($handover)) {
+            $quantity = handover_line_held_quantity($line);
+        } else {
+            $quantity = $status === 'delivered'
+                ? round((float) (($line['quantity_received'] ?? 0) ?: ($line['quantity_handed'] ?? 0)), 2)
+                : round((float) ($line['quantity_handed'] ?? 0), 2);
+        }
 
         if ($quantity <= 0) {
             continue;
@@ -153,7 +157,9 @@ function cancel_handover_inventory(array $handover, array $lines, int $performed
             (int) $handover['source_storage_id'],
             date('Y-m-d H:i:s'),
             (string) $handover['handover_number'],
-            'Cancelled handover returned reserved stock to source storage.',
+            handover_is_staff_custody($handover)
+                ? 'Cancelled long-term custody returned stock still held by staff to source storage.'
+                : 'Cancelled handover returned reserved stock to source storage.',
             $performedBy,
             'handover',
             (int) $handover['id']

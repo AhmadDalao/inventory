@@ -106,6 +106,7 @@ function handle_items_show(array $params): void
 
     $historyMetrics = item_history_metrics((int) $item['id']);
     $balances = item_storage_balances((int) $item['id']);
+    $stockPositions = item_stock_positions($balances, (int) $item['id']);
     $packagePresets = item_package_presets((int) $item['id']);
 
     View::render('items/show', [
@@ -114,6 +115,7 @@ function handle_items_show(array $params): void
         'history' => $history,
         'historyMetrics' => $historyMetrics,
         'balances' => $balances,
+        'stockPositions' => $stockPositions,
         'packagePresets' => $packagePresets,
         'purchaseHistory' => function_exists('purchase_history_for_item') ? purchase_history_for_item((int) $item['id']) : [],
         'storages' => all_storages_for_select($item['storage_id'] ? (int) $item['storage_id'] : null),

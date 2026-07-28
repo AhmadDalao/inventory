@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-22
+Updated: 2026-07-28
 
 ## 1. What This System Is
 
@@ -29,7 +29,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/Maintenance.php` is the schema/bootstrap orchestrator. Boot setup, reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
-- The current manifest contains 11 domain groups and 146 focused modules.
+- The current manifest contains 11 domain groups and 151 focused modules.
 
 Do not add new code to these compatibility loaders:
 
@@ -209,6 +209,9 @@ When adding frontend behavior:
 | `app/modules/workflow_core.php` | Compatibility shim for older direct includes. New shared workflow logic belongs in the focused workflow modules above. |
 | `app/modules/workflow_filters.php` | Shared SQL filter builders for purchases, files, stocktakes, suppliers, audit logs, and email logs. |
 | `app/modules/handover_inventory.php` | Handover stock reservation, staff-use finalization, and storage-transfer buffer/source/destination movement logic. |
+| `app/modules/handover_custody_support.php` | Long-term staff-custody purpose checks, held-quantity calculations, quarantine storage helpers, return/proof queries, and stock-position summaries. |
+| `app/modules/handover_custody_pages.php` | Long-term custody report, protected return review, quarantine management, and custody CSV export pages. |
+| `app/modules/handover_custody_actions.php` | Custody return draft/submit/reject/approve actions, replacement requests, and audited quarantine return-to-service/disposal actions. |
 | `app/modules/handover_request_decisions.php` | Handover request approval/rejection handlers and notifications. |
 | `app/modules/handover_cancellations.php` | Handover cancellation and audited void handlers. |
 | `app/modules/handover_decisions.php` | Handover recovery and owner status override handlers. |
@@ -369,8 +372,10 @@ Rules:
 Critical handover stock split:
 
 - Staff handovers are temporary-use workflows. They can create usage and return movements after owner approval.
+- Long-term staff-custody handovers keep interchangeable inventory assigned to one employee for weeks or months. Partial return events classify stock as serviceable, damaged, consumed, or lost; unresolved quantity remains held in the buffer.
 - Storage-owner handovers are stock relocation workflows. They never use usage reasons and they close by moving confirmed receipt from the handover buffer into the destination storage.
-- The handover buffer is an accountability location. It proves stock left the source but has not yet been finalized as used, returned, or received by the destination.
+- The handover buffer is an accountability location. It proves stock left the source but has not yet been finalized as used, returned, quarantined, or received by the destination.
+- `Damaged / Quarantine` is a hidden system location. Quarantined inventory is physically present but excluded from active availability and reorder calculations until an owner returns it to service or disposes of it.
 
 ## 5. Major Workflow Cycles
 
@@ -390,9 +395,10 @@ Requests cover user/admin item requests. The normal cycle is create, approve/rej
 
 ### Handovers
 
-Handovers have two target modes:
+Handovers have three purposes:
 
 - Staff / temporary use: items are issued to a person or team, then returned quantity and usage reasons are reported.
+- Long-term staff custody: interchangeable items remain assigned to an employee until one or more reviewed return events resolve every held unit.
 - Storage transfer: items move from one storage to another storage owner, then the destination owner confirms what actually arrived.
 
 Staff-use cycle:
@@ -415,6 +421,26 @@ Storage-transfer cycle:
 5. If receipt is short, received stock waits in the buffer until the source owner approves the shortage; then received stock moves to destination and missing stock returns to source.
 
 Receiver cancellation after delivery is intentionally restricted. The receiver reports issues; the storage owner decides final stock action.
+
+Long-term staff-custody cycle:
+
+1. Source issuer selects `Long-Term Staff Custody`, the employee, item quantities, issue condition, and a review/return date.
+2. Stock moves from the source storage to the handover buffer; the employee confirms the exact receipt.
+3. The handover remains Delivered while stock is held. The employee can submit multiple partial return events.
+4. Each return line classifies quantity as Serviceable, Damaged, Consumed/Worn Out, or Lost/Missing. Still-held quantity is derived from confirmed receipt minus all approved outcomes.
+5. Damaged quantity requires a protected proof image. Lost quantity requires an explanation.
+6. The source issuer approves or rejects each event. Rejection changes no stock.
+7. Approval returns serviceable quantity to the source, moves damaged quantity to `Damaged / Quarantine`, writes consumed/lost quantity off through audited usage movements, and leaves unresolved quantity in the buffer.
+8. The custody handover closes only when held quantity reaches zero.
+9. Approved damaged/lost returns can create a linked replacement handover request. The request requires normal approval and does not issue stock automatically.
+10. Owner-only quarantine actions can return repaired quantity to a selected active storage or dispose/write it off with a mandatory reason.
+
+Custody stock positions shown on item pages:
+
+- Available in active storages: usable stock in non-system locations.
+- Held by staff: stock currently assigned through active staff handovers.
+- Damaged/quarantined: stock physically retained in the hidden quarantine location.
+- Total physical quantity: all location balances, including held and quarantined stock.
 
 ### Purchases And Suppliers
 

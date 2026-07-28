@@ -283,6 +283,15 @@ export const initMovementForm = (root = document) => {
           stockValueMetric.textContent = payload.item.stock_value;
         }
 
+        const stockPositions = payload.item.stock_positions || {};
+        summary.querySelectorAll('[data-stock-position]').forEach((positionElement) => {
+          const positionKey = positionElement.dataset.stockPosition;
+
+          if (positionKey && stockPositions[positionKey] !== undefined) {
+            positionElement.textContent = `${stockPositions[positionKey]} ${currentUnit}`;
+          }
+        });
+
         const locationBalancesSection = document.querySelector('[data-location-balances]');
         if (locationBalancesSection && payload.item.location_balances_html) {
           locationBalancesSection.outerHTML = payload.item.location_balances_html;

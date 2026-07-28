@@ -9,6 +9,7 @@ function workflow_document_stage_label(string $stage): string
         'signoff' => 'Signature sheet',
         'receipt_report' => 'Receipt proof',
         'closeout_report' => 'Closeout proof',
+        'custody_damage_return' => 'Custody damage proof',
         'approval' => 'Approval proof',
         'general' => 'General proof',
     ];

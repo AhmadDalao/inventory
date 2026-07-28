@@ -19,13 +19,27 @@ function handle_handovers_create_submit(): void
     $user = Auth::user();
     $isStaffRequest = Auth::isStaff();
     [$lines, $lineErrors] = parse_workflow_lines();
-    $recipientType = $isStaffRequest ? 'staff' : (in_array((string) input('recipient_type', 'staff'), ['staff', 'storage'], true) ? (string) input('recipient_type', 'staff') : 'staff');
-    $isStorageTransfer = $recipientType === 'storage';
-    $usageReportingMode = $isStorageTransfer ? 'legacy_per_item' : 'operational_summary';
+    $legacyRecipientType = in_array((string) input('recipient_type', 'staff'), ['staff', 'storage'], true)
+        ? (string) input('recipient_type', 'staff')
+        : 'staff';
+    $requestedPurpose = (string) input('handover_purpose', $legacyRecipientType === 'storage' ? 'storage_transfer' : 'temporary_use');
+    $handoverPurpose = $isStaffRequest || !in_array($requestedPurpose, ['temporary_use', 'staff_custody', 'storage_transfer'], true)
+        ? 'temporary_use'
+        : $requestedPurpose;
+    $isStorageTransfer = $handoverPurpose === 'storage_transfer';
+    $isStaffCustody = $handoverPurpose === 'staff_custody';
+    $recipientType = $isStorageTransfer ? 'storage' : 'staff';
+    $usageReportingMode = $handoverPurpose === 'temporary_use' ? 'operational_summary' : 'legacy_per_item';
+    $issueCondition = in_array((string) input('issue_condition', 'good'), array_keys(handover_issue_condition_options()), true)
+        ? (string) input('issue_condition', 'good')
+        : 'good';
     $payload = [
         'source_storage_id' => normalize_entity_id(input('source_storage_id')),
         'destination_storage_id' => $isStorageTransfer ? normalize_entity_id(input('destination_storage_id')) : null,
         'recipient_type' => $recipientType,
+        'handover_purpose' => $handoverPurpose,
+        'issue_condition' => $issueCondition,
+        'custody_review_date' => $isStaffCustody ? normalize_workflow_date(trim((string) input('custody_review_date'))) : '',
         'request_owner_user_id' => normalize_entity_id(input('request_owner_user_id')),
         'recipient_name' => $isStaffRequest ? trim((string) ($user['name'] ?? '')) : trim((string) input('recipient_name')),
         'recipient_user_id' => $isStaffRequest ? (int) ($user['id'] ?? 0) : normalize_entity_id(input('recipient_user_id')),
@@ -37,6 +51,9 @@ function handle_handovers_create_submit(): void
         'source_storage_id' => (string) ($payload['source_storage_id'] ?? ''),
         'destination_storage_id' => (string) ($payload['destination_storage_id'] ?? ''),
         'recipient_type' => $payload['recipient_type'],
+        'handover_purpose' => $payload['handover_purpose'],
+        'issue_condition' => $payload['issue_condition'],
+        'custody_review_date' => $payload['custody_review_date'],
         'request_owner_user_id' => (string) ($payload['request_owner_user_id'] ?? ''),
         'recipient_name' => $payload['recipient_name'],
         'recipient_user_id' => (string) ($payload['recipient_user_id'] ?? ''),
@@ -58,6 +75,14 @@ function handle_handovers_create_submit(): void
 
     if (!$isStorageTransfer && $payload['recipient_name'] === '' && !$payload['recipient_user_id']) {
         $errors[] = 'Enter a recipient name or choose a user.';
+    }
+
+    if ($isStaffCustody && !$payload['recipient_user_id']) {
+        $errors[] = 'Long-term custody must be assigned to a staff account.';
+    }
+
+    if ($isStaffCustody && $payload['custody_review_date'] === '') {
+        $errors[] = 'Set the expected custody review or return date.';
     }
 
     $sourceOwner = $payload['source_storage_id'] ? storage_owner_record((int) $payload['source_storage_id']) : null;
@@ -167,6 +192,9 @@ function handle_handovers_create_submit(): void
                 recipient_name,
                 recipient_user_id,
                 recipient_type,
+                handover_purpose,
+                issue_condition,
+                custody_review_date,
                 usage_reporting_mode,
                 handover_mode,
                 status,
@@ -194,6 +222,9 @@ function handle_handovers_create_submit(): void
                 :recipient_name,
                 :recipient_user_id,
                 :recipient_type,
+                :handover_purpose,
+                :issue_condition,
+                :custody_review_date,
                 :usage_reporting_mode,
                 :handover_mode,
                 :status,
@@ -222,6 +253,9 @@ function handle_handovers_create_submit(): void
                 'recipient_name' => $payload['recipient_name'],
                 'recipient_user_id' => $payload['recipient_user_id'],
                 'recipient_type' => $payload['recipient_type'],
+                'handover_purpose' => $payload['handover_purpose'],
+                'issue_condition' => $payload['issue_condition'],
+                'custody_review_date' => $payload['custody_review_date'] !== '' ? $payload['custody_review_date'] : null,
                 'usage_reporting_mode' => $usageReportingMode,
                 'handover_mode' => $isStaffRequest ? 'request' : 'direct',
                 'status' => $initialStatus,
@@ -330,9 +364,11 @@ function handle_handovers_create_submit(): void
     } elseif ($payload['recipient_user_id']) {
         create_notification(
             (int) $payload['recipient_user_id'],
-            'handover_created',
-            'New handover ' . $handoverNumber,
-            'Confirm the actual received quantity before you start using these items.',
+            $isStaffCustody ? 'handover_custody_created' : 'handover_created',
+            ($isStaffCustody ? 'New long-term custody ' : 'New handover ') . $handoverNumber,
+            $isStaffCustody
+                ? 'Confirm what you received. These items stay assigned to you until approved return events are completed.'
+                : 'Confirm the actual received quantity before you start using these items.',
             url('/handovers/' . $handoverId),
             'handover',
             $handoverId,
@@ -341,6 +377,13 @@ function handle_handovers_create_submit(): void
     }
 
     consume_old_input();
-    flash('success', $isStaffRequest ? 'Handover request created.' : ($isStorageTransfer ? 'Storage transfer handover created.' : 'Handover created.'));
+    flash(
+        'success',
+        $isStaffRequest
+            ? 'Handover request created.'
+            : ($isStorageTransfer
+                ? 'Storage transfer handover created.'
+                : ($isStaffCustody ? 'Long-term staff custody created.' : 'Handover created.'))
+    );
     redirect('/handovers/' . $handoverId);
 }

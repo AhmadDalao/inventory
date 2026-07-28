@@ -56,7 +56,15 @@ function handle_handovers_create_page(): void
     $selectedDestinationStorageId = normalize_entity_id(old('destination_storage_id', ''));
     $selectedRecipientUserId = normalize_entity_id(old('recipient_user_id', ''));
     $selectedRequestOwnerId = normalize_entity_id(old('request_owner_user_id', ''));
-    $selectedRecipientType = Auth::isStaff() ? 'staff' : (in_array((string) old('recipient_type', 'staff'), ['staff', 'storage'], true) ? (string) old('recipient_type', 'staff') : 'staff');
+    $legacyRecipientType = in_array((string) old('recipient_type', 'staff'), ['staff', 'storage'], true)
+        ? (string) old('recipient_type', 'staff')
+        : 'staff';
+    $selectedPurpose = Auth::isStaff()
+        ? 'temporary_use'
+        : (in_array((string) old('handover_purpose', $legacyRecipientType === 'storage' ? 'storage_transfer' : 'temporary_use'), ['temporary_use', 'staff_custody', 'storage_transfer'], true)
+            ? (string) old('handover_purpose', $legacyRecipientType === 'storage' ? 'storage_transfer' : 'temporary_use')
+            : 'temporary_use');
+    $selectedRecipientType = $selectedPurpose === 'storage_transfer' ? 'storage' : 'staff';
     $lockedRequestOwner = Auth::isStaff() ? handover_request_assigned_owner($currentUser) : null;
     $sourceStorages = Auth::isStaff()
         ? handover_request_source_storages_for_staff($currentUser, $selectedSourceStorageId, $selectedRequestOwnerId)
@@ -68,6 +76,9 @@ function handle_handovers_create_page(): void
             'source_storage_id' => old('source_storage_id', ''),
             'destination_storage_id' => old('destination_storage_id', ''),
             'recipient_type' => $selectedRecipientType,
+            'handover_purpose' => $selectedPurpose,
+            'issue_condition' => old('issue_condition', 'good'),
+            'custody_review_date' => old('custody_review_date', ''),
             'request_owner_user_id' => old('request_owner_user_id', $lockedRequestOwner ? (string) $lockedRequestOwner['id'] : ''),
             'recipient_name' => Auth::isStaff() ? (string) ($currentUser['name'] ?? '') : old('recipient_name', ''),
             'recipient_user_id' => Auth::isStaff() ? (string) ($currentUser['id'] ?? '') : old('recipient_user_id', ''),
@@ -81,6 +92,7 @@ function handle_handovers_create_page(): void
         'ownerCandidates' => Auth::isStaff() && !$lockedRequestOwner ? handover_request_owner_candidates_for_select($selectedRequestOwnerId) : [],
         'lockedRequestOwner' => $lockedRequestOwner,
         'isStaffRequest' => Auth::isStaff(),
+        'issueConditionOptions' => handover_issue_condition_options(),
         'storageCatalogJson' => json_encode(
             workflow_storage_item_catalog(array_column($sourceStorages, 'id')),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
@@ -122,6 +134,16 @@ function handle_handovers_show(array $params): void
         ['id' => (int) $handover['source_storage_id']]
     );
     $lineEditBlockReason = handover_line_edit_block_reason($handover, $user);
+    $isStaffCustody = handover_is_staff_custody($handover);
+    $custodyReturns = $isStaffCustody ? handover_custody_returns((int) $handover['id']) : [];
+    $pendingCustodyReturn = null;
+
+    foreach ($custodyReturns as $custodyReturn) {
+        if (in_array((string) ($custodyReturn['status'] ?? ''), ['draft', 'submitted', 'rejected'], true)) {
+            $pendingCustodyReturn = $custodyReturn;
+            break;
+        }
+    }
 
     View::render('handovers/show', [
         'title' => $handover['handover_number'],
@@ -131,6 +153,12 @@ function handle_handovers_show(array $params): void
         'documents' => workflow_documents('handover', (int) $handover['id']),
         'canEditHandoverLines' => $lineEditBlockReason === null,
         'lineEditBlockReason' => $lineEditBlockReason,
+        'custodyReturns' => $custodyReturns,
+        'custodyTotals' => $isStaffCustody ? handover_custody_totals($handover, $lines) : [],
+        'custodyLineTotals' => $isStaffCustody ? handover_custody_line_totals((int) $handover['id']) : [],
+        'pendingCustodyReturn' => $pendingCustodyReturn,
+        'canReportCustodyReturn' => $isStaffCustody && handover_custody_can_report_return($handover, $user),
+        'canReviewCustodyReturn' => $isStaffCustody && handover_custody_can_review_return($handover, $user),
         'sourceStorages' => $sourceStorage ? [$sourceStorage] : [],
         'storageCatalogJson' => json_encode(
             workflow_storage_item_catalog($sourceStorage ? [(int) $sourceStorage['id']] : []),

@@ -811,6 +811,22 @@ function cleanup_prefix_data(string $prefix): void
 
     if ($handoverIds !== []) {
         $documents = Database::fetchAll('SELECT stored_filename FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id IN (' . implode(',', $handoverIds) . ')');
+        $custodyReturnRows = Database::fetchAll(
+            'SELECT id
+             FROM handover_custody_returns
+             WHERE handover_id IN (' . implode(',', $handoverIds) . ')'
+        );
+        $custodyReturnIds = array_map(static fn (array $row): int => (int) $row['id'], $custodyReturnRows);
+        $custodyReturnLineIds = [];
+
+        if ($custodyReturnIds !== []) {
+            $custodyReturnLineRows = Database::fetchAll(
+                'SELECT id
+                 FROM handover_custody_return_lines
+                 WHERE custody_return_id IN (' . implode(',', $custodyReturnIds) . ')'
+            );
+            $custodyReturnLineIds = array_map(static fn (array $row): int => (int) $row['id'], $custodyReturnLineRows);
+        }
 
         foreach ($documents as $document) {
             delete_workflow_document_file((string) $document['stored_filename']);
@@ -820,6 +836,14 @@ function cleanup_prefix_data(string $prefix): void
         Database::execute('DELETE FROM activity_logs WHERE entity_type = "handover" AND entity_id IN (' . implode(',', $handoverIds) . ')');
         Database::execute('DELETE FROM file_assets WHERE context_type = "handover" AND context_id IN (' . implode(',', $handoverIds) . ')');
         Database::execute('DELETE FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id IN (' . implode(',', $handoverIds) . ')');
+        if ($custodyReturnLineIds !== []) {
+            Database::execute('DELETE FROM handover_quarantine_dispositions WHERE custody_return_line_id IN (' . implode(',', $custodyReturnLineIds) . ')');
+            Database::execute('DELETE FROM handover_custody_return_proofs WHERE custody_return_line_id IN (' . implode(',', $custodyReturnLineIds) . ')');
+        }
+        if ($custodyReturnIds !== []) {
+            Database::execute('DELETE FROM handover_custody_return_lines WHERE custody_return_id IN (' . implode(',', $custodyReturnIds) . ')');
+            Database::execute('DELETE FROM handover_custody_returns WHERE id IN (' . implode(',', $custodyReturnIds) . ')');
+        }
         Database::execute('DELETE FROM handover_lines WHERE handover_id IN (' . implode(',', $handoverIds) . ')');
         Database::execute('DELETE FROM handovers WHERE id IN (' . implode(',', $handoverIds) . ')');
     }
@@ -3484,6 +3508,246 @@ assert_true((string) $storageTransferShortClosed['status'] === 'closed', 'Short 
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']) === round($storageTransferShortSourceBefore - 5, 2), 'Short storage-transfer source balance should only lose the received quantity after shortage approval.');
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']) === round($storageTransferShortDestinationBefore + 5, 2), 'Short storage-transfer destination balance should gain only the confirmed received quantity.');
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], system_storage_id('handover_buffer')) === $storageTransferShortBufferBefore, 'Short storage-transfer buffer should be empty after source approval.');
+
+note('Running the long-term staff custody, partial return, damage proof, replacement, and quarantine cycle.');
+$custodyItem = create_item_record(
+    $prefix . ' Long-Term Custody Item',
+    $prefix . '-CUSTODY',
+    (int) $handoverSource['id'],
+    25,
+    8.50,
+    (int) $owner['id']
+);
+$custodySourceBefore = balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']);
+$custodyBufferId = system_storage_id('handover_buffer');
+$custodyQuarantineId = system_storage_id('damaged_quarantine');
+$custodyBufferBefore = balance_quantity((int) $custodyItem['id'], $custodyBufferId);
+$custodyQuarantineBefore = balance_quantity((int) $custodyItem['id'], $custodyQuarantineId);
+$custodyCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+assert_true($custodyCreatePage['status'] === 200, 'Custody handover create page did not load.');
+assert_true(strpos($custodyCreatePage['body'], 'Long-Term Staff Custody') !== false, 'Custody purpose is missing from the handover create page.');
+$custodyCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($custodyCreatePage['body'], 'custody handover create'),
+    'handover_purpose' => 'staff_custody',
+    'source_storage_id' => $handoverSource['id'],
+    'recipient_name' => $staff['name'],
+    'recipient_user_id' => $staff['id'],
+    'issue_condition' => 'good',
+    'custody_review_date' => date('Y-m-d', strtotime('+60 days')),
+    'scheduled_for_date' => date('Y-m-d'),
+    'notes' => $prefix . ' long-term custody workflow',
+    'line_item_id' => [(int) $custodyItem['id']],
+    'line_quantity' => ['10'],
+]);
+assert_true($custodyCreate['status'] === 302, 'Custody handover create did not redirect.');
+$custodyHandoverId = first_redirect_id($custodyCreate['location'], '/handovers');
+$custodyHandover = find_handover_or_abort($custodyHandoverId);
+$custodyLines = handover_lines($custodyHandoverId);
+assert_true((string) $custodyHandover['handover_purpose'] === 'staff_custody', 'Custody handover purpose was not saved.');
+assert_true((string) $custodyHandover['status'] === 'awaiting_receipt', 'Custody handover should await recipient confirmation.');
+assert_true((string) $custodyHandover['issue_condition'] === 'good', 'Custody issue condition was not saved.');
+assert_true((string) $custodyHandover['custody_review_date'] === date('Y-m-d', strtotime('+60 days')), 'Custody review date was not saved.');
+assert_true(count($custodyLines) === 1, 'Custody handover should have one line.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 10, 2), 'Custody issue did not reserve source stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === round($custodyBufferBefore + 10, 2), 'Custody issue did not move stock into the handover buffer.');
+
+$custodyStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId);
+assert_true($custodyStaffPage['status'] === 200, 'Custody handover did not load for its recipient.');
+$custodyReceive = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/receive', [
+    '_token' => extract_csrf($custodyStaffPage['body'], 'custody receipt confirmation'),
+    'receipt_notes' => $prefix . ' custody receipt confirmed',
+    'line_received' => [
+        (int) $custodyLines[0]['id'] => '10',
+    ],
+]);
+assert_true($custodyReceive['status'] === 302, 'Custody receipt confirmation did not redirect.');
+$custodyDelivered = find_handover_or_abort($custodyHandoverId);
+assert_true((string) $custodyDelivered['status'] === 'delivered', 'Exact custody receipt should become delivered immediately.');
+assert_true(handover_line_held_quantity(handover_lines($custodyHandoverId)[0]) === 10.0, 'Custody held quantity is wrong after receipt.');
+
+$unrelatedCustodyPage = http_request($baseUrl, $lockedStaffCookie, 'GET', '/handovers/' . $custodyHandoverId);
+assert_true($unrelatedCustodyPage['status'] === 404, 'Staff must not see another employee custody record.');
+$unrelatedCustodyDashboard = http_request($baseUrl, $lockedStaffCookie, 'GET', '/dashboard');
+assert_true($unrelatedCustodyDashboard['status'] === 200, 'Unrelated staff dashboard did not load for custody authorization test.');
+$unrelatedCustodyReturn = http_request($baseUrl, $lockedStaffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns', [
+    '_token' => extract_csrf($unrelatedCustodyDashboard['body'], 'unrelated custody return attempt'),
+]);
+assert_true($unrelatedCustodyReturn['status'] === 404, 'Staff must not create returns for another employee custody record.');
+
+$custodyReturnCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId);
+$custodyReturnCreate = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns', [
+    '_token' => extract_csrf($custodyReturnCreatePage['body'], 'custody return draft'),
+]);
+assert_true($custodyReturnCreate['status'] === 302, 'Custody return draft did not redirect.');
+$custodyReturnId = (int) Database::scalar(
+    'SELECT id FROM handover_custody_returns WHERE handover_id = :handover_id ORDER BY id DESC LIMIT 1',
+    ['handover_id' => $custodyHandoverId]
+);
+$custodyReturnLineId = (int) Database::scalar(
+    'SELECT id FROM handover_custody_return_lines WHERE custody_return_id = :return_id ORDER BY id ASC LIMIT 1',
+    ['return_id' => $custodyReturnId]
+);
+assert_true($custodyReturnId > 0 && $custodyReturnLineId > 0, 'Custody return draft or line was not created.');
+
+$custodyReturnPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+assert_true($custodyReturnPage['status'] === 200, 'Custody return page did not load.');
+$custodyMissingProof = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId . '/submit', [
+    '_token' => extract_csrf($custodyReturnPage['body'], 'custody missing proof validation'),
+    'return_date' => date('Y-m-d'),
+    'notes' => $prefix . ' missing damage proof',
+    'serviceable_quantity' => [$custodyReturnLineId => '2'],
+    'damaged_quantity' => [$custodyReturnLineId => '1'],
+    'consumed_quantity' => [$custodyReturnLineId => '0'],
+    'lost_quantity' => [$custodyReturnLineId => '0'],
+    'line_notes' => [$custodyReturnLineId => 'Damaged during normal cleaning use.'],
+]);
+assert_true($custodyMissingProof['status'] === 302, 'Damaged custody return without proof should redirect back.');
+$custodyMissingProofPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+assert_true(strpos($custodyMissingProofPage['body'], 'add a proof image for damaged stock') !== false, 'Damaged custody return did not require proof evidence.');
+assert_true((string) Database::scalar('SELECT status FROM handover_custody_returns WHERE id = :id', ['id' => $custodyReturnId]) === 'draft', 'Missing damage proof should leave the return in draft.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 10, 2), 'Failed custody return validation changed source stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === round($custodyBufferBefore + 10, 2), 'Failed custody return validation changed held stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyQuarantineId) === $custodyQuarantineBefore, 'Failed custody return validation changed quarantine stock.');
+
+$custodyDamageProof = create_temp_png($prefix . ' custody damage proof');
+$custodyValidPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+$custodyValidSubmit = http_multipart_request(
+    $baseUrl,
+    $staffCookie,
+    '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId . '/submit',
+    [
+        '_token' => extract_csrf($custodyValidPage['body'], 'custody return proof upload'),
+        'return_date' => date('Y-m-d'),
+        'notes' => $prefix . ' partial custody return',
+        'serviceable_quantity[' . $custodyReturnLineId . ']' => '2',
+        'damaged_quantity[' . $custodyReturnLineId . ']' => '1',
+        'consumed_quantity[' . $custodyReturnLineId . ']' => '0',
+        'lost_quantity[' . $custodyReturnLineId . ']' => '0',
+        'line_notes[' . $custodyReturnLineId . ']' => 'Damaged during normal cleaning use.',
+    ],
+    ['damage_proof[' . $custodyReturnLineId . ']' => $custodyDamageProof]
+);
+assert_true($custodyValidSubmit['status'] === 302, 'Custody return with damage proof did not redirect.');
+assert_true((string) Database::scalar('SELECT status FROM handover_custody_returns WHERE id = :id', ['id' => $custodyReturnId]) === 'submitted', 'Custody return did not enter issuer review.');
+assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_custody_return_proofs WHERE custody_return_line_id = :line_id', ['line_id' => $custodyReturnLineId]) === 1, 'Custody damage proof was not stored.');
+
+$custodyReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+assert_true($custodyReviewPage['status'] === 200 && strpos($custodyReviewPage['body'], 'Approve Stock Outcomes') !== false, 'Issuer custody review controls did not load.');
+$custodyReject = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId . '/reject', [
+    '_token' => extract_csrf($custodyReviewPage['body'], 'custody return rejection'),
+    'rejection_notes' => $prefix . ' verify the damaged quantity',
+]);
+assert_true($custodyReject['status'] === 302, 'Custody return rejection did not redirect.');
+assert_true((string) Database::scalar('SELECT status FROM handover_custody_returns WHERE id = :id', ['id' => $custodyReturnId]) === 'rejected', 'Rejected custody return status is wrong.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 10, 2), 'Rejecting a custody return changed source stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === round($custodyBufferBefore + 10, 2), 'Rejecting a custody return changed held stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyQuarantineId) === $custodyQuarantineBefore, 'Rejecting a custody return changed quarantine stock.');
+
+$custodyCorrectionPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+$custodyCorrectionSubmit = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId . '/submit', [
+    '_token' => extract_csrf($custodyCorrectionPage['body'], 'custody return correction'),
+    'return_date' => date('Y-m-d'),
+    'notes' => $prefix . ' corrected partial custody return',
+    'serviceable_quantity' => [$custodyReturnLineId => '2'],
+    'damaged_quantity' => [$custodyReturnLineId => '1'],
+    'consumed_quantity' => [$custodyReturnLineId => '0'],
+    'lost_quantity' => [$custodyReturnLineId => '0'],
+    'line_notes' => [$custodyReturnLineId => 'Damage quantity verified against the stored photograph.'],
+]);
+assert_true($custodyCorrectionSubmit['status'] === 302, 'Corrected custody return did not redirect.');
+assert_true((string) Database::scalar('SELECT status FROM handover_custody_returns WHERE id = :id', ['id' => $custodyReturnId]) === 'submitted', 'Corrected custody return did not return to issuer review.');
+
+$custodyApprovalPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+$custodyApprove = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId . '/approve', [
+    '_token' => extract_csrf($custodyApprovalPage['body'], 'custody partial return approval'),
+    'review_notes' => $prefix . ' partial return approved',
+]);
+assert_true($custodyApprove['status'] === 302, 'Custody partial return approval did not redirect.');
+$custodyAfterPartial = find_handover_or_abort($custodyHandoverId);
+assert_true((string) $custodyAfterPartial['status'] === 'delivered', 'Partially returned custody must remain active.');
+assert_true(handover_line_held_quantity(handover_lines($custodyHandoverId)[0]) === 7.0, 'Custody partial return should leave seven units held.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 8, 2), 'Serviceable custody return did not restore source stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === round($custodyBufferBefore + 7, 2), 'Custody buffer does not match the quantity still held.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyQuarantineId) === round($custodyQuarantineBefore + 1, 2), 'Damaged custody return did not enter quarantine.');
+
+$custodyReplacementPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId);
+$custodyReplacementCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyReturnId . '/replacement', [
+    '_token' => extract_csrf($custodyReplacementPage['body'], 'custody replacement request'),
+]);
+assert_true($custodyReplacementCreate['status'] === 302, 'Custody replacement request did not redirect.');
+$custodyReplacementId = (int) Database::scalar('SELECT replacement_handover_id FROM handover_custody_returns WHERE id = :id', ['id' => $custodyReturnId]);
+$custodyReplacement = find_handover_or_abort($custodyReplacementId);
+$custodyReplacementLines = handover_lines($custodyReplacementId);
+assert_true((string) $custodyReplacement['handover_purpose'] === 'staff_custody', 'Replacement request should preserve long-term custody purpose.');
+assert_true((string) $custodyReplacement['status'] === 'requested', 'Replacement request should require normal approval.');
+assert_true(count($custodyReplacementLines) === 1 && (float) $custodyReplacementLines[0]['quantity_handed'] === 1.0, 'Replacement request quantity should match damaged plus lost stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 8, 2), 'Creating a replacement request issued stock automatically.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === round($custodyBufferBefore + 7, 2), 'Creating a replacement request changed held stock.');
+
+$custodyFinalDraftPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId);
+$custodyFinalDraftCreate = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns', [
+    '_token' => extract_csrf($custodyFinalDraftPage['body'], 'final custody return draft'),
+]);
+assert_true($custodyFinalDraftCreate['status'] === 302, 'Final custody return draft did not redirect.');
+$custodyFinalReturnId = (int) Database::scalar(
+    'SELECT id FROM handover_custody_returns WHERE handover_id = :handover_id ORDER BY id DESC LIMIT 1',
+    ['handover_id' => $custodyHandoverId]
+);
+$custodyFinalLineId = (int) Database::scalar(
+    'SELECT id FROM handover_custody_return_lines WHERE custody_return_id = :return_id ORDER BY id ASC LIMIT 1',
+    ['return_id' => $custodyFinalReturnId]
+);
+$custodyFinalPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId);
+$custodyFinalSubmit = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId . '/submit', [
+    '_token' => extract_csrf($custodyFinalPage['body'], 'final custody return submission'),
+    'return_date' => date('Y-m-d'),
+    'notes' => $prefix . ' final custody return',
+    'serviceable_quantity' => [$custodyFinalLineId => '4'],
+    'damaged_quantity' => [$custodyFinalLineId => '0'],
+    'consumed_quantity' => [$custodyFinalLineId => '1'],
+    'lost_quantity' => [$custodyFinalLineId => '2'],
+    'line_notes' => [$custodyFinalLineId => 'Two units could not be recovered after the work period.'],
+]);
+assert_true($custodyFinalSubmit['status'] === 302, 'Final custody return submission did not redirect.');
+$custodyFinalReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId);
+$custodyFinalApprove = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId . '/approve', [
+    '_token' => extract_csrf($custodyFinalReviewPage['body'], 'final custody return approval'),
+    'review_notes' => $prefix . ' final custody return approved',
+]);
+assert_true($custodyFinalApprove['status'] === 302, 'Final custody return approval did not redirect.');
+$custodyClosed = find_handover_or_abort($custodyHandoverId);
+assert_true((string) $custodyClosed['status'] === 'closed', 'Custody handover should close only after all held stock is resolved.');
+assert_true(handover_line_held_quantity(handover_lines($custodyHandoverId)[0]) === 0.0, 'Closed custody handover still reports held stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 4, 2), 'Final serviceable returns produced the wrong source balance.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === $custodyBufferBefore, 'Custody buffer should return to its initial balance after final approval.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyQuarantineId) === round($custodyQuarantineBefore + 1, 2), 'Quarantine balance changed unexpectedly during final return.');
+
+$custodyReport = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/custody');
+assert_true($custodyReport['status'] === 200 && strpos($custodyReport['body'], (string) $custodyClosed['handover_number']) !== false, 'Custody report is missing the tested handover.');
+$custodyExport = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/custody/export');
+assert_true($custodyExport['status'] === 200 && strpos($custodyExport['body'], (string) $custodyClosed['handover_number']) !== false, 'Custody export is missing the tested handover.');
+$custodyQuarantinePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/custody/quarantine');
+assert_true($custodyQuarantinePage['status'] === 200 && strpos($custodyQuarantinePage['body'], (string) $custodyItem['name']) !== false, 'Quarantine page is missing approved damaged stock.');
+
+$custodyReturnToService = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/custody/quarantine/' . $custodyReturnLineId . '/return-to-service', [
+    '_token' => extract_csrf($custodyQuarantinePage['body'], 'custody return to service'),
+    'destination_storage_id' => $handoverSource['id'],
+    'quantity' => '0.4',
+    'reason' => $prefix . ' repaired and inspected',
+]);
+assert_true($custodyReturnToService['status'] === 302, 'Returning quarantined stock to service did not redirect.');
+$custodyQuarantineAfterRepair = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/custody/quarantine');
+$custodyDispose = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/custody/quarantine/' . $custodyReturnLineId . '/dispose', [
+    '_token' => extract_csrf($custodyQuarantineAfterRepair['body'], 'custody quarantine disposal'),
+    'quantity' => '0.6',
+    'reason' => $prefix . ' beyond economical repair',
+]);
+assert_true($custodyDispose['status'] === 302, 'Disposing quarantined stock did not redirect.');
+assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 3.6, 2), 'Return-to-service quantity did not restore active source stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === $custodyBufferBefore, 'Quarantine disposition changed custody buffer stock.');
+assert_true(balance_quantity((int) $custodyItem['id'], $custodyQuarantineId) === $custodyQuarantineBefore, 'Quarantine stock should reconcile to its initial balance after repair and disposal.');
+assert_true((float) Database::scalar('SELECT COALESCE(SUM(quantity), 0) FROM handover_quarantine_dispositions WHERE custody_return_line_id = :line_id', ['line_id' => $custodyReturnLineId]) === 1.0, 'Quarantine disposition history does not reconcile to the damaged quantity.');
+assert_stock_invariants('after long-term staff custody cycle', $prefix);
 
 note('Cancelling a requester-owned item request without a reason.');
 $requestCancelCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/requests/create');

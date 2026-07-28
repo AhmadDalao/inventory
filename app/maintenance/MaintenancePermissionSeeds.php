@@ -308,4 +308,52 @@ trait MaintenancePermissionSeeds
 
         self::setMaintenanceSetting($settingKey, (string) (count($rows) * count($permissions)));
     }
+
+    private static function seedHandoverCustodyPermissions(): void
+    {
+        $settingKey = 'maintenance.seed_handover_custody_permissions_v1';
+
+        if (self::maintenanceSettingExists($settingKey)) {
+            return;
+        }
+
+        $staffRows = Database::fetchAll(
+            'SELECT DISTINCT u.id
+             FROM users u
+             INNER JOIN user_permissions existing_permission
+                ON existing_permission.user_id = u.id
+               AND existing_permission.permission_key = "handovers.close"
+             WHERE u.is_active = 1
+               AND u.role = "staff"'
+        );
+        $approverRows = Database::fetchAll(
+            'SELECT DISTINCT u.id
+             FROM users u
+             INNER JOIN user_permissions existing_permission
+                ON existing_permission.user_id = u.id
+               AND existing_permission.permission_key = "handovers.approve"
+             WHERE u.is_active = 1
+               AND u.role = "admin"'
+        );
+
+        foreach ($staffRows as $row) {
+            Database::execute(
+                'INSERT INTO user_permissions (user_id, permission_key, created_by, created_at)
+                 VALUES (:user_id, "handovers.custody_return", NULL, NOW())
+                 ON DUPLICATE KEY UPDATE permission_key = VALUES(permission_key)',
+                ['user_id' => (int) $row['id']]
+            );
+        }
+
+        foreach ($approverRows as $row) {
+            Database::execute(
+                'INSERT INTO user_permissions (user_id, permission_key, created_by, created_at)
+                 VALUES (:user_id, "handovers.custody_approve", NULL, NOW())
+                 ON DUPLICATE KEY UPDATE permission_key = VALUES(permission_key)',
+                ['user_id' => (int) $row['id']]
+            );
+        }
+
+        self::setMaintenanceSetting($settingKey, (string) (count($staffRows) + count($approverRows)));
+    }
 }

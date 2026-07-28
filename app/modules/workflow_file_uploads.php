@@ -106,7 +106,7 @@ function store_workflow_pdf_document(string $pdfBytes, string $workflowType, str
 {
     ensure_directory_exists(workflow_upload_directory());
 
-    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-img-v14') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.pdf';
+    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-img-v15') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.pdf';
     $destination = workflow_upload_directory() . '/' . $filename;
 
     if (file_put_contents($destination, $pdfBytes) === false) {
@@ -125,7 +125,7 @@ function store_workflow_excel_document(string $sheetBytes, string $workflowType,
 {
     ensure_directory_exists(workflow_upload_directory());
 
-    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-sheet-img-v14') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.xlsx';
+    $filename = date('YmdHis') . '-' . slugify_filename($workflowType . '-' . $workflowNumber . '-' . $stage . '-signoff-sheet-img-v15') . '-' . substr(bin2hex(random_bytes(5)), 0, 10) . '.xlsx';
     $destination = workflow_upload_directory() . '/' . $filename;
 
     if (file_put_contents($destination, $sheetBytes) === false) {

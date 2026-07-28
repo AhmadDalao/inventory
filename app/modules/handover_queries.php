@@ -91,13 +91,16 @@ function handover_destination_storages_for_select(?int $selectedId = null): arra
 
 function handover_is_storage_transfer(array $handover): bool
 {
-    return (string) ($handover['recipient_type'] ?? 'staff') === 'storage'
-        || !empty($handover['destination_storage_id']);
+    return handover_purpose_value($handover) === 'storage_transfer';
 }
 
 function handover_target_type_label(array $handover): string
 {
-    return handover_is_storage_transfer($handover) ? 'Storage transfer' : 'Staff use';
+    return match (handover_purpose_value($handover)) {
+        'staff_custody' => 'Long-term staff custody',
+        'storage_transfer' => 'Storage transfer',
+        default => 'Temporary staff use',
+    };
 }
 
 function handover_filters(): array
@@ -108,7 +111,7 @@ function handover_filters(): array
     return [
         'search' => trim((string) query('search', '')),
         'status' => in_array($status, ['open', 'requested', 'awaiting_receipt', 'receipt_review', 'delivered', 'pending_approval', 'closed', 'rejected', 'cancelled', 'all'], true) ? $status : 'all',
-        'target_type' => in_array($targetType, ['all', 'staff', 'storage'], true) ? $targetType : 'all',
+        'target_type' => in_array($targetType, ['all', 'staff', 'temporary', 'custody', 'storage'], true) ? $targetType : 'all',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
         'date_from' => normalize_workflow_date((string) query('date_from', '')),
         'date_to' => normalize_workflow_date((string) query('date_to', '')),
@@ -128,9 +131,13 @@ function build_handover_where(array $filters, string $alias = 'h'): array
     }
 
     if (($filters['target_type'] ?? 'all') === 'storage') {
-        $conditions[] = "(COALESCE({$alias}.recipient_type, 'staff') = 'storage' OR {$alias}.destination_storage_id IS NOT NULL)";
+        $conditions[] = "COALESCE({$alias}.handover_purpose, 'temporary_use') = 'storage_transfer'";
+    } elseif (($filters['target_type'] ?? 'all') === 'custody') {
+        $conditions[] = "COALESCE({$alias}.handover_purpose, 'temporary_use') = 'staff_custody'";
+    } elseif (($filters['target_type'] ?? 'all') === 'temporary') {
+        $conditions[] = "COALESCE({$alias}.handover_purpose, 'temporary_use') = 'temporary_use'";
     } elseif (($filters['target_type'] ?? 'all') === 'staff') {
-        $conditions[] = "(COALESCE({$alias}.recipient_type, 'staff') = 'staff' AND {$alias}.destination_storage_id IS NULL)";
+        $conditions[] = "COALESCE({$alias}.handover_purpose, 'temporary_use') IN ('temporary_use', 'staff_custody')";
     }
 
     if (!empty($filters['storage_id'])) {

@@ -256,8 +256,8 @@ flowchart LR
 | Direct movement | Authorized owner/admin | Same authorized action | Immediately after validation |
 | Staff request | Staff or admin | Source storage approver, then requester receipt | At the workflow's approved fulfillment points |
 | Staff handover | Issuer/storage owner | Receiver confirms receipt and reports return; issuer approves closeout | Reserved on issue; final use/return on issuer approval |
+| Long-term staff custody | Issuer/storage owner | Assigned employee submits partial returns; source issuer approves each event | Reserved on issue; approved serviceable/damaged/consumed/lost outcomes post per event |
 | Storage transfer handover | Source storage owner | Destination storage owner confirms receipt | Received quantity moves to destination; shortage returns to source |
 | Purchase | Creator/operations | Approver, receiver, then final approver | Only after final receipt confirmation |
 | Stocktake | Authorized counter | Approver | Only approved variance posts |
 | Asset custody | Asset administrator | Recipient confirms receipt or return | No consumable inventory impact |
-

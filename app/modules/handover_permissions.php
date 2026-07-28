@@ -109,9 +109,15 @@ function handover_cancel_block_reason(array $handover, ?array $user = null): ?st
     }
 
     if ($status === 'delivered') {
+        if (handover_is_staff_custody($handover) && handover_custody_has_pending_return((int) ($handover['id'] ?? 0))) {
+            return 'Review or reject the submitted custody return before cancelling this handover.';
+        }
+
         foreach (handover_lines((int) ($handover['id'] ?? 0)) as $line) {
             if (round((float) ($line['quantity_used'] ?? 0), 2) > 0 || round((float) ($line['quantity_returned'] ?? 0), 2) > 0) {
-                return 'This handover already has usage or return quantities. Submit the closeout for owner approval instead of cancelling.';
+                if (!handover_is_staff_custody($handover)) {
+                    return 'This handover already has usage or return quantities. Submit the closeout for owner approval instead of cancelling.';
+                }
             }
         }
     }
@@ -209,6 +215,10 @@ function handover_close_approval_block_reason(array $handover, ?array $user = nu
 
     if (handover_is_storage_transfer($handover)) {
         return 'Storage transfers close through receipt confirmation, not usage closeout.';
+    }
+
+    if (handover_is_staff_custody($handover)) {
+        return 'Long-term custody closes through approved custody return events, not temporary-use closeout.';
     }
 
     if ((string) ($handover['status'] ?? '') !== 'pending_approval') {

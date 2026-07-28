@@ -1,9 +1,12 @@
 <?php
 $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id' => '', 'quantity' => '']];
 $isStaffRequest = !empty($isStaffRequest);
-$recipientType = (string) ($handoverRecord['recipient_type'] ?? 'staff');
-$isStorageTransfer = !$isStaffRequest && $recipientType === 'storage';
+$handoverPurpose = (string) ($handoverRecord['handover_purpose'] ?? ((string) ($handoverRecord['recipient_type'] ?? 'staff') === 'storage' ? 'storage_transfer' : 'temporary_use'));
+$handoverPurpose = in_array($handoverPurpose, ['temporary_use', 'staff_custody', 'storage_transfer'], true) ? $handoverPurpose : 'temporary_use';
+$isStorageTransfer = !$isStaffRequest && $handoverPurpose === 'storage_transfer';
+$isStaffCustody = !$isStaffRequest && $handoverPurpose === 'staff_custody';
 $destinationStorages = is_array($destinationStorages ?? null) ? $destinationStorages : [];
+$issueConditionOptions = is_array($issueConditionOptions ?? null) ? $issueConditionOptions : handover_issue_condition_options();
 $usageReasonOptions = is_array($usageReasonOptions ?? null) ? $usageReasonOptions : handover_usage_reason_options();
 $workflowCatalogPreview = json_decode((string) ($storageCatalogJson ?? '{}'), true);
 $workflowCatalogItemsById = [];
@@ -64,19 +67,21 @@ $expectedRowsForIndex = static function (int $lineIndex) use ($oldExpectedUsage)
 
 $handoverCreateEyebrow = $isStaffRequest
     ? 'Temporary Use Request'
-    : ($isStorageTransfer ? 'Storage Transfer' : 'Temporary Issue');
+    : ($isStorageTransfer ? 'Storage Transfer' : ($isStaffCustody ? 'Long-Term Staff Custody' : 'Temporary Issue'));
 $handoverCreateTitle = $isStaffRequest
     ? 'Request Handover'
-    : ($isStorageTransfer ? 'Create Storage Transfer' : 'Create Handover');
+    : ($isStorageTransfer ? 'Create Storage Transfer' : ($isStaffCustody ? 'Create Staff Custody' : 'Create Handover'));
 $handoverNotesPlaceholder = $isStaffRequest
     ? 'Why these items are needed and where they will be used'
-    : ($isStorageTransfer ? 'Why this stock is moving to another storage' : 'Where this stock is going and why');
+    : ($isStorageTransfer
+        ? 'Why this stock is moving to another storage'
+        : ($isStaffCustody ? 'What these items are assigned for and any care instructions' : 'Where this stock is going and why'));
 $handoverLinesTitle = $isStaffRequest
     ? 'What You Need'
-    : ($isStorageTransfer ? 'What You Are Transferring' : 'What You Handed Over');
+    : ($isStorageTransfer ? 'What You Are Transferring' : ($isStaffCustody ? 'What Staff Will Hold' : 'What You Handed Over'));
 $handoverSubmitLabel = $isStaffRequest
     ? 'Send Handover Request'
-    : ($isStorageTransfer ? 'Create Storage Transfer' : 'Create Handover');
+    : ($isStorageTransfer ? 'Create Storage Transfer' : ($isStaffCustody ? 'Create Staff Custody' : 'Create Handover'));
 ?>
 
 <section class="page-head">
@@ -94,6 +99,7 @@ $handoverSubmitLabel = $isStaffRequest
         <?= csrf_field() ?>
 
         <?php if ($isStaffRequest): ?>
+            <input type="hidden" name="handover_purpose" value="temporary_use">
             <div class="copy-context-card">
                 <strong>Request a temporary handover</strong>
                 <p>Ask the storage owner for the items you will use later. Item results show the quantity currently available in the selected source storage. Once approved, the handover becomes active and you will confirm what you actually received.</p>
@@ -102,18 +108,25 @@ $handoverSubmitLabel = $isStaffRequest
 
         <?php if (!$isStaffRequest): ?>
             <section class="copy-context-card handover-target-switcher" data-handover-target-switcher>
-                <strong>Who receives this handover?</strong>
-                <p>Use staff mode for temporary usage. Use storage transfer when stock is moving from one storage owner to another storage.</p>
+                <strong>What is this handover for?</strong>
+                <p>Temporary use comes back after an event. Long-term custody stays assigned to staff until partial or final returns are approved. Storage transfer relocates stock.</p>
                 <div class="handover-target-options">
                     <label class="handover-target-option">
-                        <input type="radio" name="recipient_type" value="staff" data-handover-target-radio <?= $isStorageTransfer ? '' : 'checked' ?>>
+                        <input type="radio" name="handover_purpose" value="temporary_use" data-handover-target-radio <?= !$isStorageTransfer && !$isStaffCustody ? 'checked' : '' ?>>
                         <span>
-                            <strong>Hand to Staff</strong>
+                            <strong>Temporary Use</strong>
                             <small>Temporary use, then returned quantity and usage reasons are reported.</small>
                         </span>
                     </label>
                     <label class="handover-target-option">
-                        <input type="radio" name="recipient_type" value="storage" data-handover-target-radio <?= $isStorageTransfer ? 'checked' : '' ?>>
+                        <input type="radio" name="handover_purpose" value="staff_custody" data-handover-target-radio <?= $isStaffCustody ? 'checked' : '' ?>>
+                        <span>
+                            <strong>Long-Term Staff Custody</strong>
+                            <small>Items stay assigned for weeks or months and support partial, damaged, consumed, or lost returns.</small>
+                        </span>
+                    </label>
+                    <label class="handover-target-option">
+                        <input type="radio" name="handover_purpose" value="storage_transfer" data-handover-target-radio <?= $isStorageTransfer ? 'checked' : '' ?>>
                         <span>
                             <strong>Transfer to Storage Owner</strong>
                             <small>Destination owner confirms receipt. No usage closeout is shown.</small>
@@ -163,8 +176,8 @@ $handoverSubmitLabel = $isStaffRequest
             <?php if (!$isStaffRequest): ?>
                 <label class="field" data-handover-staff-fields <?= $isStorageTransfer ? 'hidden' : '' ?>>
                     <span>Staff Account</span>
-                    <select name="recipient_user_id" <?= $isStorageTransfer ? 'disabled' : '' ?>>
-                        <option value="">Optional linked staff</option>
+                    <select name="recipient_user_id" <?= $isStorageTransfer ? 'disabled' : '' ?> data-handover-recipient-user>
+                        <option value=""><?= $isStaffCustody ? 'Select staff member' : 'Optional linked staff' ?></option>
                         <?php foreach ($users as $user): ?>
                             <option value="<?= e((string) $user['id']) ?>" <?= selected((string) $user['id'], (string) ($handoverRecord['recipient_user_id'] ?? '')) ?>>
                                 <?= e((string) $user['name']) ?> · <?= e(user_role_label((string) $user['role'])) ?>
@@ -218,6 +231,27 @@ $handoverSubmitLabel = $isStaffRequest
             <div class="copy-context-card handover-storage-transfer-note" data-handover-storage-fields <?= $isStorageTransfer ? '' : 'hidden' ?>>
                 <strong>Storage transfer cycle</strong>
                 <p>Stock moves from the source into the handover buffer first. Full receipt closes into the destination. Short receipt waits for source-owner approval and returns missing stock to the source.</p>
+            </div>
+
+            <div class="copy-context-card" data-handover-custody-fields <?= $isStaffCustody ? '' : 'hidden' ?>>
+                <strong>Long-term custody cycle</strong>
+                <p>Stock stays physically assigned to the staff member. Partial returns can be serviceable, damaged, consumed, or lost. Damaged stock requires proof and moves to quarantine after issuer approval.</p>
+                <div class="field-row">
+                    <label class="field">
+                        <span>Issue Condition</span>
+                        <select name="issue_condition" <?= $isStaffCustody ? '' : 'disabled' ?>>
+                            <?php foreach ($issueConditionOptions as $value => $label): ?>
+                                <option value="<?= e((string) $value) ?>" <?= selected((string) $value, (string) ($handoverRecord['issue_condition'] ?? 'good')) ?>>
+                                    <?= e((string) $label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>Expected Review / Return Date</span>
+                        <input type="date" name="custody_review_date" value="<?= e((string) ($handoverRecord['custody_review_date'] ?? '')) ?>" <?= $isStaffCustody ? 'required' : 'disabled' ?>>
+                    </label>
+                </div>
             </div>
         <?php endif; ?>
 

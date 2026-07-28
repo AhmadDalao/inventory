@@ -14,6 +14,10 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
         <h3 class="page-head-title"><?= ui_icon('handover') ?><span><?= e(site_setting('page.handovers', 'Handovers')) ?></span></h3>
     </div>
     <div class="page-actions">
+        <a class="ghost-button" href="<?= e(url('/handovers/custody')) ?>"><?= ui_icon('handover') ?><span>Staff Custody</span></a>
+        <?php if (Auth::isOwner()): ?>
+            <a class="ghost-button" href="<?= e(url('/handovers/custody/quarantine')) ?>"><?= ui_icon('flash') ?><span>Quarantine</span></a>
+        <?php endif; ?>
         <?php if (Auth::hasPermission('handovers.create') || Auth::hasPermission('handovers.request')): ?>
             <a class="primary-button" href="<?= e(url('/handovers/create')) ?>"><?= ui_icon('plus') ?><span><?= Auth::isStaff() ? 'Request Handover' : 'Create Handover' ?></span></a>
         <?php endif; ?>
@@ -48,7 +52,9 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
             <span>Target</span>
             <select name="target_type">
                 <option value="all" <?= selected('all', (string) ($filters['target_type'] ?? 'all')) ?>>All targets</option>
-                <option value="staff" <?= selected('staff', (string) ($filters['target_type'] ?? 'all')) ?>>Staff use</option>
+                <option value="staff" <?= selected('staff', (string) ($filters['target_type'] ?? 'all')) ?>>All staff handovers</option>
+                <option value="temporary" <?= selected('temporary', (string) ($filters['target_type'] ?? 'all')) ?>>Temporary use</option>
+                <option value="custody" <?= selected('custody', (string) ($filters['target_type'] ?? 'all')) ?>>Long-term custody</option>
                 <option value="storage" <?= selected('storage', (string) ($filters['target_type'] ?? 'all')) ?>>Storage transfer</option>
             </select>
         </label>
@@ -101,7 +107,7 @@ $handoverFilterUrl = static function (string $status) use ($filters): string {
             <strong><?= ui_icon('handover') ?><span><?= e(site_setting('table.handovers', 'All Handovers')) ?></span></strong>
             <span class="table-count-badge" data-table-total><?= number_format(count($handovers)) ?></span>
         </div>
-        <p class="table-shell-copy">Track staff temporary-use handovers and storage-to-storage transfers.</p>
+        <p class="table-shell-copy">Track temporary use, long-term staff custody, and storage-to-storage transfers.</p>
     </div>
 
     <div class="data-table-toolbar">

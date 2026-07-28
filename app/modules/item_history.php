@@ -49,6 +49,8 @@ function item_storage_balances(int $itemId): array
                 storage.name,
                 storage.storage_type,
                 storage.is_active,
+                storage.is_system,
+                storage.system_key,
                 (
                     SELECT COALESCE(SUM(movement_quantity), 0)
                     FROM inventory_movements movements
@@ -78,6 +80,47 @@ function item_storage_balances(int $itemId): array
     );
 }
 
+function item_stock_positions(array $balances, ?int $itemId = null): array
+{
+    $positions = [
+        'available_active' => 0.0,
+        'held_by_staff' => 0.0,
+        'damaged_quarantine' => 0.0,
+        'total_physical' => 0.0,
+    ];
+
+    foreach ($balances as $balance) {
+        $quantity = (float) ($balance['quantity'] ?? 0);
+        $systemKey = (string) ($balance['system_key'] ?? '');
+
+        $positions['total_physical'] += $quantity;
+
+        if ((int) ($balance['is_system'] ?? 0) === 0 && (int) ($balance['is_active'] ?? 0) === 1) {
+            $positions['available_active'] += $quantity;
+        } elseif ($systemKey === 'damaged_quarantine') {
+            $positions['damaged_quarantine'] += $quantity;
+        }
+    }
+
+    if ($itemId !== null && $itemId > 0) {
+        $positions['held_by_staff'] = (float) Database::scalar(
+            'SELECT COALESCE(SUM(GREATEST(lines.quantity_received - lines.quantity_used - lines.quantity_returned, 0)), 0)
+             FROM handover_lines lines
+             INNER JOIN handovers handover ON handover.id = lines.handover_id
+             WHERE lines.item_id = :item_id
+               AND handover.recipient_type = "staff"
+               AND COALESCE(
+                    NULLIF(handover.handover_purpose, ""),
+                    "temporary_use"
+               ) IN ("temporary_use", "staff_custody")
+               AND handover.status IN ("delivered", "pending_approval")',
+            ['item_id' => $itemId]
+        );
+    }
+
+    return $positions;
+}
+
 function item_balance_map(array $balances): array
 {
     $map = [];
@@ -95,6 +138,7 @@ function item_response_payload(array $item): array
     $latestMovement = latest_item_movement((int) $item['id']);
     $balances = item_storage_balances((int) $item['id']);
     $balanceMap = item_balance_map($balances);
+    $stockPositions = item_stock_positions($balances, (int) $item['id']);
 
     return [
         'item' => [
@@ -112,6 +156,16 @@ function item_response_payload(array $item): array
             'cost_per_unit' => format_money($item['cost_per_unit']),
             'cost_per_unit_raw' => (float) $item['cost_per_unit'],
             'stock_value' => format_money(stock_value($item['current_quantity'], $item['cost_per_unit'])),
+            'stock_positions' => [
+                'available_active' => format_quantity($stockPositions['available_active']),
+                'available_active_raw' => $stockPositions['available_active'],
+                'held_by_staff' => format_quantity($stockPositions['held_by_staff']),
+                'held_by_staff_raw' => $stockPositions['held_by_staff'],
+                'damaged_quarantine' => format_quantity($stockPositions['damaged_quarantine']),
+                'damaged_quarantine_raw' => $stockPositions['damaged_quarantine'],
+                'total_physical' => format_quantity($stockPositions['total_physical']),
+                'total_physical_raw' => $stockPositions['total_physical'],
+            ],
             'balance_map_json' => json_encode($balanceMap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'location_balances_html' => View::partialToString('items/location_balances', [
                 'item' => $item,

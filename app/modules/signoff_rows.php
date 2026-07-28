@@ -6,10 +6,29 @@ declare(strict_types=1);
 function workflow_signoff_rows(string $workflowType, array $lines, array $record = []): array
 {
     $isStorageTransfer = workflow_signoff_is_storage_transfer($workflowType, $record);
+    $isStaffCustody = workflow_signoff_is_staff_custody($workflowType, $record);
     $receiptWasReported = $isStorageTransfer
         && in_array((string) ($record['status'] ?? ''), ['receipt_review', 'closed'], true);
+    $custodyReceiptWasReported = $isStaffCustody
+        && in_array((string) ($record['status'] ?? ''), ['receipt_review', 'delivered', 'closed'], true);
+    $custodyLineTotals = [];
 
-    return array_map(static function (array $line) use ($workflowType, $isStorageTransfer, $receiptWasReported): array {
+    if ($isStaffCustody && (int) ($record['id'] ?? 0) > 0) {
+        try {
+            $custodyLineTotals = handover_custody_line_totals((int) $record['id']);
+        } catch (Throwable $exception) {
+            $custodyLineTotals = [];
+        }
+    }
+
+    return array_map(static function (array $line) use (
+        $workflowType,
+        $isStorageTransfer,
+        $isStaffCustody,
+        $receiptWasReported,
+        $custodyReceiptWasReported,
+        $custodyLineTotals
+    ): array {
         $quantity = $workflowType === 'handover'
             ? (float) ($line['quantity_handed'] ?? 0)
             : (float) ($line['quantity_requested'] ?? 0);
@@ -18,6 +37,10 @@ function workflow_signoff_rows(string $workflowType, array $lines, array $record
         $sku = (string) ($line['item_sku'] ?? '');
         $scanCode = $barcode !== '' ? $barcode : code39_normalize($sku);
         $quantityLines = [];
+        $custodyServiceable = 0.0;
+        $custodyDamaged = 0.0;
+        $custodyConsumed = 0.0;
+        $custodyLost = 0.0;
 
         if ($workflowType === 'handover') {
             $received = round((float) ($line['quantity_received'] ?? 0), 2);
@@ -33,6 +56,29 @@ function workflow_signoff_rows(string $workflowType, array $lines, array $record
                     'Received: ' . ($receiptWasReported ? format_quantity($received) . ' ' . $unit : 'not reported'),
                     'To destination: ' . ($receiptWasReported ? format_quantity($received) . ' ' . $unit : 'pending'),
                     'Returning to source: ' . ($receiptWasReported ? format_quantity($returned) . ' ' . $unit : 'pending'),
+                ];
+            } elseif ($isStaffCustody) {
+                $lineTotals = (array) ($custodyLineTotals[(int) ($line['id'] ?? 0)] ?? []);
+                $custodyServiceable = round((float) ($lineTotals['serviceable_total'] ?? 0), 2);
+                $custodyDamaged = round((float) ($lineTotals['damaged_total'] ?? 0), 2);
+                $custodyConsumed = round((float) ($lineTotals['consumed_total'] ?? 0), 2);
+                $custodyLost = round((float) ($lineTotals['lost_total'] ?? 0), 2);
+                $used = round($custodyConsumed + $custodyLost, 2);
+                $returned = round($custodyServiceable + $custodyDamaged, 2);
+                $remaining = $custodyReceiptWasReported
+                    ? max(0, round($received - $used - $returned, 2))
+                    : 0.0;
+                $expectedUsageSummary = '';
+                $usageSummary = '';
+                $usageVarianceSummary = '';
+                $quantityLines = [
+                    'Issued: ' . format_quantity($quantity) . ' ' . $unit,
+                    'Confirmed received: ' . ($custodyReceiptWasReported ? format_quantity($received) . ' ' . $unit : 'not reported'),
+                    'Serviceable returned: ' . format_quantity($custodyServiceable) . ' ' . $unit,
+                    'Damaged / quarantine: ' . format_quantity($custodyDamaged) . ' ' . $unit,
+                    'Consumed / worn out: ' . format_quantity($custodyConsumed) . ' ' . $unit,
+                    'Lost / missing: ' . format_quantity($custodyLost) . ' ' . $unit,
+                    'Still held: ' . ($custodyReceiptWasReported ? format_quantity($remaining) . ' ' . $unit : 'pending'),
                 ];
             } else {
                 $used = round((float) ($line['quantity_used'] ?? 0), 2);
@@ -82,10 +128,14 @@ function workflow_signoff_rows(string $workflowType, array $lines, array $record
             'used_quantity' => $workflowType === 'handover' ? $used : 0.0,
             'returned_quantity' => $workflowType === 'handover' ? $returned : 0.0,
             'remaining_quantity' => $workflowType === 'handover' ? $remaining : 0.0,
+            'custody_serviceable_quantity' => $custodyServiceable,
+            'custody_damaged_quantity' => $custodyDamaged,
+            'custody_consumed_quantity' => $custodyConsumed,
+            'custody_lost_quantity' => $custodyLost,
             'approved_quantity' => $workflowType === 'request' ? round((float) ($line['quantity_approved'] ?? 0), 2) : 0.0,
-            'expected_usage_breakdowns' => $workflowType === 'handover' && !$isStorageTransfer ? (array) ($line['expected_usage_breakdowns'] ?? []) : [],
+            'expected_usage_breakdowns' => $workflowType === 'handover' && !$isStorageTransfer && !$isStaffCustody ? (array) ($line['expected_usage_breakdowns'] ?? []) : [],
             'expected_usage_reason_summary' => $expectedUsageSummary,
-            'usage_breakdowns' => $workflowType === 'handover' && !$isStorageTransfer ? (array) ($line['usage_breakdowns'] ?? []) : [],
+            'usage_breakdowns' => $workflowType === 'handover' && !$isStorageTransfer && !$isStaffCustody ? (array) ($line['usage_breakdowns'] ?? []) : [],
             'usage_reason_summary' => $usageSummary,
             'usage_variance_summary' => $usageVarianceSummary,
             'quantity_label' => format_quantity($quantity) . ' ' . $unit,

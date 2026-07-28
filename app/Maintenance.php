@@ -35,7 +35,7 @@ final class Maintenance
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-07-26-handover-operational-reconciliation-v1';
+    private const SCHEMA_VERSION = '2026-07-28-handover-staff-custody-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -132,6 +132,7 @@ final class Maintenance
         self::seedAdminFilePermissions();
         self::seedEmailLogPermissions();
         self::seedAdminAssetPermissions();
+        self::seedHandoverCustodyPermissions();
         self::backfillFileAssets();
         self::markSchemaCurrent();
     }

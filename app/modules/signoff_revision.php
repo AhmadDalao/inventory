@@ -76,6 +76,54 @@ function workflow_signoff_revision_timestamp(array $record, array $lines): int
         }
     }
 
+    if ((int) ($record['id'] ?? 0) > 0
+        && workflow_signoff_is_staff_custody('handover', $record)) {
+        try {
+            $custodyUpdatedAt = Database::scalar(
+                'SELECT MAX(revision_at)
+                 FROM (
+                     SELECT MAX(updated_at) AS revision_at
+                     FROM handover_custody_returns
+                     WHERE handover_id = ?
+                     UNION ALL
+                     SELECT MAX(return_line.updated_at) AS revision_at
+                     FROM handover_custody_return_lines return_line
+                     INNER JOIN handover_custody_returns custody_return
+                        ON custody_return.id = return_line.custody_return_id
+                     WHERE custody_return.handover_id = ?
+                     UNION ALL
+                     SELECT MAX(proof.created_at) AS revision_at
+                     FROM handover_custody_return_proofs proof
+                     INNER JOIN handover_custody_return_lines return_line
+                        ON return_line.id = proof.custody_return_line_id
+                     INNER JOIN handover_custody_returns custody_return
+                        ON custody_return.id = return_line.custody_return_id
+                     WHERE custody_return.handover_id = ?
+                     UNION ALL
+                     SELECT MAX(disposition.created_at) AS revision_at
+                     FROM handover_quarantine_dispositions disposition
+                     INNER JOIN handover_custody_return_lines return_line
+                        ON return_line.id = disposition.custody_return_line_id
+                     INNER JOIN handover_custody_returns custody_return
+                        ON custody_return.id = return_line.custody_return_id
+                     WHERE custody_return.handover_id = ?
+                 ) custody_revisions',
+                [
+                    (int) $record['id'],
+                    (int) $record['id'],
+                    (int) $record['id'],
+                    (int) $record['id'],
+                ]
+            );
+
+            if ($custodyUpdatedAt) {
+                $timestamps[] = strtotime((string) $custodyUpdatedAt) ?: 0;
+            }
+        } catch (Throwable $exception) {
+            // Older databases can render legacy signoff files before migration.
+        }
+    }
+
     return max(0, ...$timestamps);
 }
 

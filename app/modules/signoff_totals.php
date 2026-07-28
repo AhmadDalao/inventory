@@ -7,9 +7,11 @@ function workflow_signoff_totals(string $workflowType, array $rows, array $recor
 {
     if ($workflowType === 'handover') {
         $isStorageTransfer = workflow_signoff_is_storage_transfer($workflowType, $record);
+        $isStaffCustody = workflow_signoff_is_staff_custody($workflowType, $record);
         $usesOperationalReconciliation = !$isStorageTransfer
+            && !$isStaffCustody
             && handover_uses_operational_reconciliation($record);
-        $reconciliationRows = $isStorageTransfer || $usesOperationalReconciliation
+        $reconciliationRows = $isStorageTransfer || $isStaffCustody || $usesOperationalReconciliation
             ? []
             : workflow_signoff_reconciliation_rows($rows);
         $operationalReconciliations = [];
@@ -62,42 +64,58 @@ function workflow_signoff_totals(string $workflowType, array $rows, array $recor
 
         $totals = [
             'is_storage_transfer' => $isStorageTransfer,
+            'is_staff_custody' => $isStaffCustody,
             'uses_operational_reconciliation' => $usesOperationalReconciliation,
             'operational_reconciliations' => $operationalReconciliations,
             'total_label' => 'Total Items',
             'total_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'quantity')),
             'received_total_label' => 'Received Total',
             'received_total_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'received_quantity')),
-            'secondary_label' => $isStorageTransfer ? 'To Destination Total' : 'Used Total',
-            'secondary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, $isStorageTransfer ? 'received_quantity' : 'used_quantity')),
-            'tertiary_label' => $isStorageTransfer ? 'Returned To Source' : 'Returned Total',
+            'secondary_label' => $isStorageTransfer
+                ? 'To Destination Total'
+                : ($isStaffCustody ? 'Still Held' : 'Used Total'),
+            'secondary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total(
+                $rows,
+                $isStorageTransfer ? 'received_quantity' : ($isStaffCustody ? 'remaining_quantity' : 'used_quantity')
+            )),
+            'tertiary_label' => $isStorageTransfer
+                ? 'Returned To Source'
+                : ($isStaffCustody ? 'Returned / Quarantined' : 'Returned Total'),
             'tertiary_value' => workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'returned_quantity')),
-            'quaternary_label' => $isStorageTransfer || $usesOperationalReconciliation ? 'Difference' : 'Remaining Total',
+            'quaternary_label' => $isStaffCustody
+                ? 'Consumed / Lost'
+                : ($isStorageTransfer || $usesOperationalReconciliation ? 'Difference' : 'Remaining Total'),
             'quaternary_value' => workflow_signoff_format_grouped_total(
-                $usesOperationalReconciliation
+                $isStaffCustody
+                    ? workflow_signoff_grouped_quantity_total($rows, 'used_quantity')
+                    : ($usesOperationalReconciliation
                     ? $operationalDifferenceTotals
                     : ($isStorageTransfer
                         ? workflow_signoff_transfer_difference_totals($rows)
-                        : workflow_signoff_grouped_quantity_total($rows, 'remaining_quantity'))
+                        : workflow_signoff_grouped_quantity_total($rows, 'remaining_quantity')))
             ),
             'difference_label' => 'Difference',
             'difference_value' => workflow_signoff_format_grouped_total(
-                $usesOperationalReconciliation
+                $isStaffCustody
+                    ? workflow_signoff_custody_difference_totals($rows)
+                    : ($usesOperationalReconciliation
                     ? $operationalDifferenceTotals
                     : ($isStorageTransfer
                         ? workflow_signoff_transfer_difference_totals($rows)
-                        : workflow_signoff_accounting_difference_totals($rows))
+                        : workflow_signoff_accounting_difference_totals($rows)))
             ),
             'expected_usage_reason_label' => 'Expected Usage',
-            'expected_usage_reason_value' => $isStorageTransfer || $usesOperationalReconciliation ? '' : workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
+            'expected_usage_reason_value' => $isStorageTransfer || $isStaffCustody || $usesOperationalReconciliation ? '' : workflow_signoff_usage_reason_totals($rows, 'expected_usage_breakdowns'),
             'usage_reason_label' => 'Usage By Reason',
-            'usage_reason_value' => $isStorageTransfer || $usesOperationalReconciliation ? '' : workflow_signoff_usage_reason_totals($rows),
+            'usage_reason_value' => $isStorageTransfer || $isStaffCustody || $usesOperationalReconciliation ? '' : workflow_signoff_usage_reason_totals($rows),
             'usage_variance_label' => 'Usage Variance',
-            'usage_variance_value' => $isStorageTransfer || $usesOperationalReconciliation ? '' : workflow_signoff_usage_variance_totals($rows),
+            'usage_variance_value' => $isStorageTransfer || $isStaffCustody || $usesOperationalReconciliation ? '' : workflow_signoff_usage_variance_totals($rows),
             'reconciliation_rows' => $reconciliationRows,
-            'reconciliation_table_rows' => $usesOperationalReconciliation
-                ? workflow_signoff_operational_reconciliation_table_rows($operationalReconciliations)
-                : workflow_signoff_reconciliation_table_rows($rows, $isStorageTransfer),
+            'reconciliation_table_rows' => $isStaffCustody
+                ? workflow_signoff_custody_reconciliation_table_rows($rows)
+                : ($usesOperationalReconciliation
+                    ? workflow_signoff_operational_reconciliation_table_rows($operationalReconciliations)
+                    : workflow_signoff_reconciliation_table_rows($rows, $isStorageTransfer)),
         ];
 
         return $totals;

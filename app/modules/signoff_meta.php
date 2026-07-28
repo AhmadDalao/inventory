@@ -27,6 +27,23 @@ function workflow_signoff_meta(string $workflowType, array $record): array
             ];
         }
 
+        if (workflow_signoff_is_staff_custody($workflowType, $record)) {
+            return [
+                'title' => 'Staff Custody Sign-Off Sheet',
+                'number' => $workflowNumber,
+                'open_reference' => $workflowNumber,
+                'open_label' => 'Scan/Search reference',
+                'party_label' => 'Staff Member',
+                'party_value' => (string) ($record['recipient_name'] ?? ''),
+                'source_label' => 'Source',
+                'source_value' => (string) ($record['source_storage_name'] ?? ''),
+                'target_label' => 'Review Date',
+                'target_value' => (string) (($record['custody_review_date'] ?? '') ?: 'Not set'),
+                'mode_label' => 'Mode',
+                'mode_value' => 'Long-term staff custody',
+            ];
+        }
+
         return [
             'title' => $title,
             'number' => $workflowNumber,
@@ -64,4 +81,11 @@ function workflow_signoff_is_storage_transfer(string $workflowType, array $recor
     return $workflowType === 'handover'
         && function_exists('handover_is_storage_transfer')
         && handover_is_storage_transfer($record);
+}
+
+function workflow_signoff_is_staff_custody(string $workflowType, array $record): bool
+{
+    return $workflowType === 'handover'
+        && function_exists('handover_is_staff_custody')
+        && handover_is_staff_custody($record);
 }

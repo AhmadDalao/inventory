@@ -49,6 +49,93 @@ function workflow_signoff_transfer_difference_totals(array $rows): array
     return $totals;
 }
 
+function workflow_signoff_custody_difference_totals(array $rows): array
+{
+    $totals = [];
+
+    foreach ($rows as $row) {
+        $unit = trim((string) ($row['unit'] ?? 'pcs'));
+        $unit = $unit !== '' ? $unit : 'pcs';
+        $received = round((float) ($row['received_quantity'] ?? 0), 2);
+        $processed = round(
+            (float) ($row['custody_serviceable_quantity'] ?? 0)
+            + (float) ($row['custody_damaged_quantity'] ?? 0)
+            + (float) ($row['custody_consumed_quantity'] ?? 0)
+            + (float) ($row['custody_lost_quantity'] ?? 0)
+            + (float) ($row['remaining_quantity'] ?? 0),
+            2
+        );
+
+        if (!isset($totals[$unit])) {
+            $totals[$unit] = 0.0;
+        }
+
+        $totals[$unit] = round($totals[$unit] + ($received - $processed), 2);
+    }
+
+    ksort($totals);
+
+    return $totals;
+}
+
+function workflow_signoff_custody_reconciliation_table_rows(array $rows): array
+{
+    $grouped = [];
+
+    foreach ($rows as $row) {
+        $unit = trim((string) ($row['unit'] ?? 'pcs'));
+        $unit = $unit !== '' ? $unit : 'pcs';
+        $grouped[$unit][] = $row;
+    }
+
+    ksort($grouped);
+    $tableRows = [];
+    $showUnitHeaders = count($grouped) > 1;
+
+    foreach ($grouped as $unit => $unitRows) {
+        if ($showUnitHeaders) {
+            $tableRows[] = [
+                'type' => 'unit_header',
+                'label' => strtoupper($unit),
+                'actual' => '',
+                'unit' => '',
+                'notes' => 'Separate custody accounting for this unit.',
+            ];
+        }
+
+        $values = [
+            ['total_issued', 'Total Issued', 'quantity', 'Issued from source storage.'],
+            ['confirmed_received', 'Confirmed Received', 'received_quantity', 'Confirmed by the staff member.'],
+            ['custody_serviceable', 'Serviceable Returned', 'custody_serviceable_quantity', 'Returned to source storage.'],
+            ['custody_damaged', 'Damaged / Quarantined', 'custody_damaged_quantity', 'Held in Damaged / Quarantine.'],
+            ['custody_consumed', 'Consumed / Worn Out', 'custody_consumed_quantity', 'Written off after issuer approval.'],
+            ['custody_lost', 'Lost / Missing', 'custody_lost_quantity', 'Written off with an audited explanation.'],
+            ['custody_held', 'Still Held By Staff', 'remaining_quantity', 'Remains assigned to the recipient.'],
+        ];
+
+        foreach ($values as [$type, $label, $key, $notes]) {
+            $tableRows[] = [
+                'type' => $type,
+                'label' => $label,
+                'actual' => workflow_signoff_quantity_sum($unitRows, $key),
+                'unit' => $unit,
+                'notes' => $notes,
+            ];
+        }
+
+        $difference = workflow_signoff_custody_difference_totals($unitRows);
+        $tableRows[] = [
+            'type' => 'difference',
+            'label' => 'Difference / Unaccounted',
+            'actual' => round((float) ($difference[$unit] ?? 0), 2),
+            'unit' => $unit,
+            'notes' => 'Received - returned - quarantined - consumed - lost - still held. Target is 0.',
+        ];
+    }
+
+    return $tableRows;
+}
+
 function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorageTransfer = false): array
 {
     $unit = workflow_signoff_single_unit($rows);

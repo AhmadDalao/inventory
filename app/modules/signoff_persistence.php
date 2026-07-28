@@ -63,7 +63,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
             || strtolower(substr($storedFilename, -5)) === '.xlsx';
         $createdTimestamp = strtotime((string) ($existingExcel['created_at'] ?? '')) ?: 0;
         $existingExcelIsRealWorkbook = $existingExcelIsRealWorkbook
-            && str_contains($storedFilename, 'signoff-sheet-img-v14')
+            && str_contains($storedFilename, 'signoff-sheet-img-v15')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
     $existingPdfIsCurrent = false;
@@ -73,7 +73,7 @@ function ensure_workflow_signoff_pdf(string $workflowType, array $record, array 
         $mimeType = (string) ($existingPdf['mime_type'] ?? '');
         $createdTimestamp = strtotime((string) ($existingPdf['created_at'] ?? '')) ?: 0;
         $existingPdfIsCurrent = $mimeType === 'application/pdf'
-            && str_contains($storedFilename, 'signoff-img-v14')
+            && str_contains($storedFilename, 'signoff-img-v15')
             && ($revisionTimestamp === 0 || $createdTimestamp > $revisionTimestamp);
     }
 
