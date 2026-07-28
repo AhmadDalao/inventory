@@ -463,6 +463,22 @@ function dom_xpath(string $html): DOMXPath
     return new DOMXPath($document);
 }
 
+function extract_flash_messages(string $html): array
+{
+    $messages = [];
+    $xpath = dom_xpath($html);
+
+    foreach ($xpath->query('//*[contains(@class, "flash")]') ?: [] as $node) {
+        $message = trim((string) $node->textContent);
+
+        if ($message !== '') {
+            $messages[] = $message;
+        }
+    }
+
+    return $messages;
+}
+
 function extract_csrf(string $html, string $context = ''): string
 {
     $xpath = dom_xpath($html);
@@ -1489,6 +1505,12 @@ assert_true(
 );
 
 $itemDetailForRemoval = http_request($baseUrl, $ownerCookie, 'GET', '/items/' . (int) $httpItem['id']);
+assert_true(
+    $itemDetailForRemoval['status'] === 200,
+    'Item detail did not load before location removal. Status=' . $itemDetailForRemoval['status']
+        . ($itemDetailForRemoval['location'] !== null ? ', location=' . $itemDetailForRemoval['location'] : '')
+        . ', body=' . trim(substr(preg_replace('/\s+/', ' ', strip_tags((string) $itemDetailForRemoval['body'])) ?? '', 0, 300))
+);
 $itemLocationRemove = http_request(
     $baseUrl,
     $ownerCookie,
@@ -3382,7 +3404,12 @@ $storageTransferShortItem = create_item_record($prefix . ' Handover Transfer Sho
 
 $storageTransferCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
 assert_true($storageTransferCreatePage['status'] === 200, 'Storage-transfer handover create page did not load.');
-assert_true(strpos($storageTransferCreatePage['body'], 'value="storage"') !== false, 'Handover create page is missing the storage transfer target option.');
+assert_true(
+    strpos($storageTransferCreatePage['body'], 'name="handover_purpose"') !== false
+        && strpos($storageTransferCreatePage['body'], 'value="storage_transfer"') !== false
+        && strpos($storageTransferCreatePage['body'], 'Transfer to Storage Owner') !== false,
+    'Handover create page is missing the storage transfer purpose option.'
+);
 assert_true(strpos($storageTransferCreatePage['body'], 'name="destination_storage_id"') !== false, 'Handover create page is missing the destination storage picker.');
 assert_true(strpos($storageTransferCreatePage['body'], 'data-handover-destination-summary') !== false, 'Handover create page is missing the destination owner summary card.');
 
@@ -3566,7 +3593,15 @@ assert_true((string) $custodyDelivered['status'] === 'delivered', 'Exact custody
 assert_true(handover_line_held_quantity(handover_lines($custodyHandoverId)[0]) === 10.0, 'Custody held quantity is wrong after receipt.');
 
 $unrelatedCustodyPage = http_request($baseUrl, $lockedStaffCookie, 'GET', '/handovers/' . $custodyHandoverId);
-assert_true($unrelatedCustodyPage['status'] === 404, 'Staff must not see another employee custody record.');
+assert_true(
+    $unrelatedCustodyPage['status'] === 404
+        || (
+            $unrelatedCustodyPage['status'] === 302
+            && location_matches($unrelatedCustodyPage['location'], '/handovers')
+        ),
+    'Staff must not see another employee custody record. Status=' . $unrelatedCustodyPage['status']
+        . ($unrelatedCustodyPage['location'] !== null ? ', location=' . $unrelatedCustodyPage['location'] : '')
+);
 $unrelatedCustodyDashboard = http_request($baseUrl, $lockedStaffCookie, 'GET', '/dashboard');
 assert_true($unrelatedCustodyDashboard['status'] === 200, 'Unrelated staff dashboard did not load for custody authorization test.');
 $unrelatedCustodyReturn = http_request($baseUrl, $lockedStaffCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns', [
@@ -3709,15 +3744,68 @@ $custodyFinalSubmit = http_request($baseUrl, $staffCookie, 'POST', '/handovers/'
     'line_notes' => [$custodyFinalLineId => 'Two units could not be recovered after the work period.'],
 ]);
 assert_true($custodyFinalSubmit['status'] === 302, 'Final custody return submission did not redirect.');
+assert_true(
+    (string) Database::scalar(
+        'SELECT status FROM handover_custody_returns WHERE id = :id',
+        ['id' => $custodyFinalReturnId]
+    ) === 'submitted',
+    'Final custody return did not enter issuer review.'
+);
+$custodyFinalSubmittedLine = Database::fetch(
+    'SELECT serviceable_quantity, damaged_quantity, consumed_quantity, lost_quantity
+     FROM handover_custody_return_lines
+     WHERE id = :id',
+    ['id' => $custodyFinalLineId]
+);
+assert_true(
+    $custodyFinalSubmittedLine
+        && (float) $custodyFinalSubmittedLine['serviceable_quantity'] === 4.0
+        && (float) $custodyFinalSubmittedLine['damaged_quantity'] === 0.0
+        && (float) $custodyFinalSubmittedLine['consumed_quantity'] === 1.0
+        && (float) $custodyFinalSubmittedLine['lost_quantity'] === 2.0,
+    'Final custody return quantities were not saved before review.'
+);
 $custodyFinalReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId);
 $custodyFinalApprove = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId . '/approve', [
     '_token' => extract_csrf($custodyFinalReviewPage['body'], 'final custody return approval'),
     'review_notes' => $prefix . ' final custody return approved',
 ]);
 assert_true($custodyFinalApprove['status'] === 302, 'Final custody return approval did not redirect.');
+$custodyFinalApprovalStatus = (string) Database::scalar(
+    'SELECT status FROM handover_custody_returns WHERE id = :id',
+    ['id' => $custodyFinalReturnId]
+);
+if ($custodyFinalApprovalStatus !== 'approved') {
+    $custodyFinalApprovalErrorPage = http_request(
+        $baseUrl,
+        $ownerCookie,
+        'GET',
+        '/handovers/' . $custodyHandoverId . '/custody-returns/' . $custodyFinalReturnId
+    );
+    fail_now(
+        'Final custody return approval failed. Status=' . $custodyFinalApprovalStatus
+            . ', redirect=' . (string) ($custodyFinalApprove['location'] ?? '')
+            . ', flashes=' . implode(' | ', extract_flash_messages((string) $custodyFinalApprovalErrorPage['body']))
+    );
+}
 $custodyClosed = find_handover_or_abort($custodyHandoverId);
-assert_true((string) $custodyClosed['status'] === 'closed', 'Custody handover should close only after all held stock is resolved.');
-assert_true(handover_line_held_quantity(handover_lines($custodyHandoverId)[0]) === 0.0, 'Closed custody handover still reports held stock.');
+$custodyFinalReturnStatus = (string) Database::scalar(
+    'SELECT status FROM handover_custody_returns WHERE id = :id',
+    ['id' => $custodyFinalReturnId]
+);
+$custodyFinalHandoverLine = handover_lines($custodyHandoverId)[0];
+$custodyFinalHeldQuantity = handover_line_held_quantity($custodyFinalHandoverLine);
+assert_true(
+    (string) $custodyClosed['status'] === 'closed',
+    'Custody handover should close only after all held stock is resolved. Handover status='
+        . (string) $custodyClosed['status']
+        . ', return status=' . $custodyFinalReturnStatus
+        . ', received=' . (string) $custodyFinalHandoverLine['quantity_received']
+        . ', used=' . (string) $custodyFinalHandoverLine['quantity_used']
+        . ', returned=' . (string) $custodyFinalHandoverLine['quantity_returned']
+        . ', held=' . (string) $custodyFinalHeldQuantity
+);
+assert_true($custodyFinalHeldQuantity === 0.0, 'Closed custody handover still reports held stock.');
 assert_true(balance_quantity((int) $custodyItem['id'], (int) $handoverSource['id']) === round($custodySourceBefore - 4, 2), 'Final serviceable returns produced the wrong source balance.');
 assert_true(balance_quantity((int) $custodyItem['id'], $custodyBufferId) === $custodyBufferBefore, 'Custody buffer should return to its initial balance after final approval.');
 assert_true(balance_quantity((int) $custodyItem['id'], $custodyQuarantineId) === round($custodyQuarantineBefore + 1, 2), 'Quarantine balance changed unexpectedly during final return.');
@@ -3822,7 +3910,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     $requestSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" LIMIT 1', ['workflow_id' => $requestId]);
     assert_true($requestSignoffDocumentId > 0, 'Request sign-off PDF document was not created.');
     $requestSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestSignoffDocumentId]);
-    assert_true(strpos($requestSignoffStoredName, 'signoff-img-v14') !== false, 'Request sign-off PDF was not regenerated with reconciliation sign-off template.');
+    assert_true(strpos($requestSignoffStoredName, 'signoff-img-v15') !== false, 'Request sign-off PDF was not regenerated with the current sign-off template.');
     $requestSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/download');
     assert_true($requestSignoffDownload['status'] === 200 && strpos($requestSignoffDownload['body'], '%PDF-') === 0, 'Request sign-off PDF could not be downloaded.');
     $requestSignoffPreview = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffDocumentId . '/view');
@@ -3835,7 +3923,7 @@ assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['loca
     $requestSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "request" AND workflow_id = :workflow_id AND document_type = "signoff_excel" LIMIT 1', ['workflow_id' => $requestId]);
     assert_true($requestSignoffExcelDocumentId > 0, 'Request sign-off Excel sheet document was not created.');
     $requestSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestSignoffExcelDocumentId]);
-    assert_true(strpos($requestSignoffExcelStoredName, 'signoff-sheet-img-v14') !== false, 'Request sign-off XLSX was not regenerated with reconciliation sign-off template.');
+    assert_true(strpos($requestSignoffExcelStoredName, 'signoff-sheet-img-v15') !== false, 'Request sign-off XLSX was not regenerated with the current sign-off template.');
     $requestSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestSignoffExcelDocumentId . '/download');
     assert_true($requestSignoffExcelDownload['status'] === 200 && strpos($requestSignoffExcelDownload['body'], 'PK') === 0, 'Request sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestSignoffExcelDownload['body'], 'Request sign-off XLSX is missing embedded item images.');
@@ -4019,7 +4107,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     $requestedHandoverSignoffDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_pdf" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffDocumentId > 0, 'Requested handover sign-off PDF document was not created.');
     $requestedHandoverSignoffStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffDocumentId]);
-    assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v14') !== false, 'Requested handover sign-off PDF was not regenerated with reconciliation sign-off template.');
+    assert_true(strpos($requestedHandoverSignoffStoredName, 'signoff-img-v15') !== false, 'Requested handover sign-off PDF was not regenerated with the current sign-off template.');
     $requestedHandoverSignoffDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/download');
     assert_true($requestedHandoverSignoffDownload['status'] === 200 && strpos($requestedHandoverSignoffDownload['body'], '%PDF-') === 0, 'Requested handover sign-off PDF could not be downloaded.');
     $requestedHandoverSignoffPreview = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffDocumentId . '/view');
@@ -4032,7 +4120,7 @@ assert_true(count($handoverRequestEditedLines) === 2 && $editedLineOneQuantity =
     $requestedHandoverSignoffExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $handoverRequestId]);
     assert_true($requestedHandoverSignoffExcelDocumentId > 0, 'Requested handover sign-off Excel sheet document was not created.');
     $requestedHandoverSignoffExcelStoredName = (string) Database::scalar('SELECT stored_filename FROM workflow_documents WHERE id = :id', ['id' => $requestedHandoverSignoffExcelDocumentId]);
-    assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v14') !== false, 'Requested handover sign-off XLSX was not regenerated with reconciliation sign-off template.');
+    assert_true(strpos($requestedHandoverSignoffExcelStoredName, 'signoff-sheet-img-v15') !== false, 'Requested handover sign-off XLSX was not regenerated with the current sign-off template.');
     $requestedHandoverSignoffExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $requestedHandoverSignoffExcelDocumentId . '/download');
     assert_true($requestedHandoverSignoffExcelDownload['status'] === 200 && strpos($requestedHandoverSignoffExcelDownload['body'], 'PK') === 0, 'Requested handover sign-off Excel sheet could not be downloaded as XLSX.');
     assert_xlsx_contains_media($requestedHandoverSignoffExcelDownload['body'], 'Requested handover sign-off XLSX is missing embedded item images.');

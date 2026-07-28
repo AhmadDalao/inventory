@@ -415,12 +415,17 @@ function handle_handover_custody_return_approve(array $params): void
                  SET status = "closed",
                      approved_at = NOW(),
                      completed_at = NOW(),
-                     approved_by = :user_id,
-                     completed_by = :user_id,
-                     updated_by = :user_id,
+                     approved_by = :approved_by,
+                     completed_by = :completed_by,
+                     updated_by = :updated_by,
                      updated_at = NOW()
                  WHERE id = :id',
-                ['user_id' => (int) $user['id'], 'id' => (int) $handover['id']]
+                [
+                    'approved_by' => (int) $user['id'],
+                    'completed_by' => (int) $user['id'],
+                    'updated_by' => (int) $user['id'],
+                    'id' => (int) $handover['id'],
+                ]
             );
         } else {
             Database::execute(

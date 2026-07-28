@@ -104,16 +104,16 @@ function item_stock_positions(array $balances, ?int $itemId = null): array
 
     if ($itemId !== null && $itemId > 0) {
         $positions['held_by_staff'] = (float) Database::scalar(
-            'SELECT COALESCE(SUM(GREATEST(lines.quantity_received - lines.quantity_used - lines.quantity_returned, 0)), 0)
-             FROM handover_lines lines
-             INNER JOIN handovers handover ON handover.id = lines.handover_id
-             WHERE lines.item_id = :item_id
-               AND handover.recipient_type = "staff"
+            'SELECT COALESCE(SUM(GREATEST(hl.quantity_received - hl.quantity_used - hl.quantity_returned, 0)), 0)
+             FROM handover_lines hl
+             INNER JOIN handovers h ON h.id = hl.handover_id
+             WHERE hl.item_id = :item_id
+               AND h.recipient_type = "staff"
                AND COALESCE(
-                    NULLIF(handover.handover_purpose, ""),
+                    NULLIF(h.handover_purpose, ""),
                     "temporary_use"
                ) IN ("temporary_use", "staff_custody")
-               AND handover.status IN ("delivered", "pending_approval")',
+               AND h.status IN ("delivered", "pending_approval")',
             ['item_id' => $itemId]
         );
     }
