@@ -10,8 +10,8 @@ Start here:
 
 - [Developer handover](docs/developer-handover.md)
 - [System data-flow and use-case diagrams](docs/system-diagrams.md)
-- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-21.docx)
-- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-21.docx)
+- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-28.docx)
+- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-28.docx)
 - Production URL: `https://inventory.ahmaddalao.com`
 - Live app path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
 - Main branch: `main`

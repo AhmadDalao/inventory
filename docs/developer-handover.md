@@ -199,6 +199,7 @@ When adding frontend behavior:
 | `app/modules/handover_receipt_updates.php` | Handover active received quantity helper and receipt update validation builder. |
 | `app/modules/handover_closeout_updates.php` | Handover returned-first closeout and owner approval update builders. |
 | `app/modules/handover_usage_persistence.php` | Handover expected and actual usage breakdown persistence. |
+| `app/modules/handover_reconciliation.php` | Handover-level operational reconciliation by unit, including physical used, operational used, difference, discrepancy validation, and approval values. |
 | `app/modules/handover_queries.php` | Handover filters, detail queries, line queries, destination storage lists, and storage-transfer detection helpers. |
 | `app/modules/handover_status.php` | Handover recovery, owner status override rules, closed-handover reversal, and receipt shortage inventory correction. |
 | `app/modules/handover_permissions.php` | Handover approval, edit, cancel, receipt, and closeout permission guards. |
@@ -403,14 +404,20 @@ Handovers have three purposes:
 
 Staff-use cycle:
 
-1. Admin/storage owner creates the handover and optional expected usage plan.
+1. Admin/storage owner creates the handover with source storage, staff recipient, items, and issued quantities. New handovers use `operational_summary`; they do not require an expected-usage forecast.
 2. Receiver reports the exact quantity received.
 3. If every received quantity matches what was issued, the handover becomes Delivered immediately and the receiver can start usage reporting.
 4. If any quantity differs, the handover enters Receipt Review. The source issuer corrects or confirms the reported quantities before it becomes Delivered.
 5. Receiver enters returned quantity first.
-6. System calculates used quantity as `received - returned`, then the receiver optionally splits used quantity by reason.
-7. The source issuer performs the final editable review, can correct returned quantity and usage reasons, and approves the closeout.
-8. Usage and return movements post only at issuer approval, then PDF/XLSX signoff is regenerated.
+6. System calculates physical used quantity as `confirmed received - returned`.
+7. Receiver completes one operational reconciliation for each unit used in the handover: Online, Walk-in, Event, Sport, Damage, Complimentary, No Show, and Other.
+8. Operational used is calculated as `Online - No Show + Walk-in + Event + Sport + Damage + Complimentary + Other`.
+9. Difference is calculated as `physical used - operational used`. No Show cannot exceed Online.
+10. A zero Difference is reconciled. A positive Difference requires a receiver discrepancy note and an audited issuer variance reason. A negative Difference is blocked because reported activity exceeds physical stock.
+11. The source issuer performs the final editable review and can correct returned quantities and operational totals before approval.
+12. Usage and return movements post only at issuer approval, then the PDF/XLSX signoff is regenerated with simple item rows and a bottom reconciliation table.
+
+Legacy staff handovers created before the operational-summary release keep `legacy_per_item` and continue using their historical per-item expected/actual reason records. Do not migrate or invent reason allocations for those records.
 
 Storage-transfer cycle:
 
@@ -441,6 +448,14 @@ Custody stock positions shown on item pages:
 - Held by staff: stock currently assigned through active staff handovers.
 - Damaged/quarantined: stock physically retained in the hidden quarantine location.
 - Total physical quantity: all location balances, including held and quarantined stock.
+
+Temporary handover reconciliation data:
+
+- `handovers.usage_reporting_mode` selects `operational_summary` for new staff handovers and `legacy_per_item` for historical handovers.
+- `handover_reconciliations` stores one submitted/approved reconciliation header per handover and unit.
+- `handover_reconciliation_entries` stores operational reason quantities linked to the reconciliation header.
+- Operational reasons describe the handover as a whole, not a fabricated reason allocation for each SKU.
+- Item and movement reports remain the source for exact SKU quantities; reconciliation reports are the source for Online, Walk-in, Event, Sport, Damage, Complimentary, No Show, Other, and Difference.
 
 ### Purchases And Suppliers
 
@@ -702,6 +717,18 @@ Verified production responsive checkpoint on July 21, 2026:
 - Stock invariants passed before the live regression and again after cleanup.
 - The live regression covered auth, users, permissions, settings, dashboard, inventory, scan/manual stock, requests, staff handovers, storage-transfer handovers, exact staff receipt flow, issuer final review, purchases, protected documents, suppliers, OCR, reorder, assets, stocktakes, labels, files, reports, exports, audit, and email logs.
 - Responsive screenshots are stored under `storage/test-screenshots/responsive-after-20260721/` for compact phone, large phone, tablet portrait, tablet landscape, desktop, and wide desktop.
+
+Verified production long-term custody checkpoint on July 28, 2026:
+
+- Application checkpoint: `69542db` (`Fix custody return completion regression`), deployed from `main`.
+- Feature commits: `27f1571` (custody workflow), `3e4661a` (PHP 7.4 compatibility), and `69542db` (return completion regression).
+- Backup SQL: `storage/backups/inventory-backup-20260728-154527.sql`.
+- Matching manifest and files archive were created in the same backup set; the archive covered 16,418 files and completed without warnings.
+- PHP lint passed after deployment.
+- The live full regression completed and cleaned temporary data.
+- Stock invariants passed after regression and cleanup.
+- Verified custody behavior: exact receipt, multiple partial returns, damaged-proof enforcement, lost explanation enforcement, issuer approval/rejection, serviceable return, quarantine transfer, consumed/lost write-off, linked replacement request, return-to-service, disposal, and close only when no stock remains held.
+- Existing temporary-use handovers and storage-transfer handovers remained unchanged.
 
 Use this verification sequence for the next deployment:
 

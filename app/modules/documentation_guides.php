@@ -9,9 +9,16 @@ function documentation_important_sections(): array
         [
             'title' => 'Staff Daily Flow',
             'icon' => 'handover',
-            'summary' => 'What staff should request, receive, use, return, and close, including availability in permitted source storages.',
+            'summary' => 'How staff confirm receipt, enter returned quantities, reconcile operational totals, and submit temporary-use or long-term custody records.',
             'anchor' => 'doc-handovers',
-            'tags' => ['Staff', 'Requests', 'Handovers', 'Received quantity', 'Returned quantity', 'Actual usage'],
+            'tags' => ['Staff', 'Requests', 'Handovers', 'Custody', 'Received quantity', 'Returned quantity', 'Operational reconciliation', 'Difference'],
+        ],
+        [
+            'title' => 'Custody And Quarantine',
+            'icon' => 'items',
+            'summary' => 'How long-term employee-held inventory, partial returns, damage proof, quarantine, replacement, repair, and disposal stay accountable.',
+            'anchor' => 'doc-handovers',
+            'tags' => ['Long-term custody', 'Damaged', 'Quarantine', 'Replacement', 'Partial return', 'Proof image'],
         ],
         [
             'title' => 'Manager Approval Flow',
@@ -110,6 +117,7 @@ function documentation_department_guides(): array
             'roles' => ['Operations Manager', 'Admin'],
             'responsibilities' => [
                 'Monitors stock health, usage, handovers, requests, stocktakes, reorder needs, and labels.',
+                'Monitors long-term custody, overdue review dates, damaged returns, replacements, and quarantine outcomes.',
                 'Fixes operational flow issues without bypassing approval rules.',
                 'Coordinates storage owners and staff during events or daily operations.',
             ],
@@ -123,7 +131,8 @@ function documentation_department_guides(): array
             'responsibilities' => [
                 'Owns one or more storage locations and approves items leaving or returning.',
                 'Reviews storage item balances, 0-quantity refill items, transfers, requests, and handovers.',
-                'Confirms returned quantity before temporary handovers become closed.',
+                'Reviews returned quantities, operational totals, and Difference before temporary handovers become closed.',
+                'Reviews custody return condition and proof before serviceable, damaged, consumed, or lost quantities post.',
             ],
             'pages' => ['Storages', 'Items', 'Movement Log', 'Requests', 'Handovers', 'Stocktakes'],
             'handoff' => 'Storage owner approval is what protects stock from silent loss.',
@@ -134,7 +143,9 @@ function documentation_department_guides(): array
             'roles' => ['Staff', 'Reception Staff'],
             'responsibilities' => [
                 'Requests items needed for work and confirms exactly what was received.',
-                'Uses handovers for temporary items, records used quantity, and returns the remainder.',
+                'For temporary handovers, enters returned quantity per item; the system calculates used quantity automatically.',
+                'Reports one operational summary per unit for Online, Walk-in, Event, Sport, Damage, Complimentary, No Show, and Other.',
+                'Returns long-term custody items in partial events and provides proof for damaged items or an explanation for missing items.',
                 'Sees a simplified dashboard focused on assigned work, not private inventory totals.',
             ],
             'pages' => ['Dashboard', 'Requests', 'Handovers', 'Documentation'],
