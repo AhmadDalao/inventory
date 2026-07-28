@@ -96,11 +96,15 @@ function handover_is_storage_transfer(array $handover): bool
 
 function handover_target_type_label(array $handover): string
 {
-    return match (handover_purpose_value($handover)) {
-        'staff_custody' => 'Long-term staff custody',
-        'storage_transfer' => 'Storage transfer',
-        default => 'Temporary staff use',
-    };
+    $purpose = handover_purpose_value($handover);
+    if ($purpose === 'staff_custody') {
+        return 'Long-term staff custody';
+    }
+    if ($purpose === 'storage_transfer') {
+        return 'Storage transfer';
+    }
+
+    return 'Temporary staff use';
 }
 
 function handover_filters(): array

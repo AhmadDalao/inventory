@@ -15,12 +15,15 @@ foreach ($returnLines as $line) {
     $totalHeld += handover_line_held_quantity($line);
 }
 
-$statusClass = match ($returnStatus) {
-    'approved' => 'pill-approved',
-    'submitted' => 'pill-pending',
-    'rejected' => 'pill-rejected',
-    default => 'pill-draft',
-};
+if ($returnStatus === 'approved') {
+    $statusClass = 'pill-approved';
+} elseif ($returnStatus === 'submitted') {
+    $statusClass = 'pill-pending';
+} elseif ($returnStatus === 'rejected') {
+    $statusClass = 'pill-rejected';
+} else {
+    $statusClass = 'pill-draft';
+}
 ?>
 
 <section class="page-head">

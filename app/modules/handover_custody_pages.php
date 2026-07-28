@@ -16,12 +16,16 @@ function handover_custody_report_rows(array $filters): array
     $handoverFilters = handover_filters();
     $handoverFilters['target_type'] = 'custody';
     $handoverFilters['search'] = (string) ($filters['search'] ?? '');
-    $handoverFilters['status'] = match ((string) ($filters['status'] ?? 'all')) {
-        'open', 'overdue' => 'open',
-        'closed' => 'closed',
-        'cancelled' => 'cancelled',
-        default => 'all',
-    };
+    $reportStatus = (string) ($filters['status'] ?? 'all');
+    if (in_array($reportStatus, ['open', 'overdue'], true)) {
+        $handoverFilters['status'] = 'open';
+    } elseif ($reportStatus === 'closed') {
+        $handoverFilters['status'] = 'closed';
+    } elseif ($reportStatus === 'cancelled') {
+        $handoverFilters['status'] = 'cancelled';
+    } else {
+        $handoverFilters['status'] = 'all';
+    }
 
     $rows = [];
 
