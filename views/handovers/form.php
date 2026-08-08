@@ -230,7 +230,7 @@ $handoverSubmitLabel = $isStaffRequest
         <?php if (!$isStaffRequest): ?>
             <div class="copy-context-card handover-storage-transfer-note" data-handover-storage-fields <?= $isStorageTransfer ? '' : 'hidden' ?>>
                 <strong>Storage transfer cycle</strong>
-                <p>Stock moves from the source into the handover buffer first. An exact receipt closes into the destination. Any short or extra receipt waits for source-owner approval and safely adjusts the source stock.</p>
+                <p>Stock moves from the source into the handover buffer first. Full receipt closes into the destination. Any short or extra receipt waits for source-owner approval and safely adjusts the source stock.</p>
             </div>
 
             <div class="copy-context-card" data-handover-custody-fields <?= $isStaffCustody ? '' : 'hidden' ?>>
