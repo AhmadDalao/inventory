@@ -154,7 +154,8 @@ function reconcile_handover_receipt_inventory(
     array $handover,
     array $receiptRows,
     int $performedBy,
-    string $notePrefix = 'Receipt confirmation'
+    string $notePrefix = 'Receipt confirmation',
+    bool $returnUnreceivedStock = true
 ): void {
     $quantityField = isset($receiptRows[0]) && array_key_exists('received', $receiptRows[0])
         ? 'received'
@@ -203,6 +204,10 @@ function reconcile_handover_receipt_inventory(
                 'handover',
                 (int) $handover['id']
             );
+            continue;
+        }
+
+        if (!$returnUnreceivedStock) {
             continue;
         }
 

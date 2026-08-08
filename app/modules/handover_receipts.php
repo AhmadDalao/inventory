@@ -282,7 +282,8 @@ function handle_handovers_confirm_receipt_submit(array $params): void
                 $handover,
                 $receiptUpdates,
                 (int) $user['id'],
-                'Transfer receipt confirmation'
+                'Transfer receipt confirmation',
+                false
             );
 
             finalize_handover_storage_transfer_inventory($handover, $receiptUpdates, (int) $user['id']);
