@@ -260,7 +260,6 @@ function handle_handovers_confirm_receipt_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
-    $bufferStorageId = system_storage_id('handover_buffer');
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
@@ -302,29 +301,12 @@ function handle_handovers_confirm_receipt_submit(array $params): void
                 ]
             );
         } else {
-            foreach ($receiptUpdates as $update) {
-                $shortage = round((float) $update['shortage'], 2);
-
-                if ($shortage <= 0) {
-                    continue;
-                }
-
-                $item = find_item_or_abort((int) $update['item_id']);
-
-                apply_inventory_movement(
-                    $item,
-                    'transfer',
-                    $shortage,
-                    $bufferStorageId,
-                    (int) $handover['source_storage_id'],
-                    date('Y-m-d H:i:s'),
-                    (string) $handover['handover_number'],
-                    'Unreceived handover quantity returned to source storage.',
-                    (int) $user['id'],
-                    'handover',
-                    (int) $handover['id']
-                );
-            }
+            reconcile_handover_receipt_inventory(
+                $handover,
+                $receiptUpdates,
+                (int) $user['id'],
+                'Receipt confirmation'
+            );
 
             Database::execute(
                 'UPDATE handovers

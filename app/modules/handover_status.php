@@ -105,6 +105,110 @@ function handover_source_can_cover_quantities(array $handover, array $lines, str
     return null;
 }
 
+function handover_buffer_impact_by_item(array $handover): array
+{
+    $bufferStorageId = system_storage_id('handover_buffer');
+    $impactByItem = [];
+
+    foreach (workflow_stock_impact('handover', (int) ($handover['id'] ?? 0)) as $row) {
+        if ((int) ($row['storage_id'] ?? 0) !== $bufferStorageId) {
+            continue;
+        }
+
+        $itemId = (int) ($row['item_id'] ?? 0);
+
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $impactByItem[$itemId] = round(
+            ($impactByItem[$itemId] ?? 0.0) + (float) ($row['quantity_delta'] ?? 0),
+            2
+        );
+    }
+
+    return $impactByItem;
+}
+
+function handover_quantities_by_item(array $rows, string $quantityField): array
+{
+    $quantities = [];
+
+    foreach ($rows as $row) {
+        $itemId = (int) ($row['item_id'] ?? 0);
+
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $quantities[$itemId] = round(
+            ($quantities[$itemId] ?? 0.0) + (float) ($row[$quantityField] ?? 0),
+            2
+        );
+    }
+
+    return $quantities;
+}
+
+function reconcile_handover_receipt_inventory(
+    array $handover,
+    array $receiptRows,
+    int $performedBy,
+    string $notePrefix = 'Receipt confirmation'
+): void {
+    $quantityField = isset($receiptRows[0]) && array_key_exists('received', $receiptRows[0])
+        ? 'received'
+        : 'quantity_received';
+    $desiredByItem = handover_quantities_by_item($receiptRows, $quantityField);
+    $currentByItem = handover_buffer_impact_by_item($handover);
+    $bufferStorageId = system_storage_id('handover_buffer');
+    $itemIds = array_unique(array_merge(array_keys($desiredByItem), array_keys($currentByItem)));
+
+    foreach ($itemIds as $itemId) {
+        $itemId = (int) $itemId;
+        $desired = round((float) ($desiredByItem[$itemId] ?? 0), 2);
+        $current = round((float) ($currentByItem[$itemId] ?? 0), 2);
+        $difference = round($desired - $current, 2);
+
+        if (abs($difference) <= 0.009) {
+            continue;
+        }
+
+        $item = find_item_or_abort($itemId);
+
+        if ($difference > 0) {
+            apply_inventory_movement(
+                $item,
+                'transfer',
+                $difference,
+                (int) $handover['source_storage_id'],
+                $bufferStorageId,
+                date('Y-m-d H:i:s'),
+                (string) $handover['handover_number'],
+                $notePrefix . ': restored corrected received stock to the handover buffer.',
+                $performedBy,
+                'handover',
+                (int) $handover['id']
+            );
+            continue;
+        }
+
+        apply_inventory_movement(
+            $item,
+            'transfer',
+            abs($difference),
+            $bufferStorageId,
+            (int) $handover['source_storage_id'],
+            date('Y-m-d H:i:s'),
+            (string) $handover['handover_number'],
+            $notePrefix . ': returned unreceived stock to the source storage.',
+            $performedBy,
+            'handover',
+            (int) $handover['id']
+        );
+    }
+}
+
 function handover_closed_reversal_block_reason(array $handover, array $lines): ?string
 {
     foreach ($lines as $line) {
@@ -252,9 +356,12 @@ function handover_status_override_block_reason(array $handover, array $lines, st
                 return 'Clear the usage/return closeout first. This delivered handover already has closeout quantities.';
             }
 
-            foreach ($lines as $line) {
-                if (round((float) ($line['quantity_received'] ?? 0), 2) !== round((float) ($line['quantity_handed'] ?? 0), 2)) {
-                    return 'This delivered handover has a confirmed shortage. Reopen to Delivered, not Awaiting Receipt.';
+            $reservedByItem = handover_buffer_impact_by_item($handover);
+            $handedByItem = handover_quantities_by_item($lines, 'quantity_handed');
+
+            foreach ($handedByItem as $itemId => $handedQuantity) {
+                if (abs(round((float) $handedQuantity - (float) ($reservedByItem[$itemId] ?? 0), 2)) > 0.009) {
+                    return 'This handover already has an approved receipt stock adjustment. Reopen Receipt Review instead of resetting receipt confirmation.';
                 }
             }
 
@@ -324,33 +431,12 @@ function reverse_closed_handover_inventory(array $handover, array $lines, int $p
 
 function confirm_handover_receipt_shortage_inventory(array $handover, array $lines, int $performedBy): void
 {
-    $bufferStorageId = system_storage_id('handover_buffer');
-
-    foreach ($lines as $line) {
-        $received = round((float) ($line['quantity_received'] ?? 0), 2);
-        $planned = round((float) ($line['quantity_handed'] ?? 0), 2);
-        $shortage = round($planned - $received, 2);
-
-        if ($shortage <= 0) {
-            continue;
-        }
-
-        $item = find_item_or_abort((int) $line['item_id']);
-
-        apply_inventory_movement(
-            $item,
-            'transfer',
-            $shortage,
-            $bufferStorageId,
-            (int) $handover['source_storage_id'],
-            date('Y-m-d H:i:s'),
-            (string) $handover['handover_number'],
-            'Admin status override confirmed handover shortage and returned unreceived stock.',
-            $performedBy,
-            'handover',
-            (int) $handover['id']
-        );
-    }
+    reconcile_handover_receipt_inventory(
+        $handover,
+        $lines,
+        $performedBy,
+        'Admin status override receipt correction'
+    );
 }
 
 function apply_handover_status_override(array $handover, array $lines, string $targetStatus, int $performedBy, string $notes = ''): void
@@ -430,7 +516,7 @@ function apply_handover_status_override(array $handover, array $lines, string $t
                 ['handover_id' => (int) $handover['id']]
             );
             Database::execute('DELETE FROM handover_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => (int) $handover['id']]);
-        } else {
+        } elseif ($currentStatus !== 'receipt_review') {
             Database::execute(
                 'UPDATE handover_lines
                  SET quantity_received = CASE WHEN quantity_received > 0 THEN quantity_received ELSE quantity_handed END,

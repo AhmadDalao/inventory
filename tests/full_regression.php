@@ -4599,6 +4599,53 @@ assert_true($handoverConfirmReceipt['status'] === 302, 'Handover receipt review 
 $handoverDeliveredRecord = find_handover_or_abort($handoverId);
 assert_true((string) $handoverDeliveredRecord['status'] === 'delivered', 'Handover should become delivered after receipt review confirmation.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 17, 2), 'Handover source balance did not use the issuer-confirmed receipt quantity.');
+
+$handoverUnsafeReceiptResetPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
+$handoverUnsafeReceiptReset = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/status-override', [
+    '_token' => extract_csrf($handoverUnsafeReceiptResetPage['body'], 'unsafe handover receipt reset'),
+    'target_status' => 'awaiting_receipt',
+    'status_notes' => $prefix . ' must not discard an approved receipt stock adjustment',
+]);
+assert_true($handoverUnsafeReceiptReset['status'] === 302, 'Blocked handover receipt reset did not redirect.');
+assert_true((string) find_handover_or_abort($handoverId)['status'] === 'delivered', 'A handover with adjusted receipt stock must not reset to awaiting receipt.');
+assert_true(round((float) (handover_buffer_impact_by_item($handoverDeliveredRecord)[(int) $handoverItems[0]['id']] ?? 0), 2) === 17.0, 'Blocked receipt reset changed reserved handover stock.');
+
+$handoverReceiptCorrectionPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
+$handoverReceiptCorrectionOpen = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/status-override', [
+    '_token' => extract_csrf($handoverReceiptCorrectionPage['body'], 'handover receipt correction open'),
+    'target_status' => 'receipt_review',
+    'status_notes' => $prefix . ' test incremental receipt correction',
+]);
+assert_true($handoverReceiptCorrectionOpen['status'] === 302, 'Handover receipt correction did not redirect.');
+assert_true((string) find_handover_or_abort($handoverId)['status'] === 'receipt_review', 'Delivered handover did not reopen to receipt review.');
+
+$handoverCorrectedReceipt = $handoverIssuerConfirmedReceipt;
+$handoverCorrectedReceipt[(int) $handoverLines[0]['id']] = '18';
+$handoverReceiptCorrectionReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
+$handoverReceiptCorrectionConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/confirm-receipt', [
+    '_token' => extract_csrf($handoverReceiptCorrectionReviewPage['body'], 'handover receipt correction confirm'),
+    'line_received' => $handoverCorrectedReceipt,
+]);
+assert_true($handoverReceiptCorrectionConfirm['status'] === 302, 'Corrected handover receipt did not redirect.');
+$handoverCorrectedRecord = find_handover_or_abort($handoverId);
+assert_true((string) $handoverCorrectedRecord['status'] === 'delivered', 'Corrected handover receipt did not return to delivered.');
+assert_true(round((float) (handover_buffer_impact_by_item($handoverCorrectedRecord)[(int) $handoverItems[0]['id']] ?? 0), 2) === 18.0, 'Increasing confirmed receipt did not restore only the incremental buffer quantity.');
+
+$handoverReceiptCorrectionBackPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
+http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/status-override', [
+    '_token' => extract_csrf($handoverReceiptCorrectionBackPage['body'], 'handover receipt correction reopen'),
+    'target_status' => 'receipt_review',
+    'status_notes' => $prefix . ' restore regression fixture quantity',
+]);
+$handoverReceiptCorrectionBackReviewPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverId);
+$handoverReceiptCorrectionBack = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $handoverId . '/confirm-receipt', [
+    '_token' => extract_csrf($handoverReceiptCorrectionBackReviewPage['body'], 'handover receipt correction restore'),
+    'line_received' => $handoverIssuerConfirmedReceipt,
+]);
+assert_true($handoverReceiptCorrectionBack['status'] === 302, 'Restored handover receipt did not redirect.');
+$handoverDeliveredRecord = find_handover_or_abort($handoverId);
+assert_true(round((float) (handover_buffer_impact_by_item($handoverDeliveredRecord)[(int) $handoverItems[0]['id']] ?? 0), 2) === 17.0, 'Decreasing confirmed receipt did not return only the incremental buffer quantity.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($initialHandoverItemOneQuantity - 17, 2), 'Incremental receipt corrections did not restore the expected source balance.');
 $handoverDeliveredLines = handover_lines($handoverId);
 
 $handoverClosePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $handoverId);
