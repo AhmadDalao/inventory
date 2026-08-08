@@ -3401,6 +3401,7 @@ assert_true($mixedUnitErrors === [] && count($mixedUnitPayloads) === 2, 'Mixed-u
 note('Running storage-transfer handover workflow over HTTP.');
 $storageTransferExactItem = create_item_record($prefix . ' Handover Transfer Exact Item', $prefix . '-HDO-XFER-EXACT', (int) $handoverSource['id'], 30, 1.50, (int) $owner['id']);
 $storageTransferShortItem = create_item_record($prefix . ' Handover Transfer Short Item', $prefix . '-HDO-XFER-SHORT', (int) $handoverSource['id'], 40, 1.75, (int) $owner['id']);
+$storageTransferOverItem = create_item_record($prefix . ' Handover Transfer Over Item', $prefix . '-HDO-XFER-OVER', (int) $handoverSource['id'], 40, 1.85, (int) $owner['id']);
 
 $storageTransferCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
 assert_true($storageTransferCreatePage['status'] === 200, 'Storage-transfer handover create page did not load.');
@@ -3483,8 +3484,9 @@ assert_true($storageTransferExactExcelDownload['status'] === 200 && strpos($stor
 assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Storage transfer', 'Storage-transfer sign-off XLSX is missing transfer mode.');
 assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Transfer Accounting', 'Storage-transfer sign-off XLSX is missing transfer accounting note.');
 assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Received Into Destination', 'Storage-transfer sign-off XLSX is missing destination receipt row.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Additional From Source', 'Storage-transfer sign-off XLSX is missing additional-from-source accounting.');
 assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Returned To Source', 'Storage-transfer sign-off XLSX is missing returned-to-source row.');
-assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Difference means planned minus destination received minus returned to source', 'Storage-transfer sign-off XLSX uses staff usage difference wording.');
+assert_xlsx_contains_text($storageTransferExactExcelDownload['body'], 'Difference means planned plus additional from source minus destination received minus returned to source', 'Storage-transfer sign-off XLSX uses incorrect transfer difference wording.');
 
 $storageTransferShortSourceBefore = balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']);
 $storageTransferShortDestinationBefore = balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']);
@@ -3535,6 +3537,56 @@ assert_true((string) $storageTransferShortClosed['status'] === 'closed', 'Short 
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $handoverSource['id']) === round($storageTransferShortSourceBefore - 5, 2), 'Short storage-transfer source balance should only lose the received quantity after shortage approval.');
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], (int) $transferDestination['id']) === round($storageTransferShortDestinationBefore + 5, 2), 'Short storage-transfer destination balance should gain only the confirmed received quantity.');
 assert_true(balance_quantity((int) $storageTransferShortItem['id'], system_storage_id('handover_buffer')) === $storageTransferShortBufferBefore, 'Short storage-transfer buffer should be empty after source approval.');
+
+note('Storage-transfer over-receipts wait for source approval and post only available extra stock.');
+$storageTransferOverSourceBefore = balance_quantity((int) $storageTransferOverItem['id'], (int) $handoverSource['id']);
+$storageTransferOverDestinationBefore = balance_quantity((int) $storageTransferOverItem['id'], (int) $transferDestination['id']);
+$storageTransferOverBufferBefore = balance_quantity((int) $storageTransferOverItem['id'], system_storage_id('handover_buffer'));
+$storageTransferOverCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+$storageTransferOverCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($storageTransferOverCreatePage['body'], 'storage transfer over create'),
+    'recipient_type' => 'storage',
+    'source_storage_id' => $handoverSource['id'],
+    'destination_storage_id' => $transferDestination['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
+    'notes' => $prefix . ' over storage transfer handover',
+    'line_item_id' => [(int) $storageTransferOverItem['id']],
+    'line_quantity' => ['6'],
+]);
+assert_true($storageTransferOverCreate['status'] === 302, 'Over storage-transfer handover create did not redirect.');
+$storageTransferOverId = first_redirect_id($storageTransferOverCreate['location'], '/handovers');
+$storageTransferOverAdminPage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $storageTransferOverId);
+$storageTransferOverLines = handover_lines($storageTransferOverId);
+$storageTransferOverReceive = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $storageTransferOverId . '/receive', [
+    '_token' => extract_csrf($storageTransferOverAdminPage['body'], 'storage transfer over receipt'),
+    'receipt_notes' => $prefix . ' received one extra transfer item',
+    'line_received' => [
+        (int) $storageTransferOverLines[0]['id'] => '7',
+    ],
+]);
+assert_true($storageTransferOverReceive['status'] === 302, 'Over storage-transfer receipt did not redirect.');
+assert_true((string) find_handover_or_abort($storageTransferOverId)['status'] === 'receipt_review', 'Over storage-transfer handover should wait for source owner review.');
+assert_true(balance_quantity((int) $storageTransferOverItem['id'], (int) $handoverSource['id']) === round($storageTransferOverSourceBefore - 6, 2), 'Over storage-transfer should not remove extra source stock before approval.');
+assert_true(balance_quantity((int) $storageTransferOverItem['id'], (int) $transferDestination['id']) === $storageTransferOverDestinationBefore, 'Over storage-transfer destination should not receive stock before approval.');
+assert_true(balance_quantity((int) $storageTransferOverItem['id'], system_storage_id('handover_buffer')) === round($storageTransferOverBufferBefore + 6, 2), 'Over storage-transfer buffer should hold only planned stock before approval.');
+$storageTransferOverOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $storageTransferOverId);
+assert_true(strpos($storageTransferOverOwnerPage['body'], 'Source Adjustment') !== false && strpos($storageTransferOverOwnerPage['body'], 'additional from source') !== false, 'Over storage-transfer review should explain the extra source adjustment.');
+$storageTransferOverConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $storageTransferOverId . '/confirm-receipt', [
+    '_token' => extract_csrf($storageTransferOverOwnerPage['body'], 'storage transfer over approval'),
+    'line_received' => [
+        (int) $storageTransferOverLines[0]['id'] => '7',
+    ],
+]);
+assert_true($storageTransferOverConfirm['status'] === 302, 'Over storage-transfer confirmation did not redirect.');
+$storageTransferOverClosed = find_handover_or_abort($storageTransferOverId);
+assert_true((string) $storageTransferOverClosed['status'] === 'closed', 'Over storage-transfer handover should close after source owner approval.');
+assert_true(balance_quantity((int) $storageTransferOverItem['id'], (int) $handoverSource['id']) === round($storageTransferOverSourceBefore - 7, 2), 'Over storage-transfer source should lose planned plus approved extra quantity.');
+assert_true(balance_quantity((int) $storageTransferOverItem['id'], (int) $transferDestination['id']) === round($storageTransferOverDestinationBefore + 7, 2), 'Over storage-transfer destination should gain the confirmed quantity.');
+assert_true(balance_quantity((int) $storageTransferOverItem['id'], system_storage_id('handover_buffer')) === $storageTransferOverBufferBefore, 'Over storage-transfer buffer should be empty after approval.');
+$storageTransferOverExcelDocumentId = (int) Database::scalar('SELECT id FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id = :workflow_id AND document_type = "signoff_excel" ORDER BY id DESC LIMIT 1', ['workflow_id' => $storageTransferOverId]);
+$storageTransferOverExcelDownload = http_request($baseUrl, $ownerCookie, 'GET', '/workflow-documents/' . $storageTransferOverExcelDocumentId . '/download');
+assert_true($storageTransferOverExcelDownload['status'] === 200 && strpos($storageTransferOverExcelDownload['body'], 'PK') === 0, 'Over storage-transfer sign-off Excel sheet could not be downloaded.');
+assert_xlsx_contains_text($storageTransferOverExcelDownload['body'], 'Additional From Source', 'Over storage-transfer sign-off XLSX is missing the source adjustment.');
 
 note('Running the long-term staff custody, partial return, damage proof, replacement, and quarantine cycle.');
 $custodyItem = create_item_record(
@@ -4329,6 +4381,54 @@ assert_true((string) find_handover_or_abort($exactReceiptHandoverId)['status'] =
 assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === $exactReceiptSourceBefore, 'Exact-receipt cleanup should restore source stock.');
 assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === $exactReceiptBufferBefore, 'Exact-receipt cleanup should clear buffer stock.');
 
+note('Staff can report more received than planned and the issuer can approve the exact quantity.');
+$overReceiptSourceBefore = balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']);
+$overReceiptBufferBefore = balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer'));
+$overReceiptCreatePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/create');
+$overReceiptCreate = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($overReceiptCreatePage['body'], 'staff over-receipt create'),
+    'source_storage_id' => $handoverSource['id'],
+    'recipient_name' => $prefix . ' Over Receipt',
+    'recipient_user_id' => $staff['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+2 day')),
+    'notes' => $prefix . ' over receipt workflow',
+    'line_item_id' => [(int) $handoverItems[0]['id']],
+    'line_quantity' => ['3'],
+]);
+assert_true($overReceiptCreate['status'] === 302, 'Staff over-receipt handover create did not redirect.');
+$overReceiptHandoverId = first_redirect_id($overReceiptCreate['location'], '/handovers');
+$overReceiptStaffPage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/' . $overReceiptHandoverId);
+assert_true($overReceiptStaffPage['status'] === 200, 'Staff over-receipt handover did not load for recipient.');
+assert_true(strpos($overReceiptStaffPage['body'], 'even when it is higher than planned') !== false, 'Receipt form does not explain that over-receipts are allowed.');
+$overReceiptLine = handover_lines($overReceiptHandoverId)[0];
+$overReceiptReport = http_request($baseUrl, $staffCookie, 'POST', '/handovers/' . $overReceiptHandoverId . '/receive', [
+    '_token' => extract_csrf($overReceiptStaffPage['body'], 'staff over-receipt report'),
+    'receipt_notes' => $prefix . ' one extra item physically received',
+    'line_received' => [(int) $overReceiptLine['id'] => '4'],
+]);
+assert_true($overReceiptReport['status'] === 302, 'Staff over-receipt report did not redirect.');
+assert_true((string) find_handover_or_abort($overReceiptHandoverId)['status'] === 'receipt_review', 'Staff over-receipt should wait for issuer review.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($overReceiptSourceBefore - 3, 2), 'Staff over-receipt should not remove extra source stock before issuer approval.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($overReceiptBufferBefore + 3, 2), 'Staff over-receipt buffer should contain only planned stock before issuer approval.');
+$overReceiptOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $overReceiptHandoverId);
+assert_true(strpos($overReceiptOwnerPage['body'], 'Source Adjustment') !== false && strpos($overReceiptOwnerPage['body'], 'additional from source') !== false, 'Issuer over-receipt review should show the extra source adjustment.');
+$overReceiptConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $overReceiptHandoverId . '/confirm-receipt', [
+    '_token' => extract_csrf($overReceiptOwnerPage['body'], 'staff over-receipt approval'),
+    'line_received' => [(int) $overReceiptLine['id'] => '4'],
+]);
+assert_true($overReceiptConfirm['status'] === 302, 'Staff over-receipt confirmation did not redirect.');
+assert_true((string) find_handover_or_abort($overReceiptHandoverId)['status'] === 'delivered', 'Approved staff over-receipt should become delivered.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === round($overReceiptSourceBefore - 4, 2), 'Approved staff over-receipt should remove the extra quantity from source.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($overReceiptBufferBefore + 4, 2), 'Approved staff over-receipt should add the extra quantity to the handover buffer.');
+$overReceiptCleanupPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $overReceiptHandoverId);
+$overReceiptCleanup = http_request($baseUrl, $ownerCookie, 'POST', '/handovers/' . $overReceiptHandoverId . '/cancel', [
+    '_token' => extract_csrf($overReceiptCleanupPage['body'], 'staff over-receipt cleanup'),
+    'cancelled_notes' => $prefix . ' over receipt workflow cleanup',
+]);
+assert_true($overReceiptCleanup['status'] === 302, 'Staff over-receipt cleanup did not redirect.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']) === $overReceiptSourceBefore, 'Staff over-receipt cleanup should restore source stock.');
+assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === $overReceiptBufferBefore, 'Staff over-receipt cleanup should restore buffer stock.');
+
 note('Cancelling an issued handover returns reserved stock.');
 $cancelHandoverSourceBefore = balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSource['id']);
 $cancelHandoverBufferBefore = balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer'));
@@ -4805,8 +4905,10 @@ assert_true(strpos($handoverExport['body'], $handoverRecord['handover_number']) 
 assert_true(strpos($handoverExport['body'], $handoverRequestClosed['handover_number']) !== false, 'Handover export is missing the requested handover.');
 assert_true(strpos($handoverExport['body'], $storageTransferExactClosed['handover_number']) !== false, 'Handover export is missing the exact storage-transfer handover.');
 assert_true(strpos($handoverExport['body'], $storageTransferShortClosed['handover_number']) !== false, 'Handover export is missing the short storage-transfer handover.');
+assert_true(strpos($handoverExport['body'], $storageTransferOverClosed['handover_number']) !== false, 'Handover export is missing the over-receipt storage-transfer handover.');
 assert_true(strpos($handoverExport['body'], 'Storage transfer') !== false && strpos($handoverExport['body'], $transferDestination['name']) !== false, 'Handover export is missing storage-transfer target details.');
 assert_true(strpos($handoverExport['body'], 'Short Quantity') !== false, 'Handover export is missing storage-transfer short quantity column.');
+assert_true(strpos($handoverExport['body'], 'Over Quantity') !== false, 'Handover export is missing storage-transfer over quantity column.');
 assert_true(strpos($handoverExport['body'], 'Usage Reasons') !== false && strpos($handoverExport['body'], 'Damage 1') !== false, 'Handover export is missing usage reason details.');
 assert_true(strpos($handoverExport['body'], 'Expected Usage Reasons') !== false && strpos($handoverExport['body'], 'Online 12') !== false, 'Handover export is missing expected usage details.');
 assert_true(strpos($handoverExport['body'], 'Usage Variance') !== false && strpos($handoverExport['body'], 'Damage +1') !== false, 'Handover export is missing usage variance details.');

@@ -41,12 +41,14 @@ function workflow_signoff_rows(string $workflowType, array $lines, array $record
         $custodyDamaged = 0.0;
         $custodyConsumed = 0.0;
         $custodyLost = 0.0;
+        $sourceAdded = 0.0;
 
         if ($workflowType === 'handover') {
             $received = round((float) ($line['quantity_received'] ?? 0), 2);
             if ($isStorageTransfer) {
                 $used = 0.0;
                 $returned = $receiptWasReported ? max(0, round($quantity - $received, 2)) : 0.0;
+                $sourceAdded = $receiptWasReported ? max(0, round($received - $quantity, 2)) : 0.0;
                 $remaining = 0.0;
                 $expectedUsageSummary = '';
                 $usageSummary = '';
@@ -55,6 +57,7 @@ function workflow_signoff_rows(string $workflowType, array $lines, array $record
                     'Planned: ' . format_quantity($quantity) . ' ' . $unit,
                     'Received: ' . ($receiptWasReported ? format_quantity($received) . ' ' . $unit : 'not reported'),
                     'To destination: ' . ($receiptWasReported ? format_quantity($received) . ' ' . $unit : 'pending'),
+                    'Additional from source: ' . ($receiptWasReported ? format_quantity($sourceAdded) . ' ' . $unit : 'pending'),
                     'Returning to source: ' . ($receiptWasReported ? format_quantity($returned) . ' ' . $unit : 'pending'),
                 ];
             } elseif ($isStaffCustody) {
@@ -127,6 +130,7 @@ function workflow_signoff_rows(string $workflowType, array $lines, array $record
                 : round((float) ($line['quantity_received'] ?? 0), 2),
             'used_quantity' => $workflowType === 'handover' ? $used : 0.0,
             'returned_quantity' => $workflowType === 'handover' ? $returned : 0.0,
+            'source_added_quantity' => $workflowType === 'handover' && $isStorageTransfer ? $sourceAdded : 0.0,
             'remaining_quantity' => $workflowType === 'handover' ? $remaining : 0.0,
             'custody_serviceable_quantity' => $custodyServiceable,
             'custody_damaged_quantity' => $custodyDamaged,

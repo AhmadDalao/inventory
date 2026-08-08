@@ -177,6 +177,19 @@ function reconcile_handover_receipt_inventory(
         $item = find_item_or_abort($itemId);
 
         if ($difference > 0) {
+            $sourceBalance = item_storage_balance_record($itemId, (int) $handover['source_storage_id']);
+            $sourceAvailable = round((float) ($sourceBalance['quantity'] ?? 0), 2);
+
+            if ($sourceAvailable < $difference) {
+                throw new RuntimeException(
+                    (string) ($item['name'] ?? 'Item')
+                    . ' needs ' . format_quantity($difference)
+                    . ' additional stock from the source to confirm this receipt, but only '
+                    . format_quantity($sourceAvailable)
+                    . ' is available. Restock the source or correct the received quantity first.'
+                );
+            }
+
             apply_inventory_movement(
                 $item,
                 'transfer',
@@ -185,7 +198,7 @@ function reconcile_handover_receipt_inventory(
                 $bufferStorageId,
                 date('Y-m-d H:i:s'),
                 (string) $handover['handover_number'],
-                $notePrefix . ': restored corrected received stock to the handover buffer.',
+                $notePrefix . ': added confirmed extra received stock from the source to the handover buffer.',
                 $performedBy,
                 'handover',
                 (int) $handover['id']

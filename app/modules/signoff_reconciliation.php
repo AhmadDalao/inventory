@@ -36,12 +36,13 @@ function workflow_signoff_transfer_difference_totals(array $rows): array
         $planned = round((float) ($row['quantity'] ?? 0), 2);
         $received = round((float) ($row['received_quantity'] ?? 0), 2);
         $returned = round((float) ($row['returned_quantity'] ?? 0), 2);
+        $sourceAdded = round((float) ($row['source_added_quantity'] ?? 0), 2);
 
         if (!isset($totals[$unit])) {
             $totals[$unit] = 0.0;
         }
 
-        $totals[$unit] = round($totals[$unit] + ($planned - $received - $returned), 2);
+        $totals[$unit] = round($totals[$unit] + ($planned + $sourceAdded - $received - $returned), 2);
     }
 
     ksort($totals);
@@ -143,8 +144,9 @@ function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorage
     $received = workflow_signoff_quantity_sum($rows, 'received_quantity');
     $used = workflow_signoff_quantity_sum($rows, 'used_quantity');
     $returned = workflow_signoff_quantity_sum($rows, 'returned_quantity');
+    $sourceAdded = workflow_signoff_quantity_sum($rows, 'source_added_quantity');
     $unaccounted = $isStorageTransfer
-        ? round($planned - $received - $returned, 2)
+        ? round($planned + $sourceAdded - $received - $returned, 2)
         : round($received - $used - $returned, 2);
     $tableRows = [
         [
@@ -159,6 +161,15 @@ function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorage
     ];
 
     if ($isStorageTransfer) {
+        $tableRows[] = [
+            'type' => 'additional_source',
+            'label' => 'Additional From Source',
+            'expected' => '',
+            'actual' => $unit === null ? workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'source_added_quantity')) : $sourceAdded,
+            'difference' => '',
+            'unit' => $unit ?? '',
+            'notes' => 'Confirmed over-receipt supplied from available source stock.',
+        ];
         $tableRows[] = [
             'type' => 'received_destination',
             'label' => 'Received Into Destination',
@@ -175,7 +186,7 @@ function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorage
             'actual' => $unit === null ? workflow_signoff_format_grouped_total(workflow_signoff_grouped_quantity_total($rows, 'returned_quantity')) : $returned,
             'difference' => '',
             'unit' => $unit ?? '',
-            'notes' => 'Short quantity returned to source storage.',
+            'notes' => 'Confirmed short receipt returned to source storage.',
         ];
         $tableRows[] = [
             'type' => 'difference',
@@ -184,7 +195,7 @@ function workflow_signoff_reconciliation_table_rows(array $rows, bool $isStorage
             'actual' => $unit === null ? workflow_signoff_format_grouped_total(workflow_signoff_transfer_difference_totals($rows)) : $unaccounted,
             'difference' => '',
             'unit' => $unit ?? '',
-            'notes' => 'Planned - received - returned. Target is 0.',
+            'notes' => 'Planned + additional from source - received - returned. Target is 0.',
         ];
 
         return $tableRows;

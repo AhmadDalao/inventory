@@ -604,17 +604,25 @@ export const initHandoverReceiptReviews = (root = document) => {
 
       const row = field.closest('tr');
       const difference = row?.querySelector('[data-handover-receipt-difference]');
+      const adjustmentLabel = row?.querySelector('[data-handover-receipt-adjustment-label]');
 
       const syncDifference = () => {
         const planned = Math.max(0, parseNumber(field.dataset.handoverPlanned || '0'));
         const confirmed = parseNumber(field.value);
-        const invalid = confirmed < 0 || confirmed > planned;
-        const shortage = Math.max(0, Math.round((planned - Math.max(0, confirmed)) * 100) / 100);
+        const invalid = confirmed < 0;
+        const adjustment = Math.round((Math.max(0, confirmed) - planned) * 100) / 100;
 
         field.classList.toggle('is-invalid', invalid);
+        field.setCustomValidity(invalid ? 'Enter a valid received quantity.' : '');
 
         if (difference instanceof HTMLElement) {
-          difference.textContent = formatQuantity(shortage);
+          difference.textContent = `${adjustment > 0 ? '+' : ''}${formatQuantity(adjustment)}`;
+        }
+
+        if (adjustmentLabel instanceof HTMLElement) {
+          adjustmentLabel.textContent = adjustment > 0
+            ? 'additional from source'
+            : (adjustment < 0 ? 'returning to source' : 'no adjustment');
         }
       };
 

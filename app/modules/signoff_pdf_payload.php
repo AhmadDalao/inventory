@@ -294,7 +294,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
 
         $isStorageTransfer = !empty($totals['is_storage_transfer']);
         $notesText = $isStorageTransfer
-            ? 'Transfer accounting: received stock moves to destination, short quantity returns to source. Difference / Unaccounted should be 0.'
+            ? 'Transfer accounting: receipt differences adjust source stock before received stock moves to destination. Difference / Unaccounted should be 0.'
             : ($handoverUsesOperationalReconciliation
                 ? 'Returned is entered per item. Operational totals describe the whole handover. Difference should be 0.'
                 : ($handoverUsesReconciliation ? 'Returned is entered first. Used is calculated as received minus returned. Difference / Unaccounted should be 0.' : 'Legacy layout keeps the old stock accounting and usage variance summary.'));
@@ -305,7 +305,7 @@ function workflow_signoff_pdf_payload(string $workflowType, array $record, array
             ? 'Issued / Planned'
             : ($handoverUsesOperationalReconciliation ? 'Quantity' : 'Expected Usage / Issued');
         $differenceNote = $isStorageTransfer
-            ? 'Difference = planned - received into destination - returned to source. 0 means the transfer is fully accounted for.'
+            ? 'Difference = planned + additional from source - received into destination - returned to source. 0 means the transfer is fully accounted for.'
             : ($handoverUsesOperationalReconciliation
                 ? 'Difference = physical used - operational used. 0 means the handover is reconciled.'
                 : 'Difference = received - used - returned. 0 means all handed stock is accounted for.');

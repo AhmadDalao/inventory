@@ -266,7 +266,7 @@ function documentation_sections(): array
                 'Difference compares physical used quantity with operational used quantity and should normally be 0.',
                 'Staff close the handover after use; status waits for storage owner approval.',
                 'Approver can correct returned quantities and operational totals before final close.',
-                'Storage-transfer shortages wait for source owner approval before destination and source balances are finalized.',
+                'Storage-transfer receipt differences wait for source owner approval before destination and source balances are finalized.',
                 'Movement logs record issued, used, returned, and transfer stock impact.',
                 'Signoff PDF/Excel keeps item rows simple and places operational reconciliation at the bottom: issued, received, reason totals, returned, and Difference.',
                 'Export handover reports.',
@@ -274,12 +274,12 @@ function documentation_sections(): array
             'steps' => [
                 'Choose Temporary Use, Long-Term Staff Custody, or Storage Transfer.',
                 'Add source storage, recipient or destination storage, and line items.',
-                'For staff use: an exact receipt moves directly to usage reporting; a shortage or mismatch waits for issuer review.',
+                'For staff use: an exact receipt moves directly to usage reporting; any lower or higher quantity waits for issuer review.',
                 'Recipient enters returned quantity per item; used quantity is calculated automatically.',
                 'Recipient completes one operational reconciliation for each unit in the handover.',
                 'For long-term custody: recipient submits partial or final return events and the source issuer reviews the condition, quantities, and proof.',
                 'For storage transfer: destination owner confirms what arrived.',
-                'For shortages: source owner reviews and approves the reported difference.',
+                'For receipt differences: source owner reviews the exact quantity. Extra quantity is accepted only when the source storage has enough stock.',
                 'Final approval posts stock movement into the correct source, buffer, destination, used, and returned balances.',
             ],
             'rules' => [

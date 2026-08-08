@@ -34,12 +34,12 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
     $handoverUsesReconciliation = $isHandover
         && ($handoverUsesOperationalReconciliation || workflow_signoff_template() === 'reconciliation');
     $headerNote = $isStorageTransfer
-        ? 'Transfer stock accounting is listed at the bottom. Received stock goes to destination; short quantity returns to source.'
+        ? 'Transfer stock accounting is listed at the bottom. Receipt differences adjust source stock before the destination is finalized.'
         : ($handoverUsesOperationalReconciliation
             ? 'Item quantities and handover-level operational reconciliation are listed separately.'
             : ($handoverUsesReconciliation ? 'Expected usage, actual usage, variance, and stock difference are listed at the bottom.' : 'Legacy layout keeps expected and actual usage details inside the item table.'));
     $reconciliationNote = $isStorageTransfer
-        ? 'Transfer Accounting. Received stock goes to destination. Short quantity returns to source. Difference means planned minus destination received minus returned to source.'
+        ? 'Transfer Accounting. Received stock goes to destination. Receipt differences adjust source stock. Difference means planned plus additional from source minus destination received minus returned to source.'
         : ($handoverUsesOperationalReconciliation
             ? 'Operational reconciliation. Returned is entered per item. Operational totals describe the whole handover, not individual SKUs.'
             : 'Stock Accounting. Usage Reconciliation. Returned is entered first. Used is calculated as received minus returned. Difference means received minus used minus returned.');
@@ -90,7 +90,7 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
 
     $headers = $handoverUsesReconciliation
         ? ($isStorageTransfer
-            ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'To Destination', 'Returned To Source', 'Notes']
+            ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'To Destination', 'Additional From Source', 'Returned To Source', 'Notes']
             : ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Used', 'Returned', 'Notes'])
         : ($isHandover
             ? ['Image', 'Item', 'SKU', 'Barcode / Scan Code', 'Unit', 'Planned', 'Received', 'Expected Usage', 'Actual Usage', 'Returned', 'Remaining', 'Variance / Notes']
@@ -116,11 +116,14 @@ function workflow_xlsx_sheet_xml(array $meta, array $rows, array $images, array 
             $cells .= workflow_xlsx_number_cell('G' . $rowNumber, (float) ($row['received_quantity'] ?? 0), 3);
             if ($isStorageTransfer) {
                 $cells .= workflow_xlsx_number_cell('H' . $rowNumber, (float) ($row['received_quantity'] ?? 0), 3);
+                $cells .= workflow_xlsx_number_cell('I' . $rowNumber, (float) ($row['source_added_quantity'] ?? 0), 3);
+                $cells .= workflow_xlsx_number_cell('J' . $rowNumber, (float) ($row['returned_quantity'] ?? 0), 3);
+                $cells .= workflow_xlsx_cell('K' . $rowNumber, '', 3);
             } else {
                 $cells .= workflow_xlsx_formula_cell('H' . $rowNumber, 'G' . $rowNumber . '-I' . $rowNumber, 3);
+                $cells .= workflow_xlsx_number_cell('I' . $rowNumber, (float) ($row['returned_quantity'] ?? 0), 3);
+                $cells .= workflow_xlsx_cell('J' . $rowNumber, '', 3);
             }
-            $cells .= workflow_xlsx_number_cell('I' . $rowNumber, (float) ($row['returned_quantity'] ?? 0), 3);
-            $cells .= workflow_xlsx_cell('J' . $rowNumber, '', 3);
         } elseif ($isHandover) {
             $unit = (string) ($row['unit'] ?? 'pcs');
             $received = (float) ($row['received_quantity'] ?? 0);

@@ -26,17 +26,14 @@ function build_handover_receipt_updates(array $lines, $receivedInput): array
         $handed = round((float) $line['quantity_handed'], 2);
         $received = round(quantity_value($receivedValue), 2);
 
-        if ($received > $handed) {
-            $errors[] = $line['item_name'] . ' cannot receive more than the planned handover quantity.';
-            continue;
-        }
-
         $updates[] = [
             'line_id' => $lineId,
             'item_id' => (int) $line['item_id'],
             'handed' => $handed,
             'received' => $received,
-            'shortage' => round($handed - $received, 2),
+            'shortage' => max(0, round($handed - $received, 2)),
+            'overage' => max(0, round($received - $handed, 2)),
+            'receipt_difference' => round($received - $handed, 2),
         ];
 
         if ($received !== $handed) {

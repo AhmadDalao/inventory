@@ -192,7 +192,7 @@ function handover_receipt_confirm_block_reason(array $handover, ?array $user = n
 
     if (handover_is_storage_transfer($handover)) {
         if (!handover_is_source_issuer($handover, $user)) {
-            return 'Only the source storage owner can confirm this transfer shortage.';
+            return 'Only the source storage owner can confirm this transfer receipt difference.';
         }
 
         return null;

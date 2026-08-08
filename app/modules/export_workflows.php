@@ -60,14 +60,16 @@ function handle_export_handovers(): void
             $plannedQuantity = round((float) ($line['quantity_handed'] ?? 0), 2);
             $receivedQuantity = round((float) ($line['quantity_received'] ?? 0), 2);
             $shortQuantity = 0.0;
+            $overQuantity = 0.0;
             $usedQuantity = round((float) ($line['quantity_used'] ?? 0), 2);
             $returnedQuantity = round((float) ($line['quantity_returned'] ?? 0), 2);
 
             if ($isStorageTransfer) {
                 $shortQuantity = max(0, round($plannedQuantity - $receivedQuantity, 2));
+                $overQuantity = max(0, round($receivedQuantity - $plannedQuantity, 2));
                 $usedQuantity = 0.0;
                 $returnedQuantity = $storageReceiptWasReported ? $shortQuantity : 0.0;
-                $remainingQuantity = max(0, round($plannedQuantity - $receivedQuantity - $returnedQuantity, 2));
+                $remainingQuantity = max(0, round($plannedQuantity + $overQuantity - $receivedQuantity - $returnedQuantity, 2));
             } else {
                 $baseQuantity = in_array($handoverStatus, ['requested', 'awaiting_receipt'], true)
                     ? $plannedQuantity
@@ -95,6 +97,7 @@ function handle_export_handovers(): void
                 format_quantity($plannedQuantity),
                 format_quantity($receivedQuantity),
                 format_quantity($shortQuantity),
+                format_quantity($overQuantity),
                 format_quantity($usedQuantity),
                 format_quantity($returnedQuantity),
                 format_quantity($remainingQuantity),
@@ -129,6 +132,7 @@ function handle_export_handovers(): void
         'Planned Quantity',
         'Received Quantity',
         'Short Quantity',
+        'Over Quantity',
         'Used Quantity',
         'Returned Quantity',
         'Remaining Quantity',

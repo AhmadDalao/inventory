@@ -107,9 +107,15 @@ foreach ($lines as $line) {
 
 $storageReceiptWasReported = $isStorageTransfer && in_array($handoverStatus, ['receipt_review', 'closed'], true);
 $storageShortTotal = max(0, round($plannedTotal - $receivedTotal, 2));
+$storageAddedFromSourceTotal = $storageReceiptWasReported ? max(0, round($receivedTotal - $plannedTotal, 2)) : 0.0;
 $storageReturnedToSourceTotal = $storageReceiptWasReported ? $storageShortTotal : 0.0;
 $storageToDestinationTotal = $storageReceiptWasReported ? $receivedTotal : 0.0;
-$storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTotal - $storageReturnedToSourceTotal, 2));
+$storageDifferenceTotal = round($plannedTotal + $storageAddedFromSourceTotal - $storageToDestinationTotal - $storageReturnedToSourceTotal, 2);
+$storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
+    ? '+' . format_quantity($storageAddedFromSourceTotal) . ' added'
+    : ($storageReturnedToSourceTotal > 0
+        ? format_quantity($storageReturnedToSourceTotal) . ' returned'
+        : '0');
 ?>
 
 <section class="page-head">
@@ -156,8 +162,8 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <strong><?= format_quantity($storageToDestinationTotal) ?></strong>
                 </div>
                 <div>
-                    <span>Returning To Source</span>
-                    <strong><?= format_quantity($storageReturnedToSourceTotal) ?></strong>
+                    <span>Source Adjustment</span>
+                    <strong><?= e($storageSourceAdjustmentLabel) ?></strong>
                 </div>
                 <div>
                     <span>Difference</span>
@@ -402,7 +408,6 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        max="<?= e(format_quantity($line['quantity_handed'])) ?>"
                                         name="line_received[<?= e((string) $line['id']) ?>]"
                                         value="<?= e($receivedValue) ?>"
                                         required
@@ -414,9 +419,11 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     </table>
                 </div>
 
+                <p class="tiny-copy">Enter the exact quantity received, even when it is higher than planned. Extra stock waits for issuer approval and must be available in the source storage.</p>
+
                 <label class="field">
                     <span>Receipt Notes</span>
-                    <textarea name="receipt_notes" rows="4" placeholder="Mention shortages, damaged items, or anything off."><?= e((string) old('receipt_notes', (string) ($handoverRecord['receipt_notes'] ?? ''))) ?></textarea>
+                    <textarea name="receipt_notes" rows="4" placeholder="Mention shortages, extra items, damaged items, or anything off."><?= e((string) old('receipt_notes', (string) ($handoverRecord['receipt_notes'] ?? ''))) ?></textarea>
                 </label>
 
                 <label class="field">
@@ -446,7 +453,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
         <?php elseif ($canConfirmReceipt): ?>
             <div class="copy-context-card">
                 <strong><?= $isStorageTransfer ? 'Review and confirm the transfer receipt' : 'Review and confirm what the receiver actually got' ?></strong>
-                <p><?= $isStorageTransfer ? 'Check every received quantity before closing the transfer. Confirmed stock moves to the destination and the difference returns to source.' : 'The receiver reported these quantities. Correct any number that is wrong, then confirm. The receiver will report returned stock and usage next.' ?></p>
+                <p><?= $isStorageTransfer ? 'Check every received quantity before closing the transfer. A shortage returns stock to source; a confirmed overage draws the extra from source only when that stock is available.' : 'The receiver reported these quantities. Correct any number that is wrong, including an over-receipt, then confirm. The receiver will report returned stock and usage next.' ?></p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/confirm-receipt')) ?>" data-live-action-form data-handover-receipt-review>
@@ -460,14 +467,14 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                             <th>Planned</th>
                             <th>Receiver Reported</th>
                             <th>Issuer Confirmed</th>
-                            <th><?= $isStorageTransfer ? 'Short / Returning To Source' : 'Unreceived / Returning To Source' ?></th>
+                            <th>Source Adjustment</th>
                         </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($lines as $line): ?>
                             <?php
                             $lineImageUrl = item_image_url($line['image_path'] ?? null);
-                            $shortage = round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2);
+                            $receiptAdjustment = round((float) $line['quantity_received'] - (float) $line['quantity_handed'], 2);
                             $oldConfirmedInput = old('line_received', []);
                             $confirmedValue = is_array($oldConfirmedInput) && array_key_exists((int) $line['id'], $oldConfirmedInput)
                                 ? (string) $oldConfirmedInput[(int) $line['id']]
@@ -494,7 +501,6 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                                         type="number"
                                         step="0.01"
                                         min="0"
-                                        max="<?= e(format_quantity($line['quantity_handed'])) ?>"
                                         name="line_received[<?= e((string) $line['id']) ?>]"
                                         value="<?= e($confirmedValue) ?>"
                                         aria-label="Issuer confirmed received quantity for <?= e($line['item_name']) ?>"
@@ -503,7 +509,10 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                                         required
                                     >
                                 </td>
-                                <td><strong data-handover-receipt-difference><?= format_quantity($shortage) ?></strong> <?= e($line['unit']) ?></td>
+                                <td>
+                                    <strong data-handover-receipt-difference><?= $receiptAdjustment > 0 ? '+' : '' ?><?= format_quantity($receiptAdjustment) ?></strong> <?= e($line['unit']) ?>
+                                    <span class="tiny-copy" data-handover-receipt-adjustment-label><?= $receiptAdjustment > 0 ? 'additional from source' : ($receiptAdjustment < 0 ? 'returning to source' : 'no adjustment') ?></span>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
@@ -969,7 +978,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 <?php elseif ((string) $handoverRecord['status'] === 'awaiting_receipt'): ?>
                     <?= $isStorageTransfer ? 'This storage transfer is waiting for the destination storage owner to confirm what arrived.' : 'This handover is waiting for the recipient to confirm what actually arrived.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'receipt_review'): ?>
-                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported shortage.' : 'This handover has a reported receipt difference and is waiting for the issuer to review it.' ?>
+                    <?= $isStorageTransfer ? 'This storage transfer is waiting for the source storage owner to approve the reported receipt difference.' : 'This handover has a reported receipt difference and is waiting for the issuer to review it.' ?>
                 <?php elseif ((string) $handoverRecord['status'] === 'pending_approval'): ?>
                     This handover is waiting for the storage owner to approve the remaining quantity.
                 <?php elseif ((string) $handoverRecord['status'] === 'rejected'): ?>
@@ -1275,7 +1284,7 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 <th>Planned</th>
                 <th>Received</th>
                 <th><?= $isStorageTransfer ? 'To Destination' : ($isStaffCustody ? 'Consumed / Lost' : 'Used') ?></th>
-                <th><?= $isStorageTransfer ? 'Returning To Source' : ($isStaffCustody ? 'Returned / Quarantined' : 'Returned') ?></th>
+                <th><?= $isStorageTransfer ? 'Source Adjustment' : ($isStaffCustody ? 'Returned / Quarantined' : 'Returned') ?></th>
                 <th><?= $isStaffCustody ? 'Still Held' : 'Difference / Unaccounted' ?></th>
             </tr>
             </thead>
@@ -1292,9 +1301,11 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                 if ($isStorageTransfer) {
                     $lineReceiptWasReported = in_array((string) $handoverRecord['status'], ['receipt_review', 'closed'], true);
                     $lineShortage = max(0, round((float) $line['quantity_handed'] - (float) $line['quantity_received'], 2));
+                    $lineAddedFromSource = $lineReceiptWasReported ? max(0, round((float) $line['quantity_received'] - (float) $line['quantity_handed'], 2)) : 0.0;
                     $lineToDestination = $lineReceiptWasReported ? round((float) $line['quantity_received'], 2) : 0.0;
                     $lineReturningToSource = $lineReceiptWasReported ? $lineShortage : 0.0;
-                    $unaccounted = max(0, round((float) $line['quantity_handed'] - $lineToDestination - $lineReturningToSource, 2));
+                    $lineSourceAdjustment = round($lineAddedFromSource - $lineReturningToSource, 2);
+                    $unaccounted = round((float) $line['quantity_handed'] + $lineAddedFromSource - $lineToDestination - $lineReturningToSource, 2);
                 } elseif ($isStaffCustody) {
                     $lineCustody = (array) ($custodyLineTotals[(int) $line['id']] ?? []);
                     $lineToDestination = (float) ($lineCustody['consumed_total'] ?? 0) + (float) ($lineCustody['lost_total'] ?? 0);
@@ -1346,7 +1357,11 @@ $storageDifferenceTotal = max(0, round($plannedTotal - $storageToDestinationTota
                     <td data-label="Received"><?= format_quantity($line['quantity_received']) ?> <?= e($line['unit']) ?></td>
                     <?php if ($isStorageTransfer || $isStaffCustody): ?>
                         <td data-label="<?= $isStorageTransfer ? 'To Destination' : 'Consumed / Lost' ?>"><?= format_quantity($lineToDestination) ?> <?= e($line['unit']) ?></td>
-                        <td data-label="<?= $isStorageTransfer ? 'Returning To Source' : 'Returned / Quarantined' ?>"><?= format_quantity($lineReturningToSource) ?> <?= e($line['unit']) ?></td>
+                        <?php if ($isStorageTransfer): ?>
+                            <td data-label="Source Adjustment"><?= $lineSourceAdjustment > 0 ? '+' : '' ?><?= format_quantity($lineSourceAdjustment) ?> <?= e($line['unit']) ?></td>
+                        <?php else: ?>
+                            <td data-label="Returned / Quarantined"><?= format_quantity($lineReturningToSource) ?> <?= e($line['unit']) ?></td>
+                        <?php endif; ?>
                     <?php else: ?>
                         <td data-label="Used"><?= format_quantity($line['quantity_used']) ?> <?= e($line['unit']) ?></td>
                         <td data-label="Returned"><?= format_quantity($line['quantity_returned']) ?> <?= e($line['unit']) ?></td>

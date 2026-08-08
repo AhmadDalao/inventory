@@ -190,7 +190,7 @@ function handle_handovers_receive_submit(array $params): void
                 : 'Handover ' . $handover['handover_number'] . ' needs receipt review',
             $isStorageTransfer
                 ? ($hasVariance
-                    ? ($user['name'] ?? 'Destination owner') . ' reported a transfer shortage and is waiting for source owner confirmation.'
+                    ? ($user['name'] ?? 'Destination owner') . ' reported a transfer receipt difference and is waiting for source owner confirmation.'
                     : ($user['name'] ?? 'Destination owner') . ' confirmed the transfer receipt and stock moved to the destination storage.')
                 : ($hasVariance
                     ? ($user['name'] ?? 'Recipient') . ' reported a receipt difference and is waiting for your confirmation.'
@@ -207,7 +207,7 @@ function handle_handovers_receive_submit(array $params): void
             'ok' => true,
             'message' => $isStorageTransfer
                 ? ($hasVariance
-                    ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
+                    ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the receipt difference.'
                     : 'Transfer received and closed.')
                 : ($hasVariance
                     ? 'Receipt difference saved. Waiting for the issuer to review the quantities.'
@@ -218,7 +218,7 @@ function handle_handovers_receive_submit(array $params): void
 
     flash('success', $isStorageTransfer
         ? ($hasVariance
-            ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the shortage.'
+            ? 'Transfer receipt saved. Waiting for the source storage owner to confirm the receipt difference.'
             : 'Transfer received and closed.')
         : ($hasVariance
             ? 'Receipt difference saved. Waiting for the issuer to review the quantities.'
@@ -278,6 +278,13 @@ function handle_handovers_confirm_receipt_submit(array $params): void
         }
 
         if ($isStorageTransfer) {
+            reconcile_handover_receipt_inventory(
+                $handover,
+                $receiptUpdates,
+                (int) $user['id'],
+                'Transfer receipt confirmation'
+            );
+
             finalize_handover_storage_transfer_inventory($handover, $receiptUpdates, (int) $user['id']);
 
             Database::execute(
@@ -346,7 +353,7 @@ function handle_handovers_confirm_receipt_submit(array $params): void
                 ? 'Transfer ' . $handover['handover_number'] . ' approved'
                 : 'Handover ' . $handover['handover_number'] . ' is ready',
             $isStorageTransfer
-                ? 'The source owner approved the transfer shortage and the received stock moved to the destination storage.'
+                ? 'The source owner approved the transfer receipt difference and the confirmed stock moved to the destination storage.'
                 : 'The reported received quantity was confirmed. You can now track usage and returns.',
             url('/handovers/' . $handover['id']),
             'handover',
@@ -359,14 +366,14 @@ function handle_handovers_confirm_receipt_submit(array $params): void
         json_response([
             'ok' => true,
             'message' => $isStorageTransfer
-                ? 'Transfer shortage approved and closed.'
+                ? 'Transfer receipt difference approved and closed.'
                 : 'Received quantities approved. The handover is now active.',
             'redirect_url' => url('/handovers/' . $handover['id']),
         ]);
     }
 
     flash('success', $isStorageTransfer
-        ? 'Transfer shortage approved and closed.'
+        ? 'Transfer receipt difference approved and closed.'
         : 'Received quantities approved. The handover is now active.');
     redirect('/handovers/' . $handover['id']);
 }
