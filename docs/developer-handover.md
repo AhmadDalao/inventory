@@ -747,7 +747,74 @@ php tests/stock_invariants.php
 
 If the full regression runs on live, run `php scripts/backup.php` first and use a unique prefix. The regression creates users, storages, items, handovers, purchases, assets, stocktakes, and exports, then cleans them up.
 
-## 16. Next Technical Improvements
+## 16. Mobile API And Flutter Application
+
+The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
+
+### Backend ownership
+
+- `app/modules/mobile_api_support.php`: JSON envelope, errors, rate limits, token/session validation, idempotency, and operation ledger.
+- `app/modules/mobile_api_auth.php`: login, rotating refresh, logout, device registration, and revocation checks.
+- `app/modules/mobile_api_inventory.php`: bootstrap, sync cursors/tombstones, assigned storages, item lookup, and balances.
+- `app/modules/mobile_api_movements.php`: usage, privileged restock, atomic batches, protected proofs, and balance conflicts.
+- `app/modules/mobile_api_handovers.php`: staff handovers, storage transfers, custody, receipt differences, closeout, approval, and proof routes.
+- `app/modules/mobile_admin.php`: owner Mobile Access page, user/storage grants, capabilities, devices, operations, and minimum version.
+- `app/maintenance/MaintenanceMobileSchemas.php`: access, assignment, device-session, idempotency-operation, and direct-usage detail tables.
+
+The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/mobile-api.md`. Routes are under `/api/v1`. Responses always use `data`, `meta`, and `error`.
+
+`GET /operations/mine` powers the employee Sync Center activity feed. It is scoped by the authenticated user and returns safe operation summaries only; the owner-only Mobile Access audit remains the place for cross-user diagnostics and raw failure context.
+
+### Safety contract
+
+- Mobile API access is globally disabled by default and enabled from Website Control only for a pilot.
+- Employees require `mobile.access`, an active per-user mobile grant, an unrevoked device, and assigned storages.
+- Access tokens expire after 15 minutes; rotating refresh tokens expire after 30 days and are stored hashed.
+- Every mutation requires `client_operation_id`. Duplicate submissions return the original result.
+- Offline mode caches reads and stores drafts only. Stock never posts offline.
+- A stale draft receives `409 balance_changed` and must be reconfirmed against the latest server quantity.
+- Batch stock operations are transactional. A failed line rolls back the whole operation.
+- Financial and supplier fields stay out of mobile payloads unless separately authorized.
+
+### Flutter ownership
+
+Flutter feature modules live under `mobile/lib/features/`; shared API, repository, Drift, secure-session, theme, routing, and logic code lives under `mobile/lib/core/`. `mobile/README.md` documents mock mode, production configuration, signing, builds, testing, and rollback.
+
+The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it without production access:
+
+```bash
+cd mobile
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.0.0
+```
+
+Production-connected builds use:
+
+```bash
+flutter build apk --release \
+  --dart-define=MOCK_MODE=false \
+  --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
+  --dart-define=APP_VERSION=1.0.0
+```
+
+Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.
+
+### Deploying mobile backend changes
+
+1. Run `php scripts/backup.php` on production.
+2. Deploy API, maintenance schema, Mobile Access view, and route changes while the API switch remains off.
+3. Run PHP lint, `php tests/mobile_api_contract.php`, module-boundary/frontend-asset tests, full regression, and stock invariants.
+4. Verify disabled API login returns `503 mobile_disabled`.
+5. Enable one to three pilot employees, assign storages, and install the signed internal APK.
+6. Watch failed/conflicted/duplicate operations on `/mobile-access`.
+7. Disable the API and revoke affected devices before rollback if a stock anomaly appears.
+
+### Adding a mobile feature safely
+
+Add the server endpoint and OpenAPI contract first. Reuse existing stock/workflow functions rather than reproducing stock math in Dart. Then add repository method, mock fixture, screen/state, offline-draft representation if applicable, API contract test, Flutter unit/widget test, and physical-device acceptance case. A mobile screen is not complete until retries are idempotent and permissions are enforced on the server.
+
+The planned v1.1 scope is intentionally narrow: guided blind stocktakes and FCM/APNs reference-only alerts. See `docs/mobile/next-update-v1.1.md`.
+
+## 17. Next Technical Improvements
 
 Recommended order:
 

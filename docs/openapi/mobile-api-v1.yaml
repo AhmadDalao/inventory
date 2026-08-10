@@ -1,0 +1,692 @@
+openapi: 3.1.0
+info:
+  title: Inventory KONA Mobile API
+  version: 1.0.0
+  description: |
+    Versioned API used by the Inventory KONA Flutter application. The PHP
+    service remains authoritative for permissions, balances, movements, and
+    workflow state. Offline clients may prepare drafts but cannot post stock.
+servers:
+  - url: https://inventory.ahmaddalao.com/api/v1
+    description: Production (disabled until the owner enables Mobile Access)
+tags:
+  - name: Authentication
+  - name: Bootstrap
+  - name: Activity
+  - name: Inventory
+  - name: Movements
+  - name: Handovers
+  - name: Custody
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Register a device and start a mobile session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthEnvelope'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/MobileDisabled' }
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      security: []
+      summary: Rotate access and refresh tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: Tokens rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthEnvelope'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the current device session
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /me:
+    get:
+      tags: [Bootstrap]
+      summary: Current employee, permissions, storages, and device session
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /bootstrap:
+    get:
+      tags: [Bootstrap]
+      summary: Initial authorized catalog, balances, tasks, recipients, and settings
+      responses:
+        '200':
+          description: Mobile bootstrap payload
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Bootstrap'
+  /sync:
+    get:
+      tags: [Bootstrap]
+      summary: Incremental item updates, deletion tombstones, and current handover tasks
+      parameters:
+        - in: query
+          name: since
+          schema: { type: string, format: date-time }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /operations/mine:
+    get:
+      tags: [Activity]
+      summary: Latest server operations submitted by the current employee
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /storages:
+    get:
+      tags: [Inventory]
+      summary: Storages assigned to the current employee
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /storages/{id}/items:
+    get:
+      tags: [Inventory]
+      summary: Items and quantities in one assigned storage
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /items/lookup:
+    get:
+      tags: [Inventory]
+      summary: Lookup by barcode, SKU, or name
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /items/{id}:
+    get:
+      tags: [Inventory]
+      summary: Item details and authorized balances
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /movements/usage:
+    post:
+      tags: [Movements]
+      summary: Post one direct usage movement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SingleMovementRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MultipartPayload'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '409': { $ref: '#/components/responses/BalanceChanged' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /movements/restock:
+    post:
+      tags: [Movements]
+      summary: Privileged direct restock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SingleMovementRequest'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /movements/batch:
+    post:
+      tags: [Movements]
+      summary: Atomically post a review cart
+      description: Every line succeeds or the entire transaction rolls back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchMovementRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MultipartPayload'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '409': { $ref: '#/components/responses/BalanceChanged' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /handovers:
+    get:
+      tags: [Handovers]
+      summary: Permission-scoped handovers
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    post:
+      tags: [Handovers]
+      summary: Create temporary use, storage transfer, or staff custody handover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHandoverRequest'
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '409': { $ref: '#/components/responses/BalanceChanged' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /handovers/mine:
+    get:
+      tags: [Handovers]
+      summary: Handovers that require or reflect the current employee's work
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /handovers/{id}:
+    get:
+      tags: [Handovers]
+      summary: Handover detail, lines, custody, and action availability
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /handovers/{id}/receipt:
+    post:
+      tags: [Handovers]
+      summary: Recipient reports exact, short, or excess received quantities
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRequest'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '409': { $ref: '#/components/responses/BalanceChanged' }
+  /handovers/{id}/confirm-receipt:
+    post:
+      tags: [Handovers]
+      summary: Issuer confirms a short or excess receipt
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ReceiptRequest'
+                - type: object
+                  properties:
+                    receipt_notes: { type: string, nullable: true }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '409': { $ref: '#/components/responses/BalanceChanged' }
+  /handovers/{id}/closeout:
+    post:
+      tags: [Handovers]
+      summary: Receiver submits returned-first usage and proof
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MultipartPayload'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /handovers/{id}/approve-closeout:
+    post:
+      tags: [Handovers]
+      summary: Issuer corrects and approves final stock posting
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveCloseoutRequest'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '409': { $ref: '#/components/responses/BalanceChanged' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /handovers/{id}/approve-request:
+    post:
+      tags: [Handovers]
+      summary: Approve a mobile-created handover request
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /handovers/{id}/reject-request:
+    post:
+      tags: [Handovers]
+      summary: Reject a mobile-created handover request
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /handovers/{id}/cancel:
+    post:
+      tags: [Handovers]
+      summary: Cancel through the audited, purpose-aware workflow
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /handovers/{id}/custody-returns:
+    post:
+      tags: [Custody]
+      summary: Submit a partial long-term custody return
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustodyReturnMultipart'
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /handovers/{id}/custody-returns/{return_id}:
+    get:
+      tags: [Custody]
+      summary: View a custody return and protected proof metadata
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/ReturnId'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /handovers/{id}/custody-returns/{return_id}/approve:
+    post:
+      tags: [Custody]
+      summary: Issuer approves a custody return and posts stock outcomes
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/ReturnId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+  /handovers/{id}/custody-returns/{return_id}/reject:
+    post:
+      tags: [Custody]
+      summary: Reject a custody return for correction
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/ReturnId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, minimum: 1 }
+    ReturnId:
+      in: path
+      name: return_id
+      required: true
+      schema: { type: integer, minimum: 1 }
+  responses:
+    Success:
+      description: Successful request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SuccessEnvelope' }
+    Unauthorized:
+      description: Missing, expired, or revoked session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Forbidden:
+      description: Authenticated but outside permission or storage scope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: Entity not found in the authorized scope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ValidationError:
+      description: Invalid field or workflow state
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    BalanceChanged:
+      description: Cached balance or source stock no longer supports the operation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    UpgradeRequired:
+      description: Application version is below the configured minimum
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    RateLimited:
+      description: Too many authentication or mutation attempts
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    MobileDisabled:
+      description: The owner has disabled mobile access globally
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [data, meta, error]
+      properties:
+        data: {}
+        meta: { type: object, additionalProperties: true }
+        error: { type: 'null' }
+    ErrorEnvelope:
+      type: object
+      required: [data, meta, error]
+      properties:
+        data: { type: 'null' }
+        meta: { type: object, additionalProperties: true }
+        error:
+          type: object
+          required: [code, message, fields, retryable]
+          properties:
+            code: { type: string, example: balance_changed }
+            message: { type: string }
+            fields: { type: object, additionalProperties: true }
+            retryable: { type: boolean }
+    LoginRequest:
+      type: object
+      required: [email, password, app_version, device_uuid]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        app_version: { type: string, example: 1.0.0 }
+        device_uuid: { type: string, maxLength: 120 }
+        device_name: { type: string, maxLength: 160 }
+        platform: { type: string, enum: [android, ios] }
+    AuthEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [access_token, access_expires_in, refresh_token, refresh_expires_in]
+              properties:
+                access_token: { type: string }
+                access_expires_in: { type: integer, example: 900 }
+                refresh_token: { type: string }
+                refresh_expires_in: { type: integer, example: 2592000 }
+                user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string }
+        position: { type: string, nullable: true }
+    Bootstrap:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        permissions: { type: array, items: { type: string } }
+        storages: { type: array, items: { $ref: '#/components/schemas/Storage' } }
+        items: { type: array, items: { $ref: '#/components/schemas/Item' } }
+        tasks: { type: array, items: { type: object, additionalProperties: true } }
+        capabilities:
+          type: array
+          items: { type: string, enum: [usage, restock, transfer, handover, custody] }
+        recipients: { type: array, items: { $ref: '#/components/schemas/User' } }
+        settings: { type: object, additionalProperties: true }
+        server_time: { type: string, format: date-time }
+    Storage:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        storage_type: { type: string }
+        is_default: { type: boolean }
+    Item:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        sku: { type: string }
+        barcode: { type: [string, 'null'] }
+        unit: { type: string }
+        category: { type: [string, 'null'] }
+        image_url: { type: [string, 'null'], format: uri }
+        balances:
+          type: array
+          items:
+            type: object
+            properties:
+              storage_id: { type: integer }
+              storage_name: { type: string }
+              storage_type: { type: string }
+              quantity: { type: number }
+        package_presets: { type: array, items: { type: object, additionalProperties: true } }
+    OperationRequest:
+      type: object
+      required: [client_operation_id]
+      properties:
+        client_operation_id: { type: string, format: uuid }
+        notes: { type: string, nullable: true }
+    MovementLine:
+      type: object
+      required: [type, item_id, storage_id, quantity, expected_balance]
+      properties:
+        type: { type: string, enum: [usage, restock] }
+        item_id: { type: integer }
+        storage_id: { type: integer }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        expected_balance:
+          type: number
+          minimum: 0
+          description: Storage balance shown to the employee when the line entered the review cart.
+        reason:
+          type: string
+          enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+        notes: { type: string, nullable: true }
+        reference: { type: string, nullable: true }
+    SingleMovementRequest:
+      allOf:
+        - $ref: '#/components/schemas/OperationRequest'
+        - type: object
+          required: [item_id, storage_id, quantity, expected_balance]
+          properties:
+            item_id: { type: integer }
+            storage_id: { type: integer }
+            quantity: { type: number, exclusiveMinimum: 0 }
+            expected_balance: { type: number, minimum: 0 }
+            reason: { type: string }
+            reference: { type: string, nullable: true }
+    BatchMovementRequest:
+      allOf:
+        - $ref: '#/components/schemas/OperationRequest'
+        - type: object
+          required: [lines]
+          properties:
+            lines:
+              type: array
+              minItems: 1
+              items: { $ref: '#/components/schemas/MovementLine' }
+    CreateHandoverRequest:
+      allOf:
+        - $ref: '#/components/schemas/OperationRequest'
+        - type: object
+          required: [purpose, source_storage_id, lines]
+          properties:
+            purpose: { type: string, enum: [temporary_use, storage_transfer, staff_custody] }
+            source_storage_id: { type: integer }
+            destination_storage_id: { type: [integer, 'null'] }
+            recipient_user_id: { type: [integer, 'null'] }
+            scheduled_for_date: { type: [string, 'null'], format: date }
+            lines:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required: [item_id, quantity, expected_balance]
+                properties:
+                  item_id: { type: integer }
+                  quantity: { type: number, exclusiveMinimum: 0 }
+                  expected_balance:
+                    type: number
+                    minimum: 0
+                    description: Source-storage balance shown when the item entered the review cart.
+    ReceiptRequest:
+      allOf:
+        - $ref: '#/components/schemas/OperationRequest'
+        - type: object
+          required: [received_quantities]
+          properties:
+            received_quantities:
+              type: object
+              description: Map of handover line ID to exact received quantity.
+              additionalProperties: { type: number, minimum: 0 }
+    Reconciliation:
+      type: object
+      required: [unit]
+      properties:
+        unit: { type: string }
+        online: { type: number, minimum: 0 }
+        walkin: { type: number, minimum: 0 }
+        event: { type: number, minimum: 0 }
+        damage: { type: number, minimum: 0 }
+        sport: { type: number, minimum: 0 }
+        school: { type: number, minimum: 0 }
+        complimentary: { type: number, minimum: 0 }
+        no_show: { type: number, minimum: 0 }
+        other: { type: number, minimum: 0 }
+        discrepancy_note: { type: string, nullable: true }
+        variance_reason: { type: string, nullable: true }
+        variance_note: { type: string, nullable: true }
+    CloseoutRequest:
+      allOf:
+        - $ref: '#/components/schemas/OperationRequest'
+        - type: object
+          required: [returned_quantities, reconciliations]
+          properties:
+            returned_quantities:
+              type: object
+              additionalProperties: { type: number, minimum: 0 }
+            reconciliations:
+              type: array
+              items: { $ref: '#/components/schemas/Reconciliation' }
+            close_notes: { type: string, nullable: true }
+    ApproveCloseoutRequest:
+      allOf:
+        - $ref: '#/components/schemas/CloseoutRequest'
+        - type: object
+          properties:
+            approval_notes: { type: string, nullable: true }
+    CustodyReturnLine:
+      type: object
+      required: [handover_line_id]
+      properties:
+        handover_line_id: { type: integer }
+        serviceable_quantity: { type: number, minimum: 0 }
+        damaged_quantity: { type: number, minimum: 0 }
+        consumed_quantity: { type: number, minimum: 0 }
+        lost_quantity: { type: number, minimum: 0 }
+        notes: { type: string, nullable: true }
+    MultipartPayload:
+      type: object
+      required: [payload]
+      properties:
+        payload:
+          type: string
+          description: JSON string matching the endpoint's application/json schema.
+        proof_image: { type: string, format: binary }
+    CustodyReturnMultipart:
+      type: object
+      required: [payload]
+      properties:
+        payload:
+          type: string
+          description: JSON containing client_operation_id, lines, and notes.
+        proof_line_{line_id}: { type: string, format: binary }

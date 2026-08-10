@@ -9,6 +9,11 @@ This is no longer a tiny CRUD app. The current application tracks consumable sto
 Start here:
 
 - [Developer handover](docs/developer-handover.md)
+- [Mobile application guide](mobile/README.md)
+- [Mobile API reference](docs/mobile-api.md)
+- [Mobile OpenAPI contract](docs/openapi/mobile-api-v1.yaml)
+- [Mobile mockup review](docs/mobile/mockups/README.md)
+- [Mobile v1.1 plan](docs/mobile/next-update-v1.1.md)
 - [System data-flow and use-case diagrams](docs/system-diagrams.md)
 - [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-28.docx)
 - [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-28.docx)
