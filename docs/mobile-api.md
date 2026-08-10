@@ -84,9 +84,20 @@ The employee confirms receipt and later submits partial serviceable, damaged, co
 ```bash
 php -l tests/mobile_api_contract.php
 php tests/mobile_api_contract.php
+php tests/ocr_parser_contract.php
 php tests/module_boundaries.php
 php tests/full_regression.php
 php tests/stock_invariants.php
 ```
 
 Run stock invariants against production only after a backup and controlled deployment.
+After that backup, the authenticated mobile lifecycle can be verified with temporary prefixed records:
+
+```bash
+php tests/mobile_api_live.php \
+  --base-url=https://inventory.ahmaddalao.com \
+  --allow-live \
+  --prefix=ZZMOBILEAPIYYYYMMDD
+```
+
+The lifecycle test temporarily enables the API for its isolated employee, verifies authentication, storage isolation, usage, idempotency, stale-balance conflicts, atomic rollback, restock, token rotation, and logout, then restores the prior mobile settings and removes its records.

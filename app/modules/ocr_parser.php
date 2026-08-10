@@ -426,6 +426,39 @@ function purchase_ocr_extract_date(string $text): string
     return '';
 }
 
+function purchase_ocr_extract_phone(string $text): string
+{
+    $normalizedText = purchase_ocr_ascii_digits(str_replace(["\r\n", "\r"], "\n", $text));
+    $labelPattern = '(?:phone|tel(?:ephone)?|mobile|الهاتف|هاتف|الجوال|جوال|موبايل|تليفون|تلفون)';
+
+    foreach (explode("\n", $normalizedText) as $line) {
+        if (!preg_match(
+            '/(?<![\p{L}\p{N}_])' . $labelPattern . '(?![\p{L}\p{N}_])[^\r\n\d+]{0,20}(\+?\d(?:[ \t().-]*\d){6,14})/iu',
+            $line,
+            $match
+        )) {
+            continue;
+        }
+
+        $phone = preg_replace('/(?!^)\D/', '', trim((string) $match[1])) ?: '';
+        $digitCount = strlen(preg_replace('/\D/', '', $phone) ?: '');
+
+        if ($digitCount >= 7 && $digitCount <= 15) {
+            return $phone;
+        }
+    }
+
+    if (preg_match('/(?<!\d)(\+?966[ \t().-]*5(?:[ \t().-]*\d){8}|05(?:[ \t().-]*\d){8})(?!\d)/', $normalizedText, $match)) {
+        return preg_replace('/(?!^)\D/', '', trim((string) $match[1])) ?: '';
+    }
+
+    if (preg_match('/(?<!\d)(\+?\d(?:[ \t().-]*\d){7,12})(?!\d)/', $normalizedText, $match)) {
+        return preg_replace('/(?!^)\D/', '', trim((string) $match[1])) ?: '';
+    }
+
+    return '';
+}
+
 function purchase_ocr_is_summary_or_heading(string $line): bool
 {
     return (bool) preg_match(
@@ -459,12 +492,7 @@ function purchase_ocr_parse_text(string $text): array
         $email = strtolower($match[0]);
     }
 
-    $phone = '';
-    if (preg_match('/(?:phone|tel|mobile|هاتف|جوال|موبايل|تليفون|تلفون)\D{0,20}(\+?\d[\d\s().-]{6,}\d)/iu', $normalizedText, $match)) {
-        $phone = trim($match[1]);
-    } elseif (preg_match('/(?:\+?\d[\d\s().-]{7,}\d)/', $normalizedText, $match)) {
-        $phone = trim($match[0]);
-    }
+    $phone = purchase_ocr_extract_phone($normalizedText);
 
     $taxNumber = '';
     if (preg_match('/\b(?:VAT|TAX|TRN|CR|TIN)\s*(?:No\.?|Number|#|:)?\s*([A-Z0-9\-\s]{5,})/i', $normalizedText, $match)
@@ -579,4 +607,3 @@ function purchase_ocr_parse_text(string $text): array
         'text_excerpt' => substr($text, 0, 3000),
     ];
 }
-

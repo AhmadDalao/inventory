@@ -802,11 +802,12 @@ Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or pa
 
 1. Run `php scripts/backup.php` on production.
 2. Deploy API, maintenance schema, Mobile Access view, and route changes while the API switch remains off.
-3. Run PHP lint, `php tests/mobile_api_contract.php`, module-boundary/frontend-asset tests, full regression, and stock invariants.
+3. Run PHP lint, `php tests/mobile_api_contract.php`, `php tests/ocr_parser_contract.php`, module-boundary/frontend-asset tests, full regression, and stock invariants.
 4. Verify disabled API login returns `503 mobile_disabled`.
-5. Enable one to three pilot employees, assign storages, and install the signed internal APK.
-6. Watch failed/conflicted/duplicate operations on `/mobile-access`.
-7. Disable the API and revoke affected devices before rollback if a stock anomaly appears.
+5. After the backup, run `php tests/mobile_api_live.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMOBILEAPIYYYYMMDD`; confirm cleanup restores the disabled API state.
+6. Enable one to three pilot employees, assign storages, and install the signed internal APK.
+7. Watch failed/conflicted/duplicate operations on `/mobile-access`.
+8. Disable the API and revoke affected devices before rollback if a stock anomaly appears.
 
 ### Adding a mobile feature safely
 
