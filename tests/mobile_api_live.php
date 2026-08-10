@@ -181,8 +181,14 @@ function mobile_live_cleanup(): void
 
         if ((int) $test['user_id'] > 0) {
             $userId = (int) $test['user_id'];
-            Database::execute('DELETE FROM activity_logs WHERE user_id = :user_id OR (entity_type = "user" AND entity_id = :user_id)', ['user_id' => $userId]);
-            Database::execute('DELETE FROM login_attempts WHERE user_id = :user_id OR email = :email', ['user_id' => $userId, 'email' => $test['email']]);
+            Database::execute(
+                'DELETE FROM activity_logs WHERE user_id = :actor_user_id OR (entity_type = "user" AND entity_id = :entity_user_id)',
+                ['actor_user_id' => $userId, 'entity_user_id' => $userId]
+            );
+            Database::execute(
+                'DELETE FROM login_attempts WHERE user_id = :user_id OR email = :email',
+                ['user_id' => $userId, 'email' => $test['email']]
+            );
             Database::execute('DELETE FROM mobile_device_sessions WHERE user_id = :user_id', ['user_id' => $userId]);
             Database::execute('DELETE FROM user_storage_assignments WHERE user_id = :user_id', ['user_id' => $userId]);
             Database::execute('DELETE FROM mobile_user_access WHERE user_id = :user_id', ['user_id' => $userId]);
@@ -258,15 +264,21 @@ try {
         'INSERT INTO mobile_user_access (
             user_id, enabled, can_usage, can_restock, can_transfer, can_handover, can_custody,
             direct_restock_enabled, created_by, updated_by, created_at, updated_at
-         ) VALUES (:user_id, 1, 1, 1, 0, 0, 0, 1, :owner_id, :owner_id, NOW(), NOW())',
-        ['user_id' => $test['user_id'], 'owner_id' => $ownerId]
+         ) VALUES (:user_id, 1, 1, 1, 0, 0, 0, 1, :created_by, :updated_by, NOW(), NOW())',
+        ['user_id' => $test['user_id'], 'created_by' => $ownerId, 'updated_by' => $ownerId]
     );
 
     foreach (['Assigned', 'Forbidden'] as $suffix) {
         Database::execute(
             'INSERT INTO storages (name, storage_type, notes, is_system, is_active, owner_user_id, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, "storage", :notes, 0, 1, :owner_id, :owner_id, :owner_id, NOW(), NOW())',
-            ['name' => $prefix . ' ' . $suffix, 'notes' => 'Temporary mobile API lifecycle storage', 'owner_id' => $ownerId]
+             VALUES (:name, "storage", :notes, 0, 1, :owner_user_id, :created_by, :updated_by, NOW(), NOW())',
+            [
+                'name' => $prefix . ' ' . $suffix,
+                'notes' => 'Temporary mobile API lifecycle storage',
+                'owner_user_id' => $ownerId,
+                'created_by' => $ownerId,
+                'updated_by' => $ownerId,
+            ]
         );
         $test['storage_ids'][] = Database::lastInsertId();
     }
@@ -284,7 +296,7 @@ try {
             cost_per_unit, notes, is_active, created_by, updated_by, created_at, updated_at
          ) VALUES (
             :name, :sku, :barcode, "Mobile lifecycle", :storage_id, "pcs", 20, 5,
-            1, :notes, 1, :owner_id, :owner_id, NOW(), NOW()
+            1, :notes, 1, :created_by, :updated_by, NOW(), NOW()
          )',
         [
             'name' => $prefix . ' Item',
@@ -292,7 +304,8 @@ try {
             'barcode' => $prefix . '-BAR',
             'storage_id' => $assignedStorageId,
             'notes' => 'Temporary mobile API lifecycle item',
-            'owner_id' => $ownerId,
+            'created_by' => $ownerId,
+            'updated_by' => $ownerId,
         ]
     );
     $test['item_id'] = Database::lastInsertId();
