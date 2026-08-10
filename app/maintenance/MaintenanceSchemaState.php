@@ -32,7 +32,18 @@ trait MaintenanceSchemaState
             && self::fileSchemaIsCurrent()
             && self::workflowDocumentSchemaIsCurrent()
             && self::assetCategorySchemaIsCurrent()
-            && self::reportPresetSchemaIsCurrent();
+            && self::reportPresetSchemaIsCurrent()
+            && self::mobileSchemaIsCurrent();
+    }
+
+    private static function mobileSchemaIsCurrent(): bool
+    {
+        return self::tableExists('mobile_user_access')
+            && self::columnExists('mobile_user_access', 'direct_restock_enabled')
+            && self::tableExists('user_storage_assignments')
+            && self::tableExists('mobile_device_sessions')
+            && self::tableExists('mobile_operations')
+            && self::tableExists('inventory_movement_usage_details');
     }
 
     private static function reportPresetSchemaIsCurrent(): bool

@@ -47,6 +47,95 @@ $router->post('/logout', static function (): void {
     handle_logout_submit();
 });
 
+// Mobile API v1. Stock mutations still pass through the existing inventory services.
+$router->post('/api/v1/auth/login', static function (): void {
+    handle_mobile_api_login();
+});
+$router->post('/api/v1/auth/refresh', static function (): void {
+    handle_mobile_api_refresh();
+});
+$router->post('/api/v1/auth/logout', static function (): void {
+    handle_mobile_api_logout();
+});
+$router->get('/api/v1/me', static function (): void {
+    handle_mobile_api_me();
+});
+$router->get('/api/v1/bootstrap', static function (): void {
+    handle_mobile_api_bootstrap();
+});
+$router->get('/api/v1/sync', static function (): void {
+    handle_mobile_api_sync();
+});
+$router->get('/api/v1/operations/mine', static function (): void {
+    handle_mobile_api_operations_mine();
+});
+$router->get('/api/v1/storages', static function (): void {
+    handle_mobile_api_storages();
+});
+$router->get('/api/v1/storages/{id}/items', static function (array $params): void {
+    handle_mobile_api_storage_items($params);
+});
+$router->get('/api/v1/items/lookup', static function (): void {
+    handle_mobile_api_item_lookup();
+});
+$router->get('/api/v1/items/{id}', static function (array $params): void {
+    handle_mobile_api_item_show($params);
+});
+$router->post('/api/v1/movements/usage', static function (): void {
+    handle_mobile_api_usage();
+});
+$router->post('/api/v1/movements/restock', static function (): void {
+    handle_mobile_api_restock();
+});
+$router->post('/api/v1/movements/batch', static function (): void {
+    handle_mobile_api_batch();
+});
+$router->get('/api/v1/handovers', static function (): void {
+    handle_mobile_api_handovers();
+});
+$router->post('/api/v1/handovers', static function (): void {
+    handle_mobile_api_handover_create();
+});
+$router->get('/api/v1/handovers/mine', static function (): void {
+    handle_mobile_api_handovers_mine();
+});
+$router->get('/api/v1/handovers/{id}', static function (array $params): void {
+    handle_mobile_api_handover_show($params);
+});
+$router->post('/api/v1/handovers/{id}/receipt', static function (array $params): void {
+    handle_mobile_api_handover_receive($params);
+});
+$router->post('/api/v1/handovers/{id}/confirm-receipt', static function (array $params): void {
+    handle_mobile_api_handover_confirm_receipt($params);
+});
+$router->post('/api/v1/handovers/{id}/closeout', static function (array $params): void {
+    handle_mobile_api_handover_closeout($params);
+});
+$router->post('/api/v1/handovers/{id}/approve-closeout', static function (array $params): void {
+    handle_mobile_api_handover_approve_closeout($params);
+});
+$router->post('/api/v1/handovers/{id}/approve-request', static function (array $params): void {
+    handle_mobile_api_handover_approve_request($params);
+});
+$router->post('/api/v1/handovers/{id}/reject-request', static function (array $params): void {
+    handle_mobile_api_handover_reject_request($params);
+});
+$router->post('/api/v1/handovers/{id}/cancel', static function (array $params): void {
+    handle_mobile_api_handover_cancel($params);
+});
+$router->post('/api/v1/handovers/{id}/custody-returns', static function (array $params): void {
+    handle_mobile_api_handover_custody_return_create($params);
+});
+$router->get('/api/v1/handovers/{id}/custody-returns/{return_id}', static function (array $params): void {
+    handle_mobile_api_handover_custody_return_show($params);
+});
+$router->post('/api/v1/handovers/{id}/custody-returns/{return_id}/approve', static function (array $params): void {
+    handle_mobile_api_handover_custody_return_approve($params);
+});
+$router->post('/api/v1/handovers/{id}/custody-returns/{return_id}/reject', static function (array $params): void {
+    handle_mobile_api_handover_custody_return_reject($params);
+});
+
 $router->get('/dashboard', static function (): void {
     handle_dashboard_page();
 });
@@ -619,6 +708,19 @@ $router->post('/settings/site', static function (): void {
 });
 $router->post('/settings/email-test', static function (): void {
     handle_site_email_test_submit();
+});
+
+$router->get('/mobile-access', static function (): void {
+    handle_mobile_admin_page();
+});
+$router->post('/mobile-access/settings', static function (): void {
+    handle_mobile_admin_settings_submit();
+});
+$router->post('/mobile-access/users/{id}', static function (array $params): void {
+    handle_mobile_admin_user_submit($params);
+});
+$router->post('/mobile-access/devices/{id}/revoke', static function (array $params): void {
+    handle_mobile_admin_device_revoke($params);
 });
 
 $router->dispatch(request_method(), request_path());

@@ -1,0 +1,177 @@
+<?php
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+
+function fail_mobile_contract(string $message): never
+{
+    fwrite(STDERR, '[mobile-api-contract] FAIL: ' . $message . PHP_EOL);
+    exit(1);
+}
+
+function mobile_contract_source(string $relativePath): string
+{
+    global $root;
+    $path = $root . '/' . $relativePath;
+
+    if (!is_file($path)) {
+        fail_mobile_contract('Missing file: ' . $relativePath);
+    }
+
+    $source = file_get_contents($path);
+
+    if ($source === false) {
+        fail_mobile_contract('Could not read file: ' . $relativePath);
+    }
+
+    return $source;
+}
+
+$index = mobile_contract_source('index.php');
+$manifest = require $root . '/app/module_manifest.php';
+$mobileModules = $manifest['mobile_api'] ?? [];
+
+$requiredModules = [
+    'mobile_api_support',
+    'mobile_api_auth',
+    'mobile_api_inventory',
+    'mobile_api_movements',
+    'mobile_api_handovers',
+    'mobile_admin',
+];
+
+if ($mobileModules !== $requiredModules) {
+    fail_mobile_contract('The mobile API module manifest is incomplete or out of order.');
+}
+
+foreach ($requiredModules as $module) {
+    if (!is_file($root . '/app/modules/' . $module . '.php')) {
+        fail_mobile_contract('Missing module: app/modules/' . $module . '.php');
+    }
+}
+
+$routes = [
+    '/api/v1/auth/login' => 'handle_mobile_api_login',
+    '/api/v1/auth/refresh' => 'handle_mobile_api_refresh',
+    '/api/v1/auth/logout' => 'handle_mobile_api_logout',
+    '/api/v1/me' => 'handle_mobile_api_me',
+    '/api/v1/bootstrap' => 'handle_mobile_api_bootstrap',
+    '/api/v1/sync' => 'handle_mobile_api_sync',
+    '/api/v1/operations/mine' => 'handle_mobile_api_operations_mine',
+    '/api/v1/storages' => 'handle_mobile_api_storages',
+    '/api/v1/storages/{id}/items' => 'handle_mobile_api_storage_items',
+    '/api/v1/items/lookup' => 'handle_mobile_api_item_lookup',
+    '/api/v1/items/{id}' => 'handle_mobile_api_item_show',
+    '/api/v1/movements/usage' => 'handle_mobile_api_usage',
+    '/api/v1/movements/restock' => 'handle_mobile_api_restock',
+    '/api/v1/movements/batch' => 'handle_mobile_api_batch',
+    '/api/v1/handovers' => 'handle_mobile_api_handovers',
+    '/api/v1/handovers/mine' => 'handle_mobile_api_handovers_mine',
+    '/api/v1/handovers/{id}' => 'handle_mobile_api_handover_show',
+    '/api/v1/handovers/{id}/receipt' => 'handle_mobile_api_handover_receive',
+    '/api/v1/handovers/{id}/confirm-receipt' => 'handle_mobile_api_handover_confirm_receipt',
+    '/api/v1/handovers/{id}/closeout' => 'handle_mobile_api_handover_closeout',
+    '/api/v1/handovers/{id}/approve-closeout' => 'handle_mobile_api_handover_approve_closeout',
+    '/api/v1/handovers/{id}/approve-request' => 'handle_mobile_api_handover_approve_request',
+    '/api/v1/handovers/{id}/reject-request' => 'handle_mobile_api_handover_reject_request',
+    '/api/v1/handovers/{id}/cancel' => 'handle_mobile_api_handover_cancel',
+    '/api/v1/handovers/{id}/custody-returns' => 'handle_mobile_api_handover_custody_return_create',
+    '/api/v1/handovers/{id}/custody-returns/{return_id}' => 'handle_mobile_api_handover_custody_return_show',
+    '/api/v1/handovers/{id}/custody-returns/{return_id}/approve' => 'handle_mobile_api_handover_custody_return_approve',
+    '/api/v1/handovers/{id}/custody-returns/{return_id}/reject' => 'handle_mobile_api_handover_custody_return_reject',
+];
+
+foreach ($routes as $route => $handler) {
+    if (strpos($index, "'" . $route . "'") === false) {
+        fail_mobile_contract('Missing API route: ' . $route);
+    }
+
+    $handlerFound = false;
+
+    foreach ($requiredModules as $module) {
+        $source = mobile_contract_source('app/modules/' . $module . '.php');
+
+        if (strpos($source, 'function ' . $handler . '(') !== false) {
+            $handlerFound = true;
+            break;
+        }
+    }
+
+    if (!$handlerFound) {
+        fail_mobile_contract('Missing API handler: ' . $handler);
+    }
+}
+
+$support = mobile_contract_source('app/modules/mobile_api_support.php');
+$auth = mobile_contract_source('app/modules/mobile_api_auth.php');
+$movements = mobile_contract_source('app/modules/mobile_api_movements.php');
+$handovers = mobile_contract_source('app/modules/mobile_api_handovers.php');
+$settings = mobile_contract_source('app/support/settings_schema.php');
+$permissions = mobile_contract_source('app/support/permission_catalog.php');
+$schema = mobile_contract_source('app/maintenance/MaintenanceMobileSchemas.php');
+
+foreach (['data', 'meta', 'error'] as $responseKey) {
+    if (strpos($support, "'" . $responseKey . "'") === false) {
+        fail_mobile_contract('API response envelope is missing key: ' . $responseKey);
+    }
+}
+
+foreach ([
+    'client_operation_id',
+    'uniq_mobile_client_operation',
+    'balance_changed',
+    'expected_balance',
+    'mobile_api_enforce_mutation_rate_limit',
+] as $marker) {
+    if (strpos($support . $schema, $marker) === false) {
+        fail_mobile_contract('Idempotency or conflict protection is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    'access_expires_at',
+    'refresh_expires_at',
+    'access_token_hash',
+    'refresh_token_hash',
+    'revoked_at',
+] as $marker) {
+    if (strpos($auth . $support . $schema, $marker) === false) {
+        fail_mobile_contract('Session security is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    'mobile_user_access',
+    'user_storage_assignments',
+    'mobile_device_sessions',
+    'mobile_operations',
+    'inventory_movement_usage_details',
+] as $table) {
+    if (strpos($schema, $table) === false) {
+        fail_mobile_contract('Mobile maintenance schema is missing table: ' . $table);
+    }
+}
+
+if (strpos($settings, "'mobile.enabled'") === false
+    || strpos($settings, "'default' => '0'") === false
+) {
+    fail_mobile_contract('Mobile API must remain disabled by default.');
+}
+
+if (strpos($permissions, "'mobile.access'") === false) {
+    fail_mobile_contract('Permission catalog is missing mobile.access.');
+}
+
+foreach ([
+    'proof_image',
+    'mobile_api_operation',
+    '$pdo->beginTransaction()',
+    '$pdo->commit()',
+    '$pdo->rollBack()',
+] as $marker) {
+    if (strpos($support . $movements . $handovers, $marker) === false) {
+        fail_mobile_contract('Atomic/proof workflow is missing marker: ' . $marker);
+    }
+}
+
+echo '[mobile-api-contract] PASS' . PHP_EOL;

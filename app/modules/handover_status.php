@@ -246,6 +246,82 @@ function handover_closed_reversal_block_reason(array $handover, array $lines): ?
     return null;
 }
 
+function handover_storage_transfer_reopen_block_reason(array $handover, array $lines): ?string
+{
+    if ((string) ($handover['status'] ?? '') !== 'closed') {
+        return 'Only a closed storage transfer can be reopened for receipt correction.';
+    }
+
+    $destinationStorageId = (int) ($handover['destination_storage_id'] ?? 0);
+
+    if ($destinationStorageId <= 0) {
+        return 'This storage transfer has no destination storage.';
+    }
+
+    foreach (handover_buffer_impact_by_item($handover) as $bufferImpact) {
+        if (abs((float) $bufferImpact) > 0.009) {
+            return 'This transfer buffer is not neutral. Repair its stock impact before reopening receipt review.';
+        }
+    }
+
+    $plannedByItem = handover_quantities_by_item($lines, 'quantity_handed');
+    $receivedByItem = handover_quantities_by_item($lines, 'quantity_received');
+    $itemNames = [];
+
+    foreach ($lines as $line) {
+        $itemNames[(int) ($line['item_id'] ?? 0)] = (string) ($line['item_name'] ?? 'Item');
+    }
+
+    foreach (array_unique(array_merge(array_keys($plannedByItem), array_keys($receivedByItem))) as $itemId) {
+        $itemId = (int) $itemId;
+        $planned = round((float) ($plannedByItem[$itemId] ?? 0), 2);
+        $received = round((float) ($receivedByItem[$itemId] ?? 0), 2);
+
+        if ($received > 0) {
+            $destinationBalance = item_storage_balance_record($itemId, $destinationStorageId);
+
+            if ($destinationBalance === null || round((float) $destinationBalance['quantity'], 2) < $received) {
+                return ($itemNames[$itemId] ?? 'Item') . ' no longer has enough stock in the destination storage to reopen this transfer.';
+            }
+        }
+
+        $shortage = max(0, round($planned - $received, 2));
+
+        if ($shortage > 0) {
+            $sourceBalance = item_storage_balance_record($itemId, (int) $handover['source_storage_id']);
+
+            if ($sourceBalance === null || round((float) $sourceBalance['quantity'], 2) < $shortage) {
+                return ($itemNames[$itemId] ?? 'Item') . ' no longer has enough shortage stock in the source storage to reopen this transfer.';
+            }
+        }
+    }
+
+    return null;
+}
+
+function handover_status_override_options(array $handover, array $lines, ?array $user = null): array
+{
+    $currentStatus = (string) ($handover['status'] ?? '');
+    $allOptions = handover_status_options();
+    $options = [];
+
+    if (isset($allOptions[$currentStatus])) {
+        $options[$currentStatus] = $allOptions[$currentStatus];
+    }
+
+    foreach ($allOptions as $status => $label) {
+        if ($status === $currentStatus) {
+            continue;
+        }
+
+        if (handover_status_override_block_reason($handover, $lines, $status, $user) === null) {
+            $options[$status] = $label;
+        }
+    }
+
+    return $options;
+}
+
 function handover_status_override_block_reason(array $handover, array $lines, string $targetStatus, ?array $user = null): ?string
 {
     $user = $user ?? Auth::user();
@@ -268,11 +344,19 @@ function handover_status_override_block_reason(array $handover, array $lines, st
         return 'This handover is already ' . handover_status_label($targetStatus) . '.';
     }
 
-    if ($targetStatus === 'receipt_review') {
-        if (handover_is_storage_transfer($handover)) {
-            return 'Storage transfers enter Receipt Review through the destination receipt form when a shortage is reported.';
+    if (handover_is_storage_transfer($handover)) {
+        if ($currentStatus === 'closed' && $targetStatus === 'receipt_review') {
+            return handover_storage_transfer_reopen_block_reason($handover, $lines);
         }
 
+        return 'Storage transfers use destination receipt, cancellation, recovery, or safe receipt reopening. Direct status jumps are blocked.';
+    }
+
+    if (handover_is_staff_custody($handover)) {
+        return 'Long-term custody status changes must use receipt, custody return, cancellation, or recovery actions.';
+    }
+
+    if ($targetStatus === 'receipt_review') {
         if ($currentStatus !== 'delivered') {
             return 'Only a delivered staff handover can be reopened for receipt approval.';
         }
@@ -447,6 +531,79 @@ function reverse_closed_handover_inventory(array $handover, array $lines, int $p
     }
 }
 
+function reopen_closed_storage_transfer_inventory(array $handover, array $lines, int $performedBy): void
+{
+    $blockReason = handover_storage_transfer_reopen_block_reason($handover, $lines);
+
+    if ($blockReason !== null) {
+        throw new RuntimeException($blockReason);
+    }
+
+    $bufferStorageId = system_storage_id('handover_buffer');
+    $destinationStorageId = (int) $handover['destination_storage_id'];
+    $plannedByItem = handover_quantities_by_item($lines, 'quantity_handed');
+    $receivedByItem = handover_quantities_by_item($lines, 'quantity_received');
+
+    foreach (array_unique(array_merge(array_keys($plannedByItem), array_keys($receivedByItem))) as $itemId) {
+        $itemId = (int) $itemId;
+        $item = find_item_or_abort($itemId);
+        $planned = round((float) ($plannedByItem[$itemId] ?? 0), 2);
+        $received = round((float) ($receivedByItem[$itemId] ?? 0), 2);
+
+        if ($received > 0) {
+            apply_inventory_movement(
+                $item,
+                'transfer',
+                $received,
+                $destinationStorageId,
+                $bufferStorageId,
+                date('Y-m-d H:i:s'),
+                (string) $handover['handover_number'],
+                'Owner reopened the closed storage transfer and moved received stock back into receipt review.',
+                $performedBy,
+                'handover',
+                (int) $handover['id']
+            );
+        }
+
+        $shortage = max(0, round($planned - $received, 2));
+
+        if ($shortage > 0) {
+            apply_inventory_movement(
+                $item,
+                'transfer',
+                $shortage,
+                (int) $handover['source_storage_id'],
+                $bufferStorageId,
+                date('Y-m-d H:i:s'),
+                (string) $handover['handover_number'],
+                'Owner reopened the closed storage transfer and restored its previously returned shortage to the buffer.',
+                $performedBy,
+                'handover',
+                (int) $handover['id']
+            );
+        }
+
+        $overage = max(0, round($received - $planned, 2));
+
+        if ($overage > 0) {
+            apply_inventory_movement(
+                $item,
+                'transfer',
+                $overage,
+                $bufferStorageId,
+                (int) $handover['source_storage_id'],
+                date('Y-m-d H:i:s'),
+                (string) $handover['handover_number'],
+                'Owner reopened the closed storage transfer and reversed the approved excess receipt adjustment.',
+                $performedBy,
+                'handover',
+                (int) $handover['id']
+            );
+        }
+    }
+}
+
 function confirm_handover_receipt_shortage_inventory(array $handover, array $lines, int $performedBy): void
 {
     reconcile_handover_receipt_inventory(
@@ -470,7 +627,15 @@ function apply_handover_status_override(array $handover, array $lines, string $t
         ($notes !== '' ? '. ' . $notes : '.')
     );
 
-    if ($currentStatus === 'requested' && in_array($targetStatus, ['awaiting_receipt', 'delivered'], true)) {
+    if (handover_is_storage_transfer($handover)) {
+        if ($currentStatus !== 'closed' || $targetStatus !== 'receipt_review') {
+            throw new RuntimeException('Unsafe storage-transfer status override blocked.');
+        }
+
+        reopen_closed_storage_transfer_inventory($handover, $lines, $performedBy);
+    } elseif (handover_is_staff_custody($handover)) {
+        throw new RuntimeException('Long-term custody status changes must use custody workflow actions.');
+    } elseif ($currentStatus === 'requested' && in_array($targetStatus, ['awaiting_receipt', 'delivered'], true)) {
         issue_handover_inventory($handover, $lines, $performedBy);
     } elseif (in_array($currentStatus, ['cancelled', 'rejected'], true) && in_array($targetStatus, ['awaiting_receipt', 'delivered'], true)) {
         issue_handover_inventory($handover, $lines, $performedBy);

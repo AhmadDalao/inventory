@@ -3,6 +3,45 @@ declare(strict_types=1);
 
 // Domain module: handover receipt handlers. Function names are preserved for route compatibility.
 
+function handover_receipt_audit_rows(array $lines, array $receiptUpdates, bool $issuerConfirmation = false): array
+{
+    $updatesByLine = [];
+
+    foreach ($receiptUpdates as $update) {
+        $updatesByLine[(int) ($update['line_id'] ?? 0)] = $update;
+    }
+
+    $rows = [];
+
+    foreach ($lines as $line) {
+        $lineId = (int) ($line['id'] ?? 0);
+        $update = $updatesByLine[$lineId] ?? [];
+        $planned = round((float) ($line['quantity_handed'] ?? 0), 2);
+        $receiverReported = $issuerConfirmation
+            ? round((float) ($line['quantity_received'] ?? 0), 2)
+            : round((float) ($update['received'] ?? 0), 2);
+        $issuerConfirmed = $issuerConfirmation
+            ? round((float) ($update['received'] ?? 0), 2)
+            : null;
+
+        $rows[] = [
+            'line_id' => $lineId,
+            'item_id' => (int) ($line['item_id'] ?? 0),
+            'item_name' => (string) ($line['item_name'] ?? 'Item'),
+            'sku' => (string) ($line['sku'] ?? ''),
+            'unit' => (string) ($line['unit'] ?? 'pcs'),
+            'planned_quantity' => $planned,
+            'receiver_reported_quantity' => $receiverReported,
+            'issuer_confirmed_quantity' => $issuerConfirmed,
+            'adjusted_quantity' => $issuerConfirmation
+                ? round((float) $issuerConfirmed - $receiverReported, 2)
+                : null,
+        ];
+    }
+
+    return $rows;
+}
+
 function handle_handovers_receive_submit(array $params): void
 {
     app_ready_or_redirect();
@@ -54,6 +93,9 @@ function handle_handovers_receive_submit(array $params): void
 
     $pdo = Database::connection();
     $storedProof = null;
+    $nextStatus = $isStorageTransfer
+        ? ($hasVariance ? 'receipt_review' : 'closed')
+        : ($hasVariance ? 'receipt_review' : 'delivered');
 
     try {
         if ($proofFile !== null) {
@@ -159,6 +201,24 @@ function handle_handovers_receive_submit(array $params): void
                 (int) $user['id']
             );
         }
+
+        record_activity(
+            'handover.receipt_reported',
+            'handover',
+            (int) $handover['id'],
+            'Receipt quantities reported for handover ' . $handover['handover_number'],
+            [
+                'handover_number' => (string) $handover['handover_number'],
+                'handover_purpose' => (string) ($handover['handover_purpose'] ?? ($isStorageTransfer ? 'storage_transfer' : 'temporary_use')),
+                'from_status' => (string) $handover['status'],
+                'to_status' => $nextStatus,
+                'has_variance' => $hasVariance,
+                'issuer_confirmation_required' => $hasVariance,
+                'receipt_notes' => $receiptNotes,
+                'proof_uploaded' => $storedProof !== null,
+                'quantities' => handover_receipt_audit_rows($lines, $receiptUpdates),
+            ]
+        );
 
         $pdo->commit();
     } catch (Throwable $exception) {
@@ -328,6 +388,20 @@ function handle_handovers_confirm_receipt_submit(array $params): void
                 ]
             );
         }
+
+        record_activity(
+            'handover.receipt_confirmed',
+            'handover',
+            (int) $handover['id'],
+            'Receipt difference confirmed for handover ' . $handover['handover_number'],
+            [
+                'handover_number' => (string) $handover['handover_number'],
+                'handover_purpose' => (string) ($handover['handover_purpose'] ?? ($isStorageTransfer ? 'storage_transfer' : 'temporary_use')),
+                'from_status' => (string) $handover['status'],
+                'to_status' => $isStorageTransfer ? 'closed' : 'delivered',
+                'quantities' => handover_receipt_audit_rows($lines, $receiptUpdates, true),
+            ]
+        );
 
         $pdo->commit();
     } catch (Throwable $exception) {

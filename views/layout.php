@@ -112,6 +112,9 @@ if (brand_custom_logo_asset() !== null) {
                 <?php if (!Auth::isStaff() && Auth::hasPermission('settings.view')): ?>
                     <a class="nav-link <?= active_route('/settings/site') ?>" href="<?= e(url('/settings/site')) ?>"><?= ui_icon('settings') ?><span><?= e(site_setting('nav.settings', 'Website Control')) ?></span></a>
                 <?php endif; ?>
+                <?php if (Auth::isOwner()): ?>
+                    <a class="nav-link <?= active_route('/mobile-access') ?>" href="<?= e(url('/mobile-access')) ?>"><?= ui_icon('scan') ?><span>Mobile Access</span></a>
+                <?php endif; ?>
             </nav>
 
         </aside>

@@ -175,4 +175,12 @@ return [
         'asset_exports',
         'asset_signoff',
     ],
+    'mobile_api' => [
+        'mobile_api_support',
+        'mobile_api_auth',
+        'mobile_api_inventory',
+        'mobile_api_movements',
+        'mobile_api_handovers',
+        'mobile_admin',
+    ],
 ];

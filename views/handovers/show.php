@@ -69,8 +69,10 @@ $canClose = Auth::hasPermission('handovers.close')
     );
 $canApproveClose = handover_close_approval_block_reason($handoverRecord, $currentUser) === null;
 $canVoidRecord = workflow_void_block_reason('handover', $handoverRecord, $currentUser) === null;
-$canOverrideHandoverStatus = Auth::isOwner();
-$handoverStatusOptions = handover_status_options();
+$handoverStatusOptions = Auth::isOwner()
+    ? handover_status_override_options($handoverRecord, $lines, $currentUser)
+    : [];
+$canOverrideHandoverStatus = count($handoverStatusOptions) > 1;
 $usageReasonOptions = handover_usage_reason_options();
 $usesOperationalReconciliation = handover_uses_operational_reconciliation($handoverRecord);
 $reconciliations = is_array($reconciliations ?? null) ? $reconciliations : [];
@@ -993,8 +995,12 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
 
         <?php if ($canOverrideHandoverStatus): ?>
             <div class="copy-context-card">
-                <strong>Admin Status Override</strong>
-                <p>Change the workflow status directly. Stock-impact changes are still checked, so unsafe jumps will be blocked instead of corrupting inventory.</p>
+                <strong><?= $isStorageTransfer ? 'Reopen Transfer Receipt' : 'Admin Status Override' ?></strong>
+                <p>
+                    <?= $isStorageTransfer
+                        ? 'Reopen the destination receipt safely. Posted destination and shortage stock will return to the handover buffer before correction.'
+                        : 'Change the workflow status directly. Stock-impact changes are checked before anything is saved.' ?>
+                </p>
             </div>
 
             <form class="stack-form" method="post" action="<?= e(url('/handovers/' . $handoverRecord['id'] . '/status-override')) ?>" data-live-action-form>
@@ -1013,7 +1019,9 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
                     <span>Override Note Optional</span>
                     <textarea name="status_notes" rows="3" placeholder="Optional note for why this status was changed"></textarea>
                 </label>
-                <button class="primary-button" type="submit" data-confirm="Change this handover status? Stock checks will run before saving.">Change Status</button>
+                <button class="primary-button" type="submit" data-confirm="<?= $isStorageTransfer ? 'Reopen this transfer receipt? Posted stock will be reversed safely into receipt review.' : 'Change this handover status? Stock checks will run before saving.' ?>">
+                    <?= $isStorageTransfer ? 'Reopen Receipt Review' : 'Change Status' ?>
+                </button>
             </form>
         <?php endif; ?>
 

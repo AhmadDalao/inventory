@@ -167,6 +167,12 @@ function permission_catalog(): array
                 'users.export' => 'Export the user list.',
             ],
         ],
+        'mobile' => [
+            'label' => 'Mobile App',
+            'permissions' => [
+                'mobile.access' => 'Sign in to the Inventory KONA mobile application.',
+            ],
+        ],
         'settings' => [
             'label' => 'Settings',
             'permissions' => [
