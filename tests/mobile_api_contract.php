@@ -104,6 +104,8 @@ foreach ($routes as $route => $handler) {
 
 $support = mobile_contract_source('app/modules/mobile_api_support.php');
 $auth = mobile_contract_source('app/modules/mobile_api_auth.php');
+$admin = mobile_contract_source('app/modules/mobile_admin.php');
+$inventory = mobile_contract_source('app/modules/mobile_api_inventory.php');
 $movements = mobile_contract_source('app/modules/mobile_api_movements.php');
 $handovers = mobile_contract_source('app/modules/mobile_api_handovers.php');
 $settings = mobile_contract_source('app/support/settings_schema.php');
@@ -160,6 +162,22 @@ if (strpos($settings, "'mobile.enabled'") === false
 
 if (strpos($permissions, "'mobile.access'") === false) {
     fail_mobile_contract('Permission catalog is missing mobile.access.');
+}
+
+if (strpos($support, '$session[\'user_id\'] ?? $session[\'id\']') === false) {
+    fail_mobile_contract('Mobile access guard must accept both session rows and login user rows.');
+}
+
+if (strpos($admin, ':created_by, :updated_by') === false
+    || strpos($admin, ':actor_id, :actor_id') !== false
+) {
+    fail_mobile_contract('Mobile Access save must use unique placeholders with strict PDO prepares.');
+}
+
+if (strpos($inventory, 'package_type') !== false
+    || strpos($inventory, 'item_package_presets WHERE item_id = :item_id AND is_active') !== false
+) {
+    fail_mobile_contract('Mobile item payload must match the item_package_presets schema.');
 }
 
 foreach ([

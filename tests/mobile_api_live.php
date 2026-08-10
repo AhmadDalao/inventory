@@ -319,6 +319,8 @@ try {
     mobile_live_setting('mobile.manual_restock_enabled', '1');
     mobile_live_setting('mobile.require_usage_proof', '0');
     mobile_live_setting('mobile.min_supported_version', '1.0.0');
+    $seededAccess = mobile_api_employee_access((int) $test['user_id'], 'staff');
+    mobile_live_assert((int) ($seededAccess['enabled'] ?? 0) === 1, 'Seeded mobile access was not enabled before login.');
     mobile_live_note('Seeded isolated employee, storage, and item records.');
 
     $login = mobile_live_expect(mobile_live_http('POST', '/api/v1/auth/login', [
@@ -403,9 +405,11 @@ try {
     mobile_live_assert($itemTotal === 21.0, 'Item total drifted from its storage balance.');
 
     $operations = mobile_live_expect(mobile_live_http('GET', '/api/v1/operations/mine', null, $access), 200);
+    $operationRows = (array) ($operations['data']['items'] ?? []);
+    mobile_live_assert($operationRows !== [], 'Operation history returned no records.');
     $statuses = array_values(array_unique(array_map(
         static fn (array $row): string => (string) ($row['status'] ?? ''),
-        array_filter((array) ($operations['data'] ?? []), 'is_array')
+        array_filter($operationRows, 'is_array')
     )));
     mobile_live_assert(in_array('succeeded', $statuses, true) && in_array('conflict', $statuses, true), 'Operation history is missing success or conflict records.');
     mobile_live_note('Privileged restock, stock synchronization, and operation history passed.');
@@ -425,5 +429,12 @@ try {
     mobile_live_note('PASS');
 } catch (Throwable $exception) {
     fwrite(STDERR, '[mobile-api-live] FAIL: ' . $exception->getMessage() . PHP_EOL);
+    if ((int) ($test['user_id'] ?? 0) > 0) {
+        try {
+            $access = mobile_api_employee_access((int) $test['user_id'], 'staff');
+            fwrite(STDERR, '[mobile-api-live] Seeded access flags: ' . json_encode($access, JSON_UNESCAPED_SLASHES) . PHP_EOL);
+        } catch (Throwable $ignored) {
+        }
+    }
     exit(1);
 }

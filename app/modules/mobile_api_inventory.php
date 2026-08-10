@@ -4,6 +4,13 @@ declare(strict_types=1);
 function mobile_api_item_payload(array $item, array $allowedStorageIds): array
 {
     $balances = [];
+    $packagePresets = Database::fetchAll(
+        'SELECT id, label, pieces_per_unit, is_default
+         FROM item_package_presets
+         WHERE item_id = :item_id
+         ORDER BY is_default DESC, label ASC',
+        ['item_id' => $item['id']]
+    );
     if ($allowedStorageIds !== []) {
         $placeholders = implode(',', array_fill(0, count($allowedStorageIds), '?'));
         $params = array_merge([(int) $item['id']], $allowedStorageIds);
@@ -22,10 +29,12 @@ function mobile_api_item_payload(array $item, array $allowedStorageIds): array
             'storage_id' => (int) $row['storage_id'], 'storage_name' => $row['storage_name'],
             'storage_type' => $row['storage_type'], 'quantity' => (float) $row['quantity'],
         ], $balances),
-        'package_presets' => Database::fetchAll(
-            'SELECT id, label, package_type, pieces_per_unit, is_default FROM item_package_presets WHERE item_id = :item_id AND is_active = 1 ORDER BY is_default DESC, label ASC',
-            ['item_id' => $item['id']]
-        ),
+        'package_presets' => array_map(static fn (array $preset): array => [
+            'id' => (int) $preset['id'],
+            'label' => (string) $preset['label'],
+            'pieces_per_unit' => (float) $preset['pieces_per_unit'],
+            'is_default' => (int) $preset['is_default'],
+        ], $packagePresets),
     ];
 }
 

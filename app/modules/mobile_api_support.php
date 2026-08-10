@@ -164,7 +164,11 @@ function mobile_api_employee_access(int $userId, string $role = ''): array
 
 function mobile_api_require_employee_access(array $session): array
 {
-    $access = mobile_api_employee_access((int) $session['user_id'], (string) ($session['role'] ?? ''));
+    $userId = (int) ($session['user_id'] ?? $session['id'] ?? 0);
+    if ($userId <= 0) {
+        throw new MobileApiException('mobile_access_revoked', 'Mobile access could not be verified for this employee.', 403);
+    }
+    $access = mobile_api_employee_access($userId, (string) ($session['role'] ?? ''));
     if ((int) ($access['enabled'] ?? 0) !== 1) {
         throw new MobileApiException('mobile_access_revoked', 'Mobile access is not enabled for this employee.', 403);
     }

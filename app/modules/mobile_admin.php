@@ -112,7 +112,7 @@ function handle_mobile_admin_user_submit(array $params): void
                 direct_restock_enabled, created_by, updated_by, created_at, updated_at
              ) VALUES (
                 :user_id, :enabled, :can_usage, :can_restock, :can_transfer, :can_handover, :can_custody,
-                :direct_restock_enabled, :actor_id, :actor_id, NOW(), NOW()
+                :direct_restock_enabled, :created_by, :updated_by, NOW(), NOW()
              ) ON DUPLICATE KEY UPDATE
                 enabled = VALUES(enabled), can_usage = VALUES(can_usage), can_restock = VALUES(can_restock),
                 can_transfer = VALUES(can_transfer), can_handover = VALUES(can_handover),
@@ -127,7 +127,8 @@ function handle_mobile_admin_user_submit(array $params): void
                 'can_handover' => input('can_handover') === '1' ? 1 : 0,
                 'can_custody' => input('can_custody') === '1' ? 1 : 0,
                 'direct_restock_enabled' => input('direct_restock_enabled') === '1' ? 1 : 0,
-                'actor_id' => Auth::user()['id'],
+                'created_by' => Auth::user()['id'],
+                'updated_by' => Auth::user()['id'],
             ]
         );
         Database::execute('DELETE FROM user_storage_assignments WHERE user_id = :user_id', ['user_id' => $userId]);
