@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/data/providers.dart';
 import '../../core/theme/kona_theme.dart';
@@ -42,7 +43,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ref.invalidate(bootstrapProvider);
       if (mounted) context.go('/home');
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(
+            error,
+            fallback: 'Sign-in failed. Check your details and try again.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -99,9 +107,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        _error!,
-                        style: const TextStyle(color: KonaColors.danger),
+                      Container(
+                        key: const Key('login-error'),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: KonaColors.danger.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: KonaColors.danger.withValues(alpha: 0.24),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: KonaColors.danger,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(
+                                  color: KonaColors.danger,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                     const SizedBox(height: 20),

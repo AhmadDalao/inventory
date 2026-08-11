@@ -64,18 +64,11 @@ class ApiClient {
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? query,
-  }) async {
-    final response = await dio.get<Map<String, dynamic>>(
-      path,
-      queryParameters: query,
-    );
-    return _unwrap(response.data);
-  }
+  }) =>
+      _send(() => dio.get<Map<String, dynamic>>(path, queryParameters: query));
 
-  Future<Map<String, dynamic>> post(String path, {Object? data}) async {
-    final response = await dio.post<Map<String, dynamic>>(path, data: data);
-    return _unwrap(response.data);
-  }
+  Future<Map<String, dynamic>> post(String path, {Object? data}) =>
+      _send(() => dio.post<Map<String, dynamic>>(path, data: data));
 
   Future<Map<String, dynamic>> postMultipart(
     String path, {
@@ -87,8 +80,7 @@ class ApiClient {
       'payload': _json(fields),
       fileField: await MultipartFile.fromFile(filePath),
     });
-    final response = await dio.post<Map<String, dynamic>>(path, data: form);
-    return _unwrap(response.data);
+    return _send(() => dio.post<Map<String, dynamic>>(path, data: form));
   }
 
   Future<Map<String, dynamic>> postMultipartFiles(
@@ -100,11 +92,28 @@ class ApiClient {
     for (final entry in files.entries) {
       formValues[entry.key] = await MultipartFile.fromFile(entry.value);
     }
-    final response = await dio.post<Map<String, dynamic>>(
-      path,
-      data: FormData.fromMap(formValues),
+    return _send(
+      () => dio.post<Map<String, dynamic>>(
+        path,
+        data: FormData.fromMap(formValues),
+      ),
     );
-    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> _send(
+    Future<Response<Map<String, dynamic>>> Function() request,
+  ) async {
+    try {
+      final response = await request();
+      return _unwrap(response.data);
+    } on DioException catch (error) {
+      final body = error.response?.data;
+      if (body is Map<String, dynamic>) return _unwrap(body);
+      if (body is Map) {
+        return _unwrap(Map<String, dynamic>.from(body));
+      }
+      rethrow;
+    }
   }
 
   Future<bool> _refreshSession() {
@@ -143,7 +152,10 @@ class ApiClient {
         refreshToken: refresh,
       );
       return true;
-    } on DioException {
+    } on DioException catch (_) {
+      await _sessionStore.clear();
+      return false;
+    } on ApiFailure catch (_) {
       await _sessionStore.clear();
       return false;
     }
@@ -172,6 +184,51 @@ class ApiClient {
         ? data
         : <String, dynamic>{'items': data};
   }
+}
+
+String apiErrorMessage(
+  Object error, {
+  String fallback = 'The request could not be completed. Try again.',
+}) {
+  if (error is ApiFailure) {
+    return switch (error.code) {
+      'mobile_disabled' =>
+        'The mobile app is not enabled yet. Ask the owner to enable Mobile Access on the website.',
+      'mobile_access_denied' || 'mobile_access_revoked' =>
+        'Mobile access is not enabled for this account. Ask the owner to update Mobile Access.',
+      'upgrade_required' =>
+        'This app version is no longer supported. Install the latest Inventory KONA APK.',
+      'rate_limited' => 'Too many attempts. Wait a moment, then try again.',
+      _ => error.message,
+    };
+  }
+
+  if (error is DioException) {
+    final responseMessage = _dioResponseMessage(error.response?.data);
+    if (responseMessage != null) return responseMessage;
+
+    return switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout =>
+        'The server took too long to respond. Check your connection and try again.',
+      DioExceptionType.connectionError =>
+        'The server could not be reached. Check your internet connection and try again.',
+      DioExceptionType.badCertificate =>
+        'The secure server connection could not be verified.',
+      _ => fallback,
+    };
+  }
+
+  return fallback;
+}
+
+String? _dioResponseMessage(Object? body) {
+  if (body is! Map) return null;
+  final error = body['error'];
+  if (error is! Map) return null;
+  final message = error['message'];
+  return message is String && message.trim().isNotEmpty ? message.trim() : null;
 }
 
 class ApiFailure implements Exception {
