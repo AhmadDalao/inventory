@@ -35,6 +35,7 @@ $test = [
         'mobile.manual_restock_enabled',
         'mobile.require_usage_proof',
         'mobile.min_supported_version',
+        'mobile.usage_reasons',
     ],
     'cleaned' => false,
 ];
@@ -340,7 +341,17 @@ try {
     $storageIds = array_map('intval', array_column((array) ($bootstrap['data']['storages'] ?? []), 'id'));
     mobile_live_assert(in_array($assignedStorageId, $storageIds, true), 'Assigned storage is missing from bootstrap.');
     mobile_live_assert(!in_array($forbiddenStorageId, $storageIds, true), 'Unassigned storage leaked into bootstrap.');
-    mobile_live_note('Bootstrap storage isolation passed.');
+    $usageReasons = array_values(array_filter(
+        (array) ($bootstrap['data']['settings']['usage_reasons'] ?? []),
+        'is_array'
+    ));
+    $usageReasonCodes = array_map(
+        static fn (array $reason): string => (string) ($reason['code'] ?? ''),
+        $usageReasons
+    );
+    mobile_live_assert(in_array('school', $usageReasonCodes, true), 'Bootstrap usage reasons are missing School.');
+    mobile_live_assert(in_array('other', $usageReasonCodes, true), 'Bootstrap usage reasons are missing Other.');
+    mobile_live_note('Bootstrap storage isolation and server-owned usage reasons passed.');
 
     $lookup = mobile_live_expect(mobile_live_http(
         'GET',
@@ -372,6 +383,80 @@ try {
     mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === 18.0, 'Idempotent retry deducted stock twice.');
     mobile_live_note('Usage and idempotent retry passed.');
 
+    $expectedBalance = 18.0;
+    foreach ($usageReasons as $reasonIndex => $reason) {
+        $reasonCode = (string) ($reason['code'] ?? '');
+        mobile_live_assert($reasonCode !== '', 'Bootstrap returned an empty usage reason code.');
+        $reasonPayload = [
+            'client_operation_id' => $test['operation_prefix'] . 'reason-' . $reasonIndex . '-' . $reasonCode,
+            'storage_id' => $assignedStorageId,
+            'item_id' => (int) $test['item_id'],
+            'quantity' => 1,
+            'expected_balance' => $expectedBalance,
+            'reason' => $reasonCode,
+        ];
+        if ($reasonCode === 'other') {
+            $reasonPayload['custom_reason'] = 'Lifecycle custom reason';
+        }
+        $reasonResponse = mobile_live_expect(
+            mobile_live_http('POST', '/api/v1/movements/usage', $reasonPayload, $access),
+            201
+        );
+        $expectedBalance -= 1;
+        mobile_live_assert(
+            mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance,
+            'Usage reason ' . $reasonCode . ' did not post the expected quantity.'
+        );
+        if ($reasonCode === 'other') {
+            $storedCustomReason = (string) Database::scalar(
+                'SELECT custom_reason FROM inventory_movement_usage_details WHERE movement_id = :movement_id LIMIT 1',
+                ['movement_id' => (int) ($reasonResponse['data']['movement_id'] ?? 0)]
+            );
+            mobile_live_assert($storedCustomReason === 'Lifecycle custom reason', 'Other custom reason was not stored.');
+        }
+    }
+    mobile_live_note('Every active usage reason and Other custom text passed.');
+
+    mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/usage', [
+        'client_operation_id' => $test['operation_prefix'] . 'unknown-reason',
+        'storage_id' => $assignedStorageId,
+        'item_id' => (int) $test['item_id'],
+        'quantity' => 1,
+        'expected_balance' => $expectedBalance,
+        'reason' => 'not_a_real_reason',
+    ], $access), 422, 'validation_failed');
+    mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/usage', [
+        'client_operation_id' => $test['operation_prefix'] . 'other-without-description',
+        'storage_id' => $assignedStorageId,
+        'item_id' => (int) $test['item_id'],
+        'quantity' => 1,
+        'expected_balance' => $expectedBalance,
+        'reason' => 'other',
+    ], $access), 422, 'validation_failed');
+
+    $disabledCatalog = mobile_usage_reason_defaults();
+    foreach ($disabledCatalog as &$disabledReason) {
+        if (($disabledReason['code'] ?? '') === 'school') {
+            $disabledReason['active'] = false;
+        }
+    }
+    unset($disabledReason);
+    mobile_live_setting('mobile.usage_reasons', json_encode($disabledCatalog, JSON_UNESCAPED_SLASHES));
+    mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/usage', [
+        'client_operation_id' => $test['operation_prefix'] . 'disabled-school',
+        'storage_id' => $assignedStorageId,
+        'item_id' => (int) $test['item_id'],
+        'quantity' => 1,
+        'expected_balance' => $expectedBalance,
+        'reason' => 'school',
+    ], $access), 422, 'validation_failed');
+    mobile_live_setting('mobile.usage_reasons', '');
+    mobile_live_assert(
+        mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance,
+        'Rejected usage reasons changed stock.'
+    );
+    mobile_live_note('Unknown, incomplete Other, and disabled reasons were rejected safely.');
+
     mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/usage', [
         'client_operation_id' => $test['operation_prefix'] . 'stale',
         'storage_id' => $assignedStorageId,
@@ -380,16 +465,16 @@ try {
         'expected_balance' => 20,
         'reason' => 'event',
     ], $access), 409, 'balance_changed');
-    mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === 18.0, 'Stale-balance conflict changed stock.');
+    mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance, 'Stale-balance conflict changed stock.');
 
     mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/batch', [
         'client_operation_id' => $test['operation_prefix'] . 'batch-rollback',
         'lines' => [
-            ['type' => 'usage', 'storage_id' => $assignedStorageId, 'item_id' => (int) $test['item_id'], 'quantity' => 1, 'expected_balance' => 18, 'reason' => 'event'],
-            ['type' => 'usage', 'storage_id' => $assignedStorageId, 'item_id' => (int) $test['item_id'], 'quantity' => 100, 'expected_balance' => 17, 'reason' => 'damage'],
+            ['type' => 'usage', 'storage_id' => $assignedStorageId, 'item_id' => (int) $test['item_id'], 'quantity' => 1, 'expected_balance' => $expectedBalance, 'reason' => 'event'],
+            ['type' => 'usage', 'storage_id' => $assignedStorageId, 'item_id' => (int) $test['item_id'], 'quantity' => 100, 'expected_balance' => $expectedBalance - 1, 'reason' => 'damage'],
         ],
     ], $access), 409, 'balance_changed');
-    mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === 18.0, 'Failed batch did not roll back atomically.');
+    mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance, 'Failed batch did not roll back atomically.');
     mobile_live_note('Stale balance and atomic batch rollback passed.');
 
     mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/restock', [
@@ -397,12 +482,13 @@ try {
         'storage_id' => $assignedStorageId,
         'item_id' => (int) $test['item_id'],
         'quantity' => 3,
-        'expected_balance' => 18,
+        'expected_balance' => $expectedBalance,
         'notes' => 'Mobile lifecycle restock',
     ], $access), 201);
-    mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === 21.0, 'Restock did not increase assigned storage to 21.');
+    $expectedBalance += 3;
+    mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance, 'Restock did not increase assigned storage by 3.');
     $itemTotal = round((float) Database::scalar('SELECT current_quantity FROM items WHERE id = :id', ['id' => $test['item_id']]), 2);
-    mobile_live_assert($itemTotal === 21.0, 'Item total drifted from its storage balance.');
+    mobile_live_assert($itemTotal === $expectedBalance, 'Item total drifted from its storage balance.');
 
     $operations = mobile_live_expect(mobile_live_http('GET', '/api/v1/operations/mine', null, $access), 200);
     $operationRows = (array) ($operations['data']['items'] ?? []);

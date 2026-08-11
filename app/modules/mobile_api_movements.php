@@ -1,11 +1,6 @@
 <?php
 declare(strict_types=1);
 
-function mobile_usage_reason_codes(): array
-{
-    return ['online', 'walkin', 'event', 'damage', 'sport', 'school', 'complimentary', 'no_show', 'other'];
-}
-
 function mobile_api_post_movement(string $type): void
 {
     mobile_api_run(function () use ($type): void {
@@ -24,12 +19,13 @@ function mobile_api_post_movement(string $type): void
         if ($quantity <= 0) {
             throw new MobileApiException('validation_failed', 'Quantity must be greater than zero.', 422, ['quantity' => ['Must be greater than zero.']]);
         }
-        $reason = trim((string) ($payload['reason'] ?? ''));
-        if ($type === 'usage' && !in_array($reason, mobile_usage_reason_codes(), true)) {
-            throw new MobileApiException('validation_failed', 'Pick a usage reason.', 422, ['reason' => ['Required.']]);
-        }
+        $reasonInput = $type === 'usage'
+            ? mobile_usage_reason_input((string) ($payload['reason'] ?? ''), isset($payload['custom_reason']) ? (string) $payload['custom_reason'] : null)
+            : ['code' => '', 'custom_reason' => null];
+        $reason = $reasonInput['code'];
+        $customReason = $reasonInput['custom_reason'];
         $item = mobile_api_find_item($itemId, [$storageId]);
-        $result = mobile_api_operation($session, 'movement.' . $type, $payload, function (int $ledgerId) use ($session, $type, $storageId, $quantity, $reason, $payload, $item): array {
+        $result = mobile_api_operation($session, 'movement.' . $type, $payload, function (int $ledgerId) use ($session, $type, $storageId, $quantity, $reason, $customReason, $payload, $item): array {
             mobile_api_assert_expected_balance((int) $item['id'], $storageId, $payload['expected_balance'] ?? null);
             $reference = 'MOB-' . strtoupper(substr(hash('sha256', (string) $payload['client_operation_id']), 0, 12));
             apply_inventory_movement(
@@ -48,7 +44,7 @@ function mobile_api_post_movement(string $type): void
                 Database::execute(
                     'INSERT INTO inventory_movement_usage_details (movement_id, reason_code, custom_reason, notes, created_by, created_at, updated_at)
                      VALUES (:movement_id, :reason, :custom_reason, :notes, :created_by, NOW(), NOW())',
-                    ['movement_id' => $movementId, 'reason' => $reason, 'custom_reason' => $reason === 'other' ? substr(trim((string) ($payload['custom_reason'] ?? '')), 0, 160) : null, 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null, 'created_by' => $session['user_id']]
+                    ['movement_id' => $movementId, 'reason' => $reason, 'custom_reason' => $customReason, 'notes' => trim((string) ($payload['notes'] ?? '')) ?: null, 'created_by' => $session['user_id']]
                 );
             }
             $balance = (float) Database::scalar('SELECT quantity FROM item_storage_balances WHERE item_id = :item_id AND storage_id = :storage_id', ['item_id' => $item['id'], 'storage_id' => $storageId]);
@@ -116,10 +112,15 @@ function handle_mobile_api_batch(): void
                 }
                 $item = mobile_api_find_item((int) ($line['item_id'] ?? 0), [$storageId]);
                 mobile_api_assert_expected_balance((int) $item['id'], $storageId, $line['expected_balance'] ?? null);
-                $reason = trim((string) ($line['reason'] ?? ''));
-                if ($type === 'usage' && !in_array($reason, mobile_usage_reason_codes(), true)) {
-                    throw new MobileApiException('validation_failed', 'A usage reason is required at line ' . $index . '.', 422);
-                }
+                $reasonInput = $type === 'usage'
+                    ? mobile_usage_reason_input(
+                        (string) ($line['reason'] ?? ''),
+                        isset($line['custom_reason']) ? (string) $line['custom_reason'] : null,
+                        'lines.' . $index . '.reason'
+                    )
+                    : ['code' => '', 'custom_reason' => null];
+                $reason = $reasonInput['code'];
+                $customReason = $reasonInput['custom_reason'];
                 $reference = 'MOB-BATCH-' . $ledgerId;
                 apply_inventory_movement($item, $type, $quantity, $type === 'usage' ? $storageId : null, $type === 'restock' ? $storageId : null, date('Y-m-d H:i:s'), $reference, trim((string) ($line['notes'] ?? '')), (int) $session['user_id'], 'mobile_operation', $ledgerId);
                 $movementId = (int) Database::scalar(
@@ -127,7 +128,17 @@ function handle_mobile_api_batch(): void
                     ['context_id' => $ledgerId, 'item_id' => $item['id']]
                 );
                 if ($type === 'usage') {
-                    Database::execute('INSERT INTO inventory_movement_usage_details (movement_id, reason_code, notes, created_by, created_at, updated_at) VALUES (:movement_id, :reason, :notes, :user_id, NOW(), NOW())', ['movement_id' => $movementId, 'reason' => $reason, 'notes' => trim((string) ($line['notes'] ?? '')) ?: null, 'user_id' => $session['user_id']]);
+                    Database::execute(
+                        'INSERT INTO inventory_movement_usage_details (movement_id, reason_code, custom_reason, notes, created_by, created_at, updated_at)
+                         VALUES (:movement_id, :reason, :custom_reason, :notes, :user_id, NOW(), NOW())',
+                        [
+                            'movement_id' => $movementId,
+                            'reason' => $reason,
+                            'custom_reason' => $customReason,
+                            'notes' => trim((string) ($line['notes'] ?? '')) ?: null,
+                            'user_id' => $session['user_id'],
+                        ]
+                    );
                 }
                 $results[] = ['movement_id' => $movementId, 'item_id' => (int) $item['id'], 'type' => $type, 'quantity' => $quantity];
             }

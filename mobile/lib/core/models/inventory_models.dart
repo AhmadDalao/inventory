@@ -20,6 +20,81 @@ class StorageLocation {
       );
 }
 
+class ItemPackagePreset {
+  const ItemPackagePreset({
+    required this.id,
+    required this.label,
+    required this.piecesPerUnit,
+    this.isDefault = false,
+  });
+
+  final int id;
+  final String label;
+  final double piecesPerUnit;
+  final bool isDefault;
+
+  factory ItemPackagePreset.fromJson(Map<String, dynamic> json) =>
+      ItemPackagePreset(
+        id: (json['id'] as num? ?? 0).toInt(),
+        label: json['label'] as String? ?? 'Package',
+        piecesPerUnit: (json['pieces_per_unit'] as num? ?? 1).toDouble(),
+        isDefault: json['is_default'] == true || json['is_default'] == 1,
+      );
+}
+
+class UsageReason {
+  const UsageReason({
+    required this.code,
+    required this.label,
+    required this.sortOrder,
+    this.active = true,
+    this.requiresCustomText = false,
+  });
+
+  final String code;
+  final String label;
+  final bool active;
+  final int sortOrder;
+  final bool requiresCustomText;
+
+  factory UsageReason.fromJson(Map<String, dynamic> json) => UsageReason(
+    code: normalizeCode(json['code'] as String? ?? ''),
+    label: json['label'] as String? ?? 'Reason',
+    active:
+        json['active'] == null || json['active'] == true || json['active'] == 1,
+    sortOrder: (json['sort_order'] as num? ?? 999).toInt(),
+    requiresCustomText:
+        json['requires_custom_text'] == true ||
+        json['requires_custom_text'] == 1,
+  );
+
+  static String normalizeCode(String value) {
+    final normalized = value.trim().toLowerCase().replaceAll('-', '_');
+    return switch (normalized) {
+      'noshow' => 'no_show',
+      'walk_in' => 'walkin',
+      _ => normalized,
+    };
+  }
+
+  static const defaults = <UsageReason>[
+    UsageReason(code: 'online', label: 'Online', sortOrder: 1),
+    UsageReason(code: 'walkin', label: 'Walk-in', sortOrder: 2),
+    UsageReason(code: 'event', label: 'Event', sortOrder: 3),
+    UsageReason(code: 'damage', label: 'Damage', sortOrder: 4),
+    UsageReason(code: 'sport', label: 'Sport', sortOrder: 5),
+    UsageReason(code: 'school', label: 'School', sortOrder: 6),
+    UsageReason(code: 'complimentary', label: 'Complimentary', sortOrder: 7),
+    UsageReason(code: 'no_show', label: 'No Show', sortOrder: 8),
+    UsageReason(
+      code: 'other',
+      label: 'Other',
+      sortOrder: 9,
+      requiresCustomText: true,
+    ),
+  ];
+}
+
 class InventoryItem {
   const InventoryItem({
     required this.id,
@@ -32,6 +107,7 @@ class InventoryItem {
     this.barcode,
     this.imageUrl,
     this.reorderLevel = 0,
+    this.packagePresets = const [],
   });
 
   final int id;
@@ -44,6 +120,7 @@ class InventoryItem {
   final String storageName;
   final String? imageUrl;
   final double reorderLevel;
+  final List<ItemPackagePreset> packagePresets;
 
   factory InventoryItem.fromJson(
     Map<String, dynamic> json, {
@@ -69,6 +146,14 @@ class InventoryItem {
         '',
     imageUrl: json['image_url'] as String?,
     reorderLevel: (json['reorder_level'] as num? ?? 0).toDouble(),
+    packagePresets: ((json['package_presets'] as List?) ?? const [])
+        .whereType<Map>()
+        .map(
+          (entry) =>
+              ItemPackagePreset.fromJson(Map<String, dynamic>.from(entry)),
+        )
+        .where((preset) => preset.piecesPerUnit > 0)
+        .toList(),
   );
 
   static List<InventoryItem> expandJson(
@@ -107,6 +192,7 @@ class InventoryItem {
     storageName: storageName ?? this.storageName,
     imageUrl: imageUrl,
     reorderLevel: reorderLevel,
+    packagePresets: packagePresets,
   );
 }
 
@@ -399,6 +485,28 @@ class MobileBootstrap {
     }
     return storages.isEmpty ? null : storages.first;
   }
+
+  List<UsageReason> get usageReasons {
+    final raw = settings['usage_reasons'];
+    final reasons = raw is List
+        ? raw
+              .whereType<Map>()
+              .map(
+                (entry) =>
+                    UsageReason.fromJson(Map<String, dynamic>.from(entry)),
+              )
+              .where((reason) => reason.active && reason.code.isNotEmpty)
+              .toList()
+        : <UsageReason>[];
+    if (reasons.isEmpty) return UsageReason.defaults;
+    reasons.sort((left, right) {
+      final order = left.sortOrder.compareTo(right.sortOrder);
+      return order != 0 ? order : left.label.compareTo(right.label);
+    });
+    return reasons;
+  }
+
+  bool get requireUsageProof => settings['require_usage_proof'] == true;
 }
 
 class CartLine {
@@ -408,6 +516,8 @@ class CartLine {
     this.packageLabel = 'Pieces',
     this.packageMultiplier = 1,
     this.expectedBalance,
+    this.reasonCode,
+    this.customReason,
   });
 
   final InventoryItem item;
@@ -415,6 +525,8 @@ class CartLine {
   final String packageLabel;
   final double packageMultiplier;
   final double? expectedBalance;
+  final String? reasonCode;
+  final String? customReason;
 
   double get pieceQuantity => quantity * packageMultiplier;
 
@@ -423,12 +535,18 @@ class CartLine {
     String? packageLabel,
     double? packageMultiplier,
     double? expectedBalance,
+    String? reasonCode,
+    bool clearReason = false,
+    String? customReason,
+    bool clearCustomReason = false,
   }) => CartLine(
     item: item,
     quantity: quantity ?? this.quantity,
     packageLabel: packageLabel ?? this.packageLabel,
     packageMultiplier: packageMultiplier ?? this.packageMultiplier,
     expectedBalance: expectedBalance ?? this.expectedBalance,
+    reasonCode: clearReason ? null : reasonCode ?? this.reasonCode,
+    customReason: clearCustomReason ? null : customReason ?? this.customReason,
   );
 }
 

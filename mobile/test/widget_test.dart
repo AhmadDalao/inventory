@@ -5,6 +5,7 @@ import 'package:inventory_kona/app.dart';
 import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/data/mock_inventory_repository.dart';
 import 'package:inventory_kona/core/data/providers.dart';
+import 'package:inventory_kona/features/movements/usage_cart_screen.dart';
 
 class _DisabledMobileRepository extends MockInventoryRepository {
   @override
@@ -51,5 +52,44 @@ void main() {
     );
     expect(find.textContaining('DioException'), findsNothing);
     expect(find.textContaining('503'), findsNothing);
+  });
+
+  testWidgets('usage cart starts empty and renders every configured reason', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inventoryRepositoryProvider.overrideWithValue(
+            MockInventoryRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: UsageCartScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('usage-cart-empty')), findsOneWidget);
+    expect(find.textContaining('No demo stock is inserted.'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('usage-default-reason-school')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('usage-default-reason-no_show')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('usage-default-reason-other')),
+      findsOneWidget,
+    );
+
+    final otherReason = find.byKey(
+      const ValueKey('usage-default-reason-other'),
+    );
+    final otherChip = tester.widget<ChoiceChip>(otherReason);
+    otherChip.onSelected?.call(true);
+    await tester.pumpAndSettle();
+    expect(find.text('Describe Other'), findsOneWidget);
   });
 }

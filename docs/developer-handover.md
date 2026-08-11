@@ -755,6 +755,7 @@ The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inv
 
 - `app/modules/mobile_api_support.php`: JSON envelope, errors, rate limits, token/session validation, idempotency, and operation ledger.
 - `app/modules/mobile_api_auth.php`: login, rotating refresh, logout, device registration, and revocation checks.
+- `app/modules/mobile_usage_reasons.php`: immutable reason codes, owner-controlled labels/order/active state, legacy-code normalization, and Other-description validation.
 - `app/modules/mobile_api_inventory.php`: bootstrap, sync cursors/tombstones, assigned storages, item lookup, and balances.
 - `app/modules/mobile_api_movements.php`: usage, privileged restock, atomic batches, protected proofs, and balance conflicts.
 - `app/modules/mobile_api_handovers.php`: staff handovers, storage transfers, custody, receipt differences, closeout, approval, and proof routes.
@@ -774,6 +775,9 @@ The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/
 - Offline mode caches reads and stores drafts only. Stock never posts offline.
 - A stale draft receives `409 balance_changed` and must be reconfirmed against the latest server quantity.
 - Batch stock operations are transactional. A failed line rolls back the whole operation.
+- Usage reason codes are server-owned. Flutter reads `settings.usage_reasons` from bootstrap and must never introduce a private hard-coded list.
+- `Other` requires `custom_reason`; proof requirements are checked before the transaction posts any line.
+- Item package conversion multipliers come from each item's API payload. The client must not guess bag, box, or package sizes.
 - Financial and supplier fields stay out of mobile payloads unless separately authorized.
 
 ### Flutter ownership
@@ -784,7 +788,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.0.0
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.1.0
 ```
 
 Production-connected builds use:
@@ -793,7 +797,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.0.0
+  --dart-define=APP_VERSION=1.1.0
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.
@@ -802,7 +806,7 @@ Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or pa
 
 1. Run `php scripts/backup.php` on production.
 2. Deploy API, maintenance schema, Mobile Access view, and route changes while the API switch remains off.
-3. Run PHP lint, `php tests/mobile_api_contract.php`, `php tests/ocr_parser_contract.php`, module-boundary/frontend-asset tests, full regression, and stock invariants.
+3. Run PHP lint, `php tests/mobile_usage_reasons.php`, `php tests/mobile_api_contract.php`, `php tests/ocr_parser_contract.php`, module-boundary/frontend-asset tests, full regression, and stock invariants.
 4. Verify disabled API login returns `503 mobile_disabled`.
 5. After the backup, run `php tests/mobile_api_live.php --base-url=https://inventory.ahmaddalao.com --allow-live --prefix=ZZMOBILEAPIYYYYMMDD`; confirm cleanup restores the disabled API state.
 6. Enable one to three pilot employees, assign storages, and install the signed internal APK.
@@ -813,7 +817,13 @@ Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or pa
 
 Add the server endpoint and OpenAPI contract first. Reuse existing stock/workflow functions rather than reproducing stock math in Dart. Then add repository method, mock fixture, screen/state, offline-draft representation if applicable, API contract test, Flutter unit/widget test, and physical-device acceptance case. A mobile screen is not complete until retries are idempotent and permissions are enforced on the server.
 
-The planned v1.1 scope is intentionally narrow: guided blind stocktakes and FCM/APNs reference-only alerts. See `docs/mobile/next-update-v1.1.md`.
+The planned v1.2 scope is intentionally narrow: guided blind stocktakes and FCM/APNs reference-only alerts. See `docs/mobile/next-update-v1.1.md`.
+
+### Mobile 1.1 release checkpoint
+
+Mobile `1.1.0+3` moved usage reasons to the server-owned catalog, added School by default, supports cart-wide defaults with per-item overrides, requires text for Other, loads package multipliers from item data, starts real carts empty, and hides raw network exceptions from employees. The release APK and checksum are under `output/mobile/`; exact backup, live regression, stock-invariant, signature, checksum, and emulator evidence is maintained in `docs/mobile/release-1.1.0.md`.
+
+The production API deployment is backward compatible. Automated tests restore the prior global mobile-switch value instead of deciding it; verify the current value in Mobile Access before each pilot. Only selected pilot employees should remain enabled. A physical-device pilot remains mandatory even though the Pixel 7 API 36 emulator, Flutter suite, authenticated live API cycle, full regression, and production stock invariants passed.
 
 ## 17. Next Technical Improvements
 

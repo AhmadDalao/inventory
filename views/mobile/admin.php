@@ -11,13 +11,42 @@
         <div class="table-heading"><strong>Application Gate</strong></div>
         <span class="pill <?= site_setting('mobile.enabled', '0') === '1' ? 'pill-active' : 'pill-muted' ?>"><?= site_setting('mobile.enabled', '0') === '1' ? 'Enabled' : 'Disabled' ?></span>
     </div>
-    <form method="post" action="<?= e(url('/mobile-access/settings')) ?>" class="form-grid">
+    <form method="post" action="<?= e(url('/mobile-access/settings')) ?>" class="settings-accordion-body">
         <?= csrf_field() ?>
-        <label class="checkbox-row"><input type="checkbox" name="enabled" value="1" <?= site_setting('mobile.enabled', '0') === '1' ? 'checked' : '' ?>><span>Enable mobile API globally</span></label>
-        <label class="checkbox-row"><input type="checkbox" name="manual_restock_enabled" value="1" <?= site_setting('mobile.manual_restock_enabled', '0') === '1' ? 'checked' : '' ?>><span>Allow privileged direct restock</span></label>
-        <label class="checkbox-row"><input type="checkbox" name="offline_drafts_enabled" value="1" <?= site_setting('mobile.offline_drafts_enabled', '1') === '1' ? 'checked' : '' ?>><span>Allow offline drafts</span></label>
-        <label class="checkbox-row"><input type="checkbox" name="require_usage_proof" value="1" <?= site_setting('mobile.require_usage_proof', '0') === '1' ? 'checked' : '' ?>><span>Require proof for direct usage</span></label>
-        <label><span>Minimum app version</span><input type="text" name="min_supported_version" value="<?= e(site_setting('mobile.min_supported_version', '1.0.0')) ?>" placeholder="1.0.0"></label>
+        <div class="form-grid compact-grid">
+            <label class="checkbox-row"><input type="checkbox" name="enabled" value="1" <?= site_setting('mobile.enabled', '0') === '1' ? 'checked' : '' ?>><span>Enable mobile API globally</span></label>
+            <label class="checkbox-row"><input type="checkbox" name="manual_restock_enabled" value="1" <?= site_setting('mobile.manual_restock_enabled', '0') === '1' ? 'checked' : '' ?>><span>Allow privileged direct restock</span></label>
+            <label class="checkbox-row"><input type="checkbox" name="offline_drafts_enabled" value="1" <?= site_setting('mobile.offline_drafts_enabled', '1') === '1' ? 'checked' : '' ?>><span>Allow offline drafts</span></label>
+            <label class="checkbox-row"><input type="checkbox" name="require_usage_proof" value="1" <?= site_setting('mobile.require_usage_proof', '0') === '1' ? 'checked' : '' ?>><span>Require proof for direct usage</span></label>
+            <label><span>Minimum app version</span><input type="text" name="min_supported_version" value="<?= e(site_setting('mobile.min_supported_version', '1.0.0')) ?>" placeholder="1.0.0"></label>
+        </div>
+
+        <details class="settings-accordion" open>
+            <summary>
+                <span><strong>Usage Reasons</strong><small>Codes stay permanent. You can rename, reorder, or hide reasons from the app.</small></span>
+                <span class="table-count-badge"><?= number_format(count($usageReasons)) ?></span>
+            </summary>
+            <div class="settings-accordion-body">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>Active</th><th>App label</th><th>Order</th><th>Permanent code</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($usageReasons as $reason): ?>
+                            <tr>
+                                <td><input type="checkbox" name="usage_reason_active[<?= e($reason['code']) ?>]" value="1" <?= $reason['active'] ? 'checked' : '' ?> aria-label="Enable <?= e($reason['label']) ?>"></td>
+                                <td>
+                                    <input type="text" name="usage_reason_labels[<?= e($reason['code']) ?>]" value="<?= e($reason['label']) ?>" maxlength="60">
+                                    <?php if ($reason['requires_custom_text']): ?><small>Employees must describe this reason.</small><?php endif; ?>
+                                </td>
+                                <td><input type="number" name="usage_reason_sort_orders[<?= e($reason['code']) ?>]" value="<?= (int) $reason['sort_order'] ?>" min="1" max="999" inputmode="numeric"></td>
+                                <td><code><?= e($reason['code']) ?></code></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
         <button class="primary-button" type="submit">Save Mobile Settings</button>
     </form>
 </section>

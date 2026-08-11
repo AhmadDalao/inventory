@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/item_widgets.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/status_widgets.dart';
 
 class UsageCartScreen extends ConsumerStatefulWidget {
   const UsageCartScreen({super.key});
@@ -19,35 +21,28 @@ class UsageCartScreen extends ConsumerStatefulWidget {
 class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
   final List<CartLine> _lines = [];
   final _notes = TextEditingController();
-  String _reason = 'online';
+  final _defaultCustomReason = TextEditingController();
+  String _defaultReason = 'online';
   int? _storageId;
   XFile? _proof;
+  bool _catalogInitialized = false;
   bool _submitting = false;
-
-  static const reasons = [
-    'online',
-    'walkin',
-    'event',
-    'sport',
-    'damage',
-    'complimentary',
-    'no_show',
-    'other',
-  ];
 
   @override
   void dispose() {
     _notes.dispose();
+    _defaultCustomReason.dispose();
     super.dispose();
   }
 
-  void _seed(MobileBootstrap data) {
-    if (_lines.isNotEmpty || data.items.isEmpty) return;
-    final item = data.items.firstWhere(
-      (candidate) => candidate.storageId == data.defaultStorage?.id,
-      orElse: () => data.items.first,
-    );
-    _lines.add(CartLine(item: item, quantity: 3));
+  void _configure(MobileBootstrap data) {
+    _storageId ??= data.defaultStorage?.id;
+    if (_catalogInitialized) return;
+    final reasons = data.usageReasons;
+    if (!reasons.any((reason) => reason.code == _defaultReason)) {
+      _defaultReason = reasons.first.code;
+    }
+    _catalogInitialized = true;
   }
 
   void _addItem(InventoryItem item) {
@@ -63,13 +58,53 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     });
   }
 
+  Future<void> _changeStorage(int? value) async {
+    if (value == null || value == _storageId) return;
+    if (_lines.isNotEmpty) {
+      final clear = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded),
+          title: const Text('Clear this cart?'),
+          content: const Text(
+            'Cart quantities belong to the current storage. Clear them before switching storage.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => context.pop(false),
+              child: const Text('Keep current storage'),
+            ),
+            FilledButton(
+              onPressed: () => context.pop(true),
+              child: const Text('Clear and switch'),
+            ),
+          ],
+        ),
+      );
+      if (clear != true || !mounted) return;
+    }
+    setState(() {
+      _storageId = value;
+      _lines.clear();
+    });
+  }
+
   Future<void> _scan() async {
-    final code = await context.push<String>('/scanner/item');
-    if (code == null) return;
-    final matches = await ref
-        .read(inventoryRepositoryProvider)
-        .searchItems(code, storageId: _storageId);
-    if (matches.isNotEmpty) _addItem(matches.first);
+    try {
+      final code = await context.push<String>('/scanner/item');
+      if (code == null || !mounted) return;
+      final matches = await ref
+          .read(inventoryRepositoryProvider)
+          .searchItems(code, storageId: _storageId);
+      if (!mounted) return;
+      if (matches.isEmpty) {
+        _message('No assigned item matched that code.');
+        return;
+      }
+      _addItem(matches.first);
+    } catch (error) {
+      if (mounted) _message(apiErrorMessage(error));
+    }
   }
 
   Future<void> _pickItem() async {
@@ -88,8 +123,56 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     if (selected != null) _addItem(selected);
   }
 
-  Future<void> _submit() async {
-    if (_lines.isEmpty || _storageId == null) return;
+  UsageReason? _reason(List<UsageReason> reasons, String code) {
+    for (final reason in reasons) {
+      if (reason.code == UsageReason.normalizeCode(code)) return reason;
+    }
+    return null;
+  }
+
+  String? _validationMessage(MobileBootstrap data, {bool requireProof = true}) {
+    if (_storageId == null) return 'Select a source storage.';
+    if (_lines.isEmpty) return 'Scan or add at least one item.';
+    if (requireProof && data.requireUsageProof && _proof == null) {
+      return 'A proof image is required before this usage can be submitted.';
+    }
+
+    final reasons = data.usageReasons;
+    final defaultDefinition = _reason(reasons, _defaultReason);
+    if (defaultDefinition == null) return 'Pick an active usage reason.';
+    if (defaultDefinition.requiresCustomText &&
+        _defaultCustomReason.text.trim().isEmpty) {
+      return 'Describe the default Other reason.';
+    }
+
+    for (final line in _lines) {
+      if (line.quantity <= 0 || line.pieceQuantity <= 0) {
+        return 'Enter a positive quantity for ${line.item.name}.';
+      }
+      if (line.pieceQuantity > line.item.quantity) {
+        return '${line.item.name} exceeds the last synced storage balance.';
+      }
+      final code = line.reasonCode ?? _defaultReason;
+      final definition = _reason(reasons, code);
+      if (definition == null) {
+        return 'Pick an active reason for ${line.item.name}.';
+      }
+      final custom = line.reasonCode == null
+          ? _defaultCustomReason.text
+          : line.customReason ?? '';
+      if (definition.requiresCustomText && custom.trim().isEmpty) {
+        return 'Describe the Other reason for ${line.item.name}.';
+      }
+    }
+    return null;
+  }
+
+  Future<void> _submit(MobileBootstrap data) async {
+    final validation = _validationMessage(data);
+    if (validation != null) {
+      _message(validation);
+      return;
+    }
     setState(() => _submitting = true);
     try {
       final receipt = await ref
@@ -97,7 +180,10 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
           .submitUsage(
             storageId: _storageId!,
             lines: _lines,
-            reason: _reason,
+            defaultReason: _defaultReason,
+            defaultCustomReason: _defaultCustomReason.text.trim().isEmpty
+                ? null
+                : _defaultCustomReason.text.trim(),
             notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
             proofPath: _proof?.path,
           );
@@ -123,12 +209,19 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
         ),
       );
       if (mounted) context.go('/home');
+    } catch (error) {
+      if (mounted) _message(apiErrorMessage(error));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
-  Future<void> _saveDraft() async {
+  Future<void> _saveDraft(MobileBootstrap data) async {
+    final validation = _validationMessage(data, requireProof: false);
+    if (validation != null) {
+      _message(validation);
+      return;
+    }
     if (_lines.isEmpty || _storageId == null) return;
     await ref
         .read(draftStoreProvider)
@@ -137,8 +230,11 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
           title:
               'Usage · ${_number(_lines.fold<double>(0, (sum, line) => sum + line.pieceQuantity))} units',
           payload: {
+            'schema_version': 2,
             'storage_id': _storageId,
-            'reason': _reason,
+            'reason': _defaultReason,
+            'default_reason': _defaultReason,
+            'default_custom_reason': _defaultCustomReason.text.trim(),
             'notes': _notes.text.trim(),
             'proof_path': _proof?.path,
             'lines': [
@@ -150,25 +246,28 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                   'package_multiplier': line.packageMultiplier,
                   'expected_balance':
                       line.expectedBalance ?? line.item.quantity,
+                  'reason': line.reasonCode,
+                  'custom_reason': line.customReason,
                 },
             ],
           },
         );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Draft saved on this device. Stock was not posted.'),
-      ),
-    );
+    _message('Draft saved on this device. Stock was not posted.');
+  }
+
+  void _message(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(bootstrapProvider).valueOrNull;
-    if (data != null) {
-      _storageId ??= data.defaultStorage?.id;
-      _seed(data);
-    }
+    if (data != null) _configure(data);
+    final reasons = data?.usageReasons ?? UsageReason.defaults;
+    final defaultDefinition = _reason(reasons, _defaultReason);
     final total = _lines.fold<double>(
       0,
       (sum, line) => sum + line.pieceQuantity,
@@ -177,7 +276,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       eyebrow: 'Review before posting',
       title: 'Usage cart',
       description:
-          'Repeated scans increment the same item. Package conversions are visible before confirmation.',
+          'Repeated scans increment the matching item. Nothing posts until you review and submit.',
       trailing: IconButton.filledTonal(
         onPressed: _scan,
         icon: const Icon(Icons.qr_code_scanner),
@@ -186,7 +285,9 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
         children: [
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: _lines.isEmpty ? null : _saveDraft,
+              onPressed: data == null || _lines.isEmpty
+                  ? null
+                  : () => _saveDraft(data),
               icon: const Icon(Icons.save_outlined),
               label: const Text('Save draft'),
             ),
@@ -195,7 +296,9 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
           Expanded(
             flex: 2,
             child: ElevatedButton.icon(
-              onPressed: _submitting || _lines.isEmpty ? null : _submit,
+              onPressed: _submitting || _lines.isEmpty || data == null
+                  ? null
+                  : () => _submit(data),
               icon: const Icon(Icons.shield_outlined),
               label: Text(
                 _submitting ? 'Validating' : 'Submit ${_number(total)} units',
@@ -219,7 +322,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                 ),
               )
               .toList(),
-          onChanged: (value) => setState(() => _storageId = value),
+          onChanged: _changeStorage,
         ),
         KonaSectionCard(
           child: Column(
@@ -236,11 +339,18 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
               ),
               const SizedBox(height: 12),
               if (_lines.isEmpty)
-                const Text('Scan or add an item to begin.')
+                const EmptyState(
+                  key: ValueKey('usage-cart-empty'),
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Cart is empty',
+                  message: 'Scan or add an item. No demo stock is inserted.',
+                )
               else
                 ..._lines.asMap().entries.map(
                   (entry) => _CartLineEditor(
                     line: entry.value,
+                    reasons: reasons,
+                    defaultReason: _defaultReason,
                     onChanged: (line) =>
                         setState(() => _lines[entry.key] = line),
                     onRemove: () => setState(() => _lines.removeAt(entry.key)),
@@ -255,7 +365,12 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
             children: [
               const SectionHeading(
                 eyebrow: 'Accountability',
-                title: 'Usage details',
+                title: 'Default usage reason',
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'This reason applies to every item unless you override it inside an item row.',
+                style: TextStyle(color: KonaColors.muted),
               ),
               const SizedBox(height: 13),
               Wrap(
@@ -264,13 +379,29 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                 children: reasons
                     .map(
                       (reason) => ChoiceChip(
-                        label: Text(_label(reason)),
-                        selected: _reason == reason,
-                        onSelected: (_) => setState(() => _reason = reason),
+                        key: ValueKey('usage-default-reason-${reason.code}'),
+                        label: Text(reason.label),
+                        selected: _defaultReason == reason.code,
+                        onSelected: (_) => setState(() {
+                          _defaultReason = reason.code;
+                          if (!reason.requiresCustomText) {
+                            _defaultCustomReason.clear();
+                          }
+                        }),
                       ),
                     )
                     .toList(),
               ),
+              if (defaultDefinition?.requiresCustomText == true) ...[
+                const SizedBox(height: 13),
+                TextField(
+                  controller: _defaultCustomReason,
+                  decoration: const InputDecoration(
+                    labelText: 'Describe Other',
+                    prefixIcon: Icon(Icons.edit_note_outlined),
+                  ),
+                ),
+              ],
               const SizedBox(height: 13),
               TextField(
                 controller: _notes,
@@ -289,9 +420,17 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                   );
                   if (mounted) setState(() => _proof = image);
                 },
-                icon: const Icon(Icons.camera_alt_outlined),
+                icon: Icon(
+                  _proof == null
+                      ? Icons.camera_alt_outlined
+                      : Icons.check_circle_outline,
+                ),
                 label: Text(
-                  _proof == null ? 'Add proof image' : 'Proof attached',
+                  _proof == null
+                      ? data?.requireUsageProof == true
+                            ? 'Add proof image · required'
+                            : 'Add proof image · optional'
+                      : 'Proof attached',
                 ),
               ),
             ],
@@ -301,10 +440,6 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     );
   }
 
-  static String _label(String value) => value
-      .split('_')
-      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-      .join(' ');
   String _number(double value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
@@ -313,104 +448,207 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
 class _CartLineEditor extends StatelessWidget {
   const _CartLineEditor({
     required this.line,
+    required this.reasons,
+    required this.defaultReason,
     required this.onChanged,
     required this.onRemove,
   });
+
+  static const _useDefault = '__default__';
+
   final CartLine line;
+  final List<UsageReason> reasons;
+  final String defaultReason;
   final ValueChanged<CartLine> onChanged;
   final VoidCallback onRemove;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: KonaColors.canvas,
-        borderRadius: BorderRadius.circular(18),
+  Widget build(BuildContext context) {
+    final packages = <_PackageChoice>[
+      const _PackageChoice(key: 'pieces', label: 'Pieces', multiplier: 1),
+      ...line.item.packagePresets.map(
+        (preset) => _PackageChoice(
+          key: 'preset-${preset.id}',
+          label: preset.label,
+          multiplier: preset.piecesPerUnit,
+        ),
       ),
-      child: Column(
-        children: [
-          InventoryItemTile(
-            item: line.item,
-            compact: true,
-            trailing: IconButton(
-              onPressed: onRemove,
-              icon: const Icon(Icons.close, color: KonaColors.danger),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: line.packageLabel,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Unit / package',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Pieces',
-                      child: Text('Pieces · ×1'),
-                    ),
-                    DropdownMenuItem(value: 'Bag', child: Text('Bag · ×10')),
-                    DropdownMenuItem(value: 'Box', child: Text('Box · ×50')),
-                    DropdownMenuItem(
-                      value: 'Package',
-                      child: Text('Package · ×100'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    final multiplier = switch (value) {
-                      'Bag' => 10.0,
-                      'Box' => 50.0,
-                      'Package' => 100.0,
-                      _ => 1.0,
-                    };
-                    onChanged(
-                      line.copyWith(
-                        packageLabel: value,
-                        packageMultiplier: multiplier,
-                      ),
-                    );
-                  },
-                ),
+    ];
+    final selectedPackage = packages.firstWhere(
+      (choice) =>
+          choice.label == line.packageLabel &&
+          choice.multiplier == line.packageMultiplier,
+      orElse: () => packages.first,
+    );
+    final effectiveReasonCode = line.reasonCode ?? defaultReason;
+    final effectiveReason = reasons.firstWhere(
+      (reason) => reason.code == effectiveReasonCode,
+      orElse: () => reasons.first,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: KonaColors.canvas,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: KonaColors.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InventoryItemTile(
+              item: line.item,
+              compact: true,
+              trailing: IconButton(
+                onPressed: onRemove,
+                icon: const Icon(Icons.close, color: KonaColors.danger),
               ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: TextFormField(
-                  initialValue: _format(line.quantity),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Quantity'),
-                  onChanged: (value) => onChanged(
-                    line.copyWith(quantity: double.tryParse(value) ?? 0),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      '${line.item.id}-${selectedPackage.key}-${packages.length}',
+                    ),
+                    initialValue: selectedPackage.key,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Unit / package',
+                    ),
+                    items: packages
+                        .map(
+                          (choice) => DropdownMenuItem(
+                            value: choice.key,
+                            child: Text(
+                              '${choice.label} · ×${_format(choice.multiplier)}',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      final choice = packages.firstWhere(
+                        (entry) => entry.key == value,
+                        orElse: () => packages.first,
+                      );
+                      onChanged(
+                        line.copyWith(
+                          packageLabel: choice.label,
+                          packageMultiplier: choice.multiplier,
+                        ),
+                      );
+                    },
                   ),
                 ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: _format(line.quantity),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Quantity'),
+                    onChanged: (value) => onChanged(
+                      line.copyWith(quantity: double.tryParse(value) ?? 0),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              key: ValueKey('${line.item.id}-${line.reasonCode}'),
+              initialValue: line.reasonCode ?? _useDefault,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Reason override',
+                prefixIcon: Icon(Icons.rule_outlined),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: _useDefault,
+                  child: Text(
+                    'Use cart default · ${_labelFor(reasons, defaultReason)}',
+                  ),
+                ),
+                ...reasons.map(
+                  (reason) => DropdownMenuItem(
+                    value: reason.code,
+                    child: Text(reason.label),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == _useDefault) {
+                  onChanged(
+                    line.copyWith(clearReason: true, clearCustomReason: true),
+                  );
+                  return;
+                }
+                onChanged(
+                  line.copyWith(
+                    reasonCode: value,
+                    clearCustomReason: value != 'other',
+                  ),
+                );
+              },
+            ),
+            if (line.reasonCode != null &&
+                effectiveReason.requiresCustomText) ...[
+              const SizedBox(height: 10),
+              TextFormField(
+                key: ValueKey('${line.item.id}-custom-${line.reasonCode}'),
+                initialValue: line.customReason,
+                decoration: const InputDecoration(
+                  labelText: 'Describe Other for this item',
+                  prefixIcon: Icon(Icons.edit_note_outlined),
+                ),
+                onChanged: (value) =>
+                    onChanged(line.copyWith(customReason: value)),
               ),
             ],
-          ),
-          const SizedBox(height: 7),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '${_format(line.pieceQuantity)} ${line.item.unit} total',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: KonaColors.goldDark,
+            const SizedBox(height: 7),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${_format(line.pieceQuantity)} ${line.item.unit} total',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: KonaColors.goldDark,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
-  String _format(double value) => value == value.roundToDouble()
+  static String _labelFor(List<UsageReason> reasons, String code) {
+    for (final reason in reasons) {
+      if (reason.code == code) return reason.label;
+    }
+    return code;
+  }
+
+  static String _format(double value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
+}
+
+class _PackageChoice {
+  const _PackageChoice({
+    required this.key,
+    required this.label,
+    required this.multiplier,
+  });
+
+  final String key;
+  final String label;
+  final double multiplier;
 }
 
 class _ItemPicker extends StatefulWidget {

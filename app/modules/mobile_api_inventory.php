@@ -137,6 +137,7 @@ function handle_mobile_api_bootstrap(): void
                 'offline_drafts_enabled' => site_setting('mobile.offline_drafts_enabled', '1') === '1',
                 'require_usage_proof' => site_setting('mobile.require_usage_proof', '0') === '1',
                 'min_supported_version' => site_setting('mobile.min_supported_version', '1.0.0'),
+                'usage_reasons' => mobile_usage_reason_catalog(true),
             ],
             'server_time' => date(DATE_ATOM),
         ], ['sync_cursor' => gmdate('Y-m-d H:i:s')]);

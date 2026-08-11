@@ -1,6 +1,6 @@
 # Inventory KONA Mobile API
 
-Updated: 2026-08-10
+Updated: 2026-08-11
 
 The mobile API is the controlled bridge between the Flutter application and the existing Inventory KONA stock engine. The app never writes MySQL directly and never calculates final stock locally.
 
@@ -59,7 +59,11 @@ Errors return `data: null` and include a stable code, message, field errors, and
 
 ### Usage and Restock
 
-The app builds a review cart. Submission uses `POST /movements/batch`. Usage requires a reason. Direct restock requires both the owner setting and per-employee enablement.
+The app builds an empty review cart; it never inserts demo stock. Submission uses `POST /movements/batch`. Usage requires an active server-configured reason. The owner controls reason labels, display order, and active state from `/mobile-access`; reason codes stay immutable for reporting integrity. The default catalog is Online, Walk-in, Event, Damage, Sport, School, Complimentary, No Show, and Other. `Other` requires a description.
+
+The bootstrap payload returns `settings.usage_reasons`. The app may apply one cart-wide default reason and a different override on individual lines. Package conversions come from each item's `package_presets`, not from client-side assumptions. Legacy `noshow` input normalizes to `no_show` without rewriting historical records.
+
+If proof is mandatory in Mobile Access, the batch is rejected before any stock changes unless a proof image is attached. Direct restock requires both the owner setting and per-employee enablement.
 
 ### Temporary Handover
 

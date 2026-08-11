@@ -11,7 +11,8 @@ abstract class InventoryRepository {
   Future<OperationReceipt> submitUsage({
     required int storageId,
     required List<CartLine> lines,
-    required String reason,
+    required String defaultReason,
+    String? defaultCustomReason,
     String? notes,
     String? proofPath,
     String? clientOperationId,

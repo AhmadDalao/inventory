@@ -20,6 +20,15 @@ class MockInventoryRepository implements InventoryRepository {
       quantity: 246,
       storageId: 1,
       storageName: 'KONA Main',
+      packagePresets: [
+        ItemPackagePreset(
+          id: 101,
+          label: 'Bag',
+          piecesPerUnit: 10,
+          isDefault: true,
+        ),
+        ItemPackagePreset(id: 102, label: 'Box', piecesPerUnit: 50),
+      ],
     ),
     const InventoryItem(
       id: 16,
@@ -143,6 +152,71 @@ class MockInventoryRepository implements InventoryRepository {
         'offline_drafts_enabled': true,
         'require_usage_proof': false,
         'min_supported_version': '1.0.0',
+        'usage_reasons': [
+          {
+            'code': 'online',
+            'label': 'Online',
+            'active': true,
+            'sort_order': 1,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'walkin',
+            'label': 'Walk-in',
+            'active': true,
+            'sort_order': 2,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'event',
+            'label': 'Event',
+            'active': true,
+            'sort_order': 3,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'damage',
+            'label': 'Damage',
+            'active': true,
+            'sort_order': 4,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'sport',
+            'label': 'Sport',
+            'active': true,
+            'sort_order': 5,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'school',
+            'label': 'School',
+            'active': true,
+            'sort_order': 6,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'complimentary',
+            'label': 'Complimentary',
+            'active': true,
+            'sort_order': 7,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'no_show',
+            'label': 'No Show',
+            'active': true,
+            'sort_order': 8,
+            'requires_custom_text': false,
+          },
+          {
+            'code': 'other',
+            'label': 'Other',
+            'active': true,
+            'sort_order': 9,
+            'requires_custom_text': true,
+          },
+        ],
       },
     );
   }
@@ -245,7 +319,8 @@ class MockInventoryRepository implements InventoryRepository {
   Future<OperationReceipt> submitUsage({
     required int storageId,
     required List<CartLine> lines,
-    required String reason,
+    required String defaultReason,
+    String? defaultCustomReason,
     String? notes,
     String? proofPath,
     String? clientOperationId,

@@ -113,26 +113,32 @@ class ApiInventoryRepository implements InventoryRepository {
   Future<OperationReceipt> submitUsage({
     required int storageId,
     required List<CartLine> lines,
-    required String reason,
+    required String defaultReason,
+    String? defaultCustomReason,
     String? notes,
     String? proofPath,
     String? clientOperationId,
   }) async {
     final payload = {
       'client_operation_id': clientOperationId ?? _api.operationId(),
-      'lines': lines
-          .map(
-            (line) => {
-              'type': 'usage',
-              'item_id': line.item.id,
-              'storage_id': storageId,
-              'quantity': line.pieceQuantity,
-              'expected_balance': line.expectedBalance ?? line.item.quantity,
-              'reason': reason,
-              'notes': notes,
-            },
-          )
-          .toList(),
+      'lines': lines.map((line) {
+        final reason = UsageReason.normalizeCode(
+          line.reasonCode ?? defaultReason,
+        );
+        final customReason = line.reasonCode == null
+            ? defaultCustomReason
+            : line.customReason;
+        return {
+          'type': 'usage',
+          'item_id': line.item.id,
+          'storage_id': storageId,
+          'quantity': line.pieceQuantity,
+          'expected_balance': line.expectedBalance ?? line.item.quantity,
+          'reason': reason,
+          'custom_reason': reason == 'other' ? customReason : null,
+          'notes': notes,
+        };
+      }).toList(),
     };
     final data = proofPath == null
         ? await _api.post('/movements/batch', data: payload)

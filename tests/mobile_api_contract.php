@@ -34,6 +34,7 @@ $mobileModules = $manifest['mobile_api'] ?? [];
 $requiredModules = [
     'mobile_api_support',
     'mobile_api_auth',
+    'mobile_usage_reasons',
     'mobile_api_inventory',
     'mobile_api_movements',
     'mobile_api_handovers',
@@ -104,6 +105,7 @@ foreach ($routes as $route => $handler) {
 
 $support = mobile_contract_source('app/modules/mobile_api_support.php');
 $auth = mobile_contract_source('app/modules/mobile_api_auth.php');
+$usageReasons = mobile_contract_source('app/modules/mobile_usage_reasons.php');
 $admin = mobile_contract_source('app/modules/mobile_admin.php');
 $inventory = mobile_contract_source('app/modules/mobile_api_inventory.php');
 $movements = mobile_contract_source('app/modules/mobile_api_movements.php');
@@ -128,6 +130,22 @@ foreach ([
     if (strpos($support . $schema, $marker) === false) {
         fail_mobile_contract('Idempotency or conflict protection is missing marker: ' . $marker);
     }
+}
+
+foreach (['school', 'requires_custom_text', 'mobile.usage_reasons', 'no_show', 'noshow'] as $marker) {
+    if (strpos($usageReasons, $marker) === false) {
+        fail_mobile_contract('Usage reason catalog is missing marker: ' . $marker);
+    }
+}
+
+if (strpos($inventory, "'usage_reasons' => mobile_usage_reason_catalog(true)") === false) {
+    fail_mobile_contract('Bootstrap must return the active server-owned usage reason catalog.');
+}
+
+if (strpos($movements, 'custom_reason, notes') === false
+    || strpos($movements, "'custom_reason' => \$customReason") === false
+) {
+    fail_mobile_contract('Single and batch usage must persist custom reasons.');
 }
 
 foreach ([

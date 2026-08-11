@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
@@ -21,7 +22,7 @@ class HandoverDetailScreen extends ConsumerWidget {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(
         appBar: AppBar(title: const Text('Handover')),
-        body: Center(child: Text(error.toString())),
+        body: Center(child: Text(apiErrorMessage(error))),
       ),
       data: (data) => KonaPage(
         eyebrow: _purposeLabel(data.task.purpose),

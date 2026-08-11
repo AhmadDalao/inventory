@@ -33,7 +33,13 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
             .submitUsage(
               storageId: (payload['storage_id'] as num).toInt(),
               lines: lines,
-              reason: payload['reason'] as String? ?? 'other',
+              defaultReason:
+                  payload['default_reason'] as String? ??
+                  payload['reason'] as String? ??
+                  'online',
+              defaultCustomReason:
+                  payload['default_custom_reason'] as String? ??
+                  payload['custom_reason'] as String?,
               notes: payload['notes'] as String?,
               proofPath: payload['proof_path'] as String?,
               clientOperationId: draft.id,
@@ -65,7 +71,11 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
       final state = error.code == 'balance_changed' ? 'conflict' : 'failed';
       await store.updateState(draft.id, state, message: error.message);
     } catch (error) {
-      await store.updateState(draft.id, 'failed', message: error.toString());
+      await store.updateState(
+        draft.id,
+        'failed',
+        message: apiErrorMessage(error),
+      );
     } finally {
       if (mounted) setState(() => _activeId = null);
     }
@@ -87,6 +97,8 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
         packageMultiplier: (line['package_multiplier'] as num? ?? 1).toDouble(),
         expectedBalance:
             (line['expected_balance'] as num?)?.toDouble() ?? item.quantity,
+        reasonCode: line['reason'] as String?,
+        customReason: line['custom_reason'] as String?,
       );
     }).toList();
   }
@@ -134,7 +146,8 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
           loading: () => const KonaSectionCard(
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (error, _) => KonaSectionCard(child: Text(error.toString())),
+          error: (error, _) =>
+              KonaSectionCard(child: Text(apiErrorMessage(error))),
           data: (items) => KonaSectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -181,7 +194,7 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
                   title: 'Could not load activity',
                 ),
                 const SizedBox(height: 8),
-                Text(error.toString()),
+                Text(apiErrorMessage(error)),
               ],
             ),
           ),

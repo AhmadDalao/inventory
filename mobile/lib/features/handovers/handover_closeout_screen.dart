@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/logic/handover_reconciliation.dart';
 import '../../core/models/inventory_models.dart';
@@ -191,7 +192,7 @@ class _HandoverCloseoutScreenState
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) =>
-          Scaffold(body: Center(child: Text(error.toString()))),
+          Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
         _seed(data);
         final units = data.lines.map((line) => line.unit).toSet().toList();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
@@ -28,7 +29,8 @@ class HandoverListScreen extends ConsumerWidget {
           loading: () => const KonaSectionCard(
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (error, _) => KonaSectionCard(child: Text(error.toString())),
+          error: (error, _) =>
+              KonaSectionCard(child: Text(apiErrorMessage(error))),
           data: (items) => KonaSectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

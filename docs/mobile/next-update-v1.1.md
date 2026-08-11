@@ -1,4 +1,4 @@
-# Mobile v1.1 Plan: Stocktakes and Alerts
+# Mobile v1.2 Plan: Stocktakes and Alerts
 
 ## Guided Stocktakes
 
@@ -20,4 +20,4 @@
 
 ## Release Gate
 
-Start v1.1 only after the Android v1 pilot proves authentication, scanning, idempotency, offline drafts, handovers, and stock invariants in daily use.
+Start v1.2 only after the Android v1.1 pilot proves authentication, server-configured usage reasons, scanning, idempotency, offline drafts, handovers, and stock invariants in daily use.

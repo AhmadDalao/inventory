@@ -178,6 +178,7 @@ return [
     'mobile_api' => [
         'mobile_api_support',
         'mobile_api_auth',
+        'mobile_usage_reasons',
         'mobile_api_inventory',
         'mobile_api_movements',
         'mobile_api_handovers',

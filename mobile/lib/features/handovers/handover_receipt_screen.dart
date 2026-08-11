@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
@@ -89,7 +90,7 @@ class _HandoverReceiptScreenState extends ConsumerState<HandoverReceiptScreen> {
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) =>
-          Scaffold(body: Center(child: Text(error.toString()))),
+          Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
         _seed(data);
         return KonaPage(

@@ -63,6 +63,70 @@ void main() {
     expect(line.pieceQuantity, 150);
   });
 
+  test(
+    'bootstrap reason catalog includes School and normalizes legacy codes',
+    () {
+      final reasons = <UsageReason>[
+        UsageReason.fromJson(const {
+          'code': 'school',
+          'label': 'School',
+          'active': true,
+          'sort_order': 6,
+        }),
+        UsageReason.fromJson(const {
+          'code': 'noshow',
+          'label': 'No Show',
+          'active': true,
+          'sort_order': 8,
+        }),
+      ];
+
+      expect(reasons.first.code, 'school');
+      expect(reasons.last.code, 'no_show');
+      expect(
+        UsageReason.defaults.any((reason) => reason.code == 'school'),
+        isTrue,
+      );
+    },
+  );
+
+  test('server package presets are parsed and used by cart lines', () {
+    final item = InventoryItem.fromJson(const {
+      'id': 15,
+      'name': 'Wristband',
+      'sku': 'WB-BLUE',
+      'unit': 'pcs',
+      'quantity': 500,
+      'storage_id': 10,
+      'storage_name': 'KONA',
+      'package_presets': [
+        {'id': 7, 'label': 'Bag', 'pieces_per_unit': 25, 'is_default': true},
+      ],
+    });
+    final preset = item.packagePresets.single;
+    final line = CartLine(
+      item: item,
+      quantity: 4,
+      packageLabel: preset.label,
+      packageMultiplier: preset.piecesPerUnit,
+    );
+
+    expect(preset.label, 'Bag');
+    expect(line.pieceQuantity, 100);
+  });
+
+  test('Other is the only default reason requiring a description', () {
+    final other = UsageReason.defaults.singleWhere(
+      (reason) => reason.code == 'other',
+    );
+    final school = UsageReason.defaults.singleWhere(
+      (reason) => reason.code == 'school',
+    );
+
+    expect(other.requiresCustomText, isTrue);
+    expect(school.requiresCustomText, isFalse);
+  });
+
   test('scanner suppresses rapid duplicate reads but accepts later scans', () {
     final scanner = ScanDebouncer(window: const Duration(seconds: 2));
     final start = DateTime.utc(2026, 8, 10, 12);

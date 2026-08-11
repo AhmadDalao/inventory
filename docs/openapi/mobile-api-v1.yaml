@@ -482,7 +482,7 @@ components:
       properties:
         email: { type: string, format: email }
         password: { type: string, format: password }
-        app_version: { type: string, example: 1.0.0 }
+        app_version: { type: string, example: 1.1.0 }
         device_uuid: { type: string, maxLength: 120 }
         device_name: { type: string, maxLength: 160 }
         platform: { type: string, enum: [android, ios] }
@@ -520,7 +520,14 @@ components:
           type: array
           items: { type: string, enum: [usage, restock, transfer, handover, custody] }
         recipients: { type: array, items: { $ref: '#/components/schemas/User' } }
-        settings: { type: object, additionalProperties: true }
+        settings:
+          type: object
+          additionalProperties: true
+          properties:
+            usage_reasons:
+              type: array
+              items: { $ref: '#/components/schemas/UsageReason' }
+            require_usage_proof: { type: boolean }
         server_time: { type: string, format: date-time }
     Storage:
       type: object
@@ -548,7 +555,25 @@ components:
               storage_name: { type: string }
               storage_type: { type: string }
               quantity: { type: number }
-        package_presets: { type: array, items: { type: object, additionalProperties: true } }
+        package_presets:
+          type: array
+          items:
+            type: object
+            required: [label, multiplier]
+            properties:
+              label: { type: string, example: Box }
+              multiplier: { type: number, exclusiveMinimum: 0, example: 50 }
+    UsageReason:
+      type: object
+      required: [code, label, active, sort_order, requires_custom_text]
+      properties:
+        code:
+          type: string
+          enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+        label: { type: string, example: School }
+        active: { type: boolean }
+        sort_order: { type: integer, minimum: 1 }
+        requires_custom_text: { type: boolean }
     OperationRequest:
       type: object
       required: [client_operation_id]
@@ -570,6 +595,10 @@ components:
         reason:
           type: string
           enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+        custom_reason:
+          type: [string, 'null']
+          maxLength: 160
+          description: Required when reason is other; ignored for every other reason.
         notes: { type: string, nullable: true }
         reference: { type: string, nullable: true }
     SingleMovementRequest:
@@ -582,7 +611,12 @@ components:
             storage_id: { type: integer }
             quantity: { type: number, exclusiveMinimum: 0 }
             expected_balance: { type: number, minimum: 0 }
-            reason: { type: string }
+            reason:
+              type: string
+              enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+            custom_reason:
+              type: [string, 'null']
+              maxLength: 160
             reference: { type: string, nullable: true }
     BatchMovementRequest:
       allOf:

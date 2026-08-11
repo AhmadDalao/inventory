@@ -56,6 +56,7 @@ function handle_mobile_admin_page(): void
         'storages' => Database::fetchAll('SELECT id, name, storage_type FROM storages WHERE is_active = 1 AND is_system = 0 ORDER BY name ASC'),
         'devices' => mobile_admin_devices(),
         'operations' => mobile_admin_operations(),
+        'usageReasons' => mobile_usage_reason_catalog(false),
     ]);
 }
 
@@ -65,12 +66,32 @@ function handle_mobile_admin_settings_submit(): void
     Auth::requireOwner();
     verify_csrf();
 
+    $reasonLabels = (array) input('usage_reason_labels', []);
+    $reasonSortOrders = (array) input('usage_reason_sort_orders', []);
+    $reasonActive = (array) input('usage_reason_active', []);
+    $usageReasons = [];
+    foreach (mobile_usage_reason_defaults() as $default) {
+        $code = (string) $default['code'];
+        $label = trim((string) ($reasonLabels[$code] ?? $default['label']));
+        $usageReasons[] = [
+            'code' => $code,
+            'label' => substr($label !== '' ? $label : (string) $default['label'], 0, 60),
+            'active' => array_key_exists($code, $reasonActive),
+            'sort_order' => max(1, min(999, (int) ($reasonSortOrders[$code] ?? $default['sort_order']))),
+        ];
+    }
+    if (!array_filter($usageReasons, static fn (array $reason): bool => (bool) $reason['active'])) {
+        flash('danger', 'Keep at least one mobile usage reason active.');
+        redirect('/mobile-access');
+    }
+
     $settings = [
         'mobile.enabled' => input('enabled') === '1' ? '1' : '0',
         'mobile.manual_restock_enabled' => input('manual_restock_enabled') === '1' ? '1' : '0',
         'mobile.offline_drafts_enabled' => input('offline_drafts_enabled') === '1' ? '1' : '0',
         'mobile.require_usage_proof' => input('require_usage_proof') === '1' ? '1' : '0',
         'mobile.min_supported_version' => substr(trim((string) input('min_supported_version', '1.0.0')), 0, 40) ?: '1.0.0',
+        'mobile.usage_reasons' => json_encode($usageReasons, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ];
     foreach ($settings as $key => $value) {
         Database::execute(
