@@ -7,6 +7,7 @@ import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/item_widgets.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/status_widgets.dart';
 
 class CreateHandoverScreen extends ConsumerStatefulWidget {
   const CreateHandoverScreen({super.key, this.purpose});
@@ -76,6 +77,11 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
   }
 
   Future<void> _saveDraft() async {
+    final access = ref.read(bootstrapProvider).valueOrNull;
+    if (access == null || !access.canCreateHandoverPurpose(_purpose)) {
+      _accessChanged();
+      return;
+    }
     if (_sourceStorageId == null || _lines.isEmpty) return;
     await ref
         .read(draftStoreProvider)
@@ -105,6 +111,11 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
   }
 
   Future<void> _submit() async {
+    final access = ref.read(bootstrapProvider).valueOrNull;
+    if (access == null || !access.canCreateHandoverPurpose(_purpose)) {
+      _accessChanged();
+      return;
+    }
     if (!_valid) return;
     setState(() => _submitting = true);
     try {
@@ -158,15 +169,68 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
                 _destinationStorageId != _sourceStorageId
           : _recipientUserId != null);
 
+  void _accessChanged() {
+    ref.invalidate(bootstrapProvider);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Your access changed. Refreshing available actions.'),
+      ),
+    );
+  }
+
+  List<ButtonSegment<String>> _purposeSegments(MobileBootstrap access) => [
+    if (access.canCreateTemporaryHandover)
+      const ButtonSegment(
+        value: 'temporary_use',
+        label: Text('Staff use'),
+        icon: Icon(Icons.person_outline),
+      ),
+    if (access.canCreateTransfer)
+      const ButtonSegment(
+        value: 'storage_transfer',
+        label: Text('Storage'),
+        icon: Icon(Icons.warehouse_outlined),
+      ),
+    if (access.canCreateCustody)
+      const ButtonSegment(
+        value: 'staff_custody',
+        label: Text('Custody'),
+        icon: Icon(Icons.assignment_ind_outlined),
+      ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(bootstrapProvider).valueOrNull;
-    _sourceStorageId ??= data?.defaultStorage?.id;
-    final sourceItems =
-        data?.items
-            .where((item) => item.storageId == _sourceStorageId)
-            .toList() ??
-        const <InventoryItem>[];
+    if (data == null || !data.canCreateAnyHandover) {
+      return const KonaPage(
+        eyebrow: 'Accountable issue',
+        title: 'New handover',
+        children: [
+          AccessDeniedState(
+            message: 'Creating handovers is not enabled for your account.',
+          ),
+        ],
+      );
+    }
+    final segments = _purposeSegments(data);
+    if (!data.canCreateHandoverPurpose(_purpose)) {
+      final nextPurpose = segments.first.value;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _purpose == nextPurpose) return;
+        setState(() {
+          _purpose = nextPurpose;
+          _destinationStorageId = null;
+          _recipientUserId = null;
+          _lines.clear();
+        });
+      });
+    }
+    _sourceStorageId ??= data.defaultStorage?.id;
+    final sourceItems = data.items
+        .where((item) => item.storageId == _sourceStorageId)
+        .toList();
     return KonaPage(
       eyebrow: 'Accountable issue',
       title: 'New handover',
@@ -207,23 +271,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
               ),
               const SizedBox(height: 12),
               SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'temporary_use',
-                    label: Text('Staff use'),
-                    icon: Icon(Icons.person_outline),
-                  ),
-                  ButtonSegment(
-                    value: 'storage_transfer',
-                    label: Text('Storage'),
-                    icon: Icon(Icons.warehouse_outlined),
-                  ),
-                  ButtonSegment(
-                    value: 'staff_custody',
-                    label: Text('Custody'),
-                    icon: Icon(Icons.assignment_ind_outlined),
-                  ),
-                ],
+                segments: segments,
                 selected: {_purpose},
                 showSelectedIcon: false,
                 onSelectionChanged: (value) => setState(() {
@@ -239,7 +287,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
                   labelText: 'Source storage',
                   prefixIcon: Icon(Icons.outbox_outlined),
                 ),
-                items: (data?.storages ?? const [])
+                items: data.storages
                     .map(
                       (storage) => DropdownMenuItem(
                         value: storage.id,
@@ -263,7 +311,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
                     labelText: 'Destination storage',
                     prefixIcon: Icon(Icons.move_to_inbox_outlined),
                   ),
-                  items: (data?.storages ?? const [])
+                  items: data.storages
                       .where((storage) => storage.id != _sourceStorageId)
                       .map(
                         (storage) => DropdownMenuItem(
@@ -284,7 +332,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
                         : 'Staff recipient',
                     prefixIcon: const Icon(Icons.badge_outlined),
                   ),
-                  items: (data?.recipients ?? const [])
+                  items: data.recipients
                       .map(
                         (recipient) => DropdownMenuItem(
                           value: recipient.id,

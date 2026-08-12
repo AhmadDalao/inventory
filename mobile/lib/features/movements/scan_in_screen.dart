@@ -35,7 +35,7 @@ class ScanInScreen extends ConsumerWidget {
   }
 
   static void _openReceipt(BuildContext context, MobileTask task) {
-    final review = task.status == 'receipt_review' ? '?review=1' : '';
+    final review = task.can('review_receipt') ? '?review=1' : '';
     context.push('/handovers/${task.id}/receipt$review');
   }
 
@@ -62,8 +62,8 @@ class ScanInScreen extends ConsumerWidget {
             final available = items
                 .where(
                   (task) =>
-                      task.status == 'awaiting_receipt' ||
-                      task.status == 'receipt_review',
+                      task.can('confirm_receipt') ||
+                      task.can('review_receipt'),
                 )
                 .toList();
             return KonaSectionCard(
@@ -99,7 +99,7 @@ class ScanInScreen extends ConsumerWidget {
                               children: [
                                 CircleAvatar(
                                   backgroundColor:
-                                      task.status == 'receipt_review'
+                                      task.can('review_receipt')
                                       ? const Color(0xFFFFE5D8)
                                       : KonaColors.soft,
                                   foregroundColor: KonaColors.ink,
@@ -132,7 +132,7 @@ class ScanInScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 StatusPill(
-                                  label: task.status == 'receipt_review'
+                                  label: task.can('review_receipt')
                                       ? 'Review'
                                       : 'Receive',
                                   tone: StatusTone.warning,

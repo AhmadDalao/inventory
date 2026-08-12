@@ -229,6 +229,7 @@ class MobileTask {
     required this.quantity,
     this.source,
     this.destination,
+    this.allowedActions = const {},
     this.requiresAction = false,
   });
 
@@ -241,31 +242,42 @@ class MobileTask {
   final double quantity;
   final String? source;
   final String? destination;
+  final Set<String> allowedActions;
   final bool requiresAction;
 
-  factory MobileTask.fromJson(Map<String, dynamic> json) => MobileTask(
-    id: (json['id'] as num).toInt(),
-    reference:
-        json['handover_number'] as String? ??
-        json['reference'] as String? ??
-        '',
-    title: json['title'] as String? ?? 'Handover',
-    status: json['status'] as String? ?? 'requested',
-    purpose:
-        json['handover_purpose'] as String? ??
-        json['purpose'] as String? ??
-        'temporary_use',
-    itemCount: (json['item_count'] as num? ?? 0).toInt(),
-    quantity: (json['total_quantity'] as num? ?? 0).toDouble(),
-    source:
-        json['source_storage_name'] as String? ??
-        (json['source_storage'] as Map?)?['name'] as String?,
-    destination:
-        json['destination_storage_name'] as String? ??
-        (json['destination_storage'] as Map?)?['name'] as String?,
-    requiresAction:
-        json['requires_action'] == true || json['requires_action'] == 1,
-  );
+  bool can(String action) => allowedActions.contains(action);
+
+  factory MobileTask.fromJson(Map<String, dynamic> json) {
+    final allowedActions = (json['allowed_actions'] as List? ?? const [])
+        .map((action) => action.toString())
+        .where((action) => action.isNotEmpty)
+        .toSet();
+    return MobileTask(
+      id: (json['id'] as num).toInt(),
+      reference:
+          json['handover_number'] as String? ??
+          json['reference'] as String? ??
+          '',
+      title: json['title'] as String? ?? 'Handover',
+      status: json['status'] as String? ?? 'requested',
+      purpose:
+          json['handover_purpose'] as String? ??
+          json['purpose'] as String? ??
+          'temporary_use',
+      itemCount: (json['item_count'] as num? ?? 0).toInt(),
+      quantity: (json['total_quantity'] as num? ?? 0).toDouble(),
+      source:
+          json['source_storage_name'] as String? ??
+          (json['source_storage'] as Map?)?['name'] as String?,
+      destination:
+          json['destination_storage_name'] as String? ??
+          (json['destination_storage'] as Map?)?['name'] as String?,
+      allowedActions: allowedActions,
+      requiresAction: json.containsKey('allowed_actions')
+          ? allowedActions.isNotEmpty
+          : json['requires_action'] == true || json['requires_action'] == 1,
+    );
+  }
 }
 
 class HandoverLine {
@@ -467,6 +479,7 @@ class MobileBootstrap {
     required this.items,
     required this.tasks,
     required this.capabilities,
+    this.permissions = const {},
     this.recipients = const [],
     this.settings = const {},
   });
@@ -476,8 +489,68 @@ class MobileBootstrap {
   final List<InventoryItem> items;
   final List<MobileTask> tasks;
   final Set<String> capabilities;
+  final Set<String> permissions;
   final List<MobileRecipient> recipients;
   final Map<String, dynamic> settings;
+
+  bool hasPermission(String permission) => permissions.contains(permission);
+
+  bool hasCapability(String capability) => capabilities.contains(capability);
+
+  bool get canViewItems => hasPermission('items.view') && storages.isNotEmpty;
+
+  bool get canUseStock =>
+      canViewItems &&
+      hasPermission('movements.usage') &&
+      hasCapability('usage');
+
+  bool get canRestock =>
+      canViewItems &&
+      hasPermission('movements.restock') &&
+      hasCapability('restock') &&
+      settings['manual_restock_enabled'] == true;
+
+  bool get canViewHandovers => hasPermission('handovers.view');
+
+  bool get canCreateTemporaryHandover =>
+      canViewItems &&
+      (hasPermission('handovers.create') ||
+          hasPermission('handovers.request')) &&
+      hasCapability('handover');
+
+  bool get canCreateTransfer =>
+      canViewItems &&
+      hasPermission('handovers.create') &&
+      hasCapability('transfer');
+
+  bool get canCreateCustody =>
+      canViewItems &&
+      hasPermission('handovers.create') &&
+      hasCapability('custody');
+
+  bool get canCreateAnyHandover =>
+      canCreateTemporaryHandover || canCreateTransfer || canCreateCustody;
+
+  bool canCreateHandoverPurpose(String purpose) => switch (purpose) {
+    'storage_transfer' => canCreateTransfer,
+    'staff_custody' => canCreateCustody,
+    _ => canCreateTemporaryHandover,
+  };
+
+  bool get canReceiveHandovers =>
+      canViewHandovers && hasPermission('handovers.close');
+
+  bool get canApproveHandovers =>
+      canViewHandovers && hasPermission('handovers.approve');
+
+  bool get canReturnCustody =>
+      canViewHandovers &&
+      hasPermission('handovers.custody_return') &&
+      hasCapability('custody');
+
+  bool get hasScanOutAction => canUseStock || canCreateAnyHandover;
+
+  bool get canScanIn => canReceiveHandovers || canApproveHandovers;
 
   StorageLocation? get defaultStorage {
     for (final storage in storages) {

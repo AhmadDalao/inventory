@@ -25,7 +25,18 @@ Mobile access is disabled by default. An owner must open `/mobile-access` and:
 4. Grant only the required capabilities.
 5. Enable direct restock only for trusted users.
 
-The existing permission catalog still applies. A mobile capability does not bypass `items.view`, movement, handover, or custody permissions.
+The existing permission catalog still applies. A mobile capability does not bypass `items.view`, movement, handover, or custody permissions. Effective access is always the intersection of the website permission, Mobile Access capability, assigned storage, active account/grant/device, supported app version, workflow status, and record relationship.
+
+The server recomputes this intersection on every protected request. Revoking a permission, storage assignment, employee grant, or device therefore blocks the next request even if the employee still has an old screen open. Bootstrap returns only effective capabilities, and handover payloads return server-computed `allowed_actions`; those fields drive the Flutter UI but never replace API authorization.
+
+Key permission rules:
+
+- Quantity/catalog reads require `items.view` and return assigned storages only.
+- Usage requires `movements.usage` plus the Usage mobile capability.
+- Direct restock requires `movements.restock`, the Restock capability, the employee direct-restock grant, and the global direct-restock setting.
+- Transfers require `handovers.create` plus the Transfer capability and an assigned source storage.
+- Staff requests/handovers require `handovers.request` or `handovers.create` plus the Handover capability.
+- Receipt, closeout, approval, custody return, cancellation, and record reads also require the correct workflow status and user relationship.
 
 ## Authentication
 

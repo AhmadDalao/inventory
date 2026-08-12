@@ -67,10 +67,11 @@ function handle_mobile_api_me(): void
 {
     mobile_api_run(function (): void {
         $session = mobile_api_session();
+        $permissions = mobile_api_permissions((int) $session['user_id']);
         mobile_api_success([
             'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'email' => $session['email'], 'role' => $session['role'], 'position' => $session['position']],
-            'permissions' => mobile_api_permissions((int) $session['user_id']),
-            'storage_ids' => mobile_api_storage_ids($session),
+            'permissions' => $permissions,
+            'storage_ids' => in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [],
             'device_session_id' => (int) $session['id'],
         ]);
     });
@@ -80,8 +81,9 @@ function handle_mobile_api_bootstrap(): void
 {
     mobile_api_run(function (): void {
         $session = mobile_api_session();
-        $ids = mobile_api_storage_ids($session);
         $access = mobile_api_require_employee_access($session);
+        $permissions = mobile_api_permissions((int) $session['user_id']);
+        $ids = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
         $storages = $ids === [] ? [] : Database::fetchAll(
             'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default
              FROM storages storage LEFT JOIN user_storage_assignments assignment ON assignment.storage_id = storage.id AND assignment.user_id = ?
@@ -102,12 +104,7 @@ function handle_mobile_api_bootstrap(): void
             );
             $items = array_map(static fn (array $item): array => mobile_api_item_payload($item, $ids), $rows);
         }
-        $capabilities = [];
-        foreach (['usage', 'restock', 'transfer', 'handover', 'custody'] as $capability) {
-            if ((int) ($access['can_' . $capability] ?? 0) === 1) {
-                $capabilities[] = $capability;
-            }
-        }
+        $capabilities = mobile_api_effective_capabilities($access, $permissions, $ids);
         $recipients = [];
         if (array_intersect($capabilities, ['handover', 'custody']) !== []) {
             $recipients = Database::fetchAll(
@@ -121,7 +118,7 @@ function handle_mobile_api_bootstrap(): void
         }
         mobile_api_success([
             'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'role' => $session['role'], 'position' => $session['position']],
-            'permissions' => mobile_api_permissions((int) $session['user_id']),
+            'permissions' => $permissions,
             'storages' => $storages,
             'items' => $items,
             'tasks' => Auth::userHasPermission((int) $session['user_id'], 'handovers.view') ? mobile_api_handover_list_rows($session, true) : [],
@@ -148,7 +145,8 @@ function handle_mobile_api_sync(): void
 {
     mobile_api_run(function (): void {
         $session = mobile_api_session();
-        $ids = mobile_api_storage_ids($session);
+        $permissions = mobile_api_permissions((int) $session['user_id']);
+        $ids = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
         $since = trim((string) query('since', '1970-01-01 00:00:00'));
         $items = [];
         if ($ids !== []) {

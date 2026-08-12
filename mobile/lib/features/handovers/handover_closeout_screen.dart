@@ -9,6 +9,7 @@ import '../../core/logic/handover_reconciliation.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/status_widgets.dart';
 
 const _reasonKeys = [
   'online',
@@ -126,6 +127,21 @@ class _HandoverCloseoutScreenState
   }
 
   Future<void> _submit(HandoverDetail detail) async {
+    final action = widget.issuerApproval
+        ? 'approve_closeout'
+        : 'report_closeout';
+    if (!detail.task.can(action)) {
+      ref.invalidate(handoverDetailProvider(widget.handoverId));
+      ref.invalidate(bootstrapProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This closeout action is no longer available.'),
+          ),
+        );
+      }
+      return;
+    }
     final returned = {
       for (final line in detail.lines) line.id: _returnedFor(line),
     };
@@ -194,6 +210,25 @@ class _HandoverCloseoutScreenState
       error: (error, _) =>
           Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
+        final action = widget.issuerApproval
+            ? 'approve_closeout'
+            : 'report_closeout';
+        if (!data.task.can(action)) {
+          return KonaPage(
+            eyebrow: widget.issuerApproval
+                ? 'Final stock accountability'
+                : 'Returned-first reporting',
+            title: widget.issuerApproval
+                ? 'Issuer final review'
+                : 'Usage and return',
+            children: const [
+              AccessDeniedState(
+                message:
+                    'This closeout action is not available to you or is no longer waiting.',
+              ),
+            ],
+          );
+        }
         _seed(data);
         final units = data.lines.map((line) => line.unit).toSet().toList();
         return KonaPage(

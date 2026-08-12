@@ -769,7 +769,10 @@ The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/
 ### Safety contract
 
 - Mobile API access is globally disabled by default and enabled from Website Control only for a pilot.
-- Employees require `mobile.access`, an active per-user mobile grant, an unrevoked device, and assigned storages.
+- Effective mobile access is the intersection of the current website permission, the matching Mobile Access capability, an assigned storage, an active employee account, an active mobile grant, an unrevoked device session, and the supported app version. Mobile Access may narrow website permissions; it can never expand them.
+- Read endpoints require `items.view` or `handovers.view` as applicable. Mutation endpoints recheck their exact website permission, capability, assigned storage, workflow status, and record relationship on every request.
+- Handover responses include server-computed `allowed_actions`. Flutter uses these for navigation and buttons, but the API remains authoritative and rejects stale screens, direct URLs, and replayed actions after access changes.
+- Permission and storage changes take effect on the next API request. Flutter refreshes bootstrap data when it resumes and before protected submissions; UI visibility is not treated as security.
 - Access tokens expire after 15 minutes; rotating refresh tokens expire after 30 days and are stored hashed.
 - Every mutation requires `client_operation_id`. Duplicate submissions return the original result.
 - Offline mode caches reads and stores drafts only. Stock never posts offline.

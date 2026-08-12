@@ -7,6 +7,7 @@ import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/status_widgets.dart';
 
 class HandoverReceiptScreen extends ConsumerStatefulWidget {
   const HandoverReceiptScreen({
@@ -53,6 +54,19 @@ class _HandoverReceiptScreenState extends ConsumerState<HandoverReceiptScreen> {
   }
 
   Future<void> _submit(HandoverDetail detail) async {
+    final action = widget.issuerReview ? 'review_receipt' : 'confirm_receipt';
+    if (!detail.task.can(action)) {
+      ref.invalidate(handoverDetailProvider(widget.handoverId));
+      ref.invalidate(bootstrapProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This receipt action is no longer available.'),
+          ),
+        );
+      }
+      return;
+    }
     final quantities = {
       for (final line in detail.lines)
         line.id: double.tryParse(_quantities[line.id]?.text ?? '') ?? 0,
@@ -92,6 +106,25 @@ class _HandoverReceiptScreenState extends ConsumerState<HandoverReceiptScreen> {
       error: (error, _) =>
           Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
+        final action = widget.issuerReview
+            ? 'review_receipt'
+            : 'confirm_receipt';
+        if (!data.task.can(action)) {
+          return KonaPage(
+            eyebrow: widget.issuerReview
+                ? 'Issuer decision'
+                : 'Recipient check',
+            title: widget.issuerReview
+                ? 'Review receipt difference'
+                : 'Confirm actual receipt',
+            children: const [
+              AccessDeniedState(
+                message:
+                    'This receipt action is not available to you or is no longer waiting.',
+              ),
+            ],
+          );
+        }
         _seed(data);
         return KonaPage(
           eyebrow: widget.issuerReview ? 'Issuer decision' : 'Recipient check',

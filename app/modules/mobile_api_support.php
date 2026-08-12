@@ -177,16 +177,16 @@ function mobile_api_require_employee_access(array $session): array
 
 function mobile_api_require_capability(array $session, string $capability): void
 {
-    $column = match ($capability) {
-        'usage' => 'can_usage',
-        'restock' => 'can_restock',
-        'transfer' => 'can_transfer',
-        'handover' => 'can_handover',
-        'custody' => 'can_custody',
-        default => throw new MobileApiException('invalid_capability', 'Unknown mobile capability.', 500),
-    };
+    if (!in_array($capability, ['usage', 'restock', 'transfer', 'handover', 'custody'], true)) {
+        throw new MobileApiException('invalid_capability', 'Unknown mobile capability.', 500);
+    }
     $access = mobile_api_require_employee_access($session);
-    if ((int) ($access[$column] ?? 0) !== 1) {
+    $effective = mobile_api_effective_capabilities(
+        $access,
+        mobile_api_permissions((int) $session['user_id']),
+        mobile_api_storage_ids($session)
+    );
+    if (!in_array($capability, $effective, true)) {
         throw new MobileApiException('mobile_capability_denied', 'This mobile action is not enabled for your account.', 403);
     }
 }
@@ -205,6 +205,54 @@ function mobile_api_enforce_mutation_rate_limit(array $session, int $limit = 120
 function mobile_api_permissions(int $userId): array
 {
     return Auth::permissionsForUserId($userId);
+}
+
+/**
+ * Return only mobile actions that are usable after every applicable access
+ * layer is evaluated. Mobile Access can narrow website permissions; it must
+ * never expand them.
+ */
+function mobile_api_effective_capabilities(
+    array $access,
+    array $permissions,
+    array $storageIds
+): array {
+    if ($storageIds === [] || !in_array('items.view', $permissions, true)) {
+        return [];
+    }
+
+    $hasPermission = static fn (string $permission): bool => in_array($permission, $permissions, true);
+    $enabled = static fn (string $capability): bool => (int) ($access['can_' . $capability] ?? 0) === 1;
+    $capabilities = [];
+
+    if ($enabled('usage') && $hasPermission('movements.usage')) {
+        $capabilities[] = 'usage';
+    }
+    if (
+        $enabled('restock')
+        && $hasPermission('movements.restock')
+        && site_setting('mobile.manual_restock_enabled', '0') === '1'
+        && (int) ($access['direct_restock_enabled'] ?? 0) === 1
+    ) {
+        $capabilities[] = 'restock';
+    }
+    if ($enabled('transfer') && $hasPermission('handovers.create')) {
+        $capabilities[] = 'transfer';
+    }
+    if (
+        $enabled('handover')
+        && ($hasPermission('handovers.create') || $hasPermission('handovers.request'))
+    ) {
+        $capabilities[] = 'handover';
+    }
+    if (
+        $enabled('custody')
+        && ($hasPermission('handovers.create') || $hasPermission('handovers.custody_return'))
+    ) {
+        $capabilities[] = 'custody';
+    }
+
+    return $capabilities;
 }
 
 function mobile_api_require_permission(array $session, string $permission): void

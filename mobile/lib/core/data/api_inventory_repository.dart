@@ -68,6 +68,9 @@ class ApiInventoryRepository implements InventoryRepository {
       capabilities: Set<String>.from(
         (data['capabilities'] as List?) ?? const [],
       ),
+      permissions: Set<String>.from(
+        (data['permissions'] as List?) ?? const [],
+      ),
       recipients: recipients,
       settings: Map<String, dynamic>.from(data['settings'] as Map? ?? const {}),
     );

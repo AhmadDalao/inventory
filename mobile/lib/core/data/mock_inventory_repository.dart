@@ -92,6 +92,7 @@ class MockInventoryRepository implements InventoryRepository {
       itemCount: 3,
       quantity: 326,
       source: 'KONA Main',
+      allowedActions: {'confirm_receipt'},
       requiresAction: true,
     ),
     const MobileTask(
@@ -104,6 +105,7 @@ class MockInventoryRepository implements InventoryRepository {
       quantity: 80,
       source: 'KONA Main',
       destination: 'KONA Office',
+      allowedActions: {'confirm_receipt'},
       requiresAction: true,
     ),
     const MobileTask(
@@ -115,6 +117,8 @@ class MockInventoryRepository implements InventoryRepository {
       itemCount: 2,
       quantity: 8,
       source: 'KONA Office',
+      allowedActions: {'return_custody'},
+      requiresAction: true,
     ),
   ];
 
@@ -141,6 +145,17 @@ class MockInventoryRepository implements InventoryRepository {
         'transfer',
         'handover',
         'custody',
+      },
+      permissions: const {
+        'items.view',
+        'movements.usage',
+        'movements.restock',
+        'handovers.view',
+        'handovers.create',
+        'handovers.request',
+        'handovers.close',
+        'handovers.approve',
+        'handovers.custody_return',
       },
       recipients: const [
         MobileRecipient(id: 7, name: 'Alaa', position: 'Reception Staff'),

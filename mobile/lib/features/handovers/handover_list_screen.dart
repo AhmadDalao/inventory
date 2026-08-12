@@ -15,15 +15,18 @@ class HandoverListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final handovers = ref.watch(handoversProvider);
+    final access = ref.watch(bootstrapProvider).valueOrNull;
     return KonaPage(
       eyebrow: 'Accountable movement',
       title: 'My handovers',
       description:
           'Receive items, report temporary usage, return custody stock, or track transfers.',
-      trailing: IconButton.filledTonal(
-        onPressed: () => context.push('/create-handover'),
-        icon: const Icon(Icons.add),
-      ),
+      trailing: access?.canCreateAnyHandover == true
+          ? IconButton.filledTonal(
+              onPressed: () => context.push('/create-handover'),
+              icon: const Icon(Icons.add),
+            )
+          : null,
       children: [
         handovers.when(
           loading: () => const KonaSectionCard(

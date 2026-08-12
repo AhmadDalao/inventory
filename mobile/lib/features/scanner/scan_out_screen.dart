@@ -1,67 +1,82 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/data/providers.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/status_widgets.dart';
 
-class ScanOutScreen extends StatefulWidget {
+class ScanOutScreen extends ConsumerStatefulWidget {
   const ScanOutScreen({super.key});
 
   @override
-  State<ScanOutScreen> createState() => _ScanOutScreenState();
+  ConsumerState<ScanOutScreen> createState() => _ScanOutScreenState();
 }
 
-class _ScanOutScreenState extends State<ScanOutScreen> {
+class _ScanOutScreenState extends ConsumerState<ScanOutScreen> {
   String _action = 'usage';
 
   @override
   Widget build(BuildContext context) {
-    const options = [
-      (
+    final data = ref.watch(bootstrapProvider).valueOrNull;
+    final options = [
+      if (data?.canUseStock == true)
+        (
         'usage',
         'Use / consume',
         'Deduct consumed stock with an operational reason.',
         Icons.remove_circle_outline,
       ),
-      (
+      if (data?.canCreateTransfer == true)
+        (
         'transfer',
         'Transfer to storage',
         'Send stock through accountable destination receipt.',
         Icons.warehouse_outlined,
       ),
-      (
+      if (data?.canCreateTemporaryHandover == true)
+        (
         'handover',
         'Handover to staff',
         'Issue stock for temporary operational use.',
         Icons.person_outline,
       ),
-      (
+      if (data?.canCreateCustody == true)
+        (
         'custody',
         'Long-term custody',
         'Assign stock for weeks or months with return tracking.',
         Icons.assignment_ind_outlined,
       ),
     ];
+    final action = options.any((option) => option.$1 == _action)
+        ? _action
+        : options.firstOrNull?.$1;
     return KonaPage(
       eyebrow: 'Choose first',
       title: 'Scan out',
       description:
           'The app never guesses why stock is leaving. Pick the operation, scan into a cart, then review.',
       bottomAction: ElevatedButton.icon(
-        onPressed: () {
-          if (_action == 'usage') {
+        onPressed: action == null
+            ? null
+            : () {
+          if (action == 'usage') {
             context.push('/usage-cart');
           } else {
-            context.push('/create-handover?purpose=$_action');
+            context.push('/create-handover?purpose=$action');
           }
         },
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Start scanning'),
       ),
       children: [
+        if (options.isEmpty)
+          const KonaSectionCard(child: AccessDeniedState()),
         ...options.map(
           (option) => _ActionCard(
-            selected: _action == option.$1,
+            selected: action == option.$1,
             title: option.$2,
             description: option.$3,
             icon: option.$4,

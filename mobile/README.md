@@ -19,6 +19,8 @@ The app is organized by feature under `lib/features/` and shared infrastructure 
 
 Offline drafts never post stock. On retry the server rechecks permissions and balances. Every mutation carries a stable `client_operation_id`, so retrying the same draft cannot deduct twice.
 
+The Flutter interface never grants access by itself. Routes, navigation, and action buttons use the current bootstrap permissions/effective capabilities and each handover's server-provided `allowed_actions`. The PHP API rechecks the same action independently, so revoked permissions, storage assignments, mobile grants, and devices fail closed even from stale screens or direct deep links.
+
 The Sync Center separates local drafts from confirmed server activity. `GET /operations/mine` is employee-scoped and never exposes another employee's submissions or owner-only request payloads.
 
 ## SDK And Dependencies

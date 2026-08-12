@@ -8,6 +8,7 @@ import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/status_widgets.dart';
 
 class CustodyReturnScreen extends ConsumerStatefulWidget {
   const CustodyReturnScreen({super.key, required this.handoverId});
@@ -55,6 +56,18 @@ class _CustodyReturnScreenState extends ConsumerState<CustodyReturnScreen> {
       double.tryParse(_controllers[lineId]?[key]?.text ?? '') ?? 0;
 
   Future<void> _submit(HandoverDetail detail) async {
+    if (!detail.task.can('return_custody')) {
+      ref.invalidate(handoverDetailProvider(widget.handoverId));
+      ref.invalidate(bootstrapProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This custody return is no longer available.'),
+          ),
+        );
+      }
+      return;
+    }
     final lines = [
       for (final line in detail.lines)
         CustodyReturnLine(
@@ -103,6 +116,17 @@ class _CustodyReturnScreenState extends ConsumerState<CustodyReturnScreen> {
       error: (error, _) =>
           Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
+        if (!data.task.can('return_custody')) {
+          return const KonaPage(
+            eyebrow: 'Long-term custody',
+            title: 'Return held items',
+            children: [
+              AccessDeniedState(
+                message: 'You cannot return items from this custody handover.',
+              ),
+            ],
+          );
+        }
         _seed(data);
         return KonaPage(
           eyebrow: 'Long-term custody',

@@ -25,6 +25,32 @@ class HomeScreen extends ConsumerWidget {
       error: (error, _) =>
           Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
+        final quickActions = <_ActionSpec>[
+          if (data.hasScanOutAction)
+            _ActionSpec(
+              icon: Icons.qr_code_scanner,
+              label: 'Scan out',
+              onTap: () => context.go('/scan-out'),
+            ),
+          if (data.canScanIn)
+            _ActionSpec(
+              icon: Icons.move_to_inbox_outlined,
+              label: 'Scan in',
+              onTap: () => context.push('/scan-in'),
+            ),
+          if (data.canViewItems)
+            _ActionSpec(
+              icon: Icons.search,
+              label: 'Check quantity',
+              onTap: () => context.go('/quantity'),
+            ),
+          if (data.canCreateAnyHandover)
+            _ActionSpec(
+              icon: Icons.swap_horiz,
+              label: 'New handover',
+              onTap: () => context.push('/create-handover'),
+            ),
+        ];
         final storage = data.defaultStorage;
         final storageItems = data.items
             .where((item) => item.storageId == storage?.id)
@@ -129,135 +155,120 @@ class HomeScreen extends ConsumerWidget {
                 );
               },
             ),
-            KonaSectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SectionHeading(
-                    eyebrow: 'Field work',
-                    title: 'Quick actions',
-                  ),
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _Action(
-                          icon: Icons.qr_code_scanner,
-                          label: 'Scan out',
-                          onTap: () => context.go('/scan-out'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _Action(
-                          icon: Icons.move_to_inbox_outlined,
-                          label: 'Scan in',
-                          onTap: () => context.push('/scan-in'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _Action(
-                          icon: Icons.search,
-                          label: 'Check quantity',
-                          onTap: () => context.go('/quantity'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _Action(
-                          icon: Icons.swap_horiz,
-                          label: 'New handover',
-                          onTap: () => context.push('/create-handover'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            KonaSectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SectionHeading(
-                    eyebrow: 'Tasks',
-                    title: 'Waiting for you',
-                    trailing: TextButton(
-                      onPressed: () => context.go('/handovers'),
-                      child: const Text('View all'),
+            if (quickActions.isNotEmpty)
+              KonaSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SectionHeading(
+                      eyebrow: 'Field work',
+                      title: 'Quick actions',
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (data.tasks.where((task) => task.requiresAction).isEmpty)
-                    const EmptyState(
-                      icon: Icons.task_alt,
-                      title: 'Nothing waiting',
-                      message: 'You are caught up.',
-                    )
-                  else
-                    ...data.tasks
-                        .where((task) => task.requiresAction)
-                        .take(3)
-                        .map(
-                          (task) => Padding(
-                            padding: const EdgeInsets.only(top: 9),
-                            child: InkWell(
-                              onTap: () =>
-                                  context.push('/handovers/${task.id}'),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: KonaColors.canvas,
-                                  borderRadius: BorderRadius.circular(16),
+                    const SizedBox(height: 15),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = quickActions.length == 1
+                            ? constraints.maxWidth
+                            : (constraints.maxWidth - 10) / 2;
+                        return Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            for (final action in quickActions)
+                              SizedBox(
+                                width: width,
+                                child: _Action(
+                                  icon: action.icon,
+                                  label: action.label,
+                                  onTap: action.onTap,
                                 ),
-                                child: Row(
-                                  children: [
-                                    const CircleAvatar(
-                                      backgroundColor: KonaColors.soft,
-                                      foregroundColor: KonaColors.ink,
-                                      child: Icon(Icons.assignment_outlined),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            task.title,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${task.reference} · ${_number(task.quantity)} units',
-                                            style: const TextStyle(
-                                              color: KonaColors.muted,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            if (data.canViewHandovers)
+              KonaSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SectionHeading(
+                      eyebrow: 'Tasks',
+                      title: 'Waiting for you',
+                      trailing: TextButton(
+                        onPressed: () => context.go('/handovers'),
+                        child: const Text('View all'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (data.tasks.where((task) => task.requiresAction).isEmpty)
+                      const EmptyState(
+                        icon: Icons.task_alt,
+                        title: 'Nothing waiting',
+                        message: 'You are caught up.',
+                      )
+                    else
+                      ...data.tasks
+                          .where((task) => task.requiresAction)
+                          .take(3)
+                          .map(
+                            (task) => Padding(
+                              padding: const EdgeInsets.only(top: 9),
+                              child: InkWell(
+                                onTap: () =>
+                                    context.push('/handovers/${task.id}'),
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: KonaColors.canvas,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const CircleAvatar(
+                                        backgroundColor: KonaColors.soft,
+                                        foregroundColor: KonaColors.ink,
+                                        child: Icon(Icons.assignment_outlined),
                                       ),
-                                    ),
-                                    const StatusPill(
-                                      label: 'Action',
-                                      tone: StatusTone.warning,
-                                    ),
-                                  ],
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              task.title,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${task.reference} · ${_number(task.quantity)} units',
+                                              style: const TextStyle(
+                                                color: KonaColors.muted,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const StatusPill(
+                                        label: 'Action',
+                                        tone: StatusTone.warning,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                ],
+                  ],
+                ),
               ),
-            ),
           ],
         );
       },
@@ -321,4 +332,16 @@ class _Action extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _ActionSpec {
+  const _ActionSpec({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 }

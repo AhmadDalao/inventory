@@ -1,53 +1,101 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/providers.dart';
+import '../models/inventory_models.dart';
 import '../theme/kona_theme.dart';
 
-class KonaShell extends StatelessWidget {
+class KonaShell extends ConsumerStatefulWidget {
   const KonaShell({super.key, required this.location, required this.child});
 
   final String location;
   final Widget child;
 
-  static const destinations = [
+  @override
+  ConsumerState<KonaShell> createState() => _KonaShellState();
+}
+
+class _KonaShellState extends ConsumerState<KonaShell>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(bootstrapProvider);
+      ref.invalidate(handoversProvider);
+    }
+  }
+
+  List<(String, String, IconData, IconData)> _destinations(
+    MobileBootstrap? access,
+  ) => [
     ('/home', 'Home', Icons.home_outlined, Icons.home_rounded),
-    (
-      '/quantity',
-      'Check',
-      Icons.inventory_2_outlined,
-      Icons.inventory_2_rounded,
-    ),
-    (
-      '/scan-out',
-      'Scan',
-      Icons.qr_code_scanner_outlined,
-      Icons.qr_code_scanner_rounded,
-    ),
-    (
-      '/handovers',
-      'Handovers',
-      Icons.swap_horiz_outlined,
-      Icons.swap_horiz_rounded,
-    ),
+    if (access?.canViewItems == true)
+      (
+        '/quantity',
+        'Check',
+        Icons.inventory_2_outlined,
+        Icons.inventory_2_rounded,
+      ),
+    if (access?.hasScanOutAction == true || access?.canScanIn == true)
+      (
+        access?.hasScanOutAction == true ? '/scan-out' : '/scan-in',
+        'Scan',
+        Icons.qr_code_scanner_outlined,
+        Icons.qr_code_scanner_rounded,
+      ),
+    if (access?.canViewHandovers == true)
+      (
+        '/handovers',
+        'Handovers',
+        Icons.swap_horiz_outlined,
+        Icons.swap_horiz_rounded,
+      ),
     ('/sync', 'Sync', Icons.sync_outlined, Icons.sync_rounded),
   ];
 
-  int get selectedIndex {
+  int _selectedIndex(List<(String, String, IconData, IconData)> destinations) {
     final index = destinations.indexWhere(
-      (destination) => location.startsWith(destination.$1),
+      (destination) => widget.location.startsWith(destination.$1),
     );
     if (index >= 0) return index;
-    if (location.startsWith('/usage-cart') ||
-        location.startsWith('/scan-in') ||
-        location.startsWith('/create-handover') ||
-        location.startsWith('/scanner')) {
-      return 2;
+
+    String? targetLabel;
+    if (widget.location.startsWith('/usage-cart') ||
+        widget.location.startsWith('/scan-in') ||
+        widget.location.startsWith('/scan-out') ||
+        widget.location.startsWith('/scanner')) {
+      targetLabel = 'Scan';
+    } else if (widget.location.startsWith('/create-handover') ||
+        widget.location.startsWith('/handovers/')) {
+      targetLabel = 'Handovers';
+    }
+    if (targetLabel != null) {
+      final related = destinations.indexWhere(
+        (destination) => destination.$2 == targetLabel,
+      );
+      if (related >= 0) return related;
     }
     return 0;
   }
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(bootstrapProvider).valueOrNull;
+    final destinations = _destinations(access);
+    final selectedIndex = _selectedIndex(destinations);
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= 900) {
@@ -91,13 +139,13 @@ class KonaShell extends StatelessWidget {
                   ),
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: child),
+                Expanded(child: widget.child),
               ],
             ),
           );
         }
         return Scaffold(
-          body: child,
+          body: widget.child,
           bottomNavigationBar: NavigationBar(
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) =>

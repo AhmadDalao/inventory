@@ -231,20 +231,25 @@ class _NextActionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final task = detail.task;
     final actions = <Widget>[];
-    if (task.status == 'requested') {
-      actions.addAll([
+    if (task.can('approve_request')) {
+      actions.add(
         ElevatedButton.icon(
           onPressed: () => _decide(context, ref, true),
           icon: const Icon(Icons.check),
           label: const Text('Approve request'),
         ),
+      );
+    }
+    if (task.can('reject_request')) {
+      actions.add(
         OutlinedButton.icon(
           onPressed: () => _decide(context, ref, false),
           icon: const Icon(Icons.close),
           label: const Text('Reject'),
         ),
-      ]);
-    } else if (task.status == 'awaiting_receipt') {
+      );
+    }
+    if (task.can('confirm_receipt')) {
       actions.add(
         ElevatedButton.icon(
           onPressed: () => context.push('/handovers/${task.id}/receipt'),
@@ -252,7 +257,8 @@ class _NextActionCard extends ConsumerWidget {
           label: const Text('Confirm actual receipt'),
         ),
       );
-    } else if (task.status == 'receipt_review') {
+    }
+    if (task.can('review_receipt')) {
       actions.add(
         ElevatedButton.icon(
           onPressed: () =>
@@ -261,7 +267,8 @@ class _NextActionCard extends ConsumerWidget {
           label: const Text('Review receipt difference'),
         ),
       );
-    } else if (task.status == 'delivered' && task.purpose == 'temporary_use') {
+    }
+    if (task.can('report_closeout')) {
       actions.add(
         ElevatedButton.icon(
           onPressed: () => context.push('/handovers/${task.id}/closeout'),
@@ -269,8 +276,8 @@ class _NextActionCard extends ConsumerWidget {
           label: const Text('Report return and usage'),
         ),
       );
-    } else if (task.status == 'pending_approval' &&
-        task.purpose == 'temporary_use') {
+    }
+    if (task.can('approve_closeout')) {
       actions.add(
         ElevatedButton.icon(
           onPressed: () =>
@@ -279,7 +286,8 @@ class _NextActionCard extends ConsumerWidget {
           label: const Text('Final issuer review'),
         ),
       );
-    } else if (task.status == 'delivered' && task.purpose == 'staff_custody') {
+    }
+    if (task.can('return_custody')) {
       actions.add(
         ElevatedButton.icon(
           onPressed: () => context.push('/handovers/${task.id}/custody-return'),
@@ -288,7 +296,7 @@ class _NextActionCard extends ConsumerWidget {
         ),
       );
     }
-    if (!{'closed', 'cancelled', 'rejected'}.contains(task.status)) {
+    if (task.can('cancel')) {
       actions.add(
         OutlinedButton.icon(
           onPressed: () => _cancel(context, ref),

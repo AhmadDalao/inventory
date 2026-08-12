@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,7 +17,15 @@ import '../../features/scanner/scan_out_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/sync/sync_center_screen.dart';
+import '../models/inventory_models.dart';
 import '../widgets/kona_shell.dart';
+import '../widgets/status_widgets.dart';
+
+Widget _guarded(
+  Widget child,
+  bool Function(MobileBootstrap bootstrap) allow,
+  String message,
+) => MobileAccessGate(allow: allow, message: message, child: child);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -25,8 +34,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(
         path: '/scanner/:mode',
-        builder: (_, state) =>
-            ScannerScreen(mode: state.pathParameters['mode'] ?? 'item'),
+        builder: (_, state) {
+          final mode = state.pathParameters['mode'] ?? 'item';
+          return _guarded(
+            ScannerScreen(mode: mode),
+            mode == 'reference'
+                ? (access) => access.canScanIn || access.canViewHandovers
+                : (access) => access.canViewItems,
+            mode == 'reference'
+                ? 'Reference scanning requires handover access.'
+                : 'Item scanning requires inventory access.',
+          );
+        },
       ),
       ShellRoute(
         builder: (_, state, child) =>
@@ -35,48 +54,109 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
           GoRoute(
             path: '/quantity',
-            builder: (_, _) => const QuantityCheckScreen(),
+            builder: (_, _) => _guarded(
+              const QuantityCheckScreen(),
+              (access) => access.canViewItems,
+              'Quantity checks require item access and an assigned storage.',
+            ),
           ),
-          GoRoute(path: '/scan-out', builder: (_, _) => const ScanOutScreen()),
-          GoRoute(path: '/scan-in', builder: (_, _) => const ScanInScreen()),
+          GoRoute(
+            path: '/scan-out',
+            builder: (_, _) => _guarded(
+              const ScanOutScreen(),
+              (access) => access.hasScanOutAction,
+              'Scan Out requires usage, transfer, handover, or custody access.',
+            ),
+          ),
+          GoRoute(
+            path: '/scan-in',
+            builder: (_, _) => _guarded(
+              const ScanInScreen(),
+              (access) => access.canScanIn,
+              'Scan In requires handover receipt or approval access.',
+            ),
+          ),
           GoRoute(
             path: '/usage-cart',
-            builder: (_, _) => const UsageCartScreen(),
+            builder: (_, _) => _guarded(
+              const UsageCartScreen(),
+              (access) => access.canUseStock,
+              'Usage reporting is not enabled for your account.',
+            ),
           ),
           GoRoute(
             path: '/handovers',
-            builder: (_, _) => const HandoverListScreen(),
+            builder: (_, _) => _guarded(
+              const HandoverListScreen(),
+              (access) => access.canViewHandovers,
+              'You do not have permission to view handovers.',
+            ),
           ),
           GoRoute(
             path: '/create-handover',
-            builder: (_, state) => CreateHandoverScreen(
-              purpose: state.uri.queryParameters['purpose'],
+            builder: (_, state) => _guarded(
+              CreateHandoverScreen(
+                purpose: state.uri.queryParameters['purpose'],
+              ),
+              (access) => access.canCreateAnyHandover,
+              'Creating handovers is not enabled for your account.',
             ),
           ),
           GoRoute(
             path: '/handovers/:id',
-            builder: (_, state) => HandoverDetailScreen(
-              handoverId: int.parse(state.pathParameters['id']!),
+            builder: (_, state) => _guarded(
+              HandoverDetailScreen(
+                handoverId: int.parse(state.pathParameters['id']!),
+              ),
+              (access) => access.canViewHandovers,
+              'You do not have permission to view handovers.',
             ),
           ),
           GoRoute(
             path: '/handovers/:id/receipt',
-            builder: (_, state) => HandoverReceiptScreen(
-              handoverId: int.parse(state.pathParameters['id']!),
-              issuerReview: state.uri.queryParameters['review'] == '1',
-            ),
+            builder: (_, state) {
+              final issuerReview = state.uri.queryParameters['review'] == '1';
+              return _guarded(
+                HandoverReceiptScreen(
+                  handoverId: int.parse(state.pathParameters['id']!),
+                  issuerReview: issuerReview,
+                ),
+                issuerReview
+                    ? (access) => access.canApproveHandovers
+                    : (access) => access.canReceiveHandovers,
+                issuerReview
+                    ? 'Receipt review requires handover approval access.'
+                    : 'Receipt confirmation is not enabled for your account.',
+              );
+            },
           ),
           GoRoute(
             path: '/handovers/:id/closeout',
-            builder: (_, state) => HandoverCloseoutScreen(
-              handoverId: int.parse(state.pathParameters['id']!),
-              issuerApproval: state.uri.queryParameters['approval'] == '1',
-            ),
+            builder: (_, state) {
+              final issuerApproval =
+                  state.uri.queryParameters['approval'] == '1';
+              return _guarded(
+                HandoverCloseoutScreen(
+                  handoverId: int.parse(state.pathParameters['id']!),
+                  issuerApproval: issuerApproval,
+                ),
+                issuerApproval
+                    ? (access) => access.canApproveHandovers
+                    : (access) => access.canReceiveHandovers,
+                issuerApproval
+                    ? 'Final review requires handover approval access.'
+                    : 'Usage reporting is not enabled for your account.',
+              );
+            },
           ),
           GoRoute(
             path: '/handovers/:id/custody-return',
-            builder: (_, state) => CustodyReturnScreen(
-              handoverId: int.parse(state.pathParameters['id']!),
+            builder: (_, state) => _guarded(
+              CustodyReturnScreen(
+                handoverId: int.parse(state.pathParameters['id']!),
+              ),
+              (access) => access.canReturnCustody,
+              'Custody returns are not enabled for your account.',
             ),
           ),
           GoRoute(path: '/sync', builder: (_, _) => const SyncCenterScreen()),

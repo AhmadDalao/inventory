@@ -108,16 +108,90 @@ function mobile_api_handover_line_payload(array $line): array
     ];
 }
 
-function mobile_api_handover_payload(array $handover, bool $includeLines = true): array
+function mobile_api_handover_allowed_actions(array $session, array $handover): array
+{
+    $permissions = mobile_api_permissions((int) $session['user_id']);
+    $hasPermission = static fn (string $permission): bool => in_array($permission, $permissions, true);
+    $status = (string) ($handover['status'] ?? '');
+    $purpose = handover_purpose_value($handover);
+    $userId = (int) $session['user_id'];
+    $isOwner = mobile_api_handover_is_owner($session);
+    $isIssuer = mobile_api_handover_is_source_issuer($session, $handover);
+    $isRecipient = $userId === (int) ($handover['recipient_user_id'] ?? 0);
+    $actions = [];
+
+    if ($status === 'requested' && $hasPermission('handovers.approve') && $isIssuer) {
+        $actions[] = 'approve_request';
+        $actions[] = 'reject_request';
+    }
+    if ($status === 'awaiting_receipt' && $hasPermission('handovers.close') && mobile_api_handover_can_receive($session, $handover)) {
+        $actions[] = 'confirm_receipt';
+    }
+    if ($status === 'receipt_review' && $hasPermission('handovers.approve') && $isIssuer) {
+        $actions[] = 'review_receipt';
+    }
+    if (
+        $status === 'delivered'
+        && $purpose === 'temporary_use'
+        && $hasPermission('handovers.close')
+        && ($isOwner || $isRecipient)
+    ) {
+        $actions[] = 'report_closeout';
+    }
+    if (
+        $status === 'pending_approval'
+        && $purpose === 'temporary_use'
+        && $hasPermission('handovers.approve')
+        && $isIssuer
+    ) {
+        $actions[] = 'approve_closeout';
+    }
+    if (
+        $status === 'delivered'
+        && $purpose === 'staff_custody'
+        && $hasPermission('handovers.custody_return')
+        && $isRecipient
+    ) {
+        $access = mobile_api_employee_access($userId, (string) ($session['role'] ?? ''));
+        $effective = mobile_api_effective_capabilities($access, $permissions, mobile_api_storage_ids($session));
+        if (in_array('custody', $effective, true)) {
+            $actions[] = 'return_custody';
+        }
+    }
+
+    $isOwnUnapprovedRequest = $status === 'requested' && $userId === (int) ($handover['created_by'] ?? 0);
+    $canCancelStatus = in_array($status, ['requested', 'awaiting_receipt', 'receipt_review', 'delivered'], true);
+    if ($canCancelStatus && ($isOwnUnapprovedRequest || $isIssuer) && ($status !== 'delivered' || $isIssuer)) {
+        $actions[] = 'cancel';
+    }
+
+    return array_values(array_unique($actions));
+}
+
+function mobile_api_require_handover_action(array $session, array $handover, string $action): void
+{
+    if (!in_array($action, mobile_api_handover_allowed_actions($session, $handover), true)) {
+        throw new MobileApiException(
+            'handover_action_denied',
+            'You are not allowed to perform this handover action.',
+            403
+        );
+    }
+}
+
+function mobile_api_handover_payload(array $session, array $handover, bool $includeLines = true): array
 {
     $purpose = handover_purpose_value($handover);
     $sourceName = (string) ($handover['source_storage_name'] ?? 'Storage');
     $destinationName = (string) ($handover['destination_storage_name'] ?? 'destination storage');
-    $title = match ($purpose) {
-        'storage_transfer' => 'Transfer to ' . $destinationName,
-        'staff_custody' => 'Custody from ' . $sourceName,
-        default => 'Handover from ' . $sourceName,
-    };
+    if ($purpose === 'storage_transfer') {
+        $title = 'Transfer to ' . $destinationName;
+    } elseif ($purpose === 'staff_custody') {
+        $title = 'Custody from ' . $sourceName;
+    } else {
+        $title = 'Handover from ' . $sourceName;
+    }
+    $allowedActions = mobile_api_handover_allowed_actions($session, $handover);
     $data = [
         'id' => (int) $handover['id'],
         'reference' => (string) $handover['handover_number'],
@@ -157,7 +231,8 @@ function mobile_api_handover_payload(array $handover, bool $includeLines = true)
         'title' => $title,
         'item_count' => (int) ($handover['item_count'] ?? 0),
         'total_quantity' => (float) ($handover['total_quantity'] ?? 0),
-        'requires_action' => in_array((string) $handover['status'], ['awaiting_receipt', 'delivered'], true),
+        'allowed_actions' => $allowedActions,
+        'requires_action' => $allowedActions !== [],
     ];
 
     if ($includeLines) {
@@ -232,7 +307,7 @@ function mobile_api_handover_list_rows(array $session, bool $mine = false): arra
         $params
     );
 
-    return array_map(static fn (array $row): array => mobile_api_handover_payload($row, false), $rows);
+    return array_map(static fn (array $row): array => mobile_api_handover_payload($session, $row, false), $rows);
 }
 
 function handle_mobile_api_handovers(): void
@@ -260,7 +335,7 @@ function handle_mobile_api_handover_show(array $params): void
         mobile_api_require_permission($session, 'handovers.view');
         $handover = mobile_api_handover_fetch((int) $params['id']);
         mobile_api_require_handover_view($session, $handover);
-        mobile_api_success(mobile_api_handover_payload($handover));
+        mobile_api_success(mobile_api_handover_payload($session, $handover));
     });
 }
 
@@ -312,11 +387,13 @@ function handle_mobile_api_handover_create(): void
         if (!in_array($purpose, ['temporary_use', 'storage_transfer', 'staff_custody'], true)) {
             throw new MobileApiException('validation_failed', 'Choose a valid handover purpose.', 422, ['purpose' => ['Invalid.']]);
         }
-        mobile_api_require_capability($session, match ($purpose) {
-            'storage_transfer' => 'transfer',
-            'staff_custody' => 'custody',
-            default => 'handover',
-        });
+        $requiredCapability = 'handover';
+        if ($purpose === 'storage_transfer') {
+            $requiredCapability = 'transfer';
+        } elseif ($purpose === 'staff_custody') {
+            $requiredCapability = 'custody';
+        }
+        mobile_api_require_capability($session, $requiredCapability);
         $canCreate = Auth::userHasPermission((int) $session['user_id'], 'handovers.create');
         $canRequest = Auth::userHasPermission((int) $session['user_id'], 'handovers.request');
         if (!$canCreate && !$canRequest) {
@@ -506,11 +583,8 @@ function handle_mobile_api_handover_receive(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'handovers.close');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if (!mobile_api_handover_can_receive($session, $handover)) {
-            throw new MobileApiException('handover_not_receivable', 'Only the assigned recipient may confirm this receipt.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'confirm_receipt');
         $payload = mobile_api_request_payload();
         $completed = mobile_api_completed_operation($session, $payload);
         if ($completed !== null) {
@@ -573,11 +647,8 @@ function handle_mobile_api_handover_confirm_receipt(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'handovers.approve');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if ((string) $handover['status'] !== 'receipt_review' || !mobile_api_handover_is_source_issuer($session, $handover)) {
-            throw new MobileApiException('handover_not_reviewable', 'Only the source issuer may confirm a receipt difference.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'review_receipt');
         $payload = mobile_api_json_input();
         $lines = handover_lines((int) $handover['id']);
         [$updates, $errors] = build_handover_receipt_updates($lines, mobile_api_line_quantity_map($payload, 'received_quantities'));
@@ -630,11 +701,8 @@ function handle_mobile_api_handover_closeout(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'handovers.close');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if (handover_purpose_value($handover) !== 'temporary_use' || (string) $handover['status'] !== 'delivered' || (!mobile_api_handover_is_owner($session) && (int) $handover['recipient_user_id'] !== (int) $session['user_id'])) {
-            throw new MobileApiException('handover_not_closeable', 'Only the recipient may report usage for a delivered temporary handover.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'report_closeout');
         $payload = mobile_api_request_payload();
         $completed = mobile_api_completed_operation($session, $payload);
         if ($completed !== null) {
@@ -678,11 +746,8 @@ function handle_mobile_api_handover_approve_closeout(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'handovers.approve');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if (handover_purpose_value($handover) !== 'temporary_use' || (string) $handover['status'] !== 'pending_approval' || !mobile_api_handover_is_source_issuer($session, $handover)) {
-            throw new MobileApiException('handover_not_approvable', 'Only the source issuer may approve this temporary handover closeout.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'approve_closeout');
         $payload = mobile_api_json_input();
         $lines = handover_lines((int) $handover['id']);
         [$lineUpdates, $lineErrors] = build_handover_operational_line_updates($lines, mobile_api_line_quantity_map($payload, 'returned_quantities'));
@@ -716,11 +781,8 @@ function handle_mobile_api_handover_approve_request(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'handovers.approve');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if ((string) $handover['status'] !== 'requested' || !mobile_api_handover_is_source_issuer($session, $handover)) {
-            throw new MobileApiException('handover_not_approvable', 'Only the source issuer may approve this request.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'approve_request');
         $payload = mobile_api_json_input();
         $lines = handover_lines((int) $handover['id']);
         $result = mobile_api_operation($session, 'handover.approve_request', $payload, function (int $ledgerId) use ($session, $handover, $lines, $payload): array {
@@ -748,11 +810,8 @@ function handle_mobile_api_handover_reject_request(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'handovers.approve');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if ((string) $handover['status'] !== 'requested' || !mobile_api_handover_is_source_issuer($session, $handover)) {
-            throw new MobileApiException('handover_not_rejectable', 'Only the source issuer may reject this request.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'reject_request');
         $payload = mobile_api_json_input();
         $result = mobile_api_operation($session, 'handover.reject_request', $payload, function (int $ledgerId) use ($session, $handover, $payload): array {
             Database::execute(
@@ -778,6 +837,7 @@ function handle_mobile_api_handover_cancel(array $params): void
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
         $handover = mobile_api_handover_fetch((int) $params['id']);
+        mobile_api_require_handover_action($session, $handover, 'cancel');
         $status = (string) $handover['status'];
         $userId = (int) $session['user_id'];
         $isOwnUnapprovedRequest = $status === 'requested' && $userId === (int) $handover['created_by'];
@@ -909,14 +969,8 @@ function handle_mobile_api_handover_custody_return_create(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_capability($session, 'custody');
-        mobile_api_require_permission($session, 'handovers.custody_return');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        if (!handover_is_staff_custody($handover)
-            || (string) $handover['status'] !== 'delivered'
-            || (int) $handover['recipient_user_id'] !== (int) $session['user_id']) {
-            throw new MobileApiException('custody_return_forbidden', 'Only the assigned employee may report a delivered custody return.', 403);
-        }
+        mobile_api_require_handover_action($session, $handover, 'return_custody');
         $payload = mobile_api_request_payload();
         $completed = mobile_api_completed_operation($session, $payload);
         if ($completed !== null) {
@@ -1041,8 +1095,9 @@ function handle_mobile_api_handover_custody_return_show(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
+        mobile_api_require_permission($session, 'handovers.view');
         $handover = mobile_api_handover_fetch((int) $params['id']);
-        mobile_api_handover_assert_viewable($session, $handover);
+        mobile_api_require_handover_view($session, $handover);
         mobile_api_success(mobile_api_custody_return_fetch((int) $handover['id'], (int) $params['return_id']));
     });
 }

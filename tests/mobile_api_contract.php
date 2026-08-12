@@ -182,6 +182,62 @@ if (strpos($permissions, "'mobile.access'") === false) {
     fail_mobile_contract('Permission catalog is missing mobile.access.');
 }
 
+foreach ([
+    'mobile_api_effective_capabilities',
+    'mobile_api_require_permission',
+    'mobile_access_revoked',
+    'mobile_capability_denied',
+] as $marker) {
+    if (strpos($support, $marker) === false) {
+        fail_mobile_contract('Runtime permission enforcement is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    "'items.view'",
+    "'movements.usage'",
+    "'movements.restock'",
+    "'handovers.create'",
+    "'handovers.request'",
+    "'handovers.custody_return'",
+] as $permissionMarker) {
+    if (strpos($support, $permissionMarker) === false) {
+        fail_mobile_contract('Effective mobile capabilities do not intersect website permission: ' . $permissionMarker);
+    }
+}
+
+if (strpos($inventory, "'permissions' => \$permissions") === false
+    || strpos($inventory, "'capabilities' => \$capabilities") === false
+) {
+    fail_mobile_contract('Bootstrap must return current permissions and effective capabilities.');
+}
+
+foreach ([
+    'allowed_actions',
+    'mobile_api_require_handover_view',
+    'mobile_api_require_handover_action',
+    'handover_action_denied',
+] as $marker) {
+    if (strpos($handovers, $marker) === false) {
+        fail_mobile_contract('Record-level handover authorization is missing marker: ' . $marker);
+    }
+}
+
+if (strpos($handovers, 'mobile_api_handover_assert_viewable') !== false) {
+    fail_mobile_contract('The removed broad handover guard must not remain callable.');
+}
+
+foreach ([
+    "\$requiredCapability = 'handover'",
+    "\$requiredCapability = 'transfer'",
+    "\$requiredCapability = 'custody'",
+    'mobile_api_require_capability($session, $requiredCapability)',
+] as $purposeGuard) {
+    if (strpos($handovers, $purposeGuard) === false) {
+        fail_mobile_contract('Handover creation is missing purpose guard: ' . $purposeGuard);
+    }
+}
+
 if (strpos($support, '$session[\'user_id\'] ?? $session[\'id\']') === false) {
     fail_mobile_contract('Mobile access guard must accept both session rows and login user rows.');
 }
