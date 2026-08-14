@@ -2,6 +2,7 @@ Options -Indexes
 RewriteEngine On
 
 <IfModule mod_headers.c>
+    Header always unset X-Powered-By
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "DENY"
     Header always set Referrer-Policy "same-origin"
