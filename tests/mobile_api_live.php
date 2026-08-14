@@ -520,7 +520,7 @@ try {
         'device_uuid' => strtolower($prefix) . '-logout-device',
         'platform' => 'android',
         'app_version' => '1.0.0',
-    ]), 200);
+    ]), 201);
     $logoutAccess = (string) ($logoutLogin['data']['access_token'] ?? '');
     mobile_live_assert($logoutAccess !== '', 'Second login did not return an access token for logout testing.');
     mobile_live_expect(mobile_live_http('POST', '/api/v1/auth/logout', [], $logoutAccess), 200);
