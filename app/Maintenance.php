@@ -37,7 +37,7 @@ final class Maintenance
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-10-mobile-api-v1-access';
+    private const SCHEMA_VERSION = '2026-08-14-mobile-realtime-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 

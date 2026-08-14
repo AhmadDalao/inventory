@@ -81,6 +81,7 @@ trait MaintenanceMobileSchemas
                 operation_type VARCHAR(80) NOT NULL,
                 entity_type VARCHAR(80) NULL,
                 entity_id BIGINT UNSIGNED NULL,
+                storage_id BIGINT UNSIGNED NULL,
                 status ENUM("pending", "succeeded", "failed", "conflict") NOT NULL DEFAULT "pending",
                 request_json MEDIUMTEXT NULL,
                 response_json MEDIUMTEXT NULL,
@@ -92,11 +93,19 @@ trait MaintenanceMobileSchemas
                 completed_at DATETIME NULL,
                 UNIQUE KEY uniq_mobile_client_operation (client_operation_id),
                 INDEX idx_mobile_operation_user (user_id, created_at),
+                INDEX idx_mobile_operation_storage (storage_id, created_at),
                 INDEX idx_mobile_operation_status (status, created_at),
                 CONSTRAINT fk_mobile_operation_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
                 CONSTRAINT fk_mobile_operation_device FOREIGN KEY (device_session_id) REFERENCES mobile_device_sessions(id) ON DELETE RESTRICT
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
+
+        if (!self::columnExists('mobile_operations', 'storage_id')) {
+            Database::execute('ALTER TABLE mobile_operations ADD COLUMN storage_id BIGINT UNSIGNED NULL AFTER entity_id');
+        }
+        if (!self::indexExists('mobile_operations', 'idx_mobile_operation_storage')) {
+            Database::execute('ALTER TABLE mobile_operations ADD INDEX idx_mobile_operation_storage (storage_id, created_at)');
+        }
 
         Database::execute(
             'CREATE TABLE IF NOT EXISTS inventory_movement_usage_details (
@@ -112,6 +121,54 @@ trait MaintenanceMobileSchemas
                 INDEX idx_mobile_usage_reason (reason_code, created_at),
                 CONSTRAINT fk_mobile_usage_movement FOREIGN KEY (movement_id) REFERENCES inventory_movements(id) ON DELETE CASCADE,
                 CONSTRAINT fk_mobile_usage_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
+            'CREATE TABLE IF NOT EXISTS inventory_change_events (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                event_type VARCHAR(60) NOT NULL,
+                item_id BIGINT UNSIGNED NULL,
+                storage_id BIGINT UNSIGNED NULL,
+                entity_type VARCHAR(80) NULL,
+                entity_id BIGINT UNSIGNED NULL,
+                movement_id BIGINT UNSIGNED NULL,
+                performed_by BIGINT UNSIGNED NULL,
+                payload_json MEDIUMTEXT NULL,
+                created_at DATETIME NOT NULL,
+                INDEX idx_inventory_event_storage (storage_id, id),
+                INDEX idx_inventory_event_item (item_id, id),
+                INDEX idx_inventory_event_entity (entity_type, entity_id, id),
+                INDEX idx_inventory_event_created (created_at, id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
+            'CREATE TABLE IF NOT EXISTS mobile_refresh_token_history (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                device_session_id BIGINT UNSIGNED NOT NULL,
+                user_id BIGINT UNSIGNED NOT NULL,
+                refresh_token_hash CHAR(64) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                used_at DATETIME NOT NULL,
+                reuse_detected_at DATETIME NULL,
+                created_at DATETIME NOT NULL,
+                UNIQUE KEY uniq_mobile_refresh_history_hash (refresh_token_hash),
+                INDEX idx_mobile_refresh_history_session (device_session_id, created_at),
+                INDEX idx_mobile_refresh_history_expiry (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
+            'CREATE TABLE IF NOT EXISTS mobile_api_rate_limits (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                scope_name VARCHAR(40) NOT NULL,
+                key_hash CHAR(64) NOT NULL,
+                window_started_at DATETIME NOT NULL,
+                request_count INT UNSIGNED NOT NULL DEFAULT 0,
+                updated_at DATETIME NOT NULL,
+                UNIQUE KEY uniq_mobile_rate_limit (scope_name, key_hash),
+                INDEX idx_mobile_rate_limit_updated (updated_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
     }

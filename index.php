@@ -145,6 +145,9 @@ $router->get('/notifications', static function (): void {
 $router->get('/notifications/feed', static function (): void {
     handle_notifications_feed();
 });
+$router->get('/live-sync', static function (): void {
+    handle_web_inventory_sync();
+});
 $router->post('/notifications/read-all', static function (): void {
     handle_notifications_read_all_submit();
 });

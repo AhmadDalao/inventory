@@ -17,6 +17,7 @@ import '../../features/scanner/scan_out_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/sync/sync_center_screen.dart';
+import '../data/providers.dart';
 import '../models/inventory_models.dart';
 import '../widgets/kona_shell.dart';
 import '../widgets/status_widgets.dart';
@@ -28,8 +29,13 @@ Widget _guarded(
 ) => MobileAccessGate(allow: allow, message: message, child: child);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final sessionRevoked = ref.watch(mobileSessionRevokedProvider);
   final router = GoRouter(
     initialLocation: '/login',
+    redirect: (_, state) {
+      if (sessionRevoked && state.uri.path != '/login') return '/login';
+      return null;
+    },
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(

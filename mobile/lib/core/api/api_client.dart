@@ -67,6 +67,11 @@ class ApiClient {
   }) =>
       _send(() => dio.get<Map<String, dynamic>>(path, queryParameters: query));
 
+  Future<ApiEnvelope> getEnvelope(String path, {Map<String, dynamic>? query}) =>
+      _sendEnvelope(
+        () => dio.get<Map<String, dynamic>>(path, queryParameters: query),
+      );
+
   Future<Map<String, dynamic>> post(String path, {Object? data}) =>
       _send(() => dio.post<Map<String, dynamic>>(path, data: data));
 
@@ -102,15 +107,19 @@ class ApiClient {
 
   Future<Map<String, dynamic>> _send(
     Future<Response<Map<String, dynamic>>> Function() request,
+  ) async => (await _sendEnvelope(request)).data;
+
+  Future<ApiEnvelope> _sendEnvelope(
+    Future<Response<Map<String, dynamic>>> Function() request,
   ) async {
     try {
       final response = await request();
-      return _unwrap(response.data);
+      return _unwrapEnvelope(response.data);
     } on DioException catch (error) {
       final body = error.response?.data;
-      if (body is Map<String, dynamic>) return _unwrap(body);
+      if (body is Map<String, dynamic>) return _unwrapEnvelope(body);
       if (body is Map) {
-        return _unwrap(Map<String, dynamic>.from(body));
+        return _unwrapEnvelope(Map<String, dynamic>.from(body));
       }
       rethrow;
     }
@@ -165,6 +174,10 @@ class ApiClient {
       const JsonEncoder().convert(value);
 
   Map<String, dynamic> _unwrap(Map<String, dynamic>? body) {
+    return _unwrapEnvelope(body).data;
+  }
+
+  ApiEnvelope _unwrapEnvelope(Map<String, dynamic>? body) {
     if (body == null) {
       throw StateError('The server returned an empty response.');
     }
@@ -177,13 +190,29 @@ class ApiClient {
         fieldErrors: error['fields'] is Map
             ? Map<String, dynamic>.from(error['fields'] as Map)
             : const {},
+        details: error['details'] is Map
+            ? Map<String, dynamic>.from(error['details'] as Map)
+            : const {},
       );
     }
     final data = body['data'];
-    return data is Map<String, dynamic>
+    final normalized = data is Map<String, dynamic>
         ? data
         : <String, dynamic>{'items': data};
+    return ApiEnvelope(
+      data: normalized,
+      meta: body['meta'] is Map
+          ? Map<String, dynamic>.from(body['meta'] as Map)
+          : const {},
+    );
   }
+}
+
+class ApiEnvelope {
+  const ApiEnvelope({required this.data, this.meta = const {}});
+
+  final Map<String, dynamic> data;
+  final Map<String, dynamic> meta;
 }
 
 String apiErrorMessage(
@@ -199,6 +228,10 @@ String apiErrorMessage(
       'upgrade_required' =>
         'This app version is no longer supported. Install the latest Inventory KONA APK.',
       'rate_limited' => 'Too many attempts. Wait a moment, then try again.',
+      'refresh_reuse_detected' =>
+        'This device session was revoked for security. Sign in again.',
+      'balance_changed' =>
+        'The storage quantity changed. Review the latest balance and confirm again.',
       _ => error.message,
     };
   }
@@ -237,12 +270,14 @@ class ApiFailure implements Exception {
     this.message, {
     this.retrySafe = false,
     this.fieldErrors = const {},
+    this.details = const {},
   });
 
   final String code;
   final String message;
   final bool retrySafe;
   final Map<String, dynamic> fieldErrors;
+  final Map<String, dynamic> details;
 
   @override
   String toString() => message;

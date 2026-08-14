@@ -153,6 +153,27 @@ flowchart TB
 
 `item_storage_balances` is the stock source of truth. Every stock-changing workflow must create an immutable inventory movement and update the affected location balance in one validated operation. `items.current_quantity` is a synchronized catalog snapshot, not an independent stock ledger.
 
+## Realtime Mobile And Website Synchronization
+
+```mermaid
+flowchart LR
+    A["Employee reviews mobile cart"] --> B["PHP validates permission, storage, and expected balance"]
+    B --> C["MySQL transaction"]
+    C --> D["Inventory movement"]
+    C --> E["Storage balance"]
+    C --> F["Inventory change event"]
+    C --> G["Mobile operation log"]
+    C --> H["Audit entry when privileged/workflow action"]
+    C --> I["Immediate authoritative mutation response"]
+    I --> J["Acting phone updates now"]
+    F --> K["GET /api/v1/sync?after=event_id"]
+    K --> L["Other visible phones update within 5 seconds"]
+    F --> M["GET /live-sync"]
+    M --> N["Visible website stock regions update within 5 seconds"]
+```
+
+Flutter and browser caches never become accounting sources. Reports and exports read the committed movement/balance data even when a client has not completed its next visible-page poll.
+
 ## Data Flow Diagram: Temporary Handover Reconciliation
 
 ```mermaid

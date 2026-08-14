@@ -145,6 +145,10 @@ export const initLiveFilterRegion = (region) => {
       loadRegion(link.href);
     });
   });
+
+  region.addEventListener('inventory:refresh', () => {
+    loadRegion(`${window.location.pathname}${window.location.search}`);
+  });
 };
 
 export const initLiveFilters = (root = document) => {

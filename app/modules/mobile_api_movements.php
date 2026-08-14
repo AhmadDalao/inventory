@@ -140,7 +140,18 @@ function handle_mobile_api_batch(): void
                         ]
                     );
                 }
-                $results[] = ['movement_id' => $movementId, 'item_id' => (int) $item['id'], 'type' => $type, 'quantity' => $quantity];
+                $storageBalance = (float) Database::scalar(
+                    'SELECT quantity FROM item_storage_balances WHERE item_id = :item_id AND storage_id = :storage_id',
+                    ['item_id' => $item['id'], 'storage_id' => $storageId]
+                );
+                $results[] = [
+                    'movement_id' => $movementId,
+                    'item_id' => (int) $item['id'],
+                    'storage_id' => $storageId,
+                    'type' => $type,
+                    'quantity' => $quantity,
+                    'storage_balance' => $storageBalance,
+                ];
             }
 
             if (is_array($proofFile)) {

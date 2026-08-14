@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/logic/handover_reconciliation.dart';
 import 'package:inventory_kona/core/logic/scan_debouncer.dart';
 import 'package:inventory_kona/core/models/inventory_models.dart';
@@ -146,6 +147,77 @@ void main() {
     expect(
       scanner.accept('WB-BLUE', at: start.add(const Duration(seconds: 3))),
       isTrue,
+    );
+  });
+
+  test('realtime delta replaces only changed authorized balances', () {
+    const storage = StorageLocation(id: 10, name: 'KONA', isDefault: true);
+    const original = MobileBootstrap(
+      userName: 'Alaa',
+      storages: [storage],
+      items: [
+        InventoryItem(
+          id: 15,
+          name: 'Blue',
+          sku: 'WB-BLUE',
+          unit: 'pcs',
+          quantity: 100,
+          storageId: 10,
+          storageName: 'KONA',
+        ),
+      ],
+      tasks: [],
+      capabilities: {'usage'},
+      permissions: {'items.view', 'movements.usage'},
+    );
+    const delta = MobileSyncDelta(
+      nextCursor: 91,
+      latestCursor: 91,
+      hasMore: false,
+      fullResyncRequired: false,
+      items: [
+        InventoryItem(
+          id: 15,
+          name: 'Blue',
+          sku: 'WB-BLUE',
+          unit: 'pcs',
+          quantity: 94,
+          storageId: 10,
+          storageName: 'KONA',
+        ),
+      ],
+      deletedItemIds: {},
+      tasks: [],
+      permissions: {'items.view', 'movements.usage'},
+      capabilities: {'usage'},
+      storageIds: {10},
+    );
+
+    final updated = original.mergeSyncDelta(delta);
+
+    expect(updated.items.single.quantity, 94);
+    expect(updated.defaultStorage?.id, 10);
+    expect(updated.canUseStock, isTrue);
+  });
+
+  test('balance conflicts expose authoritative server details safely', () {
+    const failure = ApiFailure(
+      'balance_changed',
+      'The storage quantity changed.',
+      retrySafe: true,
+      details: {
+        'item_id': 15,
+        'storage_id': 10,
+        'expected_balance': 100,
+        'current_balance': 94,
+      },
+    );
+
+    expect(failure.retrySafe, isTrue);
+    expect(failure.details['current_balance'], 94);
+    expect(
+      apiErrorMessage(failure),
+      'The storage quantity changed. Review the latest balance and confirm again.',
     );
   });
 }

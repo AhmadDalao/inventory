@@ -258,6 +258,17 @@ function handle_items_create_submit(): void
                     'performed_by' => $user['id'],
                 ]
             );
+            $movementId = Database::lastInsertId();
+            inventory_record_change_event(
+                'stock.changed',
+                $itemId,
+                $storageId,
+                'item',
+                $itemId,
+                $movementId,
+                (int) $user['id'],
+                ['movement_type' => 'restock', 'quantity' => $payload['current_quantity'], 'item_total' => $payload['current_quantity']]
+            );
         }
 
         $pdo->commit();

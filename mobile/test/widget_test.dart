@@ -9,7 +9,11 @@ import 'package:inventory_kona/features/movements/usage_cart_screen.dart';
 
 class _DisabledMobileRepository extends MockInventoryRepository {
   @override
-  Future<void> login(String email, String password) async {
+  Future<void> login(
+    String email,
+    String password, {
+    required bool keepSignedIn,
+  }) async {
     throw const ApiFailure(
       'mobile_disabled',
       'Mobile access is currently disabled.',

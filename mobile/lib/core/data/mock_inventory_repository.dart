@@ -126,7 +126,11 @@ class MockInventoryRepository implements InventoryRepository {
       Future<void>.delayed(const Duration(milliseconds: 350));
 
   @override
-  Future<void> login(String email, String password) async => _wait();
+  Future<void> login(
+    String email,
+    String password, {
+    required bool keepSignedIn,
+  }) async => _wait();
 
   @override
   Future<void> logout() async => _wait();
@@ -345,6 +349,23 @@ class MockInventoryRepository implements InventoryRepository {
       reference: 'MOV-MOCK-${DateTime.now().millisecondsSinceEpoch}',
       status: 'completed',
       message: '${lines.length} lines queued safely.',
+    );
+  }
+
+  @override
+  Future<MobileSyncDelta> sync() async {
+    await _wait();
+    return const MobileSyncDelta(
+      nextCursor: 0,
+      latestCursor: 0,
+      hasMore: false,
+      fullResyncRequired: false,
+      items: [],
+      deletedItemIds: {},
+      tasks: [],
+      permissions: {},
+      capabilities: {},
+      storageIds: {},
     );
   }
 

@@ -1,9 +1,14 @@
 import '../models/inventory_models.dart';
 
 abstract class InventoryRepository {
-  Future<void> login(String email, String password);
+  Future<void> login(
+    String email,
+    String password, {
+    required bool keepSignedIn,
+  });
   Future<void> logout();
   Future<MobileBootstrap> bootstrap();
+  Future<MobileSyncDelta> sync();
   Future<List<InventoryItem>> searchItems(String query, {int? storageId});
   Future<List<MobileOperation>> operations();
   Future<List<MobileTask>> handovers();

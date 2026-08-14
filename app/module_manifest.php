@@ -22,6 +22,7 @@ return [
         'user_actions',
     ],
     'inventory' => [
+        'inventory_events',
         'item_support',
         'item_pages',
         'items',
@@ -52,6 +53,7 @@ return [
         'export_workflows',
     ],
     'reports_and_search' => [
+        'web_realtime',
         'report_summary_filters',
         'report_summary_data',
         'report_summary_cards',

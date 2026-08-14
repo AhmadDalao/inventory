@@ -22,40 +22,42 @@ class MobileAccessGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(bootstrapProvider).when(
-      loading: () => const ColoredBox(
-        color: KonaColors.canvas,
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, _) => ColoredBox(
-        color: KonaColors.canvas,
-        child: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: EmptyState(
-                icon: Icons.cloud_off_outlined,
-                title: 'Access could not be verified',
-                message: apiErrorMessage(error),
-              ),
-            ),
+    return ref
+        .watch(bootstrapProvider)
+        .when(
+          loading: () => const ColoredBox(
+            color: KonaColors.canvas,
+            child: Center(child: CircularProgressIndicator()),
           ),
-        ),
-      ),
-      data: (bootstrap) => allow(bootstrap)
-          ? child
-          : ColoredBox(
-              color: KonaColors.canvas,
-              child: SafeArea(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: AccessDeniedState(message: message),
+          error: (error, _) => ColoredBox(
+            color: KonaColors.canvas,
+            child: SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: EmptyState(
+                    icon: Icons.cloud_off_outlined,
+                    title: 'Access could not be verified',
+                    message: apiErrorMessage(error),
                   ),
                 ),
               ),
             ),
-    );
+          ),
+          data: (bootstrap) => allow(bootstrap)
+              ? child
+              : ColoredBox(
+                  color: KonaColors.canvas,
+                  child: SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: AccessDeniedState(message: message),
+                      ),
+                    ),
+                  ),
+                ),
+        );
   }
 }
 

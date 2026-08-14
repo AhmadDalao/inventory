@@ -636,7 +636,7 @@ function documentation_sections(): array
             'icon' => 'notification',
             'audience' => 'All logged-in users',
             'route' => '/notifications',
-            'summary' => 'Notifications and AJAX updates refresh screens after user actions without constant reloads or background table polling.',
+            'summary' => 'Notifications refresh after actions while visible stock-sensitive pages also synchronize changed balances within five seconds.',
             'features' => [
                 'Notification menu shows recent workflow activity and refreshes when opened or after an action completes.',
                 'Full Notifications page lists the complete log as cards with filters and direct open links.',
@@ -645,6 +645,8 @@ function documentation_sections(): array
                 'Requests, handovers, purchases, filters, and key action forms update with AJAX where supported.',
                 'Filters instantly refresh result regions only when the user changes a filter, searches, submits, or clicks a filter chip.',
                 'Live action forms show feedback and update content after actions.',
+                'Visible dashboard, item, storage, movement, Scan Center, and active workflow pages receive permission-safe stock changes within five seconds.',
+                'Hidden browser tabs stop stock synchronization until they become visible again.',
             ],
             'steps' => [
                 'Keep the app open during operations.',
@@ -653,8 +655,37 @@ function documentation_sections(): array
                 'Use filters normally; supported pages update without a full reload after your input.',
             ],
             'rules' => [
-                'The app does not silently refresh tables in the background; it updates after a detected user action.',
+                'Search and filter results still refresh after user input; the stock event feed refreshes only affected visible stock regions.',
                 'Notifications tell you what needs attention; the detail page is where the final decision happens.',
+            ],
+        ],
+        [
+            'slug' => 'mobile-application',
+            'title' => 'Mobile Application',
+            'icon' => 'scan',
+            'audience' => 'Employees enabled by the owner',
+            'route' => '/mobile-access',
+            'summary' => 'The Flutter app scans and reviews stock actions while the website server remains the only stock authority.',
+            'features' => [
+                'Employees see only assigned storages and actions allowed by both website permissions and Mobile Access capabilities.',
+                'Scan results enter a review cart; scanning never posts stock immediately.',
+                'Usage reasons and package presets come from the server.',
+                'The acting phone receives the confirmed balance immediately; other visible phones and website stock pages update within five seconds.',
+                'Offline work is stored as a draft and must be revalidated online before stock changes.',
+                'Keep Signed In stores rotating tokens in the phone secure store, never the password.',
+                'Optional biometric unlock protects a saved cold-start session and can be disabled in Settings.',
+            ],
+            'steps' => [
+                'Ask the owner to enable Mobile Access and assign your storages.',
+                'Sign in with the same employee email and password used by the website.',
+                'Scan or search an item, choose Usage, Restock, Transfer, Handover, or Custody, then review the cart.',
+                'Resolve any balance-changed warning before confirming again.',
+                'Use Sync Center to review drafts, conflicts, and completed operations.',
+            ],
+            'rules' => [
+                'Do not share an employee account or registered device.',
+                'A cached quantity is informational until the server confirms the operation.',
+                'Direct restock is privileged; ordinary receiving must use the accountable workflow.',
             ],
         ],
         [
@@ -672,6 +703,7 @@ function documentation_sections(): array
                 'Owner, Admin, and Staff roles control broad access.',
                 'Permissions control exact features such as create, edit, approve, export, or file download.',
                 'Business position controls default permission presets but permissions remain the final control.',
+                'Mobile device sessions can be revoked by the owner and refresh-token reuse revokes the complete device session.',
             ],
             'steps' => [
                 'Use your assigned email and password.',

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Inventory KONA Mobile API
-  version: 1.0.0
+  version: 1.2.0
   description: |
     Versioned API used by the Inventory KONA Flutter application. The PHP
     service remains authoritative for permissions, balances, movements, and
@@ -98,13 +98,30 @@ paths:
   /sync:
     get:
       tags: [Bootstrap]
-      summary: Incremental item updates, deletion tombstones, and current handover tasks
+      summary: Event-cursor inventory and workflow synchronization
+      description: |
+        Returns only authorized changes after a monotonic inventory event ID.
+        Clients should paginate while `meta.has_more` is true. An expired
+        cursor returns `full_resync_required: true`; the client must reload
+        `/bootstrap` instead of guessing missing state.
       parameters:
         - in: query
-          name: since
-          schema: { type: string, format: date-time }
+          name: after
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 25, maximum: 500, default: 250 }
       responses:
-        '200': { $ref: '#/components/responses/Success' }
+        '200':
+          description: Authorized differential update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '426': { $ref: '#/components/responses/UpgradeRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/MobileDisabled' }
   /operations/mine:
     get:
       tags: [Activity]
@@ -475,6 +492,10 @@ components:
             code: { type: string, example: balance_changed }
             message: { type: string }
             fields: { type: object, additionalProperties: true }
+            details:
+              type: object
+              additionalProperties: true
+              description: Machine-readable conflict context such as current balance.
             retryable: { type: boolean }
     LoginRequest:
       type: object
@@ -482,7 +503,7 @@ components:
       properties:
         email: { type: string, format: email }
         password: { type: string, format: password }
-        app_version: { type: string, example: 1.1.0 }
+        app_version: { type: string, example: 1.2.0 }
         device_uuid: { type: string, maxLength: 120 }
         device_name: { type: string, maxLength: 160 }
         platform: { type: string, enum: [android, ios] }
@@ -529,6 +550,53 @@ components:
               items: { $ref: '#/components/schemas/UsageReason' }
             require_usage_proof: { type: boolean }
         server_time: { type: string, format: date-time }
+    SyncEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - full_resync_required
+                - items
+                - deleted_item_ids
+                - tasks
+                - tasks_changed
+                - permissions
+                - storage_ids
+                - capabilities
+              properties:
+                full_resync_required: { type: boolean }
+                reason: { type: [string, 'null'], example: cursor_expired }
+                items: { type: array, items: { $ref: '#/components/schemas/Item' } }
+                deleted_item_ids: { type: array, items: { type: integer } }
+                tasks: { type: array, items: { type: object, additionalProperties: true } }
+                tasks_changed: { type: boolean }
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      type: { type: string }
+                      item_id: { type: [integer, 'null'] }
+                      storage_id: { type: [integer, 'null'] }
+                      entity_type: { type: [string, 'null'] }
+                      entity_id: { type: [integer, 'null'] }
+                      created_at: { type: string, format: date-time }
+                permissions: { type: array, items: { type: string } }
+                storage_ids: { type: array, items: { type: integer } }
+                capabilities: { type: array, items: { type: string } }
+            meta:
+              type: object
+              required: [sync_cursor, next_cursor, has_more, access_fingerprint]
+              properties:
+                sync_cursor: { type: integer, minimum: 0 }
+                next_cursor: { type: integer, minimum: 0 }
+                latest_cursor: { type: integer, minimum: 0 }
+                has_more: { type: boolean }
+                access_fingerprint: { type: string }
     Storage:
       type: object
       properties:

@@ -23,32 +23,32 @@ class _ScanOutScreenState extends ConsumerState<ScanOutScreen> {
     final options = [
       if (data?.canUseStock == true)
         (
-        'usage',
-        'Use / consume',
-        'Deduct consumed stock with an operational reason.',
-        Icons.remove_circle_outline,
-      ),
+          'usage',
+          'Use / consume',
+          'Deduct consumed stock with an operational reason.',
+          Icons.remove_circle_outline,
+        ),
       if (data?.canCreateTransfer == true)
         (
-        'transfer',
-        'Transfer to storage',
-        'Send stock through accountable destination receipt.',
-        Icons.warehouse_outlined,
-      ),
+          'transfer',
+          'Transfer to storage',
+          'Send stock through accountable destination receipt.',
+          Icons.warehouse_outlined,
+        ),
       if (data?.canCreateTemporaryHandover == true)
         (
-        'handover',
-        'Handover to staff',
-        'Issue stock for temporary operational use.',
-        Icons.person_outline,
-      ),
+          'handover',
+          'Handover to staff',
+          'Issue stock for temporary operational use.',
+          Icons.person_outline,
+        ),
       if (data?.canCreateCustody == true)
         (
-        'custody',
-        'Long-term custody',
-        'Assign stock for weeks or months with return tracking.',
-        Icons.assignment_ind_outlined,
-      ),
+          'custody',
+          'Long-term custody',
+          'Assign stock for weeks or months with return tracking.',
+          Icons.assignment_ind_outlined,
+        ),
     ];
     final action = options.any((option) => option.$1 == _action)
         ? _action
@@ -62,18 +62,17 @@ class _ScanOutScreenState extends ConsumerState<ScanOutScreen> {
         onPressed: action == null
             ? null
             : () {
-          if (action == 'usage') {
-            context.push('/usage-cart');
-          } else {
-            context.push('/create-handover?purpose=$action');
-          }
-        },
+                if (action == 'usage') {
+                  context.push('/usage-cart');
+                } else {
+                  context.push('/create-handover?purpose=$action');
+                }
+              },
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Start scanning'),
       ),
       children: [
-        if (options.isEmpty)
-          const KonaSectionCard(child: AccessDeniedState()),
+        if (options.isEmpty) const KonaSectionCard(child: AccessDeniedState()),
         ...options.map(
           (option) => _ActionCard(
             selected: action == option.$1,

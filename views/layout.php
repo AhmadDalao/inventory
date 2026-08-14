@@ -25,7 +25,7 @@ if (brand_custom_logo_asset() !== null) {
         <link rel="stylesheet" href="<?= e(asset_url($stylesheet)) ?>">
     <?php endforeach; ?>
 </head>
-<body class="<?= e($bodyClasses) ?>" data-user-role="<?= e((string) ($currentUser['role'] ?? 'guest')) ?>" data-user-id="<?= e((string) ($currentUser['id'] ?? '')) ?>">
+<body class="<?= e($bodyClasses) ?>" data-user-role="<?= e((string) ($currentUser['role'] ?? 'guest')) ?>" data-user-id="<?= e((string) ($currentUser['id'] ?? '')) ?>" data-live-sync-url="<?= e(url('/live-sync')) ?>">
 <?php if ($authPage): ?>
     <main class="auth-wrap">
         <?php if ($flashes !== []): ?>

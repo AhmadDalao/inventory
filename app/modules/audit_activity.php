@@ -36,6 +36,15 @@ function record_activity(string $action, ?string $entityType, ?int $entityId, st
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
             ]
         );
+        if (function_exists('inventory_record_activity_change_event')) {
+            inventory_record_activity_change_event(
+                $action,
+                $entityType,
+                $entityId,
+                isset(Auth::user()['id']) ? (int) Auth::user()['id'] : null,
+                ['summary' => $summary, 'metadata' => $metadata]
+            );
+        }
     } catch (Throwable $exception) {
         // Audit logging should not block inventory work if a migration is still running.
     }

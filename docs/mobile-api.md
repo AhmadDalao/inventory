@@ -1,6 +1,6 @@
 # Inventory KONA Mobile API
 
-Updated: 2026-08-11
+Updated: 2026-08-14
 
 The mobile API is the controlled bridge between the Flutter application and the existing Inventory KONA stock engine. The app never writes MySQL directly and never calculates final stock locally.
 
@@ -14,6 +14,7 @@ The mobile API is the controlled bridge between the Flutter application and the 
 - Cached mobile balances are informational. Every stock line sends `expected_balance`; the server locks and compares the authoritative storage row. A stale operation receives `409 balance_changed` and must be reviewed again.
 - Offline mode stores drafts only. Reconnection and server validation are mandatory before stock changes.
 - Proof images use protected workflow storage.
+- Every accepted stock mutation returns authoritative changed balances and the latest inventory event cursor. Flutter updates the acting device from this response; it never invents the new balance.
 
 ## Enablement
 
@@ -47,6 +48,9 @@ Key permission rules:
 - Tokens are stored by Flutter in Android Keystore or iOS Keychain.
 - Device sessions can be revoked from Mobile Access.
 - Refresh checks the global switch, employee access, revocation, account status, and minimum app version again.
+- Refresh-token rotation is single-use. Reuse of an already-rotated refresh token revokes the complete device session and requires a new login.
+- Keep Signed In stores rotating tokens in Android Keystore or iOS Keychain, never the employee password. When disabled, tokens stay in memory only.
+- Optional biometric unlock protects a persisted cold-start session; password login remains the fallback.
 
 ## Response Contract
 
@@ -90,7 +94,17 @@ The employee confirms receipt and later submits partial serviceable, damaged, co
 
 ## Synchronization
 
-`GET /sync?since=<cursor>` returns updated authorized items, archived/deleted tombstones, and current employee handover tasks. A successful response provides the next cursor in `meta.sync_cursor`.
+`GET /sync?after=<event_id>` reads a monotonic server event ledger and returns only authorized changed items, current assigned-storage balances, archived/deleted tombstones, workflow tasks, permissions, capabilities, and storage scope. A response includes `meta.next_cursor`, `meta.latest_cursor`, `meta.has_more`, and an `access_fingerprint`.
+
+Flutter polls every five seconds only while the app is visible and once immediately after returning to the foreground. It paginates until `has_more` is false. The website uses the same visible-page timing for stock-sensitive pages. Hidden/background clients stop polling.
+
+Events are written in the same database transaction as the stock or workflow change. The acting client also receives `balance_updates` and `sync_cursor` in every accepted mutation response, so its screen updates immediately without waiting for the next poll.
+
+Events older than 90 days may be removed by the daily maintenance job. If a cursor is older than retained history, sync returns `full_resync_required: true` and `reason: cursor_expired`; Flutter safely reloads `/bootstrap`.
+
+If another user changed the balance after a draft was prepared, a mutation returns `409 balance_changed` with machine-readable `item_id`, `storage_id`, `expected_balance`, and `current_balance`. The draft must be reviewed and reconfirmed; the client cannot overwrite the server.
+
+Permission, storage-assignment, device, account, global API, and minimum-version changes alter the access fingerprint. Flutter reloads bootstrap or signs out as appropriate on the next visible sync.
 
 `GET /operations/mine` returns the current employee's latest 100 server submissions. It never exposes another employee's payload or the owner-only operation audit.
 
@@ -99,6 +113,7 @@ The employee confirms receipt and later submits partial serviceable, damaged, co
 ```bash
 php -l tests/mobile_api_contract.php
 php tests/mobile_api_contract.php
+php tests/mobile_usage_reasons.php
 php tests/ocr_parser_contract.php
 php tests/module_boundaries.php
 php tests/full_regression.php

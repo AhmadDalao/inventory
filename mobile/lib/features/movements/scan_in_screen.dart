@@ -62,8 +62,7 @@ class ScanInScreen extends ConsumerWidget {
             final available = items
                 .where(
                   (task) =>
-                      task.can('confirm_receipt') ||
-                      task.can('review_receipt'),
+                      task.can('confirm_receipt') || task.can('review_receipt'),
                 )
                 .toList();
             return KonaSectionCard(
@@ -98,8 +97,7 @@ class ScanInScreen extends ConsumerWidget {
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor:
-                                      task.can('review_receipt')
+                                  backgroundColor: task.can('review_receipt')
                                       ? const Color(0xFFFFE5D8)
                                       : KonaColors.soft,
                                   foregroundColor: KonaColors.ink,

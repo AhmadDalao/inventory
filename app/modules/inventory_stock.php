@@ -210,6 +210,27 @@ function apply_inventory_movement(
             ]
         );
 
+        $movementId = Database::lastInsertId();
+        $eventPayload = [
+            'movement_type' => $type,
+            'quantity' => $movementQuantity,
+            'item_total' => $newBalance,
+            'source_balance' => $sourceBalanceAfter,
+            'destination_balance' => $destinationBalanceAfter,
+            'reference' => $referenceCode,
+        ];
+        $eventStorages = array_values(array_unique(array_filter(
+            [$sourceStorageId, $destinationStorageId],
+            static fn ($storageId): bool => (int) $storageId > 0
+        )));
+        if ($eventStorages === []) {
+            inventory_record_change_event('stock.changed', (int) $item['id'], null, $contextType, $contextId, $movementId, $performedBy, $eventPayload);
+        } else {
+            foreach ($eventStorages as $eventStorageId) {
+                inventory_record_change_event('stock.changed', (int) $item['id'], (int) $eventStorageId, $contextType, $contextId, $movementId, $performedBy, $eventPayload);
+            }
+        }
+
         if ($ownsTransaction && $pdo->inTransaction()) {
             $pdo->commit();
         }
@@ -277,6 +298,17 @@ function clone_storage_inventory_to_location(array $sourceStorage, int $destinat
                 'notes' => 'Copied current stock from ' . $sourceStorage['name'] . ' into ' . $destinationStorageName . '.',
                 'performed_by' => $performedBy,
             ]
+        );
+        $movementId = Database::lastInsertId();
+        inventory_record_change_event(
+            'stock.changed',
+            (int) $item['id'],
+            $destinationStorageId,
+            'storage_copy',
+            $destinationStorageId,
+            $movementId,
+            $performedBy,
+            ['movement_type' => 'restock', 'quantity' => $quantity, 'item_total' => $newBalance]
         );
     }
 }

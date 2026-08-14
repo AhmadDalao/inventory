@@ -2,6 +2,14 @@
 
 This app is now usable as an MVP, but production safety depends on backups, audit visibility, and scheduled reporting being run consistently.
 
+## Realtime Mobile And Website Stock
+
+Stock-sensitive pages and active mobile clients use a monotonic inventory event cursor. The acting client receives authoritative balances immediately after a mutation; other visible clients update within five seconds. Hidden/background clients stop polling. Reports remain authoritative even when a screen has not completed its latest poll.
+
+Run `scripts/daily_report.php` regularly; it also removes synchronization events older than the 90-day retention window. Clients with an expired cursor safely reload bootstrap data.
+
+See `realtime-data-flow.md` and `security.md` before changing sync, authentication, device, or stock code.
+
 ## Backups
 
 Run this from Hostinger cron:

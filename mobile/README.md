@@ -7,6 +7,8 @@ Flutter client for Inventory KONA. The app scans and prepares operations; the PH
 The app is organized by feature under `lib/features/` and shared infrastructure under `lib/core/`:
 
 - `core/api`: Dio client, token refresh, and session persistence.
+- `core/security`: keep-signed-in and optional biometric cold-start unlock.
+- `core/sync`: foreground-only five-second differential synchronization.
 - `core/data`: API/mock repositories, Drift draft queue, and providers.
 - `core/logic`: reconciliation and scanner-debounce rules.
 - `features/auth`: login and device registration.
@@ -43,7 +45,7 @@ Mock mode uses fixture repositories and never contacts production:
 ```bash
 flutter run -d chrome \
   --dart-define=MOCK_MODE=true \
-  --dart-define=APP_VERSION=1.1.0
+  --dart-define=APP_VERSION=1.2.0
 ```
 
 The reviewed phone/tablet captures are in `../docs/mobile/mockups/`. The approved prototype becomes the production UI; there is no separate throwaway design app.
@@ -54,7 +56,7 @@ The reviewed phone/tablet captures are in `../docs/mobile/mockups/`. The approve
 flutter run -d <device-id> \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.1.0
+  --dart-define=APP_VERSION=1.2.0
 ```
 
 The server's Mobile API switch is disabled by default. Enable only selected pilot employees from `/mobile-access` after API deployment and live stock checks.
@@ -78,27 +80,27 @@ Build the internal APK:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.1.0
+  --dart-define=APP_VERSION=1.2.0
 ```
 
 Output: `build/app/outputs/flutter-apk/app-release.apk`.
 
-Current v1.1 pilot artifact (generated during the release gate):
+Current v1.2 pilot artifact (generated during the release gate):
 
-- File: `../output/mobile/inventory-kona-1.1.0+3.apk`
+- File: `../output/mobile/inventory-kona-1.2.0+5.apk`
 - Package: `com.konajeddah.inventory`
-- Version: `1.1.0` (`versionCode 3`)
+- Version: `1.2.0` (`versionCode 5`)
 - Minimum Android: API 24
-- SHA-256: `9cbdc1200de4bc7085570d8d1d2216186a41f153da454e1e5003a1394a3ba418`
-- Checksum file: `../output/mobile/inventory-kona-1.1.0+3.sha256`
-- Release evidence: `../docs/mobile/release-1.1.0.md`
+- SHA-256: recorded in `../output/mobile/inventory-kona-1.2.0+5.sha256` after the signed build.
+- Checksum file: `../output/mobile/inventory-kona-1.2.0+5.sha256`
+- Release evidence: `../docs/mobile/release-1.2.0.md`
 
 Verify it before distribution:
 
 ```bash
-shasum -a 256 ../output/mobile/inventory-kona-1.1.0+3.apk
+shasum -a 256 ../output/mobile/inventory-kona-1.2.0+5.apk
 $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs \
-  ../output/mobile/inventory-kona-1.1.0+3.apk
+  ../output/mobile/inventory-kona-1.2.0+5.apk
 ```
 
 ## iOS
@@ -114,7 +116,7 @@ flutter build web --release --dart-define=MOCK_MODE=true
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.1.0
+  --dart-define=APP_VERSION=1.2.0
 ```
 
 Physical-device acceptance must cover repeated scans, package conversion, exact/short/excess receipt, usage, transfer, temporary handover, custody return proof, token expiry, offline draft retry, and a stale-balance conflict.

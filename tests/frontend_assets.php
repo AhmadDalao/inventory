@@ -162,9 +162,30 @@ if (substr_count($entryScript, "\n") > 100) {
 
 $runtimeScript = file_get_contents($root . '/assets/js/core/runtime.js') ?: '';
 $filterScript = file_get_contents($root . '/assets/js/ui/filters.js') ?: '';
+$realtimeScript = file_get_contents($root . '/assets/js/ui/realtime.js') ?: '';
+$webRealtime = file_get_contents($root . '/app/modules/web_realtime.php') ?: '';
 
 if (strpos($runtimeScript, 'inventory:content-replaced') === false || strpos($filterScript, 'inventory:content-replaced') === false) {
     fail_frontend_assets('AJAX replacements must dispatch inventory:content-replaced with the replaced root.');
+}
+
+foreach ([
+    'pollIntervalMs = 5000',
+    "document.visibilityState !== 'visible'",
+    'inventory:refresh',
+    'replaceMainContentFromUrl',
+] as $marker) {
+    if (strpos($realtimeScript, $marker) === false) {
+        fail_frontend_assets('Visible-page realtime refresh is missing marker: ' . $marker);
+    }
+}
+
+if (strpos($layout, 'data-live-sync-url') === false) {
+    fail_frontend_assets('The authenticated layout must expose the live sync endpoint.');
+}
+
+if (strpos($webRealtime, 'inventory_latest_event_cursor()') === false) {
+    fail_frontend_assets('The web realtime endpoint must read the inventory event cursor.');
 }
 
 $htaccess = file_get_contents($root . '/.htaccess') ?: '';

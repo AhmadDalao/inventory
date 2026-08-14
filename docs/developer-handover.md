@@ -757,6 +757,8 @@ The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inv
 - `app/modules/mobile_api_auth.php`: login, rotating refresh, logout, device registration, and revocation checks.
 - `app/modules/mobile_usage_reasons.php`: immutable reason codes, owner-controlled labels/order/active state, legacy-code normalization, and Other-description validation.
 - `app/modules/mobile_api_inventory.php`: bootstrap, sync cursors/tombstones, assigned storages, item lookup, and balances.
+- `app/modules/inventory_events.php`: monotonic stock/workflow change ledger used by mobile and browser synchronization.
+- `app/modules/web_realtime.php`: permission-safe browser differential sync payloads.
 - `app/modules/mobile_api_movements.php`: usage, privileged restock, atomic batches, protected proofs, and balance conflicts.
 - `app/modules/mobile_api_handovers.php`: staff handovers, storage transfers, custody, receipt differences, closeout, approval, and proof routes.
 - `app/modules/mobile_admin.php`: owner Mobile Access page, user/storage grants, capabilities, devices, operations, and minimum version.
@@ -774,6 +776,10 @@ The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/
 - Handover responses include server-computed `allowed_actions`. Flutter uses these for navigation and buttons, but the API remains authoritative and rejects stale screens, direct URLs, and replayed actions after access changes.
 - Permission and storage changes take effect on the next API request. Flutter refreshes bootstrap data when it resumes and before protected submissions; UI visibility is not treated as security.
 - Access tokens expire after 15 minutes; rotating refresh tokens expire after 30 days and are stored hashed.
+- Refresh-token reuse revokes the complete device session. Persisted Flutter sessions store tokens in the platform secure store, never passwords.
+- `inventory_change_events` is appended in the same transaction as stock/workflow changes. Visible Flutter and browser clients read it every five seconds; hidden clients stop polling.
+- Mutation responses contain authoritative changed balances and the latest event cursor. Flutter applies those values immediately rather than calculating stock locally.
+- `GET /api/v1/sync?after=<event_id>` is cursor based. An expired cursor triggers a safe full bootstrap.
 - Every mutation requires `client_operation_id`. Duplicate submissions return the original result.
 - Offline mode caches reads and stores drafts only. Stock never posts offline.
 - A stale draft receives `409 balance_changed` and must be reconfirmed against the latest server quantity.
@@ -791,7 +797,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.1.0
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.2.0
 ```
 
 Production-connected builds use:
@@ -800,7 +806,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.1.0
+  --dart-define=APP_VERSION=1.2.0
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.
@@ -822,9 +828,11 @@ Add the server endpoint and OpenAPI contract first. Reuse existing stock/workflo
 
 The planned v1.2 scope is intentionally narrow: guided blind stocktakes and FCM/APNs reference-only alerts. See `docs/mobile/next-update-v1.1.md`.
 
-### Mobile 1.1 release checkpoint
+### Mobile 1.2 release checkpoint
 
-Mobile `1.1.0+3` moved usage reasons to the server-owned catalog, added School by default, supports cart-wide defaults with per-item overrides, requires text for Other, loads package multipliers from item data, starts real carts empty, and hides raw network exceptions from employees. The release APK and checksum are under `output/mobile/`; exact backup, live regression, stock-invariant, signature, checksum, and emulator evidence is maintained in `docs/mobile/release-1.1.0.md`.
+Mobile `1.2.0+5` adds server-confirmed near-realtime balances, foreground-only five-second differential sync, cursor expiry recovery, machine-readable stale-balance conflicts, permission/access fingerprint refresh, secure keep-signed-in, optional biometric cold-start unlock, refresh-token reuse detection, stronger rate limits, and complete mobile operation/event logging. The release APK and checksum are under `output/mobile/`; exact backup, live regression, stock-invariant, signature, checksum, and emulator evidence is maintained in `docs/mobile/release-1.2.0.md`.
+
+The realtime contract is documented in `docs/realtime-data-flow.md`. Security controls, credential rotation, and incident response are documented in `docs/security.md`.
 
 The production API deployment is backward compatible. Automated tests restore the prior global mobile-switch value instead of deciding it; verify the current value in Mobile Access before each pilot. Only selected pilot employees should remain enabled. A physical-device pilot remains mandatory even though the Pixel 7 API 36 emulator, Flutter suite, authenticated live API cycle, full regression, and production stock invariants passed.
 

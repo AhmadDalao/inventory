@@ -15,6 +15,7 @@ function handle_mobile_api_login(): void
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '' || $version === '' || $deviceUuid === '') {
             throw new MobileApiException('validation_failed', 'Email, password, app version, and device ID are required.', 422);
         }
+        mobile_api_enforce_rate_limit('login', $email . ':' . auth_request_ip(), 12, 300);
         if (!mobile_api_min_version_supported($version)) {
             throw new MobileApiException('upgrade_required', 'Update the application before signing in.', 426);
         }
@@ -64,6 +65,8 @@ function handle_mobile_api_refresh(): void
         if ($token === '') {
             throw new MobileApiException('refresh_invalid', 'The refresh token is invalid or expired.', 401);
         }
+        $tokenHash = hash('sha256', $token);
+        mobile_api_enforce_rate_limit('refresh', $tokenHash . ':' . auth_request_ip(), 30, 60);
 
         $pdo = Database::connection();
         $pdo->beginTransaction();
@@ -78,9 +81,36 @@ function handle_mobile_api_refresh(): void
                    AND users.is_active = 1
                  LIMIT 1
                  FOR UPDATE',
-                ['hash' => hash('sha256', $token)]
+                ['hash' => $tokenHash]
             );
-            if (!$session || !Auth::userHasPermission((int) $session['user_id'], 'mobile.access')) {
+            if (!$session) {
+                $history = Database::fetch(
+                    'SELECT id, device_session_id, user_id
+                     FROM mobile_refresh_token_history
+                     WHERE refresh_token_hash = :hash AND expires_at > NOW()
+                     LIMIT 1
+                     FOR UPDATE',
+                    ['hash' => $tokenHash]
+                );
+                if ($history) {
+                    Database::execute(
+                        'UPDATE mobile_refresh_token_history SET reuse_detected_at = NOW() WHERE id = :id',
+                        ['id' => $history['id']]
+                    );
+                    Database::execute(
+                        'UPDATE mobile_device_sessions SET revoked_at = NOW(), updated_at = NOW() WHERE id = :id',
+                        ['id' => $history['device_session_id']]
+                    );
+                    $pdo->commit();
+                    throw new MobileApiException(
+                        'refresh_reuse_detected',
+                        'This device session is no longer trusted. Sign in again.',
+                        401
+                    );
+                }
+                throw new MobileApiException('refresh_invalid', 'The refresh token is invalid or expired.', 401);
+            }
+            if (!Auth::userHasPermission((int) $session['user_id'], 'mobile.access')) {
                 throw new MobileApiException('refresh_invalid', 'The refresh token is invalid or expired.', 401);
             }
             if (!mobile_api_min_version_supported((string) $session['app_version'])) {
@@ -90,6 +120,19 @@ function handle_mobile_api_refresh(): void
 
             $access = mobile_api_random_token();
             $refresh = mobile_api_random_token();
+            Database::execute(
+                'INSERT INTO mobile_refresh_token_history (
+                    device_session_id, user_id, refresh_token_hash, expires_at, used_at, created_at
+                 ) VALUES (
+                    :device_session_id, :user_id, :refresh_token_hash, :expires_at, NOW(), NOW()
+                 )',
+                [
+                    'device_session_id' => $session['id'],
+                    'user_id' => $session['user_id'],
+                    'refresh_token_hash' => (string) $session['refresh_token_hash'],
+                    'expires_at' => (string) $session['refresh_expires_at'],
+                ]
+            );
             Database::execute(
                 'UPDATE mobile_device_sessions
                  SET access_token_hash = :access_hash,
@@ -108,6 +151,7 @@ function handle_mobile_api_refresh(): void
                 ]
             );
             $pdo->commit();
+            Database::execute('DELETE FROM mobile_refresh_token_history WHERE expires_at < DATE_SUB(NOW(), INTERVAL 7 DAY)');
         } catch (Throwable $exception) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

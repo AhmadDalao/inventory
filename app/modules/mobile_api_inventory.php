@@ -116,6 +116,7 @@ function handle_mobile_api_bootstrap(): void
                 ['user_id' => $session['user_id']]
             );
         }
+        $cursor = inventory_latest_event_cursor();
         mobile_api_success([
             'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'role' => $session['role'], 'position' => $session['position']],
             'permissions' => $permissions,
@@ -137,50 +138,176 @@ function handle_mobile_api_bootstrap(): void
                 'usage_reasons' => mobile_usage_reason_catalog(true),
             ],
             'server_time' => date(DATE_ATOM),
-        ], ['sync_cursor' => gmdate('Y-m-d H:i:s')]);
+        ], [
+            'sync_cursor' => $cursor,
+            'access_fingerprint' => mobile_api_access_fingerprint($session, $permissions, $ids, $capabilities),
+        ]);
     });
+}
+
+function mobile_api_access_fingerprint(array $session, array $permissions, array $storageIds, array $capabilities): string
+{
+    sort($permissions);
+    sort($storageIds);
+    sort($capabilities);
+    return hash('sha256', json_encode([
+        'user_id' => (int) $session['user_id'],
+        'permissions' => array_values($permissions),
+        'storage_ids' => array_values($storageIds),
+        'capabilities' => array_values($capabilities),
+        'mobile_enabled' => site_setting('mobile.enabled', '0'),
+        'minimum_version' => site_setting('mobile.min_supported_version', '1.0.0'),
+    ], JSON_UNESCAPED_SLASHES));
 }
 
 function handle_mobile_api_sync(): void
 {
     mobile_api_run(function (): void {
         $session = mobile_api_session();
+        mobile_api_enforce_rate_limit(
+            'sync',
+            (string) $session['user_id'] . ':' . (string) $session['id'] . ':' . auth_request_ip(),
+            30,
+            60
+        );
+        $access = mobile_api_require_employee_access($session);
         $permissions = mobile_api_permissions((int) $session['user_id']);
         $ids = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
-        $since = trim((string) query('since', '1970-01-01 00:00:00'));
-        $items = [];
-        if ($ids !== []) {
-            $params = array_merge([$since], $ids);
-            $rows = Database::fetchAll(
-                'SELECT DISTINCT item.* FROM items item INNER JOIN item_storage_balances balance ON balance.item_id = item.id
-                 WHERE item.updated_at > ? AND item.is_active = 1 AND balance.storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY item.updated_at ASC LIMIT 1000',
-                $params
-            );
-            foreach ($rows as $item) {
-                $items[] = mobile_api_item_payload($item, $ids);
-            }
+        $capabilities = mobile_api_effective_capabilities($access, $permissions, $ids);
+        $after = max(0, (int) query('after', 0));
+        $limit = min(500, max(25, (int) query('limit', 250)));
+        $latestCursor = inventory_latest_event_cursor();
+        $oldestCursor = inventory_oldest_event_cursor();
+
+        if ($after > 0 && $oldestCursor > 0 && $after < ($oldestCursor - 1)) {
+            mobile_api_success([
+                'full_resync_required' => true,
+                'reason' => 'cursor_expired',
+                'items' => [],
+                'deleted_item_ids' => [],
+                'tasks' => [],
+                'tasks_changed' => true,
+                'permissions' => $permissions,
+                'storage_ids' => $ids,
+                'capabilities' => $capabilities,
+            ], [
+                'sync_cursor' => $latestCursor,
+                'next_cursor' => $latestCursor,
+                'has_more' => false,
+                'access_fingerprint' => mobile_api_access_fingerprint($session, $permissions, $ids, $capabilities),
+            ]);
         }
+
+        $eventRows = Database::fetchAll(
+            'SELECT id, event_type, item_id, storage_id, entity_type, entity_id, movement_id, payload_json, created_at
+             FROM inventory_change_events
+             WHERE id > :after
+             ORDER BY id ASC
+             LIMIT ' . ($limit + 1),
+            ['after' => $after]
+        );
+        $hasMore = count($eventRows) > $limit;
+        if ($hasMore) {
+            $eventRows = array_slice($eventRows, 0, $limit);
+        }
+        $nextCursor = $eventRows === [] ? $latestCursor : (int) end($eventRows)['id'];
+        reset($eventRows);
+
+        $allowedStorageLookup = array_fill_keys(array_map('intval', $ids), true);
+        $changedItemIds = [];
+        $authorizedEvents = [];
+        $workflowChanged = false;
+        foreach ($eventRows as $event) {
+            $storageId = (int) ($event['storage_id'] ?? 0);
+            $itemId = (int) ($event['item_id'] ?? 0);
+            $authorized = $storageId > 0 && isset($allowedStorageLookup[$storageId]);
+            if (!$authorized && $itemId > 0 && $ids !== []) {
+                $authorized = (bool) Database::scalar(
+                    'SELECT 1 FROM item_storage_balances WHERE item_id = ? AND storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') LIMIT 1',
+                    array_merge([$itemId], $ids)
+                );
+            }
+            if (!$authorized && (string) ($event['entity_type'] ?? '') === 'handover' && in_array('handovers.view', $permissions, true)) {
+                $authorized = mobile_api_handover_visible_to_session((int) $event['entity_id'], $session, $ids);
+            }
+            if (!$authorized) {
+                continue;
+            }
+            if ($itemId > 0) {
+                $changedItemIds[$itemId] = true;
+            }
+            if ((string) ($event['entity_type'] ?? '') === 'handover') {
+                $workflowChanged = true;
+            }
+            $authorizedEvents[] = [
+                'id' => (int) $event['id'],
+                'type' => (string) $event['event_type'],
+                'item_id' => $itemId > 0 ? $itemId : null,
+                'storage_id' => $storageId > 0 ? $storageId : null,
+                'entity_type' => $event['entity_type'] ?: null,
+                'entity_id' => $event['entity_id'] !== null ? (int) $event['entity_id'] : null,
+                'created_at' => (string) $event['created_at'],
+            ];
+        }
+
+        $items = [];
         $deletedIds = [];
-        if ($ids !== []) {
-            $deletedIds = array_map('intval', array_column(Database::fetchAll(
-                'SELECT DISTINCT item.id
-                 FROM items item
-                 INNER JOIN item_storage_balances balance ON balance.item_id = item.id
-                 WHERE item.is_active = 0 AND item.updated_at > ?
-                   AND balance.storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')
-                 ORDER BY item.updated_at ASC
-                 LIMIT 1000',
-                array_merge([$since], $ids)
-            ), 'id'));
+        foreach (array_keys($changedItemIds) as $itemId) {
+            $item = Database::fetch('SELECT * FROM items WHERE id = :id LIMIT 1', ['id' => $itemId]);
+            if (!$item || (int) ($item['is_active'] ?? 0) !== 1) {
+                $deletedIds[] = (int) $itemId;
+                continue;
+            }
+            $items[] = mobile_api_item_payload($item, $ids);
         }
         $tasks = Auth::userHasPermission((int) $session['user_id'], 'handovers.view')
-            ? mobile_api_handover_list_rows($session, true)
+            ? (($workflowChanged || $after === 0) ? mobile_api_handover_list_rows($session, true) : [])
             : [];
         mobile_api_success(
-            ['items' => $items, 'deleted_item_ids' => $deletedIds, 'tasks' => $tasks],
-            ['sync_cursor' => gmdate('Y-m-d H:i:s'), 'has_more' => count($items) === 1000 || count($deletedIds) === 1000]
+            [
+                'full_resync_required' => false,
+                'items' => $items,
+                'deleted_item_ids' => array_values(array_unique($deletedIds)),
+                'tasks' => $tasks,
+                'tasks_changed' => $workflowChanged || $after === 0,
+                'events' => $authorizedEvents,
+                'permissions' => $permissions,
+                'storage_ids' => $ids,
+                'capabilities' => $capabilities,
+            ],
+            [
+                'sync_cursor' => $nextCursor,
+                'next_cursor' => $nextCursor,
+                'latest_cursor' => $latestCursor,
+                'has_more' => $hasMore,
+                'access_fingerprint' => mobile_api_access_fingerprint($session, $permissions, $ids, $capabilities),
+            ]
         );
     });
+}
+
+function mobile_api_handover_visible_to_session(int $handoverId, array $session, array $storageIds): bool
+{
+    if ($handoverId <= 0) {
+        return false;
+    }
+    if ((string) ($session['role'] ?? '') === 'owner') {
+        return true;
+    }
+    $params = [$handoverId, (int) $session['user_id'], (int) $session['user_id'], (int) $session['user_id']];
+    $storageSql = '';
+    if ($storageIds !== []) {
+        $placeholders = implode(',', array_fill(0, count($storageIds), '?'));
+        $storageSql = ' OR handover.source_storage_id IN (' . $placeholders . ') OR handover.destination_storage_id IN (' . $placeholders . ')';
+        $params = array_merge($params, $storageIds, $storageIds);
+    }
+    return (bool) Database::scalar(
+        'SELECT 1 FROM handovers handover
+         WHERE handover.id = ?
+           AND (handover.recipient_user_id = ? OR handover.created_by = ? OR handover.approver_user_id = ?' . $storageSql . ')
+         LIMIT 1',
+        $params
+    );
 }
 
 function handle_mobile_api_operations_mine(): void

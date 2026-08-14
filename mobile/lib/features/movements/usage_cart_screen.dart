@@ -188,6 +188,8 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
             proofPath: _proof?.path,
           );
       if (!mounted) return;
+      ref.invalidate(bootstrapProvider);
+      ref.invalidate(mobileOperationsProvider);
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(

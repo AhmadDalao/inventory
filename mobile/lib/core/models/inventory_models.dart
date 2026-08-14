@@ -580,6 +580,94 @@ class MobileBootstrap {
   }
 
   bool get requireUsageProof => settings['require_usage_proof'] == true;
+
+  MobileBootstrap copyWith({
+    List<StorageLocation>? storages,
+    List<InventoryItem>? items,
+    List<MobileTask>? tasks,
+    Set<String>? capabilities,
+    Set<String>? permissions,
+  }) => MobileBootstrap(
+    userName: userName,
+    storages: storages ?? this.storages,
+    items: items ?? this.items,
+    tasks: tasks ?? this.tasks,
+    capabilities: capabilities ?? this.capabilities,
+    permissions: permissions ?? this.permissions,
+    recipients: recipients,
+    settings: settings,
+  );
+
+  MobileBootstrap mergeSyncDelta(MobileSyncDelta delta) {
+    final allowedStorageIds = delta.storageIds;
+    final mergedItems = <String, InventoryItem>{
+      for (final item in items)
+        if (!delta.deletedItemIds.contains(item.id) &&
+            (allowedStorageIds.isEmpty ||
+                allowedStorageIds.contains(item.storageId)))
+          '${item.id}:${item.storageId}': item,
+    };
+    for (final item in delta.items) {
+      if (!delta.deletedItemIds.contains(item.id) &&
+          (allowedStorageIds.isEmpty ||
+              allowedStorageIds.contains(item.storageId))) {
+        mergedItems['${item.id}:${item.storageId}'] = item;
+      }
+    }
+    final nextItems = mergedItems.values.toList()
+      ..sort((left, right) {
+        final byName = left.name.compareTo(right.name);
+        return byName != 0
+            ? byName
+            : left.storageName.compareTo(right.storageName);
+      });
+    return copyWith(
+      storages: storages
+          .where(
+            (storage) =>
+                allowedStorageIds.isEmpty ||
+                allowedStorageIds.contains(storage.id),
+          )
+          .toList(),
+      items: nextItems,
+      tasks: delta.tasksChanged ? delta.tasks : tasks,
+      capabilities: delta.capabilities,
+      permissions: delta.permissions,
+    );
+  }
+}
+
+class MobileSyncDelta {
+  const MobileSyncDelta({
+    required this.nextCursor,
+    required this.latestCursor,
+    required this.hasMore,
+    required this.fullResyncRequired,
+    required this.items,
+    required this.deletedItemIds,
+    required this.tasks,
+    required this.permissions,
+    required this.capabilities,
+    required this.storageIds,
+    this.tasksChanged = false,
+    this.accessFingerprint = '',
+  });
+
+  final int nextCursor;
+  final int latestCursor;
+  final bool hasMore;
+  final bool fullResyncRequired;
+  final List<InventoryItem> items;
+  final Set<int> deletedItemIds;
+  final List<MobileTask> tasks;
+  final Set<String> permissions;
+  final Set<String> capabilities;
+  final Set<int> storageIds;
+  final bool tasksChanged;
+  final String accessFingerprint;
+
+  bool get hasDataChanges =>
+      items.isNotEmpty || deletedItemIds.isNotEmpty || tasksChanged;
 }
 
 class CartLine {

@@ -22,7 +22,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     text: AppConfig.mockMode ? 'mock-password' : '',
   );
   bool _loading = false;
+  bool _initializing = true;
+  bool _obscurePassword = true;
+  bool _keepSignedIn = true;
+  bool _biometricSession = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_restoreSession);
+  }
 
   @override
   void dispose() {
@@ -39,7 +49,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await ref
           .read(inventoryRepositoryProvider)
-          .login(_email.text.trim(), _password.text);
+          .login(
+            _email.text.trim(),
+            _password.text,
+            keepSignedIn: _keepSignedIn,
+          );
+      ref.read(mobileSessionRevokedProvider.notifier).state = false;
       ref.invalidate(bootstrapProvider);
       if (mounted) context.go('/home');
     } catch (error) {
@@ -53,6 +68,69 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _restoreSession({bool forceBiometric = false}) async {
+    if (AppConfig.mockMode) {
+      if (mounted) setState(() => _initializing = false);
+      return;
+    }
+
+    final store = ref.read(sessionStoreProvider);
+    final email = await store.savedEmail;
+    final hasSession = await store.hasSession;
+    final keepSignedIn = await store.keepSignedIn;
+    final biometricUnlock = await store.biometricUnlock;
+    if (email != null && email.isNotEmpty) _email.text = email;
+
+    if (!hasSession || !keepSignedIn) {
+      if (hasSession && !keepSignedIn) await store.clear();
+      if (mounted) setState(() => _initializing = false);
+      return;
+    }
+
+    if (biometricUnlock || forceBiometric) {
+      final authenticator = ref.read(biometricAuthenticatorProvider);
+      if (!await authenticator.isAvailable) {
+        await store.setBiometricUnlock(false);
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+            _biometricSession = false;
+            _error =
+                'Biometric unlock is no longer available. Sign in with your password.';
+          });
+        }
+        return;
+      }
+      final authenticated = await authenticator.authenticate(
+        reason: 'Unlock Inventory KONA',
+      );
+      if (!authenticated) {
+        if (mounted) {
+          setState(() {
+            _initializing = false;
+            _biometricSession = true;
+          });
+        }
+        return;
+      }
+    }
+
+    try {
+      await ref.read(inventoryRepositoryProvider).bootstrap();
+      ref.invalidate(bootstrapProvider);
+      if (mounted) context.go('/home');
+    } catch (_) {
+      await store.clear();
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+          _biometricSession = false;
+          _error = 'Your saved session expired. Sign in again.';
+        });
+      }
     }
   }
 
@@ -98,11 +176,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 13),
                     TextField(
                       controller: _password,
-                      obscureText: true,
+                      obscureText: _obscurePassword,
                       onSubmitted: (_) => _login(),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          key: const Key('password-visibility'),
+                          tooltip: _obscurePassword
+                              ? 'Show password'
+                              : 'Hide password',
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                    ),
+                    CheckboxListTile(
+                      key: const Key('keep-signed-in'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: _keepSignedIn,
+                      onChanged: _loading || _initializing
+                          ? null
+                          : (value) =>
+                                setState(() => _keepSignedIn = value ?? false),
+                      title: const Text(
+                        'Keep me signed in',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: const Text(
+                        'Stores a secure session token, never your password.',
                       ),
                     ),
                     if (_error != null) ...[
@@ -141,15 +250,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                     const SizedBox(height: 20),
                     ElevatedButton.icon(
-                      onPressed: _loading ? null : _login,
+                      onPressed: _loading || _initializing ? null : _login,
                       icon: _loading
                           ? const SizedBox.square(
                               dimension: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.arrow_forward),
-                      label: Text(_loading ? 'Signing in' : 'Sign in'),
+                      label: Text(
+                        _initializing
+                            ? 'Checking session'
+                            : _loading
+                            ? 'Signing in'
+                            : 'Sign in',
+                      ),
                     ),
+                    if (_biometricSession) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        key: const Key('biometric-unlock'),
+                        onPressed: _loading
+                            ? null
+                            : () => _restoreSession(forceBiometric: true),
+                        icon: const Icon(Icons.fingerprint),
+                        label: const Text('Unlock with biometrics'),
+                      ),
+                    ],
                     if (AppConfig.mockMode) ...[
                       const SizedBox(height: 16),
                       const Row(

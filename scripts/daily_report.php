@@ -192,9 +192,14 @@ foreach ($pendingPurchases as $row) {
 
 fclose($csv);
 
+$prunedRealtimeEvents = function_exists('inventory_prune_change_events')
+    ? inventory_prune_change_events(90)
+    : 0;
+
 echo json_encode([
     'ok' => true,
     'json_path' => $jsonPath,
     'csv_path' => $csvPath,
     'metrics' => $metrics,
+    'pruned_realtime_events' => $prunedRealtimeEvents,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;

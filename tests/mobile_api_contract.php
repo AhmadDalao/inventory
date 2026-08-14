@@ -108,6 +108,7 @@ $auth = mobile_contract_source('app/modules/mobile_api_auth.php');
 $usageReasons = mobile_contract_source('app/modules/mobile_usage_reasons.php');
 $admin = mobile_contract_source('app/modules/mobile_admin.php');
 $inventory = mobile_contract_source('app/modules/mobile_api_inventory.php');
+$inventoryEvents = mobile_contract_source('app/modules/inventory_events.php');
 $movements = mobile_contract_source('app/modules/mobile_api_movements.php');
 $handovers = mobile_contract_source('app/modules/mobile_api_handovers.php');
 $settings = mobile_contract_source('app/support/settings_schema.php');
@@ -126,9 +127,43 @@ foreach ([
     'balance_changed',
     'expected_balance',
     'mobile_api_enforce_mutation_rate_limit',
+    'inventory_change_events',
+    'mobile_refresh_token_history',
+    'mobile_api_rate_limits',
+    'mobile_api_operation_storage_id',
+    'mobile_api_authoritative_balance_updates',
+    'balance_updates',
+    'current_balance',
 ] as $marker) {
     if (strpos($support . $schema, $marker) === false) {
         fail_mobile_contract('Idempotency or conflict protection is missing marker: ' . $marker);
+    }
+}
+
+if (strpos($movements, "'storage_balance' => \$storageBalance") === false) {
+    fail_mobile_contract('Batch movement responses must include authoritative storage balances.');
+}
+
+foreach ([
+    'after',
+    'next_cursor',
+    'has_more',
+    'full_resync_required',
+    'inventory_latest_event_cursor',
+    'tasks_changed',
+] as $marker) {
+    if (strpos($inventory . $inventoryEvents, $marker) === false) {
+        fail_mobile_contract('Differential synchronization is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    'reuse_detected_at',
+    'refresh_reuse_detected',
+    'UPDATE mobile_device_sessions SET revoked_at = NOW()',
+] as $marker) {
+    if (strpos($auth . $schema, $marker) === false) {
+        fail_mobile_contract('Refresh-token reuse protection is missing marker: ' . $marker);
     }
 }
 

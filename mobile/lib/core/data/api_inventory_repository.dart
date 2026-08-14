@@ -12,9 +12,14 @@ class ApiInventoryRepository implements InventoryRepository {
   final ApiClient _api;
   final MobileSessionStore _sessionStore;
   final Uuid _uuid = const Uuid();
+  int _syncCursor = 0;
 
   @override
-  Future<void> login(String email, String password) async {
+  Future<void> login(
+    String email,
+    String password, {
+    required bool keepSignedIn,
+  }) async {
     final deviceId = await _sessionStore.deviceId ?? _uuid.v4();
     final data = await _api.post(
       '/auth/login',
@@ -31,6 +36,8 @@ class ApiInventoryRepository implements InventoryRepository {
       accessToken: data['access_token'] as String,
       refreshToken: data['refresh_token'] as String,
       deviceId: deviceId,
+      keepSignedIn: keepSignedIn,
+      email: email,
     );
   }
 
@@ -45,7 +52,9 @@ class ApiInventoryRepository implements InventoryRepository {
 
   @override
   Future<MobileBootstrap> bootstrap() async {
-    final data = await _api.get('/bootstrap');
+    final envelope = await _api.getEnvelope('/bootstrap');
+    final data = envelope.data;
+    _syncCursor = (envelope.meta['sync_cursor'] as num? ?? 0).toInt();
     final user = data['user'] as Map<String, dynamic>? ?? const {};
     final storages = ((data['storages'] as List?) ?? const [])
         .cast<Map<String, dynamic>>()
@@ -68,11 +77,49 @@ class ApiInventoryRepository implements InventoryRepository {
       capabilities: Set<String>.from(
         (data['capabilities'] as List?) ?? const [],
       ),
-      permissions: Set<String>.from(
-        (data['permissions'] as List?) ?? const [],
-      ),
+      permissions: Set<String>.from((data['permissions'] as List?) ?? const []),
       recipients: recipients,
       settings: Map<String, dynamic>.from(data['settings'] as Map? ?? const {}),
+    );
+  }
+
+  @override
+  Future<MobileSyncDelta> sync() async {
+    final envelope = await _api.getEnvelope(
+      '/sync',
+      query: {'after': _syncCursor},
+    );
+    final data = envelope.data;
+    final meta = envelope.meta;
+    final fullResync = data['full_resync_required'] == true;
+    final nextCursor = (meta['next_cursor'] as num? ?? _syncCursor).toInt();
+    final latestCursor = (meta['sync_cursor'] as num? ?? nextCursor).toInt();
+    _syncCursor = fullResync ? latestCursor : nextCursor;
+    return MobileSyncDelta(
+      nextCursor: nextCursor,
+      latestCursor: latestCursor,
+      hasMore: meta['has_more'] == true,
+      fullResyncRequired: fullResync,
+      items: _items(data['items']),
+      deletedItemIds: ((data['deleted_item_ids'] as List?) ?? const [])
+          .map((value) => value is Map ? value['item_id'] : value)
+          .whereType<num>()
+          .map((value) => value.toInt())
+          .toSet(),
+      tasks: ((data['tasks'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((entry) => MobileTask.fromJson(Map<String, dynamic>.from(entry)))
+          .toList(),
+      permissions: Set<String>.from((data['permissions'] as List?) ?? const []),
+      capabilities: Set<String>.from(
+        (data['capabilities'] as List?) ?? const [],
+      ),
+      storageIds: ((data['storage_ids'] as List?) ?? const [])
+          .whereType<num>()
+          .map((value) => value.toInt())
+          .toSet(),
+      tasksChanged: data['tasks_changed'] == true,
+      accessFingerprint: meta['access_fingerprint'] as String? ?? '',
     );
   }
 
