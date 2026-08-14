@@ -198,6 +198,10 @@ function mobile_live_cleanup(): void
 
         if ((int) $test['item_id'] > 0) {
             $itemId = (int) $test['item_id'];
+            Database::execute(
+                'DELETE FROM inventory_change_events WHERE item_id = :item_id OR actor_user_id = :user_id',
+                ['item_id' => $itemId, 'user_id' => (int) $test['user_id']]
+            );
             Database::execute('DELETE FROM item_storage_balances WHERE item_id = :item_id', ['item_id' => $itemId]);
             Database::execute('DELETE FROM items WHERE id = :item_id', ['item_id' => $itemId]);
         }
@@ -351,6 +355,7 @@ try {
     );
     mobile_live_assert(in_array('school', $usageReasonCodes, true), 'Bootstrap usage reasons are missing School.');
     mobile_live_assert(in_array('other', $usageReasonCodes, true), 'Bootstrap usage reasons are missing Other.');
+    $syncCursor = (int) ($bootstrap['meta']['sync_cursor'] ?? 0);
     mobile_live_note('Bootstrap storage isolation and server-owned usage reasons passed.');
 
     $lookup = mobile_live_expect(mobile_live_http(
@@ -375,6 +380,59 @@ try {
     ];
     $usage = mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/usage', $usagePayload, $access), 201);
     mobile_live_assert(mobile_live_balance((int) $test['item_id'], $assignedStorageId) === 18.0, 'Usage did not reduce assigned storage to 18.');
+    mobile_live_assert((float) ($usage['data']['storage_balance'] ?? -1) === 18.0, 'Usage response did not return the authoritative storage balance.');
+    mobile_live_assert((int) ($usage['data']['sync_cursor'] ?? 0) > $syncCursor, 'Usage response did not advance the event cursor.');
+    $balanceUpdates = array_values(array_filter((array) ($usage['data']['balance_updates'] ?? []), 'is_array'));
+    mobile_live_assert(
+        count(array_filter($balanceUpdates, static fn (array $row): bool =>
+            (int) ($row['item_id'] ?? 0) === (int) $test['item_id']
+            && (int) ($row['storage_id'] ?? 0) === $assignedStorageId
+            && (float) ($row['storage_balance'] ?? -1) === 18.0
+        )) === 1,
+        'Usage response omitted its authoritative balance update.'
+    );
+
+    inventory_record_change_event(
+        'test.forbidden_storage',
+        (int) $test['item_id'],
+        $forbiddenStorageId,
+        'test',
+        null,
+        null,
+        (int) $test['user_id'],
+        ['prefix' => $prefix]
+    );
+    $sync = mobile_live_expect(mobile_live_http('GET', '/api/v1/sync?after=' . $syncCursor, null, $access), 200);
+    mobile_live_assert(($sync['data']['full_resync_required'] ?? true) === false, 'Differential sync unexpectedly requested a full bootstrap.');
+    mobile_live_assert((int) ($sync['meta']['next_cursor'] ?? 0) > $syncCursor, 'Differential sync did not advance its cursor.');
+    $syncItems = array_values(array_filter((array) ($sync['data']['items'] ?? []), 'is_array'));
+    $syncedItem = null;
+    foreach ($syncItems as $candidate) {
+        if ((int) ($candidate['id'] ?? 0) === (int) $test['item_id']) {
+            $syncedItem = $candidate;
+            break;
+        }
+    }
+    mobile_live_assert(is_array($syncedItem), 'Differential sync omitted the changed item.');
+    $syncedBalances = array_values(array_filter((array) ($syncedItem['balances'] ?? []), 'is_array'));
+    mobile_live_assert(
+        count(array_filter($syncedBalances, static fn (array $row): bool =>
+            (int) ($row['storage_id'] ?? 0) === $assignedStorageId
+            && (float) ($row['quantity'] ?? -1) === 18.0
+        )) === 1,
+        'Differential sync did not return the current assigned-storage balance.'
+    );
+    $syncEvents = array_values(array_filter((array) ($sync['data']['events'] ?? []), 'is_array'));
+    mobile_live_assert(
+        count(array_filter($syncEvents, static fn (array $event): bool => (int) ($event['storage_id'] ?? 0) === $assignedStorageId)) >= 1,
+        'Differential sync omitted the authorized stock event.'
+    );
+    mobile_live_assert(
+        count(array_filter($syncEvents, static fn (array $event): bool => (int) ($event['storage_id'] ?? 0) === $forbiddenStorageId)) === 0,
+        'Differential sync leaked an event from an unassigned storage.'
+    );
+    $syncCursor = (int) ($sync['meta']['next_cursor'] ?? $syncCursor);
+    mobile_live_note('Authoritative mutation response, differential cursor sync, and event isolation passed.');
     $usageRetry = mobile_live_expect(mobile_live_http('POST', '/api/v1/movements/usage', $usagePayload, $access), 201);
     mobile_live_assert(
         (int) ($usage['data']['movement_id'] ?? 0) === (int) ($usageRetry['data']['movement_id'] ?? -1),

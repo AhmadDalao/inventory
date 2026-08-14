@@ -221,7 +221,9 @@ function handle_mobile_api_sync(): void
             $storageId = (int) ($event['storage_id'] ?? 0);
             $itemId = (int) ($event['item_id'] ?? 0);
             $authorized = $storageId > 0 && isset($allowedStorageLookup[$storageId]);
-            if (!$authorized && $itemId > 0 && $ids !== []) {
+            // A storage-scoped event must never leak across storage assignments.
+            // Item-level fallback is only valid for events without a storage scope.
+            if (!$authorized && $storageId <= 0 && $itemId > 0 && $ids !== []) {
                 $authorized = (bool) Database::scalar(
                     'SELECT 1 FROM item_storage_balances WHERE item_id = ? AND storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') LIMIT 1',
                     array_merge([$itemId], $ids)
