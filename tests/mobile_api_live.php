@@ -505,11 +505,27 @@ try {
     $newRefresh = (string) ($rotated['data']['refresh_token'] ?? '');
     mobile_live_assert($newAccess !== '' && $newRefresh !== '' && $newAccess !== $access, 'Refresh did not rotate both tokens.');
     mobile_live_expect(mobile_live_http('GET', '/api/v1/me', null, $access), 401, 'token_expired');
-    mobile_live_expect(mobile_live_http('POST', '/api/v1/auth/refresh', ['refresh_token' => $refresh]), 401, 'refresh_invalid');
     mobile_live_expect(mobile_live_http('GET', '/api/v1/me', null, $newAccess), 200);
-    mobile_live_expect(mobile_live_http('POST', '/api/v1/auth/logout', [], $newAccess), 200);
+    mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/auth/refresh', ['refresh_token' => $refresh]),
+        401,
+        'refresh_reuse_detected'
+    );
     mobile_live_expect(mobile_live_http('GET', '/api/v1/me', null, $newAccess), 401, 'token_expired');
-    mobile_live_note('Token rotation and logout revocation passed.');
+
+    $logoutLogin = mobile_live_expect(mobile_live_http('POST', '/api/v1/auth/login', [
+        'email' => $test['email'],
+        'password' => $password,
+        'device_name' => 'Lifecycle Logout Device',
+        'device_uuid' => strtolower($prefix) . '-logout-device',
+        'platform' => 'android',
+        'app_version' => '1.0.0',
+    ]), 200);
+    $logoutAccess = (string) ($logoutLogin['data']['access_token'] ?? '');
+    mobile_live_assert($logoutAccess !== '', 'Second login did not return an access token for logout testing.');
+    mobile_live_expect(mobile_live_http('POST', '/api/v1/auth/logout', [], $logoutAccess), 200);
+    mobile_live_expect(mobile_live_http('GET', '/api/v1/me', null, $logoutAccess), 401, 'token_expired');
+    mobile_live_note('Token rotation, refresh reuse detection, device revocation, and logout passed.');
 
     mobile_live_cleanup();
     mobile_live_note('PASS');
