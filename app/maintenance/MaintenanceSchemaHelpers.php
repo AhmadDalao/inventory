@@ -50,6 +50,21 @@ trait MaintenanceSchemaHelpers
         ) > 0;
     }
 
+    private static function indexExists(string $tableName, string $indexName): bool
+    {
+        return (int) Database::scalar(
+            'SELECT COUNT(*)
+             FROM information_schema.statistics
+             WHERE table_schema = DATABASE()
+               AND table_name = :table_name
+               AND index_name = :index_name',
+            [
+                'table_name' => $tableName,
+                'index_name' => $indexName,
+            ]
+        ) > 0;
+    }
+
     private static function ensureNonUniqueIndex(string $table, string $column, string $indexName): void
     {
         $uniqueIndexes = Database::fetchAll(

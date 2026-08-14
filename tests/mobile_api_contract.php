@@ -115,6 +115,11 @@ $settings = mobile_contract_source('app/support/settings_schema.php');
 $permissions = mobile_contract_source('app/support/permission_catalog.php');
 $schema = mobile_contract_source('app/maintenance/MaintenanceMobileSchemas.php');
 $schemaState = mobile_contract_source('app/maintenance/MaintenanceSchemaState.php');
+$schemaHelpers = mobile_contract_source('app/maintenance/MaintenanceSchemaHelpers.php');
+
+if (strpos($schemaHelpers, 'private static function indexExists(') === false) {
+    fail_mobile_contract('Mobile schema upgrades require the shared indexExists helper.');
+}
 
 foreach (['data', 'meta', 'error'] as $responseKey) {
     if (strpos($support, "'" . $responseKey . "'") === false) {
