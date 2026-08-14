@@ -114,6 +114,7 @@ $handovers = mobile_contract_source('app/modules/mobile_api_handovers.php');
 $settings = mobile_contract_source('app/support/settings_schema.php');
 $permissions = mobile_contract_source('app/support/permission_catalog.php');
 $schema = mobile_contract_source('app/maintenance/MaintenanceMobileSchemas.php');
+$schemaState = mobile_contract_source('app/maintenance/MaintenanceSchemaState.php');
 
 foreach (['data', 'meta', 'error'] as $responseKey) {
     if (strpos($support, "'" . $responseKey . "'") === false) {
@@ -128,6 +129,9 @@ foreach ([
     'expected_balance',
     'mobile_api_enforce_mutation_rate_limit',
     'inventory_change_events',
+    "self::tableExists('inventory_change_events')",
+    "self::tableExists('mobile_refresh_token_history')",
+    "self::tableExists('mobile_api_rate_limits')",
     'mobile_refresh_token_history',
     'mobile_api_rate_limits',
     'mobile_api_operation_storage_id',
@@ -135,7 +139,7 @@ foreach ([
     'balance_updates',
     'current_balance',
 ] as $marker) {
-    if (strpos($support . $schema, $marker) === false) {
+    if (strpos($support . $schema . $schemaState, $marker) === false) {
         fail_mobile_contract('Idempotency or conflict protection is missing marker: ' . $marker);
     }
 }

@@ -43,7 +43,12 @@ trait MaintenanceSchemaState
             && self::tableExists('user_storage_assignments')
             && self::tableExists('mobile_device_sessions')
             && self::tableExists('mobile_operations')
-            && self::tableExists('inventory_movement_usage_details');
+            && self::columnExists('mobile_operations', 'storage_id')
+            && self::tableExists('inventory_movement_usage_details')
+            && self::columnExists('inventory_movement_usage_details', 'custom_reason')
+            && self::tableExists('inventory_change_events')
+            && self::tableExists('mobile_refresh_token_history')
+            && self::tableExists('mobile_api_rate_limits');
     }
 
     private static function reportPresetSchemaIsCurrent(): bool

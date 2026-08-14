@@ -21,6 +21,7 @@ trait MaintenanceBoot
         try {
             self::syncSchema();
         } catch (Throwable $exception) {
+            error_log('[maintenance] Schema synchronization failed: ' . $exception->getMessage());
             return;
         }
     }
