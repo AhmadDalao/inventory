@@ -199,7 +199,7 @@ function mobile_live_cleanup(): void
         if ((int) $test['item_id'] > 0) {
             $itemId = (int) $test['item_id'];
             Database::execute(
-                'DELETE FROM inventory_change_events WHERE item_id = :item_id OR actor_user_id = :user_id',
+                'DELETE FROM inventory_change_events WHERE item_id = :item_id OR performed_by = :user_id',
                 ['item_id' => $itemId, 'user_id' => (int) $test['user_id']]
             );
             Database::execute('DELETE FROM item_storage_balances WHERE item_id = :item_id', ['item_id' => $itemId]);
