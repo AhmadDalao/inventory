@@ -1448,7 +1448,13 @@ $locationFilteredItemsPage = http_request(
     'GET',
     '/items?status=active&storage_id=' . (int) $locationFilteredStorage['id'] . '&search=' . rawurlencode((string) $locationFilteredItem['sku'])
 );
-assert_true($locationFilteredItemsPage['status'] === 200, 'Storage-filtered item quantity page did not load.');
+assert_true(
+    $locationFilteredItemsPage['status'] === 200,
+    'Storage-filtered item quantity page did not load. Status '
+        . $locationFilteredItemsPage['status']
+        . '; body: '
+        . trim(preg_replace('/\s+/', ' ', strip_tags(substr((string) $locationFilteredItemsPage['body'], 0, 500))) ?? '')
+);
 assert_true(str_contains($locationFilteredItemsPage['body'], '3 pcs'), 'Storage-filtered item quantity page should show the selected storage balance.');
 assert_true(str_contains($locationFilteredItemsPage['body'], 'in ' . (string) $locationFilteredStorage['name']), 'Storage-filtered item quantity page should label the selected location quantity.');
 assert_stock_invariants('after storage-filtered item quantity check', $prefix);

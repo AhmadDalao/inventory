@@ -179,4 +179,19 @@ foreach ($loaderOnlyModules as $relativePath) {
     }
 }
 
+$requiredRuntimeFunctions = [
+    'app/modules/storage_ownership.php' => ['storage_type_label'],
+    'app/modules/web_realtime.php' => ['handle_web_inventory_sync', 'app_ready_or_redirect'],
+];
+
+foreach ($requiredRuntimeFunctions as $relativePath => $functionNames) {
+    $contents = read_module_boundary_file($root . '/' . $relativePath);
+
+    foreach ($functionNames as $functionName) {
+        if (!preg_match('/\\b' . preg_quote($functionName, '/') . '\\s*\\(/', $contents)) {
+            fail_module_boundary($relativePath . ' must retain runtime dependency: ' . $functionName . '().');
+        }
+    }
+}
+
 echo '[module-boundaries] PASS' . PHP_EOL;

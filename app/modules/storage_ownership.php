@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+function storage_type_label(string $type): string
+{
+    return $type === 'warehouse' ? 'Warehouse' : 'Storage';
+}
+
 function user_is_global_owner(int $userId): bool
 {
     if ($userId <= 0) {
