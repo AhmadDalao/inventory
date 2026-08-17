@@ -55,7 +55,6 @@ function handle_handovers_create_page(): void
     $selectedSourceStorageId = normalize_entity_id(old('source_storage_id', ''));
     $selectedDestinationStorageId = normalize_entity_id(old('destination_storage_id', ''));
     $selectedRecipientUserId = normalize_entity_id(old('recipient_user_id', ''));
-    $selectedRequestOwnerId = normalize_entity_id(old('request_owner_user_id', ''));
     $legacyRecipientType = in_array((string) old('recipient_type', 'staff'), ['staff', 'storage'], true)
         ? (string) old('recipient_type', 'staff')
         : 'staff';
@@ -65,9 +64,9 @@ function handle_handovers_create_page(): void
             ? (string) old('handover_purpose', $legacyRecipientType === 'storage' ? 'storage_transfer' : 'temporary_use')
             : 'temporary_use');
     $selectedRecipientType = $selectedPurpose === 'storage_transfer' ? 'storage' : 'staff';
-    $lockedRequestOwner = Auth::isStaff() ? handover_request_assigned_owner($currentUser) : null;
+    $assignedManager = Auth::isStaff() ? handover_request_assigned_manager($currentUser) : null;
     $sourceStorages = Auth::isStaff()
-        ? handover_request_source_storages_for_staff($currentUser, $selectedSourceStorageId, $selectedRequestOwnerId)
+        ? handover_request_source_storages_for_staff($currentUser, $selectedSourceStorageId)
         : handover_source_storages_for_user($currentUser, $selectedSourceStorageId);
 
     View::render('handovers/form', [
@@ -79,7 +78,6 @@ function handle_handovers_create_page(): void
             'handover_purpose' => $selectedPurpose,
             'issue_condition' => old('issue_condition', 'good'),
             'custody_review_date' => old('custody_review_date', ''),
-            'request_owner_user_id' => old('request_owner_user_id', $lockedRequestOwner ? (string) $lockedRequestOwner['id'] : ''),
             'recipient_name' => Auth::isStaff() ? (string) ($currentUser['name'] ?? '') : old('recipient_name', ''),
             'recipient_user_id' => Auth::isStaff() ? (string) ($currentUser['id'] ?? '') : old('recipient_user_id', ''),
             'scheduled_for_date' => old('scheduled_for_date', ''),
@@ -89,8 +87,7 @@ function handle_handovers_create_page(): void
         'sourceStorages' => $sourceStorages,
         'destinationStorages' => Auth::isStaff() ? [] : handover_destination_storages_for_select($selectedDestinationStorageId),
         'users' => Auth::isStaff() ? [] : active_staff_users_for_select($selectedRecipientUserId),
-        'ownerCandidates' => Auth::isStaff() && !$lockedRequestOwner ? handover_request_owner_candidates_for_select($selectedRequestOwnerId) : [],
-        'lockedRequestOwner' => $lockedRequestOwner,
+        'assignedManager' => $assignedManager,
         'isStaffRequest' => Auth::isStaff(),
         'issueConditionOptions' => handover_issue_condition_options(),
         'storageCatalogJson' => json_encode(

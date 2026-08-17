@@ -4247,7 +4247,6 @@ $handoverRequestCancelCreatePage = http_request($baseUrl, $staffCookie, 'GET', '
 assert_true($handoverRequestCancelCreatePage['status'] === 200, 'Cancelable staff handover request page did not load.');
 $handoverRequestCancelCreate = http_request($baseUrl, $staffCookie, 'POST', '/handovers/create', [
     '_token' => extract_csrf($handoverRequestCancelCreatePage['body']),
-    'request_owner_user_id' => $owner['id'],
     'source_storage_id' => $handoverRequestSource['id'],
     'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
     'notes' => $prefix . ' cancel own handover request without note',
@@ -4272,7 +4271,9 @@ assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handov
 note('Running staff handover request workflow over HTTP.');
 $handoverRequestCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/create');
 assert_true($handoverRequestCreatePage['status'] === 200, 'Staff handover request page did not load.');
-assert_true(strpos($handoverRequestCreatePage['body'], 'name="request_owner_user_id"') !== false, 'Staff handover request form is missing the request owner field.');
+assert_true(strpos($handoverRequestCreatePage['body'], 'name="request_owner_user_id"') === false, 'Staff should not choose a stock approver manually.');
+assert_true(strpos($handoverRequestCreatePage['body'], 'data-handover-auto-approval-route') !== false, 'Staff handover form is missing automatic storage-owner routing guidance.');
+assert_true(strpos($handoverRequestCreatePage['body'], 'data-handover-manager-observer') !== false, 'Staff handover form is missing the assigned manager observer.');
 assert_true(strpos($handoverRequestCreatePage['body'], 'name="recipient_user_id"') === false, 'Staff handover request form should not show the recipient user field.');
 assert_true(strpos($handoverRequestCreatePage['body'], 'data-hide-availability="false"') !== false, 'Staff handover request form should show selected-storage availability.');
 assert_true(strpos($handoverRequestCreatePage['body'], 'data-hide-item-quantity="false"') !== false, 'Staff handover item picker should show selected-storage quantities.');
@@ -4280,7 +4281,6 @@ $handoverRequestToken = extract_csrf($handoverRequestCreatePage['body']);
 $handoverRequestScheduledDate = date('Y-m-d');
 $handoverRequestCreate = http_request($baseUrl, $staffCookie, 'POST', '/handovers/create', [
     '_token' => $handoverRequestToken,
-    'request_owner_user_id' => $owner['id'],
     'source_storage_id' => $handoverRequestSource['id'],
     'scheduled_for_date' => $handoverRequestScheduledDate,
     'notes' => $prefix . ' staff handover request workflow',

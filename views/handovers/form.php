@@ -1,6 +1,7 @@
 <?php
 $lineItems = is_array($lineItems) && $lineItems !== [] ? $lineItems : [['item_id' => '', 'quantity' => '']];
 $isStaffRequest = !empty($isStaffRequest);
+$assignedManager = is_array($assignedManager ?? null) ? $assignedManager : null;
 $handoverPurpose = (string) ($handoverRecord['handover_purpose'] ?? ((string) ($handoverRecord['recipient_type'] ?? 'staff') === 'storage' ? 'storage_transfer' : 'temporary_use'));
 $handoverPurpose = in_array($handoverPurpose, ['temporary_use', 'staff_custody', 'storage_transfer'], true) ? $handoverPurpose : 'temporary_use';
 $isStorageTransfer = !$isStaffRequest && $handoverPurpose === 'storage_transfer';
@@ -138,26 +139,21 @@ $handoverSubmitLabel = $isStaffRequest
 
         <div class="field-row">
             <?php if ($isStaffRequest): ?>
-                <?php if (!empty($lockedRequestOwner)): ?>
-                    <div class="field workflow-owner-field">
-                        <span>Assigned Owner</span>
+                <div class="field workflow-owner-field" data-handover-auto-approval-route>
+                    <span>Approval Route</span>
+                    <div class="workflow-owner-card">
+                        <strong>Selected storage owner</strong>
+                        <span class="tiny-copy">The owner of the source storage approves and issues its stock automatically.</span>
+                    </div>
+                </div>
+                <?php if ($assignedManager): ?>
+                    <div class="field workflow-owner-field" data-handover-manager-observer>
+                        <span>Manager Observer</span>
                         <div class="workflow-owner-card">
-                            <strong><?= e((string) $lockedRequestOwner['name']) ?></strong>
-                            <span class="tiny-copy">This staff account can request handovers only from this storage owner.</span>
+                            <strong><?= e((string) $assignedManager['name']) ?></strong>
+                            <span class="tiny-copy">Receives updates and can follow progress. Stock approval remains with the storage owner.</span>
                         </div>
                     </div>
-                <?php else: ?>
-                    <label class="field">
-                        <span>Ask From</span>
-                        <select name="request_owner_user_id" data-workflow-owner-select required>
-                            <option value="">Select storage owner</option>
-                            <?php foreach ($ownerCandidates as $ownerCandidate): ?>
-                                <option value="<?= e((string) $ownerCandidate['id']) ?>" <?= selected((string) $ownerCandidate['id'], (string) ($handoverRecord['request_owner_user_id'] ?? '')) ?>>
-                                    <?= e((string) $ownerCandidate['name']) ?> · <?= e(user_role_label((string) $ownerCandidate['role'])) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
                 <?php endif; ?>
             <?php endif; ?>
 
@@ -276,7 +272,7 @@ $handoverSubmitLabel = $isStaffRequest
             data-storage-meta="<?= e((string) $storageMetaJson) ?>"
             data-hide-availability="false"
             data-hide-item-quantity="false"
-            data-locked-owner-id="<?= e(!empty($lockedRequestOwner) ? (string) $lockedRequestOwner['id'] : '') ?>"
+            data-locked-owner-id=""
             data-expected-usage="false"
             data-usage-reasons="<?= e(json_encode($usageReasonOptions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
         >

@@ -34,9 +34,16 @@ function handover_request_owner_candidates_for_select(?int $selectedId = null): 
     );
 }
 
-function handover_request_assigned_owner(array $user): ?array
+function handover_request_assigned_manager(array $user): ?array
 {
     return manager_user_for((int) ($user['id'] ?? 0));
+}
+
+// Kept for compatibility with older extensions. Handover approval is determined
+// by the selected storage owners, never by the staff reporting manager.
+function handover_request_assigned_owner(array $user): ?array
+{
+    return handover_request_assigned_manager($user);
 }
 
 function handover_source_storages_for_user(array $user, ?int $selectedId = null): array
@@ -48,7 +55,7 @@ function handover_source_storages_for_user(array $user, ?int $selectedId = null)
     return storages_owned_by_user_for_select((int) $user['id'], $selectedId);
 }
 
-function handover_request_source_storages_for_staff(array $user, ?int $selectedId = null, ?int $selectedOwnerId = null): array
+function handover_request_source_storages_for_staff(array $user, ?int $selectedId = null): array
 {
     return array_values(array_filter(
         all_storages_for_select($selectedId),
