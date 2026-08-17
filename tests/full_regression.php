@@ -1995,7 +1995,7 @@ foreach (['movements.usage', 'movements.restock', 'movements.transfer', 'movemen
 }
 assert_true(strpos($userCreatePage['body'], 'requests.status_override') === false, 'Request status override should not be assignable to regular admins.');
 assert_true(strpos($userCreatePage['body'], 'handovers.status_override') === false, 'Handover status override should not be assignable to regular admins.');
-assert_true(strpos($userCreatePage['body'], 'data-assigned-owner-field') !== false, 'User create page is missing staff owner assignment control.');
+assert_true(strpos($userCreatePage['body'], 'name="manager_user_id"') !== false, 'User create page is missing the manager assignment control.');
 assert_true(strpos($userCreatePage['body'], 'data-notification-sound-toggle') !== false, 'Authenticated layout is missing notification sound controls.');
 $settingsPageForTheme = http_request($baseUrl, $ownerCookie, 'GET', '/settings/site');
 assert_true($settingsPageForTheme['status'] === 200, 'Settings page did not load for owner.');
