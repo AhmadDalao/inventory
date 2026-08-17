@@ -180,7 +180,12 @@ foreach ($loaderOnlyModules as $relativePath) {
 }
 
 $requiredRuntimeFunctions = [
-    'app/modules/storage_ownership.php' => ['storage_type_label'],
+    'app/modules/storage_ownership.php' => [
+        'active_storage_name_exists',
+        'next_storage_copy_name',
+        'requested_storage_copy_source',
+        'storage_type_label',
+    ],
     'app/modules/web_realtime.php' => ['handle_web_inventory_sync', 'app_ready_or_redirect'],
 ];
 

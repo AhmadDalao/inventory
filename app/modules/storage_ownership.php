@@ -6,6 +6,46 @@ function storage_type_label(string $type): string
     return $type === 'warehouse' ? 'Warehouse' : 'Storage';
 }
 
+function active_storage_name_exists(string $name, ?int $ignoreId = null): bool
+{
+    $sql = 'SELECT id FROM storages WHERE LOWER(name) = LOWER(:name) AND is_active = 1 AND is_system = 0';
+    $params = ['name' => $name];
+
+    if ($ignoreId !== null) {
+        $sql .= ' AND id != :ignore_id';
+        $params['ignore_id'] = $ignoreId;
+    }
+
+    $sql .= ' LIMIT 1';
+
+    return Database::fetch($sql, $params) !== null;
+}
+
+function requested_storage_copy_source(): ?array
+{
+    $copyStorageId = normalize_entity_id(input('copy_storage_id', input('copy', old('copy_storage_id'))));
+
+    if ($copyStorageId === null) {
+        return null;
+    }
+
+    return find_storage_or_abort($copyStorageId);
+}
+
+function next_storage_copy_name(string $name): string
+{
+    $baseName = trim($name) !== '' ? trim($name) : 'Location';
+    $candidate = $baseName . ' Copy';
+    $suffix = 2;
+
+    while (active_storage_name_exists($candidate)) {
+        $candidate = $baseName . ' Copy ' . $suffix;
+        $suffix++;
+    }
+
+    return $candidate;
+}
+
 function user_is_global_owner(int $userId): bool
 {
     if ($userId <= 0) {
