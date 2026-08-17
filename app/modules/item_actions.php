@@ -10,6 +10,7 @@ function handle_items_status_submit(array $params): void
     verify_csrf();
 
     $item = find_item_or_abort((int) $params['id']);
+    require_current_user_item_visibility((int) $item['id']);
     $user = Auth::user();
     $nextStatus = (int) $item['is_active'] === 1 ? 0 : 1;
 
@@ -48,6 +49,7 @@ function handle_item_location_remove_submit(array $params): void
     verify_csrf();
 
     $item = find_item_or_abort((int) $params['id']);
+    require_current_user_item_visibility((int) $item['id']);
     $user = Auth::user();
     $storageId = normalize_entity_id($params['storage_id'] ?? null);
     $returnTo = trim((string) input('return_to', '/items/' . $item['id']));
@@ -56,6 +58,10 @@ function handle_item_location_remove_submit(array $params): void
     if ($storageId === null) {
         flash('danger', 'That storage is invalid.');
         redirect($fallbackPath);
+    }
+
+    if (!user_can_view_storage((int) $user['id'], $storageId)) {
+        abort(404, 'Storage not found.');
     }
 
     $balance = item_storage_balance_record((int) $item['id'], $storageId);

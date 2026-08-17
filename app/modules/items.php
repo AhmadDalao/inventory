@@ -67,6 +67,10 @@ function handle_items_create_submit(): void
         $errors[] = 'Pick a valid active storage.';
     }
 
+    if ($storageId !== null && !user_can_view_storage((int) $user['id'], $storageId)) {
+        $errors[] = 'Pick a storage assigned to your account.';
+    }
+
     if ($imageUpload['error'] !== null) {
         $errors[] = $imageUpload['error'];
     }
@@ -305,6 +309,7 @@ function handle_items_edit_submit(array $params): void
     verify_csrf();
 
     $item = find_item_or_abort((int) $params['id']);
+    require_current_user_item_visibility((int) $item['id']);
     $user = Auth::user();
     $selectedUnit = trim((string) input('unit', 'pcs'));
     $customUnit = trim((string) input('custom_unit'));
@@ -351,6 +356,10 @@ function handle_items_edit_submit(array $params): void
 
     if (!storage_exists_for_assignment($storageId)) {
         $errors[] = 'Pick a valid active storage.';
+    }
+
+    if ($storageId !== null && !user_can_view_storage((int) $user['id'], $storageId)) {
+        $errors[] = 'Pick a storage assigned to your account.';
     }
 
     if ($imageUpload['error'] !== null) {

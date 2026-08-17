@@ -61,6 +61,8 @@ function requested_item_copy_source(): ?array
         return null;
     }
 
+    require_current_user_item_visibility($copyItemId);
+
     return find_item_or_abort($copyItemId);
 }
 

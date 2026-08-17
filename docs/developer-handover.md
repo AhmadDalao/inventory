@@ -16,6 +16,8 @@ Main branch: `main`
 
 System data-flow and use-case diagrams: [`docs/system-diagrams.md`](system-diagrams.md)
 
+Team routing, shared storage authority, and exceptional Owner correction contract: [`docs/team-routing-and-owner-resolution.md`](team-routing-and-owner-resolution.md)
+
 ## 2. Current Architecture
 
 This is a plain PHP and MySQL app. It does not use Laravel. Routes are registered in `index.php`. Bootstrap, database, auth, router, view rendering, and shared helpers live under `app/`.
@@ -486,6 +488,7 @@ The reporting line and stock authority are deliberately separate:
 - `user_storage_assignments.access_role` is the storage access authority. `owner` can manage/approve for that storage when the matching permission exists; `member` can see/use only the assigned storage within their permissions.
 - A storage can have several co-owners and several staff members. `storages.owner_user_id` remains the compatibility primary owner, but it is not the complete ownership list.
 - Staff catalog, quantity, Scan Center, request, handover, and mobile API scopes are restricted to assigned storages. The default storage must also be assigned.
+- Item list/detail/edit/copy routes, direct movement entry, selectors, AJAX payloads, and CSV/XLSX exports enforce the same assigned-storage boundary. Direct item ids outside that boundary return `404`, and visible quantities are recalculated from assigned balances rather than `items.current_quantity`.
 - Workflow notifications are deduplicated and routed to direct participants, the acting employee's manager, relevant storage co-owners, and all active global Owners. The actor is excluded from their own alert.
 - New requests, handovers, and mobile operations snapshot `manager_user_id` so the historical routing remains explainable if the employee's manager later changes.
 
@@ -498,6 +501,8 @@ Relevant permissions:
 - `team.view`: see assigned direct reports.
 - `team.activity.view`: see direct-report workflow/mobile activity.
 - `team.manage`: assign or change reporting lines.
+
+The maintained implementation checklist and authorization chain are in [`docs/team-routing-and-owner-resolution.md`](team-routing-and-owner-resolution.md). Update that contract whenever a new workflow, mobile action, approval route, export, or realtime payload is added.
 
 Default admin purchase boundaries are intentional:
 

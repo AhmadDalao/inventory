@@ -10,6 +10,7 @@ function handle_item_movement_submit(array $params): void
     verify_csrf();
 
     $item = find_item_or_abort((int) $params['id']);
+    require_current_user_item_visibility((int) $item['id']);
     $user = Auth::user();
     $movementType = (string) input('movement_type');
 
@@ -89,6 +90,11 @@ function handle_item_movement_submit(array $params): void
     foreach ([$sourceStorageId, $destinationStorageId] as $storageId) {
         if ($storageId !== null && !storage_exists_for_assignment($storageId)) {
             $errors[] = 'Pick valid active locations.';
+            break;
+        }
+
+        if ($storageId !== null && !user_can_view_storage((int) $user['id'], $storageId)) {
+            $errors[] = 'You can only move stock in storages assigned to your account.';
             break;
         }
     }

@@ -9,6 +9,7 @@ This is no longer a tiny CRUD app. The current application tracks consumable sto
 Start here:
 
 - [Developer handover](docs/developer-handover.md)
+- [Team routing, storage authority, and Owner resolution](docs/team-routing-and-owner-resolution.md)
 - [Mobile application guide](mobile/README.md)
 - [Mobile API reference](docs/mobile-api.md)
 - [Mobile OpenAPI contract](docs/openapi/mobile-api-v1.yaml)

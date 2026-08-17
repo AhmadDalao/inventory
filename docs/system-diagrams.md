@@ -366,16 +366,19 @@ flowchart LR
     COOWNER["Relevant storage co-owner\nStock approver"]
     OWNER["Global Owner\nSystem resolution"]
     ACTION(("Request, handover, or mobile stock action"))
+    SCOPE[("Assigned item/storage scope")]
     STOCK[("Storage balances and movements")]
     AUDIT[("Notifications and audit history")]
 
     STAFF -->|"creates or scans"| ACTION
+    STAFF -->|"catalog, quantities, exports"| SCOPE
     ACTION -->|"direct-report alert"| MANAGER
     ACTION -->|"storage workflow alert"| COOWNER
     ACTION -->|"global oversight alert"| OWNER
     MANAGER -->|"view only unless also co-owner"| ACTION
     COOWNER -->|"permission + storage ownership required"| STOCK
     OWNER -->|"purpose-aware Owner Resolution"| STOCK
+    SCOPE -->|"server-side guard"| STOCK
     ACTION --> AUDIT
     COOWNER --> AUDIT
     OWNER --> AUDIT
@@ -385,10 +388,12 @@ flowchart LR
     classDef data fill:#fff7df,stroke:#d8ae52,color:#111;
     class STAFF,MANAGER,COOWNER,OWNER actor;
     class ACTION process;
-    class STOCK,AUDIT data;
+    class SCOPE,STOCK,AUDIT data;
 ```
 
 Managers route work and receive visibility; they do not inherit stock approval. Co-owners approve only for storages they own. Global Owners can resolve exceptional workflows, but only through audited stock-safe actions that preserve movement history and negative-balance protection.
+
+Assigned-storage scope is enforced on list and direct-record routes, selectors, quantities, AJAX/realtime payloads, and exports. UI hiding is never treated as authorization.
 
 | Workflow | Initiates | Confirms or approves | Stock changes |
 |---|---|---|---|

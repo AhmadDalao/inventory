@@ -10,6 +10,7 @@ $itemHasBarcode = normalize_item_barcode($item['barcode'] ?? '') !== '';
 $itemScanSourceLabel = $itemHasBarcode ? 'Item barcode' : 'SKU label';
 $packagePresets = $packagePresets ?? [];
 $stockPositions = $stockPositions ?? item_stock_positions($balances);
+$isStorageScoped = $isStorageScoped ?? false;
 ?>
 
 <section class="page-head">
@@ -68,28 +69,30 @@ $stockPositions = $stockPositions ?? item_stock_positions($balances);
             </div>
             <div class="align-right item-summary-stock">
                 <strong class="stock-number" data-stock-number><?= format_quantity($item['current_quantity']) ?></strong>
-                <span data-stock-unit><?= e($item['unit']) ?> on hand</span>
+                <span data-stock-unit><?= e($item['unit']) ?> <?= $isStorageScoped ? 'in assigned storages' : 'on hand' ?></span>
                 <span class="tiny-copy" data-stock-value-label><?= format_money($stockValue) ?> stock value</span>
             </div>
         </div>
 
         <div class="item-summary-stats item-stock-position-stats">
             <article class="item-summary-stat item-summary-stat-main">
-                <span>Available In Active Storages</span>
+                <span><?= $isStorageScoped ? 'Available In Assigned Storages' : 'Available In Active Storages' ?></span>
                 <strong data-stock-position="available_active"><?= format_quantity($stockPositions['available_active']) ?> <?= e($item['unit']) ?></strong>
             </article>
-            <article class="item-summary-stat">
-                <span>Held By Staff</span>
-                <strong data-stock-position="held_by_staff"><?= format_quantity($stockPositions['held_by_staff']) ?> <?= e($item['unit']) ?></strong>
-            </article>
-            <article class="item-summary-stat">
-                <span>Damaged / Quarantined</span>
-                <strong data-stock-position="damaged_quarantine"><?= format_quantity($stockPositions['damaged_quarantine']) ?> <?= e($item['unit']) ?></strong>
-            </article>
-            <article class="item-summary-stat">
-                <span>Total Physical Quantity</span>
-                <strong data-stock-position="total_physical"><?= format_quantity($stockPositions['total_physical']) ?> <?= e($item['unit']) ?></strong>
-            </article>
+            <?php if (!$isStorageScoped): ?>
+                <article class="item-summary-stat">
+                    <span>Held By Staff</span>
+                    <strong data-stock-position="held_by_staff"><?= format_quantity($stockPositions['held_by_staff']) ?> <?= e($item['unit']) ?></strong>
+                </article>
+                <article class="item-summary-stat">
+                    <span>Damaged / Quarantined</span>
+                    <strong data-stock-position="damaged_quarantine"><?= format_quantity($stockPositions['damaged_quarantine']) ?> <?= e($item['unit']) ?></strong>
+                </article>
+                <article class="item-summary-stat">
+                    <span>Total Physical Quantity</span>
+                    <strong data-stock-position="total_physical"><?= format_quantity($stockPositions['total_physical']) ?> <?= e($item['unit']) ?></strong>
+                </article>
+            <?php endif; ?>
         </div>
 
         <div class="item-summary-stats">

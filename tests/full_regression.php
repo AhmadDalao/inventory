@@ -1245,6 +1245,7 @@ $adminEmail = build_email($prefix, 'admin');
 $managerEmail = build_email($prefix, 'manager');
 $staffEmail = build_email($prefix, 'staff');
 $lockedStaffEmail = build_email($prefix, 'locked-staff');
+$scopedAdminEmail = build_email($prefix, 'scoped-admin');
 
 $owner = create_user_record($prefix . ' Owner', $ownerEmail, 'owner', $password, permission_keys());
 $admin = create_user_record($prefix . ' Admin', $adminEmail, 'admin', $password, default_permissions_for_role('admin'));
@@ -1281,6 +1282,22 @@ $lockedStaff = create_user_record(
     (int) $owner['id'],
     (int) $owner['id']
 );
+$scopedAdmin = create_user_record(
+    $prefix . ' Scoped Admin',
+    $scopedAdminEmail,
+    'admin',
+    $password,
+    [
+        'dashboard.view',
+        'storages.view',
+        'items.view',
+        'items.edit',
+        'items.copy',
+        'items.create',
+        'items.export',
+        'movements.view',
+    ]
+);
 
 note('Creating storages and seeding 100 items.');
 $storages = [];
@@ -1305,6 +1322,12 @@ sync_user_storage_memberships(
     (int) $storages[6]['id'],
     (int) $owner['id']
 );
+sync_user_storage_memberships(
+    (int) $scopedAdmin['id'],
+    [(int) $storages[6]['id']],
+    (int) $storages[6]['id'],
+    (int) $owner['id']
+);
 sync_storage_assignments(
     (int) $storages[4]['id'],
     (int) $owner['id'],
@@ -1322,6 +1345,10 @@ assert_true(
 assert_true(
     user_visible_storage_ids((int) $lockedStaff['id']) === [(int) $storages[6]['id']],
     'Staff storage isolation did not restrict the visible storage set.'
+);
+assert_true(
+    user_visible_storage_ids((int) $scopedAdmin['id']) === [(int) $storages[6]['id']],
+    'Scoped admin storage isolation did not restrict the visible storage set.'
 );
 $ownerVisibleStorageIds = user_visible_storage_ids((int) $owner['id']);
 assert_true(
@@ -1422,10 +1449,11 @@ $adminCookie = login_user($baseUrl, $adminEmail, $password);
 $managerCookie = login_user($baseUrl, $managerEmail, $password);
 $staffCookie = login_user($baseUrl, $staffEmail, $password);
 $lockedStaffCookie = login_user($baseUrl, $lockedStaffEmail, $password);
+$scopedAdminCookie = login_user($baseUrl, $scopedAdminEmail, $password);
 $successfulLoginAudits = (int) Database::scalar(
     'SELECT COUNT(*)
      FROM login_attempts
-     WHERE email IN (:owner_email, :admin_email, :manager_email, :staff_email, :locked_staff_email)
+     WHERE email IN (:owner_email, :admin_email, :manager_email, :staff_email, :locked_staff_email, :scoped_admin_email)
        AND success = 1',
     [
         'owner_email' => $ownerEmail,
@@ -1433,9 +1461,106 @@ $successfulLoginAudits = (int) Database::scalar(
         'manager_email' => $managerEmail,
         'staff_email' => $staffEmail,
         'locked_staff_email' => $lockedStaffEmail,
+        'scoped_admin_email' => $scopedAdminEmail,
     ]
 );
-assert_true($successfulLoginAudits >= 5, 'Successful login attempts were not audited.');
+assert_true($successfulLoginAudits >= 6, 'Successful login attempts were not audited.');
+
+note('Checking item visibility against assigned storage scope.');
+$scopedVisibleItem = $seededItems[6];
+$scopedHiddenItem = $seededItems[0];
+$scopedVisibleStorage = $storages[6];
+$scopedHiddenStorage = $storages[0];
+$scopedVisibleQuantity = balance_quantity((int) $scopedVisibleItem['id'], (int) $scopedVisibleStorage['id']);
+persist_item_storage_balance((int) $scopedVisibleItem['id'], (int) $scopedHiddenStorage['id'], 7.0);
+sync_item_inventory_snapshot((int) $scopedVisibleItem['id'], (int) $owner['id']);
+$scopedGlobalQuantity = (float) Database::scalar(
+    'SELECT current_quantity FROM items WHERE id = :id',
+    ['id' => (int) $scopedVisibleItem['id']]
+);
+assert_true(
+    round($scopedGlobalQuantity, 2) === round($scopedVisibleQuantity + 7.0, 2),
+    'Scoped item seed did not preserve its global quantity invariant.'
+);
+
+$scopedItemList = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/items?status=active&search=' . rawurlencode((string) $scopedVisibleItem['sku'])
+);
+assert_true($scopedItemList['status'] === 200, 'Scoped admin item list did not load.');
+assert_true(str_contains($scopedItemList['body'], (string) $scopedVisibleItem['sku']), 'Scoped admin could not see an item in an assigned storage.');
+assert_true(str_contains($scopedItemList['body'], format_quantity($scopedVisibleQuantity) . ' pcs'), 'Scoped item list did not show assigned-storage quantity.');
+assert_true(!str_contains($scopedItemList['body'], format_quantity($scopedGlobalQuantity) . ' pcs'), 'Scoped item list leaked global item quantity.');
+assert_true(!str_contains($scopedItemList['body'], (string) $scopedHiddenStorage['name']), 'Scoped item list leaked an unassigned storage name.');
+
+$scopedHiddenItemList = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/items?status=active&search=' . rawurlencode((string) $scopedHiddenItem['sku'])
+);
+assert_true($scopedHiddenItemList['status'] === 200, 'Scoped hidden-item search did not load.');
+assert_true(!str_contains($scopedHiddenItemList['body'], (string) $scopedHiddenItem['sku']), 'Scoped item search leaked an item from an unassigned storage.');
+
+$scopedUnassignedFilter = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/items?status=active&storage_id=' . (int) $scopedHiddenStorage['id'] . '&search=' . rawurlencode((string) $scopedVisibleItem['sku'])
+);
+assert_true($scopedUnassignedFilter['status'] === 200, 'Scoped unassigned-storage filter did not load safely.');
+assert_true(!str_contains($scopedUnassignedFilter['body'], (string) $scopedVisibleItem['sku']), 'Unassigned storage filter bypassed item scope.');
+
+$scopedItemDetail = http_request($baseUrl, $scopedAdminCookie, 'GET', '/items/' . (int) $scopedVisibleItem['id']);
+assert_true($scopedItemDetail['status'] === 200, 'Scoped admin could not open an assigned item.');
+assert_true(str_contains($scopedItemDetail['body'], (string) $scopedVisibleStorage['name']), 'Scoped item detail is missing the assigned storage.');
+assert_true(!str_contains($scopedItemDetail['body'], (string) $scopedHiddenStorage['name']), 'Scoped item detail leaked an unassigned storage.');
+assert_true(
+    preg_match('/data-stock-number[^>]*>\s*' . preg_quote(format_quantity($scopedVisibleQuantity), '/') . '\s*</', $scopedItemDetail['body']) === 1,
+    'Scoped item detail did not show assigned-storage quantity.'
+);
+
+$scopedHiddenItemDetail = http_request($baseUrl, $scopedAdminCookie, 'GET', '/items/' . (int) $scopedHiddenItem['id']);
+assert_true($scopedHiddenItemDetail['status'] === 404, 'Direct item URL leaked an item from an unassigned storage.');
+$staffHiddenItemDetail = http_request($baseUrl, $lockedStaffCookie, 'GET', '/items/' . (int) $scopedHiddenItem['id']);
+assert_true($staffHiddenItemDetail['status'] === 404, 'Staff direct item URL bypassed assigned storage scope.');
+
+$scopedItemEdit = http_request($baseUrl, $scopedAdminCookie, 'GET', '/items/' . (int) $scopedVisibleItem['id'] . '/edit');
+assert_true($scopedItemEdit['status'] === 200, 'Scoped admin could not edit an assigned item.');
+assert_true(
+    str_contains($scopedItemEdit['body'], 'value="' . format_quantity($scopedVisibleQuantity) . ' pcs"'),
+    'Scoped item edit leaked the global current quantity.'
+);
+$scopedHiddenItemEdit = http_request($baseUrl, $scopedAdminCookie, 'GET', '/items/' . (int) $scopedHiddenItem['id'] . '/edit');
+assert_true($scopedHiddenItemEdit['status'] === 404, 'Scoped admin edit URL leaked an unassigned item.');
+$scopedHiddenItemCopy = http_request($baseUrl, $scopedAdminCookie, 'GET', '/items/create?copy=' . (int) $scopedHiddenItem['id']);
+assert_true($scopedHiddenItemCopy['status'] === 404, 'Scoped admin copied an item from an unassigned storage.');
+
+$scopedItemExport = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/exports/items?status=active&search=' . rawurlencode((string) $scopedVisibleItem['sku'])
+);
+assert_true($scopedItemExport['status'] === 200, 'Scoped item CSV export failed.');
+$scopedExportLines = preg_split('/\r\n|\n|\r/', trim((string) $scopedItemExport['body'])) ?: [];
+$scopedExportRow = isset($scopedExportLines[1]) ? str_getcsv($scopedExportLines[1], ',', '"', '\\') : [];
+assert_true(($scopedExportRow[1] ?? '') === (string) $scopedVisibleItem['sku'], 'Scoped item export did not contain the assigned item.');
+assert_true(($scopedExportRow[5] ?? '') === (string) $scopedVisibleStorage['name'], 'Scoped item export contained the wrong location scope.');
+assert_true(($scopedExportRow[8] ?? '') === format_quantity($scopedVisibleQuantity), 'Scoped item export leaked global quantity.');
+assert_true(!str_contains((string) $scopedItemExport['body'], (string) $scopedHiddenStorage['name']), 'Scoped item export leaked an unassigned storage name.');
+
+$scopedHiddenItemExport = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/exports/items?status=active&search=' . rawurlencode((string) $scopedHiddenItem['sku'])
+);
+assert_true($scopedHiddenItemExport['status'] === 200, 'Scoped hidden-item export did not return safely.');
+assert_true(!str_contains($scopedHiddenItemExport['body'], (string) $scopedHiddenItem['sku']), 'Scoped item export leaked an unassigned item.');
+assert_stock_invariants('after assigned-storage item visibility checks', $prefix);
 
 note('Checking storage-filtered item quantities.');
 $locationFilteredItem = $seededItems[99];

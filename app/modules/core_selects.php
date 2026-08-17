@@ -3,10 +3,21 @@ declare(strict_types=1);
 
 function all_items_for_select(): array
 {
+    $storageScope = current_user_item_storage_scope();
+    $scopeSql = $storageScope !== null
+        ? ' AND EXISTS (
+            SELECT 1
+            FROM item_storage_balances visible_balance
+            WHERE visible_balance.item_id = items.id
+              AND visible_balance.storage_id IN (' . item_storage_scope_sql($storageScope) . ')
+        )'
+        : '';
+
     return Database::fetchAll(
         'SELECT id, name, sku, barcode, unit, is_active
          FROM items
          WHERE is_active = 1
+         ' . $scopeSql . '
          ORDER BY name ASC'
     );
 }

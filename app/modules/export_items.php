@@ -9,6 +9,13 @@ function item_export_rows(array $filters): array
 {
     [$where, $params] = build_item_where($filters);
     $filteredStorageQuantitySelect = item_filtered_storage_quantity_select($filters, $params);
+    $storageScope = current_user_item_storage_scope();
+    $storageScopeSql = item_storage_scope_sql($storageScope);
+    $balanceScopeSql = $storageScope !== null ? " AND balances.storage_id IN ({$storageScopeSql})" : '';
+    $movementScopeSql = $storageScope !== null
+        ? " AND (m.source_storage_id IN ({$storageScopeSql}) OR m.destination_storage_id IN ({$storageScopeSql}))"
+        : '';
+    $defaultStorageScopeSql = $storageScope !== null ? " AND default_storage.id IN ({$storageScopeSql})" : '';
 
     return Database::fetchAll(
         "SELECT i.*,
@@ -18,16 +25,18 @@ function item_export_rows(array $filters): array
                     SELECT COUNT(*)
                     FROM item_storage_balances balances
                     WHERE balances.item_id = i.id
+                    {$balanceScopeSql}
                 ) AS location_count,
                 (
                     SELECT GROUP_CONCAT(storage.name ORDER BY balances.quantity DESC, storage.name ASC SEPARATOR ', ')
                     FROM item_storage_balances balances
                     INNER JOIN storages storage ON storage.id = balances.storage_id
                     WHERE balances.item_id = i.id
+                    {$balanceScopeSql}
                 ) AS storage_summary,
-                (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id) AS last_movement_at
+                (SELECT MAX(m.used_at) FROM inventory_movements m WHERE m.item_id = i.id{$movementScopeSql}) AS last_movement_at
          FROM items i
-         LEFT JOIN storages default_storage ON default_storage.id = i.storage_id
+         LEFT JOIN storages default_storage ON default_storage.id = i.storage_id{$defaultStorageScopeSql}
          {$where}
          ORDER BY i.name ASC",
         $params

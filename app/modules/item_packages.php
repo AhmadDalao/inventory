@@ -93,6 +93,7 @@ function handle_item_package_preset_save_submit(array $params): void
     verify_csrf();
 
     $item = find_item_or_abort((int) $params['id']);
+    require_current_user_item_visibility((int) $item['id']);
     $user = Auth::user();
     $presetId = normalize_entity_id(input('preset_id'));
     $label = normalize_package_preset_label(input('label'));
@@ -233,6 +234,7 @@ function handle_item_package_preset_delete_submit(array $params): void
     verify_csrf();
 
     $item = find_item_or_abort((int) $params['id']);
+    require_current_user_item_visibility((int) $item['id']);
     $presetId = normalize_entity_id($params['preset_id'] ?? null);
 
     if ($presetId === null || item_package_preset_record((int) $item['id'], $presetId) === null) {

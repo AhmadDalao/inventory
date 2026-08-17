@@ -48,6 +48,9 @@ Key permission rules:
 - Manager visibility never grants stock approval by itself. The API independently checks storage ownership on every request, receipt, transfer, closeout, or correction action.
 - Request, handover, and mobile-operation records snapshot the manager id for audit/history; current access is still recalculated on each protected request.
 - Changing a manager, removing a storage assignment, demoting a co-owner, or disabling a user changes the access fingerprint and takes effect on the next visible sync.
+- Item lookup, quantities, selectors, workflow payloads, realtime changes, and exports are all derived from the same assigned-storage scope. A direct item id outside that scope is not returned.
+
+The complete server authorization and Owner-resolution contract is maintained in [`team-routing-and-owner-resolution.md`](team-routing-and-owner-resolution.md).
 
 ## Authentication
 

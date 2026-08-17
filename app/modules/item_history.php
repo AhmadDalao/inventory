@@ -1,8 +1,12 @@
 <?php
 declare(strict_types=1);
 
-function item_history_metrics(int $itemId): array
+function item_history_metrics(int $itemId, ?array $storageIds = null): array
 {
+    $scopeSql = $storageIds !== null
+        ? ' AND (source_storage_id IN (' . item_storage_scope_sql($storageIds) . ') OR destination_storage_id IN (' . item_storage_scope_sql($storageIds) . '))'
+        : '';
+
     return Database::fetch(
         'SELECT
              COALESCE(SUM(CASE WHEN movement_type = "usage" THEN movement_quantity ELSE 0 END), 0) AS total_used,
@@ -10,7 +14,7 @@ function item_history_metrics(int $itemId): array
              COALESCE(SUM(CASE WHEN movement_type = "transfer" THEN movement_quantity ELSE 0 END), 0) AS total_transferred,
              COUNT(*) AS movement_count
          FROM inventory_movements
-         WHERE item_id = :item_id',
+         WHERE item_id = :item_id' . $scopeSql,
         ['item_id' => $itemId]
     ) ?: [
         'total_used' => 0,
@@ -20,8 +24,14 @@ function item_history_metrics(int $itemId): array
     ];
 }
 
-function latest_item_movement(int $itemId): ?array
+function latest_item_movement(int $itemId, ?array $storageIds = null): ?array
 {
+    $scopeSql = $storageIds !== null
+        ? ' AND (m.source_storage_id IN (' . item_storage_scope_sql($storageIds) . ') OR m.destination_storage_id IN (' . item_storage_scope_sql($storageIds) . '))'
+        : '';
+    $sourceJoinScopeSql = $storageIds !== null ? ' AND source_storage.id IN (' . item_storage_scope_sql($storageIds) . ')' : '';
+    $destinationJoinScopeSql = $storageIds !== null ? ' AND destination_storage.id IN (' . item_storage_scope_sql($storageIds) . ')' : '';
+
     return Database::fetch(
         'SELECT m.*,
                 u.name AS user_name,
@@ -31,17 +41,22 @@ function latest_item_movement(int $itemId): ?array
                 destination_storage.storage_type AS destination_storage_type
          FROM inventory_movements m
          LEFT JOIN users u ON u.id = m.performed_by
-         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
-         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
+         LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id' . $sourceJoinScopeSql . '
+         LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id' . $destinationJoinScopeSql . '
          WHERE m.item_id = :item_id
+         ' . $scopeSql . '
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 1',
         ['item_id' => $itemId]
     );
 }
 
-function item_storage_balances(int $itemId): array
+function item_storage_balances(int $itemId, ?array $storageIds = null): array
 {
+    $scopeSql = $storageIds !== null
+        ? ' AND balances.storage_id IN (' . item_storage_scope_sql($storageIds) . ')'
+        : '';
+
     return Database::fetchAll(
         'SELECT balances.item_id,
                 balances.storage_id,
@@ -74,7 +89,7 @@ function item_storage_balances(int $itemId): array
                 ) AS transferred_in
          FROM item_storage_balances balances
          INNER JOIN storages storage ON storage.id = balances.storage_id
-         WHERE balances.item_id = :item_id
+         WHERE balances.item_id = :item_id' . $scopeSql . '
          ORDER BY FIELD(storage.storage_type, "warehouse", "storage"), balances.quantity DESC, storage.name ASC',
         ['item_id' => $itemId]
     );
@@ -134,18 +149,22 @@ function item_balance_map(array $balances): array
 
 function item_response_payload(array $item): array
 {
-    $historyMetrics = item_history_metrics((int) $item['id']);
-    $latestMovement = latest_item_movement((int) $item['id']);
-    $balances = item_storage_balances((int) $item['id']);
+    $storageScope = current_user_item_storage_scope();
+    $historyMetrics = item_history_metrics((int) $item['id'], $storageScope);
+    $latestMovement = latest_item_movement((int) $item['id'], $storageScope);
+    $balances = item_storage_balances((int) $item['id'], $storageScope);
     $balanceMap = item_balance_map($balances);
-    $stockPositions = item_stock_positions($balances, (int) $item['id']);
+    $stockPositions = item_stock_positions($balances, $storageScope === null ? (int) $item['id'] : null);
+    $visibleQuantity = $storageScope === null
+        ? (float) $item['current_quantity']
+        : array_sum(array_map(static fn (array $balance): float => (float) $balance['quantity'], $balances));
 
     return [
         'item' => [
             'id' => (int) $item['id'],
             'unit' => $item['unit'],
-            'current_quantity' => format_quantity($item['current_quantity']),
-            'current_quantity_raw' => (float) $item['current_quantity'],
+            'current_quantity' => format_quantity($visibleQuantity),
+            'current_quantity_raw' => $visibleQuantity,
             'total_used' => format_quantity($historyMetrics['total_used']),
             'total_used_raw' => (float) $historyMetrics['total_used'],
             'total_added' => format_quantity($historyMetrics['total_added']),
@@ -155,7 +174,7 @@ function item_response_payload(array $item): array
             'movement_count' => (int) $historyMetrics['movement_count'],
             'cost_per_unit' => format_money($item['cost_per_unit']),
             'cost_per_unit_raw' => (float) $item['cost_per_unit'],
-            'stock_value' => format_money(stock_value($item['current_quantity'], $item['cost_per_unit'])),
+            'stock_value' => format_money(stock_value($visibleQuantity, $item['cost_per_unit'])),
             'stock_positions' => [
                 'available_active' => format_quantity($stockPositions['available_active']),
                 'available_active_raw' => $stockPositions['available_active'],
