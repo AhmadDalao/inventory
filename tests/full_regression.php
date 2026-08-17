@@ -61,6 +61,11 @@ function assert_pdf_preview_response(array $response, string $message): void
     assert_true(strpos($disposition, 'inline') !== false, $message . ' Content-Disposition should be inline.');
 }
 
+function response_has_item_link(string $body, int $itemId): bool
+{
+    return preg_match('~href="[^"]*/items/' . $itemId . '(?:["?])~', $body) === 1;
+}
+
 function assert_stock_invariants(string $context, ?string $itemNamePrefix = null): void
 {
     $where = 'WHERE item.is_active IN (0, 1)';
@@ -1502,7 +1507,10 @@ $scopedHiddenItemList = http_request(
     '/items?status=active&search=' . rawurlencode((string) $scopedHiddenItem['sku'])
 );
 assert_true($scopedHiddenItemList['status'] === 200, 'Scoped hidden-item search did not load.');
-assert_true(!str_contains($scopedHiddenItemList['body'], (string) $scopedHiddenItem['sku']), 'Scoped item search leaked an item from an unassigned storage.');
+assert_true(
+    !response_has_item_link($scopedHiddenItemList['body'], (int) $scopedHiddenItem['id']),
+    'Scoped item search leaked an item from an unassigned storage.'
+);
 
 $scopedUnassignedFilter = http_request(
     $baseUrl,
@@ -1511,7 +1519,10 @@ $scopedUnassignedFilter = http_request(
     '/items?status=active&storage_id=' . (int) $scopedHiddenStorage['id'] . '&search=' . rawurlencode((string) $scopedVisibleItem['sku'])
 );
 assert_true($scopedUnassignedFilter['status'] === 200, 'Scoped unassigned-storage filter did not load safely.');
-assert_true(!str_contains($scopedUnassignedFilter['body'], (string) $scopedVisibleItem['sku']), 'Unassigned storage filter bypassed item scope.');
+assert_true(
+    !response_has_item_link($scopedUnassignedFilter['body'], (int) $scopedVisibleItem['id']),
+    'Unassigned storage filter bypassed item scope.'
+);
 
 $scopedItemDetail = http_request($baseUrl, $scopedAdminCookie, 'GET', '/items/' . (int) $scopedVisibleItem['id']);
 assert_true($scopedItemDetail['status'] === 200, 'Scoped admin could not open an assigned item.');

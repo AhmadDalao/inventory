@@ -68,7 +68,8 @@ function current_user_can_view_item(int $itemId): bool
 function require_current_user_item_visibility(int $itemId): void
 {
     if (!current_user_can_view_item($itemId)) {
-        abort(404, 'Item not found.');
+        // Do not redirect scoped users to a module page or reveal that the item exists.
+        abort(404, 'Page not found.');
     }
 }
 
