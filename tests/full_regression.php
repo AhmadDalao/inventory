@@ -1748,7 +1748,7 @@ $userCreateSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/create'
     'email' => $httpUserEmail,
     'position' => 'staff',
     'role' => 'staff',
-    'assigned_owner_user_id' => (string) $owner['id'],
+    'manager_user_id' => (string) $owner['id'],
     'password' => $password,
     'password_confirmation' => $password,
     'permissions' => [],
@@ -1762,9 +1762,10 @@ assert_true(
     is_array($httpUser)
         && (string) $httpUser['role'] === 'staff'
         && (string) $httpUser['position'] === 'staff'
+        && (int) $httpUser['manager_user_id'] === (int) $owner['id']
         && (int) $httpUser['assigned_owner_user_id'] === (int) $owner['id']
         && (int) $httpUser['is_active'] === 1,
-    'User create did not persist the selected role, position, owner, and status.'
+    'User create did not persist the selected role, position, manager, and status.'
 );
 
 $userEditPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (int) $httpUser['id'] . '/edit');
@@ -1775,7 +1776,7 @@ $userEditSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/' . (int)
     'email' => $httpUserUpdatedEmail,
     'position' => 'reception_staff',
     'role' => 'staff',
-    'assigned_owner_user_id' => (string) $admin['id'],
+    'manager_user_id' => (string) $admin['id'],
     'password' => '',
     'password_confirmation' => '',
     'permissions' => [],
@@ -1789,6 +1790,7 @@ assert_true(
     is_array($httpUser)
         && (string) $httpUser['email'] === $httpUserUpdatedEmail
         && (string) $httpUser['position'] === 'reception_staff'
+        && (int) $httpUser['manager_user_id'] === (int) $admin['id']
         && (int) $httpUser['assigned_owner_user_id'] === (int) $admin['id'],
     'User edit did not persist the updated account profile.'
 );
@@ -2122,7 +2124,7 @@ $cfoCreate = http_request($baseUrl, $ownerCookie, 'POST', '/users/create', [
     'email' => $cfoEmail,
     'position' => 'cfo',
     'role' => 'admin',
-    'assigned_owner_user_id' => '',
+    'manager_user_id' => '',
     'password' => $password,
     'password_confirmation' => $password,
 ]);
