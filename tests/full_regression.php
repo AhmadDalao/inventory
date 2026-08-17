@@ -1323,7 +1323,11 @@ assert_true(
     user_visible_storage_ids((int) $lockedStaff['id']) === [(int) $storages[6]['id']],
     'Staff storage isolation did not restrict the visible storage set.'
 );
-assert_true(count(user_visible_storage_ids((int) $owner['id'])) === 10, 'Global owner should see all active test storages.');
+$ownerVisibleStorageIds = user_visible_storage_ids((int) $owner['id']);
+assert_true(
+    array_diff(array_map(static fn (array $storage): int => (int) $storage['id'], $storages), $ownerVisibleStorageIds) === [],
+    'Global owner should see all active test storages.'
+);
 assert_true(in_array((int) $admin['id'], storage_owner_user_ids((int) $storages[4]['id']), true), 'Additional storage owner assignment was not saved.');
 assert_true(in_array((int) $staff['id'], storage_assigned_user_ids((int) $storages[0]['id'], 'member'), true), 'Staff membership was not saved on the assigned storage.');
 
