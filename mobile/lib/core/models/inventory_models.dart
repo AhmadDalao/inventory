@@ -4,20 +4,49 @@ class StorageLocation {
     required this.name,
     this.type = 'storage',
     this.isDefault = false,
+    this.accessRole = 'member',
   });
 
   final int id;
   final String name;
   final String type;
   final bool isDefault;
+  final String accessRole;
+
+  bool get isOwner => accessRole == 'owner';
 
   factory StorageLocation.fromJson(Map<String, dynamic> json) =>
       StorageLocation(
         id: (json['id'] as num).toInt(),
         name: json['name'] as String? ?? 'Storage',
-        type: json['type'] as String? ?? 'storage',
+        type:
+            json['type'] as String? ??
+            json['storage_type'] as String? ??
+            'storage',
         isDefault: json['is_default'] == true || json['is_default'] == 1,
+        accessRole: json['access_role'] as String? ?? 'member',
       );
+}
+
+class MobileManager {
+  const MobileManager({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.position = '',
+  });
+
+  final int id;
+  final String name;
+  final String role;
+  final String position;
+
+  factory MobileManager.fromJson(Map<String, dynamic> json) => MobileManager(
+    id: (json['id'] as num).toInt(),
+    name: json['name'] as String? ?? 'Manager',
+    role: json['role'] as String? ?? 'admin',
+    position: json['position'] as String? ?? '',
+  );
 }
 
 class ItemPackagePreset {
@@ -482,6 +511,7 @@ class MobileBootstrap {
     this.permissions = const {},
     this.recipients = const [],
     this.settings = const {},
+    this.manager,
   });
 
   final String userName;
@@ -492,6 +522,7 @@ class MobileBootstrap {
   final Set<String> permissions;
   final List<MobileRecipient> recipients;
   final Map<String, dynamic> settings;
+  final MobileManager? manager;
 
   bool hasPermission(String permission) => permissions.contains(permission);
 
@@ -587,6 +618,7 @@ class MobileBootstrap {
     List<MobileTask>? tasks,
     Set<String>? capabilities,
     Set<String>? permissions,
+    MobileManager? manager,
   }) => MobileBootstrap(
     userName: userName,
     storages: storages ?? this.storages,
@@ -596,6 +628,7 @@ class MobileBootstrap {
     permissions: permissions ?? this.permissions,
     recipients: recipients,
     settings: settings,
+    manager: manager ?? this.manager,
   );
 
   MobileBootstrap mergeSyncDelta(MobileSyncDelta delta) {

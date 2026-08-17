@@ -1,6 +1,6 @@
 # Inventory KONA System Diagrams
 
-Updated: 2026-07-28
+Updated: 2026-08-17
 
 These diagrams describe the current production architecture and business cycles. They are maintained as Mermaid so GitHub and compatible documentation tools can render them without storing another stale image.
 
@@ -356,6 +356,39 @@ flowchart LR
 ```
 
 ## Workflow Ownership Summary
+
+### Team Routing And Stock Authority
+
+```mermaid
+flowchart LR
+    STAFF["Staff employee"]
+    MANAGER["Assigned manager\nObserver"]
+    COOWNER["Relevant storage co-owner\nStock approver"]
+    OWNER["Global Owner\nSystem resolution"]
+    ACTION(("Request, handover, or mobile stock action"))
+    STOCK[("Storage balances and movements")]
+    AUDIT[("Notifications and audit history")]
+
+    STAFF -->|"creates or scans"| ACTION
+    ACTION -->|"direct-report alert"| MANAGER
+    ACTION -->|"storage workflow alert"| COOWNER
+    ACTION -->|"global oversight alert"| OWNER
+    MANAGER -->|"view only unless also co-owner"| ACTION
+    COOWNER -->|"permission + storage ownership required"| STOCK
+    OWNER -->|"purpose-aware Owner Resolution"| STOCK
+    ACTION --> AUDIT
+    COOWNER --> AUDIT
+    OWNER --> AUDIT
+
+    classDef actor fill:#fff,stroke:#b8892d,color:#111;
+    classDef process fill:#111,stroke:#111,color:#fff;
+    classDef data fill:#fff7df,stroke:#d8ae52,color:#111;
+    class STAFF,MANAGER,COOWNER,OWNER actor;
+    class ACTION process;
+    class STOCK,AUDIT data;
+```
+
+Managers route work and receive visibility; they do not inherit stock approval. Co-owners approve only for storages they own. Global Owners can resolve exceptional workflows, but only through audited stock-safe actions that preserve movement history and negative-balance protection.
 
 | Workflow | Initiates | Confirms or approves | Stock changes |
 |---|---|---|---|

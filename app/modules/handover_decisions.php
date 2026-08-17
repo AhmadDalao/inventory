@@ -72,25 +72,22 @@ function handle_handovers_recover_submit(array $params): void
         'notes' => $notes,
     ]);
 
-    $notificationUserIds = array_values(array_unique(array_filter([
-        (int) ($handover['created_by'] ?? 0),
-        (int) ($handover['recipient_user_id'] ?? 0),
-        (int) ($handover['approver_user_id'] ?? 0),
-        (int) ($handover['source_owner_user_id'] ?? 0),
-    ], static fn (int $id): bool => $id > 0 && $id !== (int) ($user['id'] ?? 0))));
-
-    foreach ($notificationUserIds as $notificationUserId) {
-        create_notification(
-            $notificationUserId,
-            'handover_recovered',
-            'Handover ' . $handover['handover_number'] . ' recovered',
-            ($user['name'] ?? 'Admin') . ' reopened this handover as ' . handover_status_label($targetStatus) . '.',
-            url('/handovers/' . $handover['id']),
-            'handover',
-            (int) $handover['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [
+            (int) ($handover['created_by'] ?? 0),
+            (int) ($handover['recipient_user_id'] ?? 0),
+            (int) ($handover['approver_user_id'] ?? 0),
+        ],
+        [(int) ($handover['source_storage_id'] ?? 0), (int) ($handover['destination_storage_id'] ?? 0)],
+        'handover_recovered',
+        'Handover ' . $handover['handover_number'] . ' recovered',
+        ($user['name'] ?? 'Admin') . ' reopened this handover as ' . handover_status_label($targetStatus) . '.',
+        url('/handovers/' . $handover['id']),
+        'handover',
+        (int) $handover['id'],
+        [(int) ($handover['recipient_user_id'] ?? 0), (int) ($handover['created_by'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([
@@ -159,25 +156,22 @@ function handle_handovers_status_override_submit(array $params): void
         'notes' => $notes,
     ]);
 
-    $notificationUserIds = array_values(array_unique(array_filter([
-        (int) ($handover['created_by'] ?? 0),
-        (int) ($handover['recipient_user_id'] ?? 0),
-        (int) ($handover['approver_user_id'] ?? 0),
-        (int) ($handover['source_owner_user_id'] ?? 0),
-    ], static fn (int $id): bool => $id > 0 && $id !== (int) ($user['id'] ?? 0))));
-
-    foreach ($notificationUserIds as $notificationUserId) {
-        create_notification(
-            $notificationUserId,
-            'handover_status_override',
-            'Handover ' . $handover['handover_number'] . ' status changed',
-            ($user['name'] ?? 'Admin') . ' changed this handover from ' . handover_status_label((string) $handover['status']) . ' to ' . handover_status_label($targetStatus) . '.',
-            url('/handovers/' . $handover['id']),
-            'handover',
-            (int) $handover['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [
+            (int) ($handover['created_by'] ?? 0),
+            (int) ($handover['recipient_user_id'] ?? 0),
+            (int) ($handover['approver_user_id'] ?? 0),
+        ],
+        [(int) ($handover['source_storage_id'] ?? 0), (int) ($handover['destination_storage_id'] ?? 0)],
+        'handover_status_override',
+        'Handover ' . $handover['handover_number'] . ' status changed',
+        ($user['name'] ?? 'Admin') . ' changed this handover from ' . handover_status_label((string) $handover['status']) . ' to ' . handover_status_label($targetStatus) . '.',
+        url('/handovers/' . $handover['id']),
+        'handover',
+        (int) $handover['id'],
+        [(int) ($handover['recipient_user_id'] ?? 0), (int) ($handover['created_by'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([

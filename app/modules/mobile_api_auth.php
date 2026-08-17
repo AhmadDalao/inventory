@@ -50,6 +50,7 @@ function handle_mobile_api_login(): void
             'access_token' => $access, 'access_expires_in' => 900,
             'refresh_token' => $refresh, 'refresh_expires_in' => 2592000,
             'user' => ['id' => (int) $user['id'], 'name' => $user['name'], 'email' => $user['email'], 'role' => $user['role'], 'position' => $user['position']],
+            'manager' => mobile_api_manager_payload((int) $user['id']),
         ], [], 201);
     });
 }

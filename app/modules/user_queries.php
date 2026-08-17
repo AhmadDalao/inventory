@@ -11,11 +11,24 @@ function users_for_access_control(): array
                 users.position,
                 users.is_active,
                 users.assigned_owner_user_id,
+                users.manager_user_id,
                 users.last_login_at,
                 users.created_at,
-                assigned_owner.name AS assigned_owner_name
+                manager_user.name AS manager_name,
+                (SELECT COUNT(*)
+                   FROM user_storage_assignments assignment
+                   INNER JOIN storages storage ON storage.id = assignment.storage_id
+                  WHERE assignment.user_id = users.id
+                    AND storage.is_active = 1
+                    AND storage.is_system = 0) AS storage_count,
+                (SELECT GROUP_CONCAT(storage.name ORDER BY assignment.is_default DESC, assignment.access_role DESC, storage.name SEPARATOR ", ")
+                   FROM user_storage_assignments assignment
+                   INNER JOIN storages storage ON storage.id = assignment.storage_id
+                  WHERE assignment.user_id = users.id
+                    AND storage.is_active = 1
+                    AND storage.is_system = 0) AS storage_names
          FROM users
-         LEFT JOIN users assigned_owner ON assigned_owner.id = users.assigned_owner_user_id
+         LEFT JOIN users manager_user ON manager_user.id = COALESCE(users.manager_user_id, users.assigned_owner_user_id)
          ORDER BY FIELD(users.role, "owner", "admin", "staff"), users.created_at ASC'
     );
 
@@ -27,6 +40,30 @@ function users_for_access_control(): array
     unset($user);
 
     return $users;
+}
+
+function manager_candidates_for_select(?int $selectedId = null, ?int $excludeUserId = null): array
+{
+    $params = [];
+    $conditions = ['(is_active = 1 AND role IN ("owner", "admin"))'];
+    if ($selectedId !== null) {
+        $conditions[] = 'id = :selected_id';
+        $params['selected_id'] = $selectedId;
+    }
+    if ($excludeUserId !== null) {
+        $excludeSql = ' AND id != :exclude_user_id';
+        $params['exclude_user_id'] = $excludeUserId;
+    } else {
+        $excludeSql = '';
+    }
+
+    return Database::fetchAll(
+        'SELECT id, name, email, role, position, is_active
+         FROM users
+         WHERE (' . implode(' OR ', $conditions) . ')' . $excludeSql . '
+         ORDER BY FIELD(role, "owner", "admin"), name ASC',
+        $params
+    );
 }
 
 function active_users_for_select(?int $excludeUserId = null): array

@@ -20,6 +20,9 @@ function handle_users_create_page(): void
     $selectedPosition = (string) old('position', 'operations_manager');
     $selectedRole = (string) old('role', access_role_for_position($selectedPosition));
     $selectedPermissions = old('permissions', default_permissions_for_position($selectedPosition));
+    $managerUserId = normalize_entity_id(old('manager_user_id', ''));
+    $selectedStorageIds = array_values(array_unique(array_filter(array_map('intval', (array) old('storage_ids', [])))));
+    $defaultStorageId = normalize_entity_id(old('default_storage_id', ''));
 
     View::render('users/form', [
         'title' => 'Create Admin',
@@ -29,12 +32,18 @@ function handle_users_create_page(): void
             'email' => old('email', ''),
             'position' => $selectedPosition,
             'role' => $selectedRole,
-            'assigned_owner_user_id' => old('assigned_owner_user_id', ''),
+            'manager_user_id' => $managerUserId,
             'is_active' => 1,
         ],
         'positionOptions' => user_position_options(),
         'roleOptions' => user_role_options(),
-        'ownerCandidates' => handover_request_owner_candidates_for_select(normalize_entity_id(old('assigned_owner_user_id', ''))),
+        'managerCandidates' => manager_candidates_for_select($managerUserId),
+        'storageOptions' => all_storages_for_select($defaultStorageId),
+        'selectedStorageIds' => $selectedStorageIds,
+        'ownedStorageIds' => [],
+        'defaultStorageId' => $defaultStorageId,
+        'canManageTeam' => Auth::isOwner() || Auth::hasPermission('team.manage'),
+        'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
         'permissionGroups' => permission_groups_for_form(is_array($selectedPermissions) ? sanitize_permission_input($selectedPermissions) : default_permissions_for_position($selectedPosition)),
     ]);
 }
@@ -45,6 +54,22 @@ function handle_users_edit_page(array $params): void
     Auth::requirePermission('users.edit');
 
     $userRecord = find_user_or_abort((int) $params['id']);
+    $storedManagerUserId = normalize_entity_id($userRecord['manager_user_id'] ?? $userRecord['assigned_owner_user_id'] ?? null);
+    $managerUserId = normalize_entity_id(old('manager_user_id', (string) ($storedManagerUserId ?? '')));
+    $storedMemberStorageIds = user_assigned_storage_ids((int) $userRecord['id'], false);
+    $storedOwnedStorageIds = array_map('intval', array_column(Database::fetchAll(
+        'SELECT storage_id FROM user_storage_assignments WHERE user_id = :user_id AND access_role = "owner"',
+        ['user_id' => $userRecord['id']]
+    ), 'storage_id'));
+    $selectedStorageIds = array_values(array_unique(array_filter(array_map(
+        'intval',
+        (array) old('storage_ids', $storedMemberStorageIds)
+    ))));
+    $storedDefaultStorageId = normalize_entity_id(Database::scalar(
+        'SELECT storage_id FROM user_storage_assignments WHERE user_id = :user_id AND is_default = 1 LIMIT 1',
+        ['user_id' => $userRecord['id']]
+    ));
+    $defaultStorageId = normalize_entity_id(old('default_storage_id', (string) ($storedDefaultStorageId ?? '')));
 
     View::render('users/form', [
         'title' => 'Edit ' . $userRecord['name'],
@@ -55,12 +80,18 @@ function handle_users_edit_page(array $params): void
             'email' => old('email', $userRecord['email']),
             'position' => old('position', $userRecord['position'] ?: ($userRecord['role'] === 'owner' ? 'owner_operator' : ($userRecord['role'] === 'admin' ? 'general_admin' : 'staff'))),
             'role' => old('role', $userRecord['role']),
-            'assigned_owner_user_id' => old('assigned_owner_user_id', (string) ($userRecord['assigned_owner_user_id'] ?? '')),
+            'manager_user_id' => $managerUserId,
             'is_active' => (int) $userRecord['is_active'],
         ],
         'positionOptions' => user_position_options(),
         'roleOptions' => user_role_options(),
-        'ownerCandidates' => handover_request_owner_candidates_for_select(normalize_entity_id(old('assigned_owner_user_id', (string) ($userRecord['assigned_owner_user_id'] ?? '')))),
+        'managerCandidates' => manager_candidates_for_select($managerUserId, (int) $userRecord['id']),
+        'storageOptions' => all_storages_for_select($defaultStorageId),
+        'selectedStorageIds' => $selectedStorageIds,
+        'ownedStorageIds' => $storedOwnedStorageIds,
+        'defaultStorageId' => $defaultStorageId,
+        'canManageTeam' => Auth::isOwner() || Auth::hasPermission('team.manage'),
+        'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
         'permissionGroups' => permission_groups_for_form(
             is_array(old('permissions'))
                 ? sanitize_permission_input((array) old('permissions'))

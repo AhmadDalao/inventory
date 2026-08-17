@@ -16,6 +16,8 @@ function permission_catalog(): array
             'label' => 'Storages',
             'permissions' => [
                 'storages.view' => 'Open storage and warehouse pages.',
+                'storages.view_all' => 'View every storage instead of only assigned storages.',
+                'storages.assign_users' => 'Assign storage co-owners and staff members.',
                 'storages.create' => 'Create new storages and warehouses.',
                 'storages.edit' => 'Edit storage details.',
                 'storages.archive' => 'Delete and recover storages.',
@@ -165,6 +167,14 @@ function permission_catalog(): array
                 'users.disable' => 'Disable or restore users.',
                 'users.permissions' => 'Manage privilege checklists.',
                 'users.export' => 'Export the user list.',
+            ],
+        ],
+        'team' => [
+            'label' => 'Team Routing',
+            'permissions' => [
+                'team.view' => 'View employees directly assigned to the current manager.',
+                'team.activity.view' => 'View requests, handovers, and mobile stock actions from direct reports.',
+                'team.manage' => 'Assign or change an employee manager.',
             ],
         ],
         'mobile' => [

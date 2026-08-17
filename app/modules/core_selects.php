@@ -16,10 +16,34 @@ function all_storages_for_select(?int $selectedId = null, bool $includeSystem = 
     $conditions = [$includeSystem ? 'storages.is_active = 1' : '(storages.is_active = 1 AND storages.is_system = 0)'];
     $params = [];
 
-    if ($selectedId !== null) {
-        $conditions[] = 'storages.id = :selected_id';
-        $params['selected_id'] = $selectedId;
+    $currentUserId = (int) (Auth::user()['id'] ?? 0);
+    $activeScopeSql = '';
+    $selectedScopeSql = '';
+    if ($currentUserId > 0 && !user_can_view_all_storages($currentUserId)) {
+        $activeScopeSql = ' AND EXISTS (
+            SELECT 1
+            FROM user_storage_assignments visible_assignment
+            WHERE visible_assignment.storage_id = storages.id
+              AND visible_assignment.user_id = :active_visible_user_id
+        )';
+        $selectedScopeSql = ' AND EXISTS (
+            SELECT 1
+            FROM user_storage_assignments selected_visible_assignment
+            WHERE selected_visible_assignment.storage_id = storages.id
+              AND selected_visible_assignment.user_id = :selected_visible_user_id
+        )';
+        $params['active_visible_user_id'] = $currentUserId;
     }
+
+    if ($selectedId !== null) {
+        $conditions[] = '(storages.id = :selected_id' . $selectedScopeSql . ')';
+        $params['selected_id'] = $selectedId;
+        if ($selectedScopeSql !== '') {
+            $params['selected_visible_user_id'] = $currentUserId;
+        }
+    }
+
+    $conditions[0] = '(' . $conditions[0] . $activeScopeSql . ')';
 
     return Database::fetchAll(
         'SELECT storages.id,

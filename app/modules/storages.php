@@ -16,8 +16,16 @@ function handle_storages_create_submit(): void
         'storage_type' => (string) input('storage_type', 'storage'),
         'notes' => trim((string) input('notes')),
         'owner_user_id' => normalize_entity_id(input('owner_user_id')),
+        'owner_user_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('owner_user_ids', []))))),
+        'member_user_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('member_user_ids', []))))),
         'copy_contents_mode' => (string) input('copy_contents_mode', 'empty'),
     ];
+    $canAssignUsers = Auth::hasPermission('storages.assign_users');
+    if (!$canAssignUsers) {
+        $payload['owner_user_id'] = (int) $user['id'];
+        $payload['owner_user_ids'] = [(int) $user['id']];
+        $payload['member_user_ids'] = [];
+    }
 
     flash_old_input($payload + [
         'copy_storage_id' => $copySource ? (string) $copySource['id'] : '',
@@ -55,6 +63,26 @@ function handle_storages_create_submit(): void
         }
     }
 
+    if ($payload['owner_user_id']) {
+        $payload['owner_user_ids'][] = (int) $payload['owner_user_id'];
+        $payload['owner_user_ids'] = array_values(array_unique($payload['owner_user_ids']));
+    }
+
+    foreach ($payload['owner_user_ids'] as $ownerUserId) {
+        $candidate = Database::fetch('SELECT role, is_active FROM users WHERE id = :id LIMIT 1', ['id' => $ownerUserId]);
+        if (!$candidate || (int) $candidate['is_active'] !== 1 || !in_array((string) $candidate['role'], ['owner', 'admin'], true)) {
+            $errors[] = 'Every storage owner must be an active owner or admin.';
+            break;
+        }
+    }
+
+    foreach ($payload['member_user_ids'] as $memberUserId) {
+        if ((int) Database::scalar('SELECT COUNT(*) FROM users WHERE id = :id AND is_active = 1', ['id' => $memberUserId]) !== 1) {
+            $errors[] = 'Every assigned storage member must be an active user.';
+            break;
+        }
+    }
+
     if (active_storage_name_exists($payload['name'])) {
         $errors[] = 'An active location already uses this name.';
     }
@@ -82,6 +110,13 @@ function handle_storages_create_submit(): void
         );
 
         $storageId = Database::lastInsertId();
+        sync_storage_assignments(
+            $storageId,
+            (int) $payload['owner_user_id'],
+            $payload['owner_user_ids'],
+            $payload['member_user_ids'],
+            (int) $user['id']
+        );
 
         if ($copySource !== null) {
             if ($payload['copy_contents_mode'] === 'current_stock') {
@@ -122,12 +157,23 @@ function handle_storages_edit_submit(array $params): void
 
     $storage = find_storage_or_abort((int) $params['id']);
     $user = Auth::user();
+    if (!user_can_manage_storage((int) $user['id'], (int) $storage['id'])) {
+        abort(403, 'Only an assigned storage owner can edit this storage.');
+    }
     $payload = [
         'name' => trim((string) input('name')),
         'storage_type' => (string) input('storage_type', 'storage'),
         'notes' => trim((string) input('notes')),
         'owner_user_id' => normalize_entity_id(input('owner_user_id')),
+        'owner_user_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('owner_user_ids', []))))),
+        'member_user_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('member_user_ids', []))))),
     ];
+    $canAssignUsers = Auth::hasPermission('storages.assign_users');
+    if (!$canAssignUsers) {
+        $payload['owner_user_id'] = (int) $storage['owner_user_id'];
+        $payload['owner_user_ids'] = storage_owner_user_ids((int) $storage['id']);
+        $payload['member_user_ids'] = storage_assigned_user_ids((int) $storage['id'], 'member');
+    }
 
     flash_old_input($payload);
 
@@ -159,6 +205,26 @@ function handle_storages_edit_submit(array $params): void
         }
     }
 
+    if ($payload['owner_user_id']) {
+        $payload['owner_user_ids'][] = (int) $payload['owner_user_id'];
+        $payload['owner_user_ids'] = array_values(array_unique($payload['owner_user_ids']));
+    }
+
+    foreach ($payload['owner_user_ids'] as $ownerUserId) {
+        $candidate = Database::fetch('SELECT role, is_active FROM users WHERE id = :id LIMIT 1', ['id' => $ownerUserId]);
+        if (!$candidate || (int) $candidate['is_active'] !== 1 || !in_array((string) $candidate['role'], ['owner', 'admin'], true)) {
+            $errors[] = 'Every storage owner must be an active owner or admin.';
+            break;
+        }
+    }
+
+    foreach ($payload['member_user_ids'] as $memberUserId) {
+        if ((int) Database::scalar('SELECT COUNT(*) FROM users WHERE id = :id AND is_active = 1', ['id' => $memberUserId]) !== 1) {
+            $errors[] = 'Every assigned storage member must be an active user.';
+            break;
+        }
+    }
+
     if (active_storage_name_exists($payload['name'], (int) $storage['id'])) {
         $errors[] = 'An active location already uses this name.';
     }
@@ -168,24 +234,42 @@ function handle_storages_edit_submit(array $params): void
         redirect('/storages/' . $storage['id'] . '/edit');
     }
 
-    Database::execute(
-        'UPDATE storages
-         SET name = :name,
-             storage_type = :storage_type,
-             notes = :notes,
-             owner_user_id = :owner_user_id,
-             updated_by = :updated_by,
-             updated_at = NOW()
-         WHERE id = :id',
-        [
-            'name' => $payload['name'],
-            'storage_type' => $payload['storage_type'],
-            'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
-            'owner_user_id' => (int) $payload['owner_user_id'],
-            'updated_by' => $user['id'],
-            'id' => $storage['id'],
-        ]
-    );
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+    try {
+        Database::execute(
+            'UPDATE storages
+             SET name = :name,
+                 storage_type = :storage_type,
+                 notes = :notes,
+                 owner_user_id = :owner_user_id,
+                 updated_by = :updated_by,
+                 updated_at = NOW()
+             WHERE id = :id',
+            [
+                'name' => $payload['name'],
+                'storage_type' => $payload['storage_type'],
+                'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
+                'owner_user_id' => (int) $payload['owner_user_id'],
+                'updated_by' => $user['id'],
+                'id' => $storage['id'],
+            ]
+        );
+        sync_storage_assignments(
+            (int) $storage['id'],
+            (int) $payload['owner_user_id'],
+            $payload['owner_user_ids'],
+            $payload['member_user_ids'],
+            (int) $user['id']
+        );
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        flash('danger', $exception->getMessage());
+        redirect('/storages/' . $storage['id'] . '/edit');
+    }
 
     consume_old_input();
     flash('success', 'Storage updated.');
@@ -200,6 +284,9 @@ function handle_storages_status_submit(array $params): void
 
     $storage = find_storage_or_abort((int) $params['id']);
     $user = Auth::user();
+    if (!user_can_manage_storage((int) $user['id'], (int) $storage['id'])) {
+        abort(403, 'Only an assigned storage owner can archive or recover this storage.');
+    }
     $nextStatus = (int) $storage['is_active'] === 1 ? 0 : 1;
 
     if ($nextStatus === 0 && (int) $storage['stocked_item_count'] > 0) {

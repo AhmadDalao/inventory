@@ -160,17 +160,62 @@ foreach ($permissionGroups as $group) {
                                 <small>Admin gets operational access. Staff gets the simplified staff workflow.</small>
                             </label>
 
-                            <label class="field" data-assigned-owner-field <?= $selectedRole === 'staff' ? '' : 'hidden' ?>>
-                                <span>Assigned Storage Owner</span>
-                                <select name="assigned_owner_user_id" <?= $selectedRole === 'staff' ? '' : 'disabled' ?>>
-                                    <option value="">No fixed owner</option>
-                                    <?php foreach ($ownerCandidates as $ownerCandidate): ?>
-                                        <option value="<?= e((string) $ownerCandidate['id']) ?>" <?= selected((string) $ownerCandidate['id'], (string) ($userRecord['assigned_owner_user_id'] ?? '')) ?>>
-                                            <?= e((string) $ownerCandidate['name']) ?> · <?= e(user_role_label((string) $ownerCandidate['role'])) ?>
+                            <label class="field">
+                                <span>Manager</span>
+                                <select name="manager_user_id" <?= $canManageTeam ? '' : 'disabled' ?>>
+                                    <option value="">No assigned manager</option>
+                                    <?php foreach ($managerCandidates as $managerCandidate): ?>
+                                        <option value="<?= e((string) $managerCandidate['id']) ?>" <?= selected((string) $managerCandidate['id'], (string) ($userRecord['manager_user_id'] ?? '')) ?>>
+                                            <?= e((string) $managerCandidate['name']) ?> · <?= e(user_position_label((string) ($managerCandidate['position'] ?? ''), (string) $managerCandidate['role'])) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <small>Used for staff handover requests only.</small>
+                                <?php if (!$canManageTeam): ?><input type="hidden" name="manager_user_id" value="<?= e((string) ($userRecord['manager_user_id'] ?? '')) ?>"><?php endif; ?>
+                                <small>This manager receives the employee's request and mobile stock notifications. Storage ownership stays separate.</small>
+                            </label>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="panel settings-panel settings-accordion-panel" open>
+                    <summary class="settings-accordion-summary">
+                        <span>
+                            <span class="eyebrow">Control Group</span>
+                            <strong>Storage Scope</strong>
+                            <small>Choose exactly which storages this user can see on the website and mobile app.</small>
+                        </span>
+                        <span class="settings-accordion-meta"><?= number_format(count(array_unique(array_merge($selectedStorageIds, $ownedStorageIds)))) ?> assigned</span>
+                    </summary>
+                    <div class="settings-accordion-body">
+                        <div class="settings-field-grid access-field-grid">
+                            <fieldset class="field settings-span-full">
+                                <legend>Assigned Storages</legend>
+                                <div class="checkbox-grid">
+                                    <?php foreach ($storageOptions as $storageOption): ?>
+                                        <?php
+                                        $storageId = (int) $storageOption['id'];
+                                        $isOwned = in_array($storageId, $ownedStorageIds, true);
+                                        $isChecked = $isOwned || in_array($storageId, $selectedStorageIds, true);
+                                        ?>
+                                        <label class="checkbox-row">
+                                            <input type="checkbox" name="storage_ids[]" value="<?= $storageId ?>" <?= $isChecked ? 'checked' : '' ?> <?= (!$canAssignStorages || $isOwned) ? 'disabled' : '' ?>>
+                                            <span><?= e((string) $storageOption['name']) ?> · <?= e(ucfirst((string) $storageOption['storage_type'])) ?><?= $isOwned ? ' · Owner' : '' ?></span>
+                                        </label>
+                                        <?php if ($isChecked && (!$canAssignStorages || $isOwned)): ?><input type="hidden" name="storage_ids[]" value="<?= $storageId ?>"><?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                                <small>Owner assignments are managed from the storage page and cannot be removed here.</small>
+                            </fieldset>
+                            <label class="field">
+                                <span>Default Storage</span>
+                                <select name="default_storage_id" <?= $canAssignStorages ? '' : 'disabled' ?>>
+                                    <option value="">No default storage</option>
+                                    <?php foreach ($storageOptions as $storageOption): ?>
+                                        <option value="<?= (int) $storageOption['id'] ?>" <?= selected((string) $storageOption['id'], (string) ($defaultStorageId ?? '')) ?>><?= e((string) $storageOption['name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (!$canAssignStorages): ?><input type="hidden" name="default_storage_id" value="<?= e((string) ($defaultStorageId ?? '')) ?>"><?php endif; ?>
+                                <small>Used as the first storage in mobile scans and stock forms.</small>
                             </label>
                         </div>
                     </div>

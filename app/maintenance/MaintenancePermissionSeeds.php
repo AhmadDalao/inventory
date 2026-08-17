@@ -356,4 +356,41 @@ trait MaintenancePermissionSeeds
 
         self::setMaintenanceSetting($settingKey, (string) (count($staffRows) + count($approverRows)));
     }
+
+    private static function seedTeamStoragePermissions(): void
+    {
+        $settingKey = 'maintenance.seed_team_storage_permissions_v1';
+
+        if (self::maintenanceSettingExists($settingKey)) {
+            return;
+        }
+
+        $adminPermissions = [
+            'storages.view_all',
+            'storages.assign_users',
+            'team.view',
+            'team.activity.view',
+            'team.manage',
+        ];
+        $staffPermissions = ['storages.view', 'items.view'];
+        $granted = 0;
+
+        foreach (Database::fetchAll('SELECT id, role FROM users WHERE is_active = 1 AND role IN ("admin", "staff")') as $row) {
+            $permissions = (string) $row['role'] === 'admin' ? $adminPermissions : $staffPermissions;
+            foreach ($permissions as $permission) {
+                Database::execute(
+                    'INSERT INTO user_permissions (user_id, permission_key, created_by, created_at)
+                     VALUES (:user_id, :permission_key, NULL, NOW())
+                     ON DUPLICATE KEY UPDATE permission_key = VALUES(permission_key)',
+                    [
+                        'user_id' => (int) $row['id'],
+                        'permission_key' => $permission,
+                    ]
+                );
+                $granted++;
+            }
+        }
+
+        self::setMaintenanceSetting($settingKey, (string) $granted);
+    }
 }

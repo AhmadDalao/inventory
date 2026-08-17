@@ -53,7 +53,8 @@
                 <th>Email</th>
                 <th>Position</th>
                 <th>Access</th>
-                <th>Assigned Owner</th>
+                <th>Manager</th>
+                <th>Storage Scope</th>
                 <th>Privileges</th>
                 <th>Status</th>
                 <th>Last Login</th>
@@ -64,7 +65,7 @@
             <tbody>
             <?php if ($users === []): ?>
                 <tr>
-                    <td colspan="10" class="empty-cell">No users found.</td>
+                    <td colspan="11" class="empty-cell">No users found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($users as $userRow): ?>
@@ -79,10 +80,12 @@
                             <?= e(user_role_label((string) $userRow['role'])) ?>
                         </span>
                     </td>
-                    <td data-label="Assigned Owner">
-                        <?= ($userRow['role'] ?? '') === 'staff'
-                            ? e((string) ($userRow['assigned_owner_name'] ?: 'Not fixed'))
-                            : 'N/A' ?>
+                    <td data-label="Manager">
+                        <?= e((string) ($userRow['manager_name'] ?: 'Not assigned')) ?>
+                    </td>
+                    <td data-label="Storage Scope">
+                        <strong><?= number_format((int) ($userRow['storage_count'] ?? 0)) ?></strong>
+                        <div class="tiny-copy"><?= e((string) ($userRow['storage_names'] ?: 'No assigned storage')) ?></div>
                     </td>
                     <td data-label="Privileges">
                         <strong><?= number_format((int) ($userRow['permission_count'] ?? 0)) ?></strong>

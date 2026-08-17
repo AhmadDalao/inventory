@@ -29,6 +29,7 @@ function request_summary_rows(array $filters): array
         "SELECT r.*,
                 requester.name AS requester_name,
                 approver.name AS approver_name,
+                manager.name AS manager_name,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
                 destination_storage.name AS destination_storage_name,
@@ -38,6 +39,7 @@ function request_summary_rows(array $filters): array
          FROM item_requests r
          INNER JOIN users requester ON requester.id = r.requester_user_id
          INNER JOIN users approver ON approver.id = r.approver_user_id
+         LEFT JOIN users manager ON manager.id = r.manager_user_id
          INNER JOIN storages source_storage ON source_storage.id = r.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = r.destination_storage_id
          LEFT JOIN (

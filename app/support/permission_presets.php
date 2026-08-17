@@ -12,6 +12,8 @@ function default_permissions_for_role(string $role): array
     if ($role === 'staff') {
         return [
             'dashboard.view',
+            'storages.view',
+            'items.view',
             'assets.view',
             'requests.view',
             'requests.create',
@@ -27,6 +29,8 @@ function default_permissions_for_role(string $role): array
     return [
         'dashboard.view',
         'storages.view',
+        'storages.view_all',
+        'storages.assign_users',
         'storages.create',
         'storages.edit',
         'storages.archive',
@@ -91,6 +95,9 @@ function default_permissions_for_role(string $role): array
         'audit.export',
         'email_logs.view',
         'email_logs.export',
+        'team.view',
+        'team.activity.view',
+        'team.manage',
     ];
 }
 
@@ -104,6 +111,7 @@ function default_permissions_for_position(string $position): array
             return [
                 'dashboard.view',
                 'storages.view',
+                'storages.view_all',
                 'storages.export',
                 'items.view',
                 'items.export',
@@ -143,6 +151,7 @@ function default_permissions_for_position(string $position): array
             return [
                 'dashboard.view',
                 'storages.view',
+                'storages.view_all',
                 'storages.export',
                 'items.view',
                 'items.export',
@@ -178,6 +187,8 @@ function default_permissions_for_position(string $position): array
             return [
                 'dashboard.view',
                 'storages.view',
+                'storages.view_all',
+                'storages.assign_users',
                 'storages.create',
                 'storages.edit',
                 'storages.archive',
@@ -247,12 +258,16 @@ function default_permissions_for_position(string $position): array
                 'audit.export',
                 'email_logs.view',
                 'email_logs.export',
+                'team.view',
+                'team.activity.view',
+                'team.manage',
             ];
 
         case 'storage_manager':
             return [
                 'dashboard.view',
                 'storages.view',
+                'storages.assign_users',
                 'storages.create',
                 'storages.edit',
                 'storages.copy',
@@ -303,11 +318,16 @@ function default_permissions_for_position(string $position): array
                 'stocktakes.export',
                 'reorder.view',
                 'labels.view',
+                'team.view',
+                'team.activity.view',
+                'team.manage',
             ];
 
         case 'reception_staff':
             return [
                 'dashboard.view',
+                'storages.view',
+                'items.view',
                 'assets.view',
                 'requests.view',
                 'requests.create',

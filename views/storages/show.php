@@ -1,5 +1,18 @@
 <?php
 $storageTypeLabel = storage_type_label($storage['storage_type']);
+$assignmentRows = $assignmentRows ?? [];
+$storageOwners = array_values(array_filter(
+    $assignmentRows,
+    static fn (array $assignment): bool => (string) ($assignment['access_role'] ?? 'member') === 'owner'
+));
+$storageMembers = array_values(array_filter(
+    $assignmentRows,
+    static fn (array $assignment): bool => (string) ($assignment['access_role'] ?? 'member') === 'member'
+));
+$ownerNames = array_values(array_unique(array_filter(array_map(
+    static fn (array $assignment): string => trim((string) ($assignment['name'] ?? '')),
+    $storageOwners
+))));
 ?>
 
 <section class="page-head">
@@ -36,8 +49,8 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                     </span>
                     <h4><?= e($storageTypeLabel) ?></h4>
                     <p><?= e($storage['notes'] ?: 'No notes for this location yet.') ?></p>
-                    <?php if (!empty($storage['owner_name'])): ?>
-                        <p class="tiny-copy">Owned by <?= e((string) $storage['owner_name']) ?></p>
+                    <?php if ($ownerNames !== []): ?>
+                        <p class="tiny-copy">Owned by <?= e(implode(', ', $ownerNames)) ?></p>
                     <?php endif; ?>
                     <p class="tiny-copy">Updated <?= e(format_datetime_display($storage['updated_at'])) ?></p>
                 </div>
@@ -91,8 +104,32 @@ $storageTypeLabel = storage_type_label($storage['storage_type']);
                 <dd>This <?= strtolower($storageTypeLabel) ?> can hold many different items. It currently has <?= number_format($metrics['contained_items']) ?> item<?= $metrics['contained_items'] === 1 ? '' : 's' ?> assigned to it.</dd>
             </div>
             <div>
-                <dt>Owner Admin</dt>
-                <dd><?= !empty($storage['owner_name']) ? e((string) $storage['owner_name']) . (!empty($storage['owner_email']) ? ' · ' . e((string) $storage['owner_email']) : '') : 'No owner assigned' ?></dd>
+                <dt>Storage Owners</dt>
+                <dd>
+                    <?php if ($storageOwners === []): ?>
+                        No owner assigned
+                    <?php else: ?>
+                        <?= implode('<br>', array_map(
+                            static fn (array $assignment): string => e((string) $assignment['name'])
+                                . (!empty($assignment['email']) ? ' · ' . e((string) $assignment['email']) : ''),
+                            $storageOwners
+                        )) ?>
+                    <?php endif; ?>
+                </dd>
+            </div>
+            <div>
+                <dt>Assigned Staff</dt>
+                <dd>
+                    <?php if ($storageMembers === []): ?>
+                        No staff assigned
+                    <?php else: ?>
+                        <?= implode('<br>', array_map(
+                            static fn (array $assignment): string => e((string) $assignment['name'])
+                                . (!empty($assignment['email']) ? ' · ' . e((string) $assignment['email']) : ''),
+                            $storageMembers
+                        )) ?>
+                    <?php endif; ?>
+                </dd>
             </div>
             <div>
                 <dt>Notes</dt>

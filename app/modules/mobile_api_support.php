@@ -337,6 +337,53 @@ function mobile_api_storage_ids(array $session): array
     ), 'storage_id'));
 }
 
+function mobile_api_manager_payload(int $userId): ?array
+{
+    $manager = manager_user_for($userId);
+    if (!$manager) {
+        return null;
+    }
+
+    return [
+        'id' => (int) $manager['id'],
+        'name' => (string) $manager['name'],
+        'role' => (string) $manager['role'],
+        'position' => (string) ($manager['position'] ?? ''),
+    ];
+}
+
+function mobile_api_storage_access_roles(array $session, ?array $storageIds = null): array
+{
+    $storageIds ??= mobile_api_storage_ids($session);
+    $storageIds = array_values(array_unique(array_filter(
+        array_map('intval', $storageIds),
+        static fn (int $storageId): bool => $storageId > 0
+    )));
+    if ($storageIds === []) {
+        return [];
+    }
+
+    if (($session['role'] ?? '') === 'owner') {
+        return array_fill_keys($storageIds, 'owner');
+    }
+
+    $roles = array_fill_keys($storageIds, 'member');
+    $rows = Database::fetchAll(
+        'SELECT storage_id, access_role
+         FROM user_storage_assignments
+         WHERE user_id = ? AND storage_id IN (' . implode(',', array_fill(0, count($storageIds), '?')) . ')',
+        array_merge([(int) $session['user_id']], $storageIds)
+    );
+    foreach ($rows as $row) {
+        $storageId = (int) $row['storage_id'];
+        $roles[$storageId] = (string) ($row['access_role'] ?? 'member') === 'owner' ? 'owner' : 'member';
+    }
+
+    ksort($roles);
+
+    return $roles;
+}
+
 function mobile_api_require_storage(array $session, int $storageId): void
 {
     if ($storageId <= 0 || !in_array($storageId, mobile_api_storage_ids($session), true)) {
@@ -407,15 +454,17 @@ function mobile_api_operation(array $session, string $type, array $payload, call
 
     $pdo = Database::connection();
     $pdo->beginTransaction();
+    $managerUserId = manager_user_id_for((int) $session['user_id']);
     try {
         $startCursor = inventory_latest_event_cursor();
         $storageId = mobile_api_operation_storage_id($payload);
         Database::execute(
-            'INSERT INTO mobile_operations (client_operation_id, user_id, device_session_id, operation_type, storage_id, status, request_json, ip_address, app_version, created_at)
-             VALUES (:operation_id, :user_id, :device_id, :operation_type, :storage_id, "pending", :request_json, :ip, :app_version, NOW())',
+            'INSERT INTO mobile_operations (client_operation_id, user_id, manager_user_id, device_session_id, operation_type, storage_id, status, request_json, ip_address, app_version, created_at)
+             VALUES (:operation_id, :user_id, :manager_user_id, :device_id, :operation_type, :storage_id, "pending", :request_json, :ip, :app_version, NOW())',
             [
                 'operation_id' => $operationId,
                 'user_id' => $session['user_id'],
+                'manager_user_id' => $managerUserId,
                 'device_id' => $session['id'],
                 'operation_type' => $type,
                 'storage_id' => $storageId,
@@ -451,6 +500,17 @@ function mobile_api_operation(array $session, string $type, array $payload, call
             ]
         );
         $pdo->commit();
+        try {
+            mobile_api_notify_operation_observers(
+                $session,
+                $type,
+                $payload,
+                $entityType !== null ? (string) $entityType : null,
+                $entityId !== null ? (int) $entityId : null
+            );
+        } catch (Throwable $notificationException) {
+            error_log('[mobile-api] Could not notify operation observers: ' . $notificationException->getMessage());
+        }
         return $result;
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
@@ -477,15 +537,16 @@ function mobile_api_operation(array $session, string $type, array $payload, call
             if (!$existingFailure) {
                 Database::execute(
                     'INSERT INTO mobile_operations (
-                        client_operation_id, user_id, device_session_id, operation_type, storage_id, status,
+                        client_operation_id, user_id, manager_user_id, device_session_id, operation_type, storage_id, status,
                         request_json, error_code, error_message, ip_address, app_version, created_at, completed_at
                      ) VALUES (
-                        :operation_id, :user_id, :device_id, :operation_type, :storage_id, :status,
+                        :operation_id, :user_id, :manager_user_id, :device_id, :operation_type, :storage_id, :status,
                         :request_json, :error_code, :error_message, :ip, :app_version, NOW(), NOW()
                      )',
                     [
                         'operation_id' => $operationId,
                         'user_id' => $session['user_id'],
+                        'manager_user_id' => $managerUserId,
                         'device_id' => $session['id'],
                         'operation_type' => $type,
                         'storage_id' => mobile_api_operation_storage_id($payload),
@@ -575,6 +636,104 @@ function mobile_api_operation_storage_id(array $payload): ?int
     }
 
     return null;
+}
+
+function mobile_api_operation_storage_ids(array $payload): array
+{
+    $storageIds = [];
+    foreach (['storage_id', 'source_storage_id', 'destination_storage_id'] as $key) {
+        if (isset($payload[$key]) && (int) $payload[$key] > 0) {
+            $storageIds[] = (int) $payload[$key];
+        }
+    }
+
+    $lines = $payload['lines'] ?? [];
+    if (is_array($lines)) {
+        foreach ($lines as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+            foreach (['storage_id', 'source_storage_id', 'destination_storage_id'] as $key) {
+                if (isset($line[$key]) && (int) $line[$key] > 0) {
+                    $storageIds[] = (int) $line[$key];
+                }
+            }
+        }
+    }
+
+    return array_values(array_unique(array_filter($storageIds)));
+}
+
+function mobile_api_notify_operation_observers(
+    array $session,
+    string $type,
+    array $payload,
+    ?string $entityType,
+    ?int $entityId
+): void {
+    $actorUserId = (int) ($session['user_id'] ?? 0);
+    if ($actorUserId <= 0) {
+        return;
+    }
+
+    $actorName = trim((string) ($session['user_name'] ?? $session['name'] ?? ''));
+    if ($actorName === '') {
+        $actorName = (string) (Database::scalar(
+            'SELECT name FROM users WHERE id = :id LIMIT 1',
+            ['id' => $actorUserId]
+        ) ?: 'A staff member');
+    }
+
+    $storageIds = mobile_api_operation_storage_ids($payload);
+    $relatedUserIds = [];
+    $reference = '';
+    $actionUrl = url('/movements');
+    $contextType = $entityType;
+    $contextId = $entityId;
+
+    if ($entityType === 'handover' && $entityId !== null && $entityId > 0) {
+        $handover = Database::fetch(
+            'SELECT handover_number, source_storage_id, destination_storage_id, recipient_user_id, created_by
+             FROM handovers WHERE id = :id LIMIT 1',
+            ['id' => $entityId]
+        );
+        if ($handover) {
+            $reference = (string) ($handover['handover_number'] ?? '');
+            $storageIds = array_merge($storageIds, array_filter([
+                (int) ($handover['source_storage_id'] ?? 0),
+                (int) ($handover['destination_storage_id'] ?? 0),
+            ]));
+            $relatedUserIds = array_filter([
+                (int) ($handover['recipient_user_id'] ?? 0),
+                (int) ($handover['created_by'] ?? 0),
+            ]);
+            $actionUrl = url('/handovers/' . $entityId);
+        }
+    }
+
+    $label = match (true) {
+        str_contains($type, 'usage') => 'reported stock usage',
+        str_contains($type, 'restock') => 'added stock',
+        str_contains($type, 'transfer') => 'started a stock transfer',
+        str_contains($type, 'handover') => 'updated a handover',
+        str_contains($type, 'custody') => 'updated staff custody',
+        default => 'completed a mobile inventory action',
+    };
+    $title = $actorName . ' ' . $label;
+    $message = $title . ($reference !== '' ? ' for ' . $reference : '') . '.';
+
+    notify_workflow_observers(
+        $actorUserId,
+        array_values(array_unique($storageIds)),
+        'mobile_operation_' . preg_replace('/[^a-z0-9]+/i', '_', strtolower($type)),
+        $title,
+        $message,
+        $actionUrl,
+        $contextType,
+        $contextId,
+        [],
+        $relatedUserIds
+    );
 }
 
 function mobile_api_completed_operation(array $session, array $payload): ?array

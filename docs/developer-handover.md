@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-07-28
+Updated: 2026-08-17
 
 ## 1. What This System Is
 
@@ -29,7 +29,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/Maintenance.php` is the schema/bootstrap orchestrator. Boot setup, reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
-- The current manifest contains 11 domain groups and 151 focused modules.
+- The current manifest contains 12 domain groups and 161 focused modules.
 
 Do not add new code to these compatibility loaders:
 
@@ -133,7 +133,8 @@ When adding frontend behavior:
 | `app/modules/inventory.php` | Compatibility shim for older direct includes. New code should use `item_support.php` and `items.php`. |
 | `app/modules/storage_support.php` | Compatibility loader for storage/location helpers. New storage logic belongs in the focused storage modules below. |
 | `app/modules/storage_filters.php` | Storage list filters and shared storage SQL where clauses. |
-| `app/modules/storage_ownership.php` | Storage owner lookup, owned-storage selectors, active-name checks, storage type labels, and copy-source name helpers. |
+| `app/modules/storage_ownership.php` | Global-owner checks, multi-owner/member storage assignments, assigned/default storage scope, co-owner management authority, and storage selector helpers. |
+| `app/modules/team_access.php` | Staff-to-manager reporting lines, cycle prevention, direct-report scope, workflow observer routing, and deduplicated manager/storage-owner/global-owner notifications. |
 | `app/modules/storage_lookup.php` | Storage detail lookup/404 handling and summary metrics for one storage. |
 | `app/modules/storage_inventory.php` | Storage item rows and storage summary list metrics. |
 | `app/modules/storage_form_payloads.php` | Storage create/edit form default payloads. |
@@ -475,6 +476,29 @@ Owner has full access. Admin access is controlled by permission flags and positi
 
 Status override must stay limited to owner/super admin because it can change workflow state outside the normal cycle.
 
+### Team Routing, Shared Storage Ownership, And Owner Resolution
+
+The reporting line and stock authority are deliberately separate:
+
+- `users.manager_user_id` assigns one active owner/admin as the employee's direct manager. Manager loops and self-management are rejected.
+- Managers can open direct-report requests and handovers and receive notifications for their staff's web/mobile actions when they have the relevant view permission.
+- Manager visibility is observational. It does not grant request approval, handover approval, receipt confirmation, or stock authority unless that manager is also an owner of the affected source/destination storage.
+- `user_storage_assignments.access_role` is the storage access authority. `owner` can manage/approve for that storage when the matching permission exists; `member` can see/use only the assigned storage within their permissions.
+- A storage can have several co-owners and several staff members. `storages.owner_user_id` remains the compatibility primary owner, but it is not the complete ownership list.
+- Staff catalog, quantity, Scan Center, request, handover, and mobile API scopes are restricted to assigned storages. The default storage must also be assigned.
+- Workflow notifications are deduplicated and routed to direct participants, the acting employee's manager, relevant storage co-owners, and all active global Owners. The actor is excluded from their own alert.
+- New requests, handovers, and mobile operations snapshot `manager_user_id` so the historical routing remains explainable if the employee's manager later changes.
+
+Global Owner resolution is not a raw status dropdown. Owner-only recovery, reopen, close, cancel, and void actions must call the purpose-aware stock service, preserve movements/files, write an audit entry, notify affected users, and refuse any transition that would make a location negative. Regular admins never receive these controls through a permission checkbox.
+
+Relevant permissions:
+
+- `storages.view_all`: see every active storage instead of only assignments.
+- `storages.assign_users`: manage storage co-owners and members.
+- `team.view`: see assigned direct reports.
+- `team.activity.view`: see direct-report workflow/mobile activity.
+- `team.manage`: assign or change reporting lines.
+
 Default admin purchase boundaries are intentional:
 
 - A default admin without `purchases.files` cannot delete protected purchase documents.
@@ -608,6 +632,8 @@ Latest split checkpoint:
 - Request detail lookup lives in `app/modules/request_lookup.php`.
 - Request line and list queries live in `app/modules/request_queries.php`.
 - Request lifecycle guard rules live in `app/modules/request_guards.php`.
+- Team reporting and workflow observer routing live in `app/modules/team_access.php`.
+- Multi-owner/member storage authority and assigned-storage scope live in `app/modules/storage_ownership.php`.
 - Request transit and receipt stock movement helpers live in `app/modules/request_inventory.php`.
 - Documentation landing cards and department guides live in `app/modules/documentation_guides.php`.
 - Long documentation page sections live in `app/modules/documentation_content.php`.
@@ -757,6 +783,8 @@ The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inv
 - `app/modules/mobile_api_auth.php`: login, rotating refresh, logout, device registration, and revocation checks.
 - `app/modules/mobile_usage_reasons.php`: immutable reason codes, owner-controlled labels/order/active state, legacy-code normalization, and Other-description validation.
 - `app/modules/mobile_api_inventory.php`: bootstrap, sync cursors/tombstones, assigned storages, item lookup, and balances.
+- `app/modules/team_access.php`: direct-manager identity and manager/owner observer notification routing shared by web and mobile workflows.
+- `app/modules/storage_ownership.php`: assigned-storage visibility plus member/co-owner access roles returned to mobile clients.
 - `app/modules/inventory_events.php`: monotonic stock/workflow change ledger used by mobile and browser synchronization.
 - `app/modules/web_realtime.php`: permission-safe browser differential sync payloads.
 - `app/modules/mobile_api_movements.php`: usage, privileged restock, atomic batches, protected proofs, and balance conflicts.

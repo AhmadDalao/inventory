@@ -15,15 +15,36 @@ function visible_request_scope(string $alias = 'r'): array
 {
     $user = Auth::user();
 
-    if ($user === null || Auth::isOwner() || Auth::hasPermission('requests.approve')) {
+    if ($user === null || Auth::isOwner()) {
         return ['', []];
     }
 
+    $userId = (int) $user['id'];
+
     return [
-        " AND ({$alias}.requester_user_id = :request_scope_requester_user_id OR {$alias}.approver_user_id = :request_scope_approver_user_id)",
+        " AND (
+            {$alias}.requester_user_id = :request_scope_requester_user_id
+            OR {$alias}.approver_user_id = :request_scope_approver_user_id
+            OR {$alias}.manager_user_id = :request_scope_manager_user_id
+            OR EXISTS (
+                SELECT 1 FROM user_storage_assignments request_source_owner
+                WHERE request_source_owner.storage_id = {$alias}.source_storage_id
+                  AND request_source_owner.user_id = :request_scope_source_owner_user_id
+                  AND request_source_owner.access_role = 'owner'
+            )
+            OR EXISTS (
+                SELECT 1 FROM user_storage_assignments request_destination_owner
+                WHERE request_destination_owner.storage_id = {$alias}.destination_storage_id
+                  AND request_destination_owner.user_id = :request_scope_destination_owner_user_id
+                  AND request_destination_owner.access_role = 'owner'
+            )
+        )",
         [
-            'request_scope_requester_user_id' => (int) $user['id'],
-            'request_scope_approver_user_id' => (int) $user['id'],
+            'request_scope_requester_user_id' => $userId,
+            'request_scope_approver_user_id' => $userId,
+            'request_scope_manager_user_id' => $userId,
+            'request_scope_source_owner_user_id' => $userId,
+            'request_scope_destination_owner_user_id' => $userId,
         ],
     ];
 }

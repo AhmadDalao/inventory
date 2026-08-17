@@ -11,10 +11,16 @@ function handle_storages_index(): void
     $filters = storage_filters();
     $storages = storage_summaries($filters);
 
-    $counts = [
-        'active' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1'),
-        'archived' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 0'),
-    ];
+    $countFilters = $filters;
+    $countFilters['search'] = '';
+    $countFilters['type'] = '';
+    $countFilters['storage_id'] = null;
+    $counts = [];
+    foreach (['active', 'archived'] as $status) {
+        $countFilters['status'] = $status;
+        [$countWhere, $countParams] = build_storage_where($countFilters);
+        $counts[$status] = (int) Database::scalar('SELECT COUNT(*) FROM storages s ' . $countWhere, $countParams);
+    }
 
     View::render('storages/index', [
         'title' => site_setting('page.storages', 'Storages'),
@@ -31,6 +37,10 @@ function handle_storages_show(array $params): void
     Auth::requirePermission('storages.view');
 
     $storage = find_storage_or_abort((int) $params['id']);
+    $currentUserId = (int) (Auth::user()['id'] ?? 0);
+    if (!user_can_view_storage($currentUserId, (int) $storage['id'])) {
+        abort(403, 'You are not assigned to this storage.');
+    }
     $items = storage_items((int) $storage['id']);
 
     $metrics = [
@@ -55,6 +65,7 @@ function handle_storages_show(array $params): void
         'storage' => $storage,
         'items' => $items,
         'metrics' => $metrics,
+        'assignmentRows' => storage_assignment_rows((int) $storage['id']),
         'purchaseHistory' => function_exists('purchase_history_for_storage') ? purchase_history_for_storage((int) $storage['id']) : [],
     ]);
 }
@@ -65,13 +76,25 @@ function handle_storages_create_page(): void
     Auth::requirePermission('storages.create');
     $copySource = requested_storage_copy_source();
     $currentUser = Auth::user();
+    $currentUserId = (int) ($currentUser['id'] ?? 0);
+    $defaultOwnerIds = $copySource ? storage_owner_user_ids((int) $copySource['id']) : [$currentUserId];
+    $defaultMemberIds = $copySource ? storage_assigned_user_ids((int) $copySource['id'], 'member') : [];
+    $selectedOwnerIds = array_map('intval', (array) old('owner_user_ids', $defaultOwnerIds));
+    $selectedMemberIds = array_map('intval', (array) old('member_user_ids', $defaultMemberIds));
 
     View::render('storages/form', [
         'title' => 'Create Storage',
         'mode' => 'create',
         'storage' => default_storage_payload($copySource),
         'copySource' => $copySource,
-        'ownerCandidates' => admin_owner_users_for_select((int) ($currentUser['id'] ?? 0)),
+        'ownerCandidates' => admin_owner_users_for_select($currentUserId),
+        'memberCandidates' => array_values(array_filter(
+            active_users_for_select(),
+            static fn (array $candidate): bool => (string) ($candidate['role'] ?? '') !== 'owner'
+        )),
+        'selectedOwnerIds' => $selectedOwnerIds,
+        'selectedMemberIds' => $selectedMemberIds,
+        'canAssignUsers' => Auth::hasPermission('storages.assign_users'),
     ]);
 }
 
@@ -81,6 +104,12 @@ function handle_storages_edit_page(array $params): void
     Auth::requirePermission('storages.edit');
 
     $storage = find_storage_or_abort((int) $params['id']);
+    $currentUserId = (int) (Auth::user()['id'] ?? 0);
+    if (!user_can_manage_storage($currentUserId, (int) $storage['id'])) {
+        abort(403, 'Only an assigned storage owner can edit this storage.');
+    }
+    $selectedOwnerIds = array_map('intval', (array) old('owner_user_ids', storage_owner_user_ids((int) $storage['id'])));
+    $selectedMemberIds = array_map('intval', (array) old('member_user_ids', storage_assigned_user_ids((int) $storage['id'], 'member')));
 
     View::render('storages/form', [
         'title' => 'Edit ' . $storage['name'],
@@ -101,5 +130,12 @@ function handle_storages_edit_page(array $params): void
         ],
         'copySource' => null,
         'ownerCandidates' => admin_owner_users_for_select((int) ($storage['owner_user_id'] ?? 0)),
+        'memberCandidates' => array_values(array_filter(
+            active_users_for_select(),
+            static fn (array $candidate): bool => (string) ($candidate['role'] ?? '') !== 'owner'
+        )),
+        'selectedOwnerIds' => $selectedOwnerIds,
+        'selectedMemberIds' => $selectedMemberIds,
+        'canAssignUsers' => Auth::hasPermission('storages.assign_users'),
     ]);
 }

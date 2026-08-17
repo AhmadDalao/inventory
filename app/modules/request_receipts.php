@@ -155,26 +155,30 @@ function handle_requests_receive_submit(array $params): void
     }
 
     if ((string) $request['status'] === 'receipt_review' || $hasVariance) {
-        create_notification(
-            (int) $request['approver_user_id'],
+        notify_workflow_observers(
+            (int) ($user['id'] ?? 0),
+            [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
             'request_receipt_review',
             'Receipt report ready for ' . $request['request_number'],
             ($user['name'] ?? 'Requester') . ' reported actual received quantities for review.',
             url('/requests/' . $request['id']),
             'request',
             (int) $request['id'],
-            (int) ($user['id'] ?? 0)
+            [],
+            [(int) ($request['requester_user_id'] ?? 0)]
         );
     } else {
-        create_notification(
-            (int) $request['approver_user_id'],
+        notify_workflow_observers(
+            (int) ($user['id'] ?? 0),
+            [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
             'request_completed',
             'Request ' . $request['request_number'] . ' completed',
             ($user['name'] ?? 'Requester') . ' confirmed exact receipt.',
             url('/requests/' . $request['id']),
             'request',
             (int) $request['id'],
-            (int) ($user['id'] ?? 0)
+            [],
+            [(int) ($request['requester_user_id'] ?? 0)]
         );
     }
 
@@ -263,15 +267,17 @@ function handle_requests_confirm_receipt_submit(array $params): void
         redirect('/requests/' . $request['id']);
     }
 
-    create_notification(
-        (int) $request['requester_user_id'],
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($request['requester_user_id'] ?? 0)],
+        [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
         'request_receipt_confirmed',
         'Receipt confirmed for ' . $request['request_number'],
         ($user['name'] ?? 'Approver') . ' approved the reported received quantities.',
         url('/requests/' . $request['id']),
         'request',
         (int) $request['id'],
-        (int) ($user['id'] ?? 0)
+        [(int) ($request['requester_user_id'] ?? 0)]
     );
 
     if (request_wants_json()) {

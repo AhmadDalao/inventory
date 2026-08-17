@@ -126,15 +126,38 @@ function visible_handover_scope(string $alias = 'h'): array
 {
     $user = Auth::user();
 
-    if ($user === null || Auth::isOwner() || !Auth::isStaff()) {
+    if ($user === null || Auth::isOwner() || Auth::hasPermission('storages.view_all')) {
         return ['', []];
     }
 
+    $userId = (int) $user['id'];
+
     return [
-        " AND ({$alias}.created_by = :handover_scope_created_by_user_id OR {$alias}.recipient_user_id = :handover_scope_recipient_user_id)",
+        " AND (
+            {$alias}.created_by = :handover_scope_created_by_user_id
+            OR {$alias}.recipient_user_id = :handover_scope_recipient_user_id
+            OR {$alias}.approver_user_id = :handover_scope_approver_user_id
+            OR {$alias}.manager_user_id = :handover_scope_manager_user_id
+            OR EXISTS (
+                SELECT 1 FROM user_storage_assignments handover_source_owner
+                WHERE handover_source_owner.storage_id = {$alias}.source_storage_id
+                  AND handover_source_owner.user_id = :handover_scope_source_owner_user_id
+                  AND handover_source_owner.access_role = 'owner'
+            )
+            OR EXISTS (
+                SELECT 1 FROM user_storage_assignments handover_destination_owner
+                WHERE handover_destination_owner.storage_id = {$alias}.destination_storage_id
+                  AND handover_destination_owner.user_id = :handover_scope_destination_owner_user_id
+                  AND handover_destination_owner.access_role = 'owner'
+            )
+        )",
         [
-            'handover_scope_created_by_user_id' => (int) $user['id'],
-            'handover_scope_recipient_user_id' => (int) $user['id'],
+            'handover_scope_created_by_user_id' => $userId,
+            'handover_scope_recipient_user_id' => $userId,
+            'handover_scope_approver_user_id' => $userId,
+            'handover_scope_manager_user_id' => $userId,
+            'handover_scope_source_owner_user_id' => $userId,
+            'handover_scope_destination_owner_user_id' => $userId,
         ],
     ];
 }

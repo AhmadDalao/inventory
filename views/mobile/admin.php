@@ -58,7 +58,11 @@
     </div>
     <div class="settings-accordion-stack">
         <?php foreach ($users as $mobileUser): ?>
-            <?php $assignedIds = array_map('intval', array_column(Database::fetchAll('SELECT storage_id FROM user_storage_assignments WHERE user_id = :id', ['id' => $mobileUser['id']]), 'storage_id')); ?>
+            <?php
+            $assignmentRows = Database::fetchAll('SELECT storage_id, access_role FROM user_storage_assignments WHERE user_id = :id', ['id' => $mobileUser['id']]);
+            $assignedIds = array_map('intval', array_column($assignmentRows, 'storage_id'));
+            $ownedIds = array_map('intval', array_column(array_filter($assignmentRows, static fn (array $row): bool => ($row['access_role'] ?? 'member') === 'owner'), 'storage_id'));
+            ?>
             <details class="settings-accordion">
                 <summary>
                     <span><strong><?= e($mobileUser['name']) ?></strong><small><?= e($mobileUser['email']) ?> · <?= e(user_position_label($mobileUser['position'] ?? '', $mobileUser['role'])) ?></small></span>
@@ -77,7 +81,9 @@
                         <fieldset>
                             <legend>Assigned storages</legend>
                             <?php foreach ($storages as $storage): ?>
-                                <label class="checkbox-row"><input type="checkbox" name="storage_ids[]" value="<?= (int) $storage['id'] ?>" <?= in_array((int) $storage['id'], $assignedIds, true) || $mobileUser['role'] === 'owner' ? 'checked' : '' ?>><span><?= e($storage['name']) ?></span></label>
+                                <?php $isOwnedStorage = in_array((int) $storage['id'], $ownedIds, true); ?>
+                                <label class="checkbox-row"><input type="checkbox" name="storage_ids[]" value="<?= (int) $storage['id'] ?>" <?= in_array((int) $storage['id'], $assignedIds, true) || $mobileUser['role'] === 'owner' ? 'checked' : '' ?> <?= $isOwnedStorage ? 'disabled' : '' ?>><span><?= e($storage['name']) ?><?= $isOwnedStorage ? ' · Owner' : '' ?></span></label>
+                                <?php if ($isOwnedStorage): ?><input type="hidden" name="storage_ids[]" value="<?= (int) $storage['id'] ?>"><?php endif; ?>
                             <?php endforeach; ?>
                         </fieldset>
                         <label><span>Default storage</span><select name="default_storage_id"><option value="0">No default</option><?php foreach ($storages as $storage): ?><option value="<?= (int) $storage['id'] ?>" <?= (int) ($mobileUser['default_storage_id'] ?? 0) === (int) $storage['id'] ? 'selected' : '' ?>><?= e($storage['name']) ?></option><?php endforeach; ?></select></label>

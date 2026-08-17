@@ -86,23 +86,21 @@ function handle_handovers_create_submit(): void
     }
 
     $sourceOwner = $payload['source_storage_id'] ? storage_owner_record((int) $payload['source_storage_id']) : null;
+    $sourceOwnerIds = $payload['source_storage_id'] ? storage_owner_user_ids((int) $payload['source_storage_id']) : [];
     $destinationOwner = null;
-    $assignedRequestOwnerId = $isStaffRequest ? normalize_entity_id($user['assigned_owner_user_id'] ?? null) : null;
-    $expectedRequestOwnerId = $assignedRequestOwnerId ?? $payload['request_owner_user_id'];
+    $destinationOwnerIds = [];
     $recipientUser = null;
 
     if ($isStaffRequest) {
-        if (!$sourceOwner || empty($sourceOwner['owner_user_id']) || (int) ($sourceOwner['owner_is_active'] ?? 0) !== 1) {
+        if ($sourceOwnerIds === []) {
             $errors[] = 'This storage needs an active owner before a handover request can be sent.';
         }
 
-        if ($expectedRequestOwnerId === null) {
-            $errors[] = 'Pick who you are requesting this handover from.';
+        if ($payload['source_storage_id'] && !user_can_view_storage((int) ($user['id'] ?? 0), (int) $payload['source_storage_id'])) {
+            $errors[] = 'You can only request a handover from a storage assigned to you.';
         }
 
-        if ($expectedRequestOwnerId !== null && $sourceOwner && (int) ($sourceOwner['owner_user_id'] ?? 0) !== (int) $expectedRequestOwnerId) {
-            $errors[] = 'Pick a storage owned by the selected handover approver.';
-        }
+        $payload['request_owner_user_id'] = storage_owner_user_id((int) ($payload['source_storage_id'] ?? 0));
     }
 
     if ($isStorageTransfer) {
@@ -112,12 +110,13 @@ function handle_handovers_create_submit(): void
             $errors[] = 'Source and destination storage cannot be the same.';
         } else {
             $destinationOwner = storage_owner_record((int) $payload['destination_storage_id']);
+            $destinationOwnerIds = storage_owner_user_ids((int) $payload['destination_storage_id']);
 
-            if (!$destinationOwner || empty($destinationOwner['owner_user_id']) || (int) ($destinationOwner['owner_is_active'] ?? 0) !== 1) {
+            if ($destinationOwnerIds === []) {
                 $errors[] = 'Destination storage needs an active owner before stock can be transferred.';
             } else {
-                $payload['recipient_user_id'] = (int) $destinationOwner['owner_user_id'];
-                $payload['recipient_name'] = (string) ($destinationOwner['owner_name'] ?: $destinationOwner['storage_name']);
+                $payload['recipient_user_id'] = storage_owner_user_id((int) $payload['destination_storage_id']);
+                $payload['recipient_name'] = (string) (($destinationOwner['owner_name'] ?? '') ?: ($destinationOwner['storage_name'] ?? 'Destination storage owner'));
             }
         }
     } elseif ($payload['recipient_user_id']) {
@@ -179,6 +178,9 @@ function handle_handovers_create_submit(): void
     $initialStatus = $isStaffRequest
         ? 'requested'
         : ($isStorageTransfer || $payload['recipient_user_id'] ? 'awaiting_receipt' : 'delivered');
+    $managerUserId = !$isStorageTransfer && $payload['recipient_user_id']
+        ? manager_user_id_for((int) $payload['recipient_user_id'])
+        : null;
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
@@ -189,6 +191,7 @@ function handle_handovers_create_submit(): void
                 source_storage_id,
                 destination_storage_id,
                 approver_user_id,
+                manager_user_id,
                 recipient_name,
                 recipient_user_id,
                 recipient_type,
@@ -219,6 +222,7 @@ function handle_handovers_create_submit(): void
                 :source_storage_id,
                 :destination_storage_id,
                 :approver_user_id,
+                :manager_user_id,
                 :recipient_name,
                 :recipient_user_id,
                 :recipient_type,
@@ -249,7 +253,8 @@ function handle_handovers_create_submit(): void
                 'handover_number' => $handoverNumber,
                 'source_storage_id' => (int) $payload['source_storage_id'],
                 'destination_storage_id' => $payload['destination_storage_id'] !== null ? (int) $payload['destination_storage_id'] : null,
-                'approver_user_id' => $sourceOwner['owner_user_id'] ?? null,
+                'approver_user_id' => storage_owner_user_id((int) $payload['source_storage_id']),
+                'manager_user_id' => $managerUserId,
                 'recipient_name' => $payload['recipient_name'],
                 'recipient_user_id' => $payload['recipient_user_id'],
                 'recipient_type' => $payload['recipient_type'],
@@ -339,16 +344,35 @@ function handle_handovers_create_submit(): void
         redirect('/handovers/create');
     }
 
-    if ($isStaffRequest && !empty($sourceOwner['owner_user_id'])) {
-        create_notification(
-            (int) $sourceOwner['owner_user_id'],
+    if ($isStaffRequest) {
+        $designatedApproverId = storage_owner_user_id((int) $payload['source_storage_id']);
+        $notificationTitle = 'New handover request ' . $handoverNumber;
+        $notificationBody = ($user['name'] ?? 'Staff') . ' requested a temporary handover from ' . ($sourceOwner['storage_name'] ?? 'the assigned storage') . '.';
+
+        if ($designatedApproverId !== null && $designatedApproverId !== (int) ($user['id'] ?? 0)) {
+            create_notification(
+                $designatedApproverId,
+                'handover_requested',
+                $notificationTitle,
+                $notificationBody,
+                url('/handovers/' . $handoverId),
+                'handover',
+                $handoverId,
+                (int) ($user['id'] ?? 0)
+            );
+        }
+
+        notify_workflow_observers(
+            (int) ($user['id'] ?? 0),
+            [(int) $payload['source_storage_id']],
             'handover_requested',
-            'New handover request ' . $handoverNumber,
-            ($user['name'] ?? 'Staff') . ' requested a temporary handover from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.',
+            $notificationTitle,
+            $notificationBody,
             url('/handovers/' . $handoverId),
             'handover',
             $handoverId,
-            (int) ($user['id'] ?? 0)
+            array_values(array_filter([$designatedApproverId])),
+            [(int) ($payload['recipient_user_id'] ?? 0)]
         );
     } elseif ($isStorageTransfer && $payload['recipient_user_id']) {
         create_notification(
@@ -360,6 +384,18 @@ function handle_handovers_create_submit(): void
             'handover',
             $handoverId,
             (int) ($user['id'] ?? 0)
+        );
+
+        notify_workflow_observers(
+            (int) ($user['id'] ?? 0),
+            [(int) $payload['source_storage_id'], (int) ($payload['destination_storage_id'] ?? 0)],
+            'handover_storage_transfer_created',
+            'Storage transfer ' . $handoverNumber . ' created',
+            'Stock is awaiting confirmation into ' . (string) ($destinationOwner['storage_name'] ?? 'the destination storage') . '.',
+            url('/handovers/' . $handoverId),
+            'handover',
+            $handoverId,
+            [(int) $payload['recipient_user_id']]
         );
     } elseif ($payload['recipient_user_id']) {
         create_notification(
@@ -373,6 +409,19 @@ function handle_handovers_create_submit(): void
             'handover',
             $handoverId,
             (int) ($user['id'] ?? 0)
+        );
+
+        notify_workflow_observers(
+            (int) ($user['id'] ?? 0),
+            [(int) $payload['source_storage_id']],
+            $isStaffCustody ? 'handover_custody_created' : 'handover_created',
+            ($isStaffCustody ? 'Long-term custody ' : 'Handover ') . $handoverNumber . ' issued',
+            ($payload['recipient_name'] ?: 'The recipient') . ' must confirm what was received.',
+            url('/handovers/' . $handoverId),
+            'handover',
+            $handoverId,
+            [(int) $payload['recipient_user_id']],
+            [(int) $payload['recipient_user_id']]
         );
     }
 

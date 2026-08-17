@@ -988,17 +988,28 @@ function cleanup_prefix_data(string $prefix): void
     }
 }
 
-function create_user_record(string $name, string $email, string $role, string $password, array $permissions, ?int $assignedOwnerUserId = null): array
+function create_user_record(
+    string $name,
+    string $email,
+    string $role,
+    string $password,
+    array $permissions,
+    ?int $assignedOwnerUserId = null,
+    ?int $managerUserId = null
+): array
 {
     Database::execute(
-        'INSERT INTO users (name, email, password_hash, role, is_active, assigned_owner_user_id, created_at, updated_at)
-         VALUES (:name, :email, :password_hash, :role, 1, :assigned_owner_user_id, NOW(), NOW())',
+        'INSERT INTO users
+            (name, email, password_hash, role, is_active, assigned_owner_user_id, manager_user_id, created_at, updated_at)
+         VALUES
+            (:name, :email, :password_hash, :role, 1, :assigned_owner_user_id, :manager_user_id, NOW(), NOW())',
         [
             'name' => $name,
             'email' => $email,
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'role' => $role,
             'assigned_owner_user_id' => $assignedOwnerUserId,
+            'manager_user_id' => $managerUserId,
         ]
     );
 
@@ -1035,7 +1046,21 @@ function create_storage_record(string $name, string $storageType, int $userId): 
         ]
     );
 
-    return find_storage_or_abort(Database::lastInsertId());
+    $storageId = Database::lastInsertId();
+    Database::execute(
+        'INSERT INTO user_storage_assignments
+            (user_id, storage_id, access_role, is_default, created_by, created_at, updated_at)
+         VALUES
+            (:user_id, :storage_id, "owner", 0, :created_by, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE access_role = "owner", updated_at = NOW()',
+        [
+            'user_id' => $userId,
+            'storage_id' => $storageId,
+            'created_by' => $userId,
+        ]
+    );
+
+    return find_storage_or_abort($storageId);
 }
 
 function create_item_record(string $name, string $sku, int $storageId, float $quantity, float $costPerUnit, int $userId): array
@@ -1217,13 +1242,45 @@ note('Creating temporary users.');
 
 $ownerEmail = build_email($prefix, 'owner');
 $adminEmail = build_email($prefix, 'admin');
+$managerEmail = build_email($prefix, 'manager');
 $staffEmail = build_email($prefix, 'staff');
 $lockedStaffEmail = build_email($prefix, 'locked-staff');
 
 $owner = create_user_record($prefix . ' Owner', $ownerEmail, 'owner', $password, permission_keys());
 $admin = create_user_record($prefix . ' Admin', $adminEmail, 'admin', $password, default_permissions_for_role('admin'));
-$staff = create_user_record($prefix . ' Staff', $staffEmail, 'staff', $password, default_permissions_for_role('staff'));
-$lockedStaff = create_user_record($prefix . ' Locked Staff', $lockedStaffEmail, 'staff', $password, default_permissions_for_role('staff'), (int) $owner['id']);
+$manager = create_user_record(
+    $prefix . ' Manager',
+    $managerEmail,
+    'admin',
+    $password,
+    [
+        'dashboard.view',
+        'requests.view',
+        'requests.approve',
+        'handovers.view',
+        'handovers.approve',
+        'team.view',
+        'team.activity.view',
+    ]
+);
+$staff = create_user_record(
+    $prefix . ' Staff',
+    $staffEmail,
+    'staff',
+    $password,
+    default_permissions_for_role('staff'),
+    null,
+    (int) $manager['id']
+);
+$lockedStaff = create_user_record(
+    $prefix . ' Locked Staff',
+    $lockedStaffEmail,
+    'staff',
+    $password,
+    default_permissions_for_role('staff'),
+    (int) $owner['id'],
+    (int) $owner['id']
+);
 
 note('Creating storages and seeding 100 items.');
 $storages = [];
@@ -1235,6 +1292,70 @@ for ($index = 1; $index <= 10; $index++) {
         $index <= 5 ? (int) $owner['id'] : (int) $admin['id']
     );
 }
+
+sync_user_storage_memberships(
+    (int) $staff['id'],
+    array_map(static fn (array $storage): int => (int) $storage['id'], array_slice($storages, 0, 5)),
+    (int) $storages[0]['id'],
+    (int) $owner['id']
+);
+sync_user_storage_memberships(
+    (int) $lockedStaff['id'],
+    [(int) $storages[6]['id']],
+    (int) $storages[6]['id'],
+    (int) $owner['id']
+);
+sync_storage_assignments(
+    (int) $storages[4]['id'],
+    (int) $owner['id'],
+    [(int) $owner['id'], (int) $admin['id']],
+    storage_assigned_user_ids((int) $storages[4]['id'], 'member'),
+    (int) $owner['id']
+);
+
+assert_true(manager_user_id_for((int) $staff['id']) === (int) $manager['id'], 'Staff manager assignment was not saved.');
+assert_true(team_member_ids_for((int) $manager['id']) === [(int) $staff['id']], 'Manager direct-report scope was not saved.');
+assert_true(
+    user_visible_storage_ids((int) $staff['id']) === array_map(static fn (array $storage): int => (int) $storage['id'], array_slice($storages, 0, 5)),
+    'Staff should see only assigned storages.'
+);
+assert_true(
+    user_visible_storage_ids((int) $lockedStaff['id']) === [(int) $storages[6]['id']],
+    'Staff storage isolation did not restrict the visible storage set.'
+);
+assert_true(count(user_visible_storage_ids((int) $owner['id'])) === 10, 'Global owner should see all active test storages.');
+assert_true(in_array((int) $admin['id'], storage_owner_user_ids((int) $storages[4]['id']), true), 'Additional storage owner assignment was not saved.');
+assert_true(in_array((int) $staff['id'], storage_assigned_user_ids((int) $storages[0]['id'], 'member'), true), 'Staff membership was not saved on the assigned storage.');
+
+$managerMobileAlertsBefore = (int) Database::scalar(
+    'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "mobile_operation_usage"',
+    ['user_id' => (int) $manager['id']]
+);
+$ownerMobileAlertsBefore = (int) Database::scalar(
+    'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "mobile_operation_usage"',
+    ['user_id' => (int) $owner['id']]
+);
+mobile_api_notify_operation_observers(
+    ['user_id' => (int) $staff['id'], 'user_name' => (string) $staff['name']],
+    'usage',
+    ['storage_id' => (int) $storages[0]['id']],
+    'movement',
+    null
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "mobile_operation_usage"',
+        ['user_id' => (int) $manager['id']]
+    ) === $managerMobileAlertsBefore + 1,
+    'Staff mobile usage did not notify the assigned manager.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "mobile_operation_usage"',
+        ['user_id' => (int) $owner['id']]
+    ) === $ownerMobileAlertsBefore + 1,
+    'Staff mobile usage did not notify the global owner.'
+);
 
 $seededItems = [];
 
@@ -1294,21 +1415,23 @@ $initialHandoverRequestItemOneQuantity = (float) $handoverRequestItems[0]['curre
 
 $ownerCookie = login_user($baseUrl, $ownerEmail, $password);
 $adminCookie = login_user($baseUrl, $adminEmail, $password);
+$managerCookie = login_user($baseUrl, $managerEmail, $password);
 $staffCookie = login_user($baseUrl, $staffEmail, $password);
 $lockedStaffCookie = login_user($baseUrl, $lockedStaffEmail, $password);
 $successfulLoginAudits = (int) Database::scalar(
     'SELECT COUNT(*)
      FROM login_attempts
-     WHERE email IN (:owner_email, :admin_email, :staff_email, :locked_staff_email)
+     WHERE email IN (:owner_email, :admin_email, :manager_email, :staff_email, :locked_staff_email)
        AND success = 1',
     [
         'owner_email' => $ownerEmail,
         'admin_email' => $adminEmail,
+        'manager_email' => $managerEmail,
         'staff_email' => $staffEmail,
         'locked_staff_email' => $lockedStaffEmail,
     ]
 );
-assert_true($successfulLoginAudits >= 4, 'Successful login attempts were not audited.');
+assert_true($successfulLoginAudits >= 5, 'Successful login attempts were not audited.');
 
 note('Checking storage-filtered item quantities.');
 $locationFilteredItem = $seededItems[99];
@@ -3951,6 +4074,24 @@ $requestCreate = http_request($baseUrl, $staffCookie, 'POST', '/requests/create'
 assert_true($requestCreate['status'] === 302, 'Request create did not redirect.');
 $requestId = first_redirect_id($requestCreate['location'], '/requests');
 $requestOpenRecord = find_request_or_abort($requestId);
+assert_true((int) ($requestOpenRecord['manager_user_id'] ?? 0) === (int) $manager['id'], 'Request did not preserve the requester manager snapshot.');
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND entity_type = "request" AND entity_id = :entity_id',
+        ['user_id' => (int) $manager['id'], 'entity_id' => $requestId]
+    ) > 0,
+    'The requester manager did not receive the request notification.'
+);
+$requestManagerPage = http_request($baseUrl, $managerCookie, 'GET', '/requests/' . $requestId);
+assert_true($requestManagerPage['status'] === 200, 'Direct manager could not open the staff request.');
+assert_true(strpos($requestManagerPage['body'], 'Approve Request') === false, 'Manager visibility must not expose storage approval controls.');
+$requestManagerApprove = http_request($baseUrl, $managerCookie, 'POST', '/requests/' . $requestId . '/approve', [
+    '_token' => extract_csrf($requestManagerPage['body'], 'manager request boundary'),
+    'decision_notes' => $prefix . ' manager must not approve stock',
+]);
+assert_true($requestManagerApprove['status'] === 302, 'Blocked manager request approval should redirect safely.');
+assert_true((string) find_request_or_abort($requestId)['status'] === 'pending', 'Manager approval attempt changed a request without storage ownership.');
+assert_true(balance_quantity((int) $issueItems[0]['id'], (int) $issueSource['id']) === $initialIssueItemOneQuantity, 'Manager approval attempt changed source stock.');
 $requestOpen = http_request($baseUrl, $ownerCookie, 'GET', '/open/' . rawurlencode((string) $requestOpenRecord['request_number']));
 assert_true($requestOpen['status'] === 302 && strpos((string) $requestOpen['location'], '/requests/' . $requestId) !== false, 'Request QR open route did not redirect to the request detail.');
 
@@ -4055,25 +4196,37 @@ assert_true(balance_quantity((int) $issueItems[0]['id'], system_storage_id('requ
 $requestCompletedOwnerPage = http_request($baseUrl, $ownerCookie, 'GET', '/requests/' . $requestId);
 assert_true(strpos($requestCompletedOwnerPage['body'], 'Mark Void / Keep Record') === false, 'Stock-impact request should not show void cleanup.');
 
-note('Blocking locked staff handover requests against the wrong owner.');
+note('Enforcing staff storage scope independently from manager assignment.');
 $lockedHandoverCreatePage = http_request($baseUrl, $lockedStaffCookie, 'GET', '/handovers/create');
 assert_true($lockedHandoverCreatePage['status'] === 200, 'Locked staff handover request page did not load.');
-assert_true(strpos($lockedHandoverCreatePage['body'], 'Assigned Owner') !== false, 'Locked staff handover request page is missing the assigned owner copy.');
 assert_true(strpos($lockedHandoverCreatePage['body'], 'name="recipient_user_id"') === false, 'Staff handover request form should not show the recipient user field.');
 $lockedHandoverToken = extract_csrf($lockedHandoverCreatePage['body']);
 $lockedHandoverCreate = http_request($baseUrl, $lockedStaffCookie, 'POST', '/handovers/create', [
     '_token' => $lockedHandoverToken,
-    'request_owner_user_id' => $admin['id'],
-    'source_storage_id' => $wrongOwnerSource['id'],
+    'source_storage_id' => $issueSource['id'],
     'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
-    'notes' => $prefix . ' locked staff should not target another owner',
-    'line_item_id' => [(int) $wrongOwnerItems[0]['id']],
+    'notes' => $prefix . ' locked staff should not target an unassigned storage',
+    'line_item_id' => [(int) $issueItems[0]['id']],
     'line_quantity' => ['2'],
 ]);
 assert_true($lockedHandoverCreate['status'] === 302, 'Locked staff handover request should redirect back.');
 assert_true(location_matches($lockedHandoverCreate['location'], '/handovers/create'), 'Locked staff handover request should not be created.');
 $lockedHandoverReload = http_request($baseUrl, $lockedStaffCookie, 'GET', '/handovers/create');
-assert_true(strpos($lockedHandoverReload['body'], 'Pick a storage owned by the selected handover approver.') !== false, 'Locked staff handover request error did not render.');
+assert_true(strpos($lockedHandoverReload['body'], 'You can only request a handover from a storage assigned to you.') !== false, 'Unassigned storage error did not render.');
+
+$assignedHandoverCreate = http_request($baseUrl, $lockedStaffCookie, 'POST', '/handovers/create', [
+    '_token' => extract_csrf($lockedHandoverReload['body']),
+    'source_storage_id' => $wrongOwnerSource['id'],
+    'scheduled_for_date' => date('Y-m-d', strtotime('+1 day')),
+    'notes' => $prefix . ' assigned storage handover request',
+    'line_item_id' => [(int) $wrongOwnerItems[0]['id']],
+    'line_quantity' => ['2'],
+]);
+assert_true($assignedHandoverCreate['status'] === 302, 'Assigned storage handover request did not redirect.');
+$assignedHandoverId = first_redirect_id($assignedHandoverCreate['location'], '/handovers');
+$assignedHandoverRecord = find_handover_or_abort($assignedHandoverId);
+assert_true((int) $assignedHandoverRecord['manager_user_id'] === (int) $owner['id'], 'Handover did not snapshot the requester manager.');
+assert_true((int) $assignedHandoverRecord['approver_user_id'] === (int) $admin['id'], 'Handover approval should route to the assigned storage owner.');
 
 note('Cancelling a requester-owned handover request without a reason.');
 $handoverRequestCancelCreatePage = http_request($baseUrl, $staffCookie, 'GET', '/handovers/create');
@@ -4124,6 +4277,24 @@ assert_true($handoverRequestCreate['status'] === 302, 'Staff handover request cr
 $handoverRequestId = first_redirect_id($handoverRequestCreate['location'], '/handovers');
 $handoverRequestRecord = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestRecord['status'] === 'requested', 'Staff handover request should start as requested.');
+assert_true((int) ($handoverRequestRecord['manager_user_id'] ?? 0) === (int) $manager['id'], 'Handover did not preserve the recipient manager snapshot.');
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND entity_type = "handover" AND entity_id = :entity_id',
+        ['user_id' => (int) $manager['id'], 'entity_id' => $handoverRequestId]
+    ) > 0,
+    'The recipient manager did not receive the handover notification.'
+);
+$handoverManagerPage = http_request($baseUrl, $managerCookie, 'GET', '/handovers/' . $handoverRequestId);
+assert_true($handoverManagerPage['status'] === 200, 'Direct manager could not open the staff handover.');
+assert_true(strpos($handoverManagerPage['body'], 'Approve Request') === false, 'Manager visibility must not expose handover approval controls.');
+$handoverManagerApprove = http_request($baseUrl, $managerCookie, 'POST', '/handovers/' . $handoverRequestId . '/approve-request', [
+    '_token' => extract_csrf($handoverManagerPage['body'], 'manager handover boundary'),
+    'request_decision_notes' => $prefix . ' manager must not approve stock',
+]);
+assert_true($handoverManagerApprove['status'] === 302, 'Blocked manager handover approval should redirect safely.');
+assert_true((string) find_handover_or_abort($handoverRequestId)['status'] === 'requested', 'Manager approval attempt changed a handover without storage ownership.');
+assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === $initialHandoverRequestItemOneQuantity, 'Manager handover approval attempt changed source stock.');
 assert_true((string) $handoverRequestRecord['usage_reporting_mode'] === 'operational_summary', 'New staff handover requests should use handover-level operational reconciliation.');
 assert_true((int) Database::scalar('SELECT COUNT(*) FROM handover_expected_usage_breakdowns WHERE handover_id = :handover_id', ['handover_id' => $handoverRequestId]) === 0, 'New operational handovers should not store expected per-item usage.');
 assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === $initialHandoverRequestItemOneQuantity, 'Requested handover should not reserve stock before approval.');
@@ -4452,10 +4623,10 @@ assert_true(balance_quantity((int) $handoverItems[0]['id'], (int) $handoverSourc
 assert_true(balance_quantity((int) $handoverItems[0]['id'], system_storage_id('handover_buffer')) === round($cancelHandoverBufferBefore + 4, 2), 'Cancelable handover should move stock into buffer.');
 
 $cancelHandoverOwnerOverridePage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $cancelHandoverId);
-assert_true(strpos($cancelHandoverOwnerOverridePage['body'], 'Admin Status Override') !== false, 'Owner should see handover status override controls.');
+assert_true(strpos($cancelHandoverOwnerOverridePage['body'], 'Owner Resolution: Safe Status Correction') !== false, 'Owner should see safe handover resolution controls.');
 $cancelHandoverAdminOverridePage = http_request($baseUrl, $adminCookie, 'GET', '/handovers/' . $cancelHandoverId);
 assert_true($cancelHandoverAdminOverridePage['status'] === 200, 'Cancelable handover page did not load for admin.');
-assert_true(strpos($cancelHandoverAdminOverridePage['body'], 'Admin Status Override') === false, 'Regular admin should not see handover status override controls.');
+assert_true(strpos($cancelHandoverAdminOverridePage['body'], 'Owner Resolution: Safe Status Correction') === false, 'Regular admin should not see owner resolution controls.');
 $cancelHandoverAdminOverride = http_request($baseUrl, $adminCookie, 'POST', '/handovers/' . $cancelHandoverId . '/status-override', [
     'target_status' => 'delivered',
     'status_notes' => $prefix . ' admin should not force delivery',

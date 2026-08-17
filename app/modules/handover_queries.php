@@ -11,8 +11,10 @@ function handover_request_owner_candidates_for_select(?int $selectedId = null): 
         AND users.role IN ("owner", "admin")
         AND EXISTS (
             SELECT 1
-            FROM storages storage
-            WHERE storage.owner_user_id = users.id
+            FROM user_storage_assignments storage_owner_assignment
+            INNER JOIN storages storage ON storage.id = storage_owner_assignment.storage_id
+            WHERE storage_owner_assignment.user_id = users.id
+              AND storage_owner_assignment.access_role = "owner"
               AND storage.is_active = 1
               AND storage.is_system = 0
         )
@@ -34,19 +36,7 @@ function handover_request_owner_candidates_for_select(?int $selectedId = null): 
 
 function handover_request_assigned_owner(array $user): ?array
 {
-    $assignedOwnerId = normalize_entity_id($user['assigned_owner_user_id'] ?? null);
-
-    if ($assignedOwnerId === null) {
-        return null;
-    }
-
-    return Database::fetch(
-        'SELECT id, name, email, role, is_active
-         FROM users
-         WHERE id = :id
-         LIMIT 1',
-        ['id' => $assignedOwnerId]
-    ) ?: null;
+    return manager_user_for((int) ($user['id'] ?? 0));
 }
 
 function handover_source_storages_for_user(array $user, ?int $selectedId = null): array
@@ -60,32 +50,18 @@ function handover_source_storages_for_user(array $user, ?int $selectedId = null)
 
 function handover_request_source_storages_for_staff(array $user, ?int $selectedId = null, ?int $selectedOwnerId = null): array
 {
-    $assignedOwnerId = normalize_entity_id($user['assigned_owner_user_id'] ?? null);
-    $requiredOwnerId = $assignedOwnerId ?? $selectedOwnerId;
-    $storages = all_storages_for_select($selectedId);
-
-    return array_values(array_filter($storages, static function (array $storage) use ($requiredOwnerId, $selectedId): bool {
-        if (empty($storage['owner_user_id'])) {
-            return false;
-        }
-
-        if ($selectedId !== null && (int) $storage['id'] === $selectedId) {
-            return true;
-        }
-
-        if ($requiredOwnerId === null) {
-            return true;
-        }
-
-        return (int) $storage['owner_user_id'] === (int) $requiredOwnerId;
-    }));
+    return array_values(array_filter(
+        all_storages_for_select($selectedId),
+        static fn (array $storage): bool => storage_owner_user_ids((int) $storage['id']) !== []
+    ));
 }
 
 function handover_destination_storages_for_select(?int $selectedId = null): array
 {
     return array_values(array_filter(
         all_storages_for_select($selectedId),
-        static fn (array $storage): bool => !empty($storage['owner_user_id']) || ($selectedId !== null && (int) $storage['id'] === $selectedId)
+        static fn (array $storage): bool => storage_owner_user_ids((int) $storage['id']) !== []
+            || ($selectedId !== null && (int) $storage['id'] === $selectedId)
     ));
 }
 
@@ -213,7 +189,9 @@ function find_handover_or_abort(int $handoverId): array
                 recipient.email AS recipient_user_email,
                 source_owner.name AS source_owner_name,
                 destination_owner.name AS destination_owner_name,
-                destination_owner.email AS destination_owner_email
+                destination_owner.email AS destination_owner_email,
+                manager.name AS manager_name,
+                manager.email AS manager_email
          FROM handovers h
          INNER JOIN storages source_storage ON source_storage.id = h.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = h.destination_storage_id
@@ -226,6 +204,7 @@ function find_handover_or_abort(int $handoverId): array
          LEFT JOIN users recipient ON recipient.id = h.recipient_user_id
          LEFT JOIN users source_owner ON source_owner.id = source_storage.owner_user_id
          LEFT JOIN users destination_owner ON destination_owner.id = destination_storage.owner_user_id
+         LEFT JOIN users manager ON manager.id = h.manager_user_id
          WHERE h.id = :id' . $scopeSql . '
          LIMIT 1',
         ['id' => $handoverId] + $scopeParams

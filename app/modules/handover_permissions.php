@@ -1,6 +1,16 @@
 <?php
 declare(strict_types=1);
 
+function handover_user_is_source_owner(array $handover, int $userId): bool
+{
+    return $userId > 0 && storage_is_owned_by_user((int) ($handover['source_storage_id'] ?? 0), $userId);
+}
+
+function handover_user_is_destination_owner(array $handover, int $userId): bool
+{
+    return $userId > 0 && storage_is_owned_by_user((int) ($handover['destination_storage_id'] ?? 0), $userId);
+}
+
 function handover_request_decision_block_reason(array $handover, ?array $user = null): ?string
 {
     $user = $user ?? Auth::user();
@@ -21,8 +31,8 @@ function handover_request_decision_block_reason(array $handover, ?array $user = 
         return 'You cannot approve or reject your own handover request.';
     }
 
-    if (!Auth::isOwner() && (int) ($handover['approver_user_id'] ?? 0) !== (int) ($user['id'] ?? 0)) {
-        return 'This handover request is assigned to a different owner.';
+    if (!Auth::isOwner() && !handover_user_is_source_owner($handover, (int) ($user['id'] ?? 0))) {
+        return 'Only an owner of the source storage can decide this handover request.';
     }
 
     return null;
@@ -50,8 +60,7 @@ function handover_line_edit_block_reason(array $handover, ?array $user = null): 
 
     $userId = (int) ($user['id'] ?? 0);
     $isRequester = (int) ($handover['created_by'] ?? 0) === $userId;
-    $isStorageOwner = (int) ($handover['source_owner_user_id'] ?? 0) === $userId
-        || (int) ($handover['approver_user_id'] ?? 0) === $userId;
+    $isStorageOwner = handover_user_is_source_owner($handover, $userId);
 
     if (!$isRequester && !$isStorageOwner && !Auth::isOwner()) {
         return 'Only the requester, storage owner, or owner can edit requested handover items.';
@@ -86,8 +95,7 @@ function handover_cancel_block_reason(array $handover, ?array $user = null): ?st
     $userId = (int) ($user['id'] ?? 0);
     $isRequester = (int) ($handover['created_by'] ?? 0) === $userId;
     $isRecipient = (int) ($handover['recipient_user_id'] ?? 0) === $userId;
-    $isStorageOwner = (int) ($handover['source_owner_user_id'] ?? 0) === $userId
-        || (int) ($handover['approver_user_id'] ?? 0) === $userId;
+    $isStorageOwner = handover_user_is_source_owner($handover, $userId);
     $isOwner = Auth::isOwner();
 
     if (!$isRequester && !$isRecipient && !$isStorageOwner && !$isOwner && !Auth::hasAnyPermission(['handovers.request', 'handovers.approve', 'handovers.create', 'handovers.close'])) {
@@ -140,9 +148,7 @@ function handover_can_report_receipt(array $handover, ?array $user = null): bool
     if (handover_is_storage_transfer($handover)) {
         $userId = (int) ($user['id'] ?? 0);
 
-        return Auth::isOwner()
-            || (int) ($handover['destination_owner_user_id'] ?? 0) === $userId
-            || (int) ($handover['recipient_user_id'] ?? 0) === $userId;
+        return Auth::isOwner() || handover_user_is_destination_owner($handover, $userId);
     }
 
     if (!Auth::hasPermission('handovers.close')) {
@@ -166,7 +172,7 @@ function handover_is_source_issuer(array $handover, ?array $user = null): bool
 
     $userId = (int) ($user['id'] ?? 0);
 
-    if ((int) ($handover['source_owner_user_id'] ?? 0) === $userId) {
+    if (handover_user_is_source_owner($handover, $userId)) {
         return true;
     }
 

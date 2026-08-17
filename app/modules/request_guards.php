@@ -18,8 +18,9 @@ function request_decision_block_reason(array $request, ?array $user = null): ?st
         return 'You cannot approve or reject your own request.';
     }
 
-    if ((int) ($request['approver_user_id'] ?? 0) !== (int) ($user['id'] ?? 0) && !Auth::isOwner()) {
-        return 'This request is assigned to a different approver.';
+    $userId = (int) ($user['id'] ?? 0);
+    if (!Auth::isOwner() && !storage_is_owned_by_user((int) ($request['source_storage_id'] ?? 0), $userId)) {
+        return 'Only an owner of the source storage can decide this request.';
     }
 
     return null;
@@ -62,13 +63,13 @@ function request_submit_draft_block_reason(array $request, ?array $user = null):
         return 'Only the requester or owner can submit this draft.';
     }
 
-    $sourceOwner = storage_owner_record((int) ($request['source_storage_id'] ?? 0));
+    $sourceOwnerIds = storage_owner_user_ids((int) ($request['source_storage_id'] ?? 0));
 
-    if (!$sourceOwner || empty($sourceOwner['owner_user_id']) || (int) ($sourceOwner['owner_is_active'] ?? 0) !== 1) {
+    if ($sourceOwnerIds === []) {
         return 'The source storage needs an active owner admin before this draft can be submitted.';
     }
 
-    if ((int) ($sourceOwner['owner_user_id'] ?? 0) === (int) ($request['requester_user_id'] ?? 0)) {
+    if (in_array((int) ($request['requester_user_id'] ?? 0), $sourceOwnerIds, true)) {
         return 'The requester now owns the source storage, so this draft cannot be submitted as a request.';
     }
 
@@ -91,8 +92,8 @@ function request_receipt_confirm_block_reason(array $request, ?array $user = nul
         return 'You cannot approve your own receipt report.';
     }
 
-    if ((int) ($request['approver_user_id'] ?? 0) !== (int) ($user['id'] ?? 0) && !Auth::isOwner()) {
-        return 'This request is assigned to a different approver.';
+    if (!Auth::isOwner() && !storage_is_owned_by_user((int) ($request['source_storage_id'] ?? 0), (int) ($user['id'] ?? 0))) {
+        return 'Only an owner of the source storage can confirm this receipt report.';
     }
 
     return null;
@@ -112,7 +113,7 @@ function request_cancel_block_reason(array $request, ?array $user = null): ?stri
 
     $userId = (int) ($user['id'] ?? 0);
     $isRequester = (int) ($request['requester_user_id'] ?? 0) === $userId;
-    $isApprover = (int) ($request['approver_user_id'] ?? 0) === $userId;
+    $isApprover = storage_is_owned_by_user((int) ($request['source_storage_id'] ?? 0), $userId);
     $isOwner = Auth::isOwner();
 
     if (!$isRequester && !$isApprover && !$isOwner && !Auth::hasPermission('requests.cancel')) {

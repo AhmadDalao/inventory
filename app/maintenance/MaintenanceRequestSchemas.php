@@ -10,6 +10,7 @@ trait MaintenanceRequestSchemas
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 request_number VARCHAR(40) NOT NULL,
                 requester_user_id BIGINT UNSIGNED NOT NULL,
+                manager_user_id BIGINT UNSIGNED NULL,
                 approver_user_id BIGINT UNSIGNED NOT NULL,
                 source_storage_id BIGINT UNSIGNED NOT NULL,
                 destination_storage_id BIGINT UNSIGNED NULL,
@@ -34,6 +35,7 @@ trait MaintenanceRequestSchemas
                 INDEX idx_item_requests_status (status, requested_at),
                 INDEX idx_item_requests_mode (request_mode),
                 INDEX idx_item_requests_requester (requester_user_id),
+                INDEX idx_item_requests_manager (manager_user_id),
                 INDEX idx_item_requests_approver (approver_user_id),
                 INDEX idx_item_requests_source_storage (source_storage_id),
                 INDEX idx_item_requests_destination_storage (destination_storage_id),
@@ -45,6 +47,19 @@ trait MaintenanceRequestSchemas
                 CONSTRAINT fk_item_requests_completed_by FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_item_requests_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        if (!self::columnExists('item_requests', 'manager_user_id')) {
+            Database::execute('ALTER TABLE item_requests ADD COLUMN manager_user_id BIGINT UNSIGNED NULL AFTER requester_user_id');
+        }
+        self::ensureIndexExists('item_requests', 'idx_item_requests_manager', 'CREATE INDEX `idx_item_requests_manager` ON `item_requests` (`manager_user_id`)');
+        self::ensureForeignKeyExists('item_requests', 'fk_item_requests_manager', 'ALTER TABLE `item_requests` ADD CONSTRAINT `fk_item_requests_manager` FOREIGN KEY (`manager_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL');
+        Database::execute(
+            'UPDATE item_requests request_row
+             INNER JOIN users requester ON requester.id = request_row.requester_user_id
+             SET request_row.manager_user_id = requester.manager_user_id
+             WHERE request_row.manager_user_id IS NULL
+               AND requester.manager_user_id IS NOT NULL'
         );
 
         Database::execute('ALTER TABLE item_requests MODIFY COLUMN destination_storage_id BIGINT UNSIGNED NULL');

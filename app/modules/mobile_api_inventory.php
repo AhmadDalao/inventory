@@ -68,10 +68,13 @@ function handle_mobile_api_me(): void
     mobile_api_run(function (): void {
         $session = mobile_api_session();
         $permissions = mobile_api_permissions((int) $session['user_id']);
+        $storageIds = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
         mobile_api_success([
             'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'email' => $session['email'], 'role' => $session['role'], 'position' => $session['position']],
+            'manager' => mobile_api_manager_payload((int) $session['user_id']),
             'permissions' => $permissions,
-            'storage_ids' => in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [],
+            'storage_ids' => $storageIds,
+            'storage_access_roles' => mobile_api_storage_access_roles($session, $storageIds),
             'device_session_id' => (int) $session['id'],
         ]);
     });
@@ -84,12 +87,22 @@ function handle_mobile_api_bootstrap(): void
         $access = mobile_api_require_employee_access($session);
         $permissions = mobile_api_permissions((int) $session['user_id']);
         $ids = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
+        $storageAccessRoles = mobile_api_storage_access_roles($session, $ids);
         $storages = $ids === [] ? [] : Database::fetchAll(
             'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default
              FROM storages storage LEFT JOIN user_storage_assignments assignment ON assignment.storage_id = storage.id AND assignment.user_id = ?
              WHERE storage.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') AND storage.is_active = 1 ORDER BY assignment.is_default DESC, storage.name ASC',
             array_merge([(int) $session['user_id']], $ids)
         );
+        $storages = array_map(static function (array $storage) use ($storageAccessRoles): array {
+            $storageId = (int) $storage['id'];
+            $storage['id'] = $storageId;
+            $storage['type'] = (string) ($storage['storage_type'] ?? 'storage');
+            $storage['is_default'] = (int) ($storage['is_default'] ?? 0);
+            $storage['access_role'] = $storageAccessRoles[$storageId] ?? 'member';
+
+            return $storage;
+        }, $storages);
         $items = [];
         if ($ids !== [] && Auth::userHasPermission((int) $session['user_id'], 'items.view')) {
             $rows = Database::fetchAll(
@@ -119,6 +132,7 @@ function handle_mobile_api_bootstrap(): void
         $cursor = inventory_latest_event_cursor();
         mobile_api_success([
             'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'role' => $session['role'], 'position' => $session['position']],
+            'manager' => mobile_api_manager_payload((int) $session['user_id']),
             'permissions' => $permissions,
             'storages' => $storages,
             'items' => $items,
@@ -150,10 +164,13 @@ function mobile_api_access_fingerprint(array $session, array $permissions, array
     sort($permissions);
     sort($storageIds);
     sort($capabilities);
+    $storageAccessRoles = mobile_api_storage_access_roles($session, $storageIds);
     return hash('sha256', json_encode([
         'user_id' => (int) $session['user_id'],
+        'manager_user_id' => manager_user_id_for((int) $session['user_id']),
         'permissions' => array_values($permissions),
         'storage_ids' => array_values($storageIds),
+        'storage_access_roles' => $storageAccessRoles,
         'capabilities' => array_values($capabilities),
         'mobile_enabled' => site_setting('mobile.enabled', '0'),
         'minimum_version' => site_setting('mobile.min_supported_version', '1.0.0'),
@@ -296,7 +313,7 @@ function mobile_api_handover_visible_to_session(int $handoverId, array $session,
     if ((string) ($session['role'] ?? '') === 'owner') {
         return true;
     }
-    $params = [$handoverId, (int) $session['user_id'], (int) $session['user_id'], (int) $session['user_id']];
+    $params = [$handoverId, (int) $session['user_id'], (int) $session['user_id'], (int) $session['user_id'], (int) $session['user_id']];
     $storageSql = '';
     if ($storageIds !== []) {
         $placeholders = implode(',', array_fill(0, count($storageIds), '?'));
@@ -306,7 +323,7 @@ function mobile_api_handover_visible_to_session(int $handoverId, array $session,
     return (bool) Database::scalar(
         'SELECT 1 FROM handovers handover
          WHERE handover.id = ?
-           AND (handover.recipient_user_id = ? OR handover.created_by = ? OR handover.approver_user_id = ?' . $storageSql . ')
+           AND (handover.recipient_user_id = ? OR handover.created_by = ? OR handover.approver_user_id = ? OR handover.manager_user_id = ?' . $storageSql . ')
          LIMIT 1',
         $params
     );
@@ -367,6 +384,16 @@ function handle_mobile_api_storages(): void
              GROUP BY storage.id, storage.name, storage.storage_type, assignment.is_default ORDER BY assignment.is_default DESC, storage.name ASC',
             array_merge([(int) $session['user_id']], $ids)
         );
+        $accessRoles = mobile_api_storage_access_roles($session, $ids);
+        $rows = array_map(static function (array $row) use ($accessRoles): array {
+            $storageId = (int) $row['id'];
+            $row['id'] = $storageId;
+            $row['type'] = (string) ($row['storage_type'] ?? 'storage');
+            $row['is_default'] = (int) ($row['is_default'] ?? 0);
+            $row['access_role'] = $accessRoles[$storageId] ?? 'member';
+
+            return $row;
+        }, $rows);
         mobile_api_success($rows);
     });
 }

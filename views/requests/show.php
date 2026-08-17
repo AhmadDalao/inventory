@@ -210,7 +210,7 @@ foreach ($lines as $line) {
 
             <?php if ($canRecoverRequest): ?>
                 <div class="copy-context-card">
-                    <strong>Status Control</strong>
+                    <strong>Owner Resolution: Recover Workflow</strong>
                     <p>Recover this request and reopen it as <?= e(request_status_label((string) $requestRecoveryTargetStatus)) ?>. Stock will be re-reserved only when that status needs it.</p>
                 </div>
 
@@ -224,14 +224,14 @@ foreach ($lines as $line) {
                 </form>
             <?php elseif ($requestRecoveryTargetStatus !== null && $requestRecoveryBlockReason !== null): ?>
                 <div class="copy-context-card">
-                    <strong>Status Control Blocked</strong>
+                    <strong>Owner Resolution Blocked</strong>
                     <p><?= e($requestRecoveryBlockReason) ?></p>
                 </div>
             <?php endif; ?>
 
         <?php if ($canVoidRecord): ?>
             <div class="copy-context-card">
-                <strong>Owner audit cleanup</strong>
+                <strong>Owner Resolution: Void Audit Record</strong>
                 <p>This record has no remaining stock impact. Mark it void to stop the workflow while keeping the request, lines, files, and history visible.</p>
             </div>
 

@@ -50,7 +50,7 @@ function mobile_api_handover_is_source_issuer(array $session, array $handover): 
 {
     $userId = (int) ($session['user_id'] ?? 0);
     return mobile_api_handover_is_owner($session)
-        || $userId === (int) ($handover['source_owner_user_id'] ?? 0)
+        || storage_is_owned_by_user((int) ($handover['source_storage_id'] ?? 0), $userId)
         || $userId === (int) ($handover['approver_user_id'] ?? 0)
         || $userId === (int) ($handover['request_approved_by'] ?? 0)
         || ($userId === (int) ($handover['created_by'] ?? 0) && (string) ($handover['handover_mode'] ?? '') === 'direct');
@@ -62,8 +62,9 @@ function mobile_api_handover_can_view(array $session, array $handover): bool
     return mobile_api_handover_is_owner($session)
         || $userId === (int) ($handover['recipient_user_id'] ?? 0)
         || $userId === (int) ($handover['created_by'] ?? 0)
-        || $userId === (int) ($handover['source_owner_user_id'] ?? 0)
-        || $userId === (int) ($handover['destination_owner_user_id'] ?? 0)
+        || $userId === (int) ($handover['manager_user_id'] ?? 0)
+        || storage_is_owned_by_user((int) ($handover['source_storage_id'] ?? 0), $userId)
+        || storage_is_owned_by_user((int) ($handover['destination_storage_id'] ?? 0), $userId)
         || $userId === (int) ($handover['approver_user_id'] ?? 0);
 }
 
@@ -83,7 +84,7 @@ function mobile_api_handover_can_receive(array $session, array $handover): bool
 
     if (handover_is_storage_transfer($handover)) {
         return mobile_api_handover_is_owner($session)
-            || $userId === (int) ($handover['destination_owner_user_id'] ?? 0);
+            || storage_is_owned_by_user((int) ($handover['destination_storage_id'] ?? 0), $userId);
     }
 
     return mobile_api_handover_is_owner($session)
@@ -254,10 +255,28 @@ function mobile_api_handover_scope_sql(array $session): array
     }
     $userId = (int) $session['user_id'];
     return [
-        ' AND (h.recipient_user_id = :scope_user OR h.created_by = :scope_creator OR source_storage.owner_user_id = :scope_source_owner OR destination_storage.owner_user_id = :scope_destination_owner OR h.approver_user_id = :scope_approver)',
+        ' AND (
+            h.recipient_user_id = :scope_user
+            OR h.created_by = :scope_creator
+            OR h.manager_user_id = :scope_manager
+            OR h.approver_user_id = :scope_approver
+            OR EXISTS (
+                SELECT 1 FROM user_storage_assignments source_scope
+                WHERE source_scope.storage_id = h.source_storage_id
+                  AND source_scope.user_id = :scope_source_owner
+                  AND source_scope.access_role = "owner"
+            )
+            OR EXISTS (
+                SELECT 1 FROM user_storage_assignments destination_scope
+                WHERE destination_scope.storage_id = h.destination_storage_id
+                  AND destination_scope.user_id = :scope_destination_owner
+                  AND destination_scope.access_role = "owner"
+            )
+        )',
         [
             'scope_user' => $userId,
             'scope_creator' => $userId,
+            'scope_manager' => $userId,
             'scope_source_owner' => $userId,
             'scope_destination_owner' => $userId,
             'scope_approver' => $userId,
@@ -409,7 +428,7 @@ function handle_mobile_api_handover_create(): void
         if (!$sourceStorage) {
             throw new MobileApiException('storage_not_found', 'Source storage not found.', 404);
         }
-        if ($canCreate && !mobile_api_handover_is_owner($session) && (int) ($sourceStorage['owner_user_id'] ?? 0) !== (int) $session['user_id']) {
+        if ($canCreate && !storage_is_owned_by_user($sourceStorageId, (int) $session['user_id'])) {
             throw new MobileApiException('storage_forbidden', 'You may issue stock only from a storage you own.', 403);
         }
 
@@ -423,10 +442,14 @@ function handle_mobile_api_handover_create(): void
                 throw new MobileApiException('validation_failed', 'Choose a different destination storage.', 422, ['destination_storage_id' => ['Required.']]);
             }
             $destinationStorage = Database::fetch('SELECT * FROM storages WHERE id = :id AND is_active = 1 AND is_system = 0 LIMIT 1', ['id' => $destinationStorageId]);
-            if (!$destinationStorage || (int) ($destinationStorage['owner_user_id'] ?? 0) <= 0) {
+            $destinationOwnerIds = $destinationStorage ? storage_owner_user_ids($destinationStorageId) : [];
+            if (!$destinationStorage || $destinationOwnerIds === []) {
                 throw new MobileApiException('validation_failed', 'Destination storage needs an active owner.', 422);
             }
-            $recipientUserId = (int) $destinationStorage['owner_user_id'];
+            $requestedRecipientId = (int) ($payload['recipient_user_id'] ?? 0);
+            $recipientUserId = in_array($requestedRecipientId, $destinationOwnerIds, true)
+                ? $requestedRecipientId
+                : (storage_owner_user_id($destinationStorageId) ?? $destinationOwnerIds[0]);
         }
         $recipient = Database::fetch('SELECT id, name, role, is_active FROM users WHERE id = :id LIMIT 1', ['id' => $recipientUserId]);
         if (!$recipient || (int) $recipient['is_active'] !== 1) {
@@ -458,13 +481,13 @@ function handle_mobile_api_handover_create(): void
             $status = $isRequest ? 'requested' : 'awaiting_receipt';
             Database::execute(
                 'INSERT INTO handovers (
-                    handover_number, source_storage_id, destination_storage_id, approver_user_id,
+                    handover_number, source_storage_id, destination_storage_id, approver_user_id, manager_user_id,
                     recipient_name, recipient_user_id, recipient_type, handover_purpose,
                     issue_condition, custody_review_date, usage_reporting_mode, handover_mode,
                     status, scheduled_for_date, notes, requested_at, issued_at,
                     created_by, updated_by, created_at, updated_at
                  ) VALUES (
-                    :number, :source, :destination, :approver, :recipient_name, :recipient_user,
+                    :number, :source, :destination, :approver, :manager_user_id, :recipient_name, :recipient_user,
                     :recipient_type, :purpose, :issue_condition, :review_date, :usage_mode,
                     :handover_mode, :status, :scheduled, :notes, :requested_at, NOW(),
                     :created_by, :updated_by, NOW(), NOW()
@@ -473,7 +496,8 @@ function handle_mobile_api_handover_create(): void
                     'number' => $number,
                     'source' => (int) $sourceStorage['id'],
                     'destination' => $destinationStorageId > 0 ? $destinationStorageId : null,
-                    'approver' => (int) ($sourceStorage['owner_user_id'] ?? 0) ?: null,
+                    'approver' => storage_owner_user_id((int) $sourceStorage['id']),
+                    'manager_user_id' => $purpose === 'storage_transfer' ? null : manager_user_id_for((int) $recipient['id']),
                     'recipient_name' => $recipientName,
                     'recipient_user' => (int) $recipient['id'],
                     'recipient_type' => $purpose === 'storage_transfer' ? 'storage' : 'staff',

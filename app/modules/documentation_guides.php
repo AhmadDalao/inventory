@@ -117,8 +117,9 @@ function documentation_department_guides(): array
             'roles' => ['Operations Manager', 'Admin'],
             'responsibilities' => [
                 'Monitors stock health, usage, handovers, requests, stocktakes, reorder needs, and labels.',
+                'Sees requests, handovers, and mobile stock activity created by direct reports and receives their workflow alerts.',
                 'Monitors long-term custody, overdue review dates, damaged returns, replacements, and quarantine outcomes.',
-                'Fixes operational flow issues without bypassing approval rules.',
+                'Acts as an operational observer unless separately assigned as a co-owner of the source storage.',
                 'Coordinates storage owners and staff during events or daily operations.',
             ],
             'pages' => ['Dashboard', 'Storages', 'Items', 'Requests', 'Handovers', 'Stocktakes', 'Reorder', 'Labels'],
@@ -129,7 +130,8 @@ function documentation_department_guides(): array
             'icon' => 'storages',
             'roles' => ['Storage Manager', 'Warehouse Owner', 'Admin'],
             'responsibilities' => [
-                'Owns one or more storage locations and approves items leaving or returning.',
+                'Co-owns one or more storage locations and approves items leaving or returning from those locations.',
+                'Shares a storage safely with other assigned owners without granting access to unrelated storages.',
                 'Reviews storage item balances, 0-quantity refill items, transfers, requests, and handovers.',
                 'Reviews returned quantities, operational totals, and Difference before temporary handovers become closed.',
                 'Reviews custody return condition and proof before serviceable, damaged, consumed, or lost quantities post.',
@@ -143,6 +145,8 @@ function documentation_department_guides(): array
             'roles' => ['Staff', 'Reception Staff'],
             'responsibilities' => [
                 'Requests items needed for work and confirms exactly what was received.',
+                'Sees only assigned storages and cannot inspect unrelated location balances.',
+                'Reports to the assigned manager, who receives visibility and alerts without automatically gaining stock approval authority.',
                 'For temporary handovers, enters returned quantity per item; the system calculates used quantity automatically.',
                 'Reports one operational summary per unit for Online, Walk-in, Event, Sport, Damage, Complimentary, No Show, and Other.',
                 'Returns long-term custody items in partial events and provides proof for damaged items or an explanation for missing items.',
@@ -157,6 +161,8 @@ function documentation_department_guides(): array
             'roles' => ['Owner', 'General Admin'],
             'responsibilities' => [
                 'Creates users, assigns positions, applies permission presets, and adjusts custom permissions.',
+                'Assigns each employee to a direct manager and to one or more storages as a member or co-owner.',
+                'Keeps manager visibility separate from storage approval authority.',
                 'Manages website labels and interface style from Website Control.',
                 'Uses documentation to train employees on the exact workflows they should follow.',
             ],

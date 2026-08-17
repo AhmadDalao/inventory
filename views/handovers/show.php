@@ -995,7 +995,7 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
 
         <?php if ($canOverrideHandoverStatus): ?>
             <div class="copy-context-card">
-                <strong><?= $isStorageTransfer ? 'Reopen Transfer Receipt' : 'Admin Status Override' ?></strong>
+                <strong><?= $isStorageTransfer ? 'Owner Resolution: Reopen Transfer Receipt' : 'Owner Resolution: Safe Status Correction' ?></strong>
                 <p>
                     <?= $isStorageTransfer
                         ? 'Reopen the destination receipt safely. Posted destination and shortage stock will return to the handover buffer before correction.'
@@ -1027,7 +1027,7 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
 
         <?php if ($canRecoverHandover): ?>
             <div class="copy-context-card">
-                <strong>Status Control</strong>
+                <strong>Owner Resolution: Recover Workflow</strong>
                 <p>Recover this handover and reopen it as <?= e(handover_status_label((string) $handoverRecoveryTargetStatus)) ?>. Stock will be reissued only when that status needs it.</p>
             </div>
 
@@ -1041,14 +1041,14 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
             </form>
         <?php elseif ($handoverRecoveryTargetStatus !== null && $handoverRecoveryBlockReason !== null): ?>
             <div class="copy-context-card">
-                <strong>Status Control Blocked</strong>
+                <strong>Owner Resolution Blocked</strong>
                 <p><?= e($handoverRecoveryBlockReason) ?></p>
             </div>
         <?php endif; ?>
 
         <?php if ($canVoidRecord): ?>
             <div class="copy-context-card">
-                <strong>Owner audit cleanup</strong>
+                <strong>Owner Resolution: Void Audit Record</strong>
                 <p>This record has no remaining stock impact. Mark it void to stop the workflow while keeping the handover, lines, files, and movement history visible.</p>
             </div>
 

@@ -270,20 +270,18 @@ function handle_handover_custody_return_submit(array $params): void
         throw $exception;
     }
 
-    $issuerId = (int) ($handover['source_owner_user_id'] ?? $handover['approver_user_id'] ?? 0);
-
-    if ($issuerId > 0) {
-        create_notification(
-            $issuerId,
-            'custody_return_submitted',
-            'Custody return awaiting review',
-            (string) $custodyReturn['return_number'] . ' has quantities and evidence ready for approval.',
-            url('/handovers/' . (int) $handover['id'] . '/custody-returns/' . (int) $custodyReturn['id']),
-            'handover',
-            (int) $handover['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    notify_workflow_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($handover['source_storage_id'] ?? 0)],
+        'custody_return_submitted',
+        'Custody return awaiting review',
+        (string) $custodyReturn['return_number'] . ' has quantities and evidence ready for approval.',
+        url('/handovers/' . (int) $handover['id'] . '/custody-returns/' . (int) $custodyReturn['id']),
+        'handover',
+        (int) $handover['id'],
+        [],
+        [(int) ($handover['recipient_user_id'] ?? 0), (int) ($handover['created_by'] ?? 0)]
+    );
 
     record_activity(
         'custody_return_submitted',
@@ -587,13 +585,13 @@ function handle_handover_custody_replacement_create(array $params): void
     try {
         Database::execute(
             'INSERT INTO handovers (
-                handover_number, source_storage_id, destination_storage_id, approver_user_id,
+                handover_number, source_storage_id, destination_storage_id, approver_user_id, manager_user_id,
                 recipient_name, recipient_user_id, recipient_type, handover_purpose,
                 issue_condition, custody_review_date, usage_reporting_mode, handover_mode,
                 status, scheduled_for_date, notes, requested_at, issued_at,
                 created_by, updated_by, created_at, updated_at
              ) VALUES (
-                :handover_number, :source_storage_id, NULL, :approver_user_id,
+                :handover_number, :source_storage_id, NULL, :approver_user_id, :manager_user_id,
                 :recipient_name, :recipient_user_id, "staff", "staff_custody",
                 :issue_condition, :custody_review_date, "legacy_per_item", "request",
                 "requested", :scheduled_for_date, :notes, NOW(), NOW(),
@@ -602,7 +600,8 @@ function handle_handover_custody_replacement_create(array $params): void
             [
                 'handover_number' => $handoverNumber,
                 'source_storage_id' => (int) $handover['source_storage_id'],
-                'approver_user_id' => (int) ($handover['source_owner_user_id'] ?? $handover['approver_user_id'] ?? 0),
+                'approver_user_id' => (int) (storage_owner_user_id((int) $handover['source_storage_id']) ?? $handover['approver_user_id'] ?? 0),
+                'manager_user_id' => manager_user_id_for((int) $handover['recipient_user_id']),
                 'recipient_name' => (string) $handover['recipient_name'],
                 'recipient_user_id' => (int) $handover['recipient_user_id'],
                 'issue_condition' => (string) ($handover['issue_condition'] ?? 'good'),

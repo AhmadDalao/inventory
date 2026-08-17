@@ -241,26 +241,30 @@ function handle_handovers_receive_submit(array $params): void
         // Attachment regeneration should not block receipt reporting.
     }
 
-    if (!empty($handover['source_owner_user_id'])) {
-        create_notification(
-            (int) $handover['source_owner_user_id'],
-            !$hasVariance ? 'handover_received' : 'handover_receipt_review',
-            !$hasVariance
-                ? 'Handover ' . $handover['handover_number'] . ' was received'
-                : 'Handover ' . $handover['handover_number'] . ' needs receipt review',
-            $isStorageTransfer
-                ? ($hasVariance
-                    ? ($user['name'] ?? 'Destination owner') . ' reported a transfer receipt difference and is waiting for source owner confirmation.'
-                    : ($user['name'] ?? 'Destination owner') . ' confirmed the transfer receipt and stock moved to the destination storage.')
-                : ($hasVariance
-                    ? ($user['name'] ?? 'Recipient') . ' reported a receipt difference and is waiting for your confirmation.'
-                    : ($user['name'] ?? 'Recipient') . ' confirmed the full receipt and can now report usage and returns.'),
-            url('/handovers/' . $handover['id']),
-            'handover',
-            (int) $handover['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    $notificationType = !$hasVariance ? 'handover_received' : 'handover_receipt_review';
+    $notificationTitle = !$hasVariance
+        ? 'Handover ' . $handover['handover_number'] . ' was received'
+        : 'Handover ' . $handover['handover_number'] . ' needs receipt review';
+    $notificationMessage = $isStorageTransfer
+        ? ($hasVariance
+            ? ($user['name'] ?? 'Destination owner') . ' reported a transfer receipt difference and is waiting for source owner confirmation.'
+            : ($user['name'] ?? 'Destination owner') . ' confirmed the transfer receipt and stock moved to the destination storage.')
+        : ($hasVariance
+            ? ($user['name'] ?? 'Recipient') . ' reported a receipt difference and is waiting for issuer confirmation.'
+            : ($user['name'] ?? 'Recipient') . ' confirmed the full receipt and can now report usage and returns.');
+
+    notify_workflow_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($handover['source_storage_id'] ?? 0), (int) ($handover['destination_storage_id'] ?? 0)],
+        $notificationType,
+        $notificationTitle,
+        $notificationMessage,
+        url('/handovers/' . $handover['id']),
+        'handover',
+        (int) $handover['id'],
+        [],
+        [(int) ($handover['recipient_user_id'] ?? 0), (int) ($handover['created_by'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([

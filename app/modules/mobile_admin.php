@@ -152,18 +152,12 @@ function handle_mobile_admin_user_submit(array $params): void
                 'updated_by' => Auth::user()['id'],
             ]
         );
-        Database::execute('DELETE FROM user_storage_assignments WHERE user_id = :user_id', ['user_id' => $userId]);
-        foreach ($storageIds as $storageId) {
-            $exists = Database::scalar('SELECT COUNT(*) FROM storages WHERE id = :id AND is_active = 1 AND is_system = 0', ['id' => $storageId]);
-            if ((int) $exists !== 1) {
-                throw new RuntimeException('One selected storage is unavailable.');
-            }
-            Database::execute(
-                'INSERT INTO user_storage_assignments (user_id, storage_id, is_default, created_by, created_at, updated_at)
-                 VALUES (:user_id, :storage_id, :is_default, :actor_id, NOW(), NOW())',
-                ['user_id' => $userId, 'storage_id' => $storageId, 'is_default' => $storageId === $defaultStorageId ? 1 : 0, 'actor_id' => Auth::user()['id']]
-            );
-        }
+        sync_user_storage_memberships(
+            $userId,
+            $storageIds,
+            $defaultStorageId > 0 ? $defaultStorageId : null,
+            (int) Auth::user()['id']
+        );
         $pdo->commit();
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {

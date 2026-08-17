@@ -1,6 +1,6 @@
 # Inventory KONA Mobile API
 
-Updated: 2026-08-14
+Updated: 2026-08-17
 
 The mobile API is the controlled bridge between the Flutter application and the existing Inventory KONA stock engine. The app never writes MySQL directly and never calculates final stock locally.
 
@@ -38,6 +38,16 @@ Key permission rules:
 - Transfers require `handovers.create` plus the Transfer capability and an assigned source storage.
 - Staff requests/handovers require `handovers.request` or `handovers.create` plus the Handover capability.
 - Receipt, closeout, approval, custody return, cancellation, and record reads also require the correct workflow status and user relationship.
+
+### Manager Routing And Storage Roles
+
+- `/me` and `/bootstrap` return the employee's current direct manager when one is assigned.
+- Each authorized storage includes `access_role`: `owner` or `member`.
+- A member can see and act only within assigned storages and granted capabilities. An owner can approve stock for that storage only when the matching website permission also exists.
+- Managers receive notifications for direct-report scan in/out, usage, restock, request, and handover activity. Active global Owners and relevant storage co-owners are also notified.
+- Manager visibility never grants stock approval by itself. The API independently checks storage ownership on every request, receipt, transfer, closeout, or correction action.
+- Request, handover, and mobile-operation records snapshot the manager id for audit/history; current access is still recalculated on each protected request.
+- Changing a manager, removing a storage assignment, demoting a co-owner, or disabling a user changes the access fingerprint and takes effect on the next visible sync.
 
 ## Authentication
 

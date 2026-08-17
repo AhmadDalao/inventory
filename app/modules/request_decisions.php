@@ -90,15 +90,17 @@ function handle_requests_approve_submit(array $params): void
         redirect('/requests/' . $request['id']);
     }
 
-    create_notification(
-        (int) $request['requester_user_id'],
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($request['requester_user_id'] ?? 0)],
+        [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
         'request_approved',
         'Request ' . $request['request_number'] . ' approved',
         'Your request is now in progress.',
         url('/requests/' . $request['id']),
         'request',
         (int) $request['id'],
-        (int) ($user['id'] ?? 0)
+        [(int) ($request['requester_user_id'] ?? 0)]
     );
 
     $successMessage = (string) ($request['request_mode'] ?? 'transfer') === 'transfer'
@@ -150,15 +152,17 @@ function handle_requests_reject_submit(array $params): void
         ]
     );
 
-    create_notification(
-        (int) $request['requester_user_id'],
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($request['requester_user_id'] ?? 0)],
+        [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
         'request_rejected',
         'Request ' . $request['request_number'] . ' rejected',
         $decisionNotes !== '' ? $decisionNotes : 'Your request was rejected.',
         url('/requests/' . $request['id']),
         'request',
         (int) $request['id'],
-        (int) ($user['id'] ?? 0)
+        [(int) ($request['requester_user_id'] ?? 0)]
     );
 
     if (request_wants_json()) {

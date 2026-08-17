@@ -75,23 +75,18 @@ function handle_requests_cancel_submit(array $params): void
         redirect('/requests/' . $request['id']);
     }
 
-    $notificationUserIds = array_values(array_unique(array_filter([
-        (int) ($request['requester_user_id'] ?? 0),
-        (int) ($request['approver_user_id'] ?? 0),
-    ], static fn (int $id): bool => $id > 0 && $id !== (int) ($user['id'] ?? 0))));
-
-    foreach ($notificationUserIds as $notificationUserId) {
-        create_notification(
-            $notificationUserId,
-            'request_cancelled',
-            'Request ' . $request['request_number'] . ' cancelled',
-            ($user['name'] ?? 'Someone') . ' cancelled this request.' . ($decisionNotes !== '' ? ' ' . $decisionNotes : ''),
-            url('/requests/' . $request['id']),
-            'request',
-            (int) $request['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($request['requester_user_id'] ?? 0), (int) ($request['approver_user_id'] ?? 0)],
+        [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
+        'request_cancelled',
+        'Request ' . $request['request_number'] . ' cancelled',
+        ($user['name'] ?? 'Someone') . ' cancelled this request.' . ($decisionNotes !== '' ? ' ' . $decisionNotes : ''),
+        url('/requests/' . $request['id']),
+        'request',
+        (int) $request['id'],
+        [(int) ($request['requester_user_id'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([
@@ -173,23 +168,18 @@ function handle_requests_recover_submit(array $params): void
         'notes' => $notes,
     ]);
 
-    $notificationUserIds = array_values(array_unique(array_filter([
-        (int) ($request['requester_user_id'] ?? 0),
-        (int) ($request['approver_user_id'] ?? 0),
-    ], static fn (int $id): bool => $id > 0 && $id !== (int) ($user['id'] ?? 0))));
-
-    foreach ($notificationUserIds as $notificationUserId) {
-        create_notification(
-            $notificationUserId,
-            'request_recovered',
-            'Request ' . $request['request_number'] . ' recovered',
-            ($user['name'] ?? 'Admin') . ' reopened this request as ' . request_status_label($targetStatus) . '.',
-            url('/requests/' . $request['id']),
-            'request',
-            (int) $request['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($request['requester_user_id'] ?? 0), (int) ($request['approver_user_id'] ?? 0)],
+        [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
+        'request_recovered',
+        'Request ' . $request['request_number'] . ' recovered',
+        ($user['name'] ?? 'Admin') . ' reopened this request as ' . request_status_label($targetStatus) . '.',
+        url('/requests/' . $request['id']),
+        'request',
+        (int) $request['id'],
+        [(int) ($request['requester_user_id'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([
@@ -271,6 +261,19 @@ function handle_requests_void_submit(array $params): void
         'request_number' => $requestNumber,
         'reason' => $notes,
     ]);
+
+    notify_workflow_participants_and_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($request['requester_user_id'] ?? 0), (int) ($request['approver_user_id'] ?? 0)],
+        [(int) ($request['source_storage_id'] ?? 0), (int) ($request['destination_storage_id'] ?? 0)],
+        'request_voided',
+        'Request ' . $requestNumber . ' marked void',
+        ($user['name'] ?? 'Owner') . ' marked this request void. ' . $notes,
+        url('/requests/' . $request['id']),
+        'request',
+        (int) $request['id'],
+        [(int) ($request['requester_user_id'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([

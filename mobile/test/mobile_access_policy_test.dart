@@ -110,5 +110,42 @@ void main() {
       expect(task.can('approve_closeout'), isFalse);
       expect(task.can('cancel'), isFalse);
     });
+
+    test(
+      'storage payload preserves the server access role and storage type',
+      () {
+        final ownedStorage = StorageLocation.fromJson(const {
+          'id': 12,
+          'name': 'KONA Office',
+          'storage_type': 'warehouse',
+          'access_role': 'owner',
+          'is_default': 1,
+        });
+
+        expect(ownedStorage.type, 'warehouse');
+        expect(ownedStorage.isOwner, isTrue);
+        expect(ownedStorage.isDefault, isTrue);
+      },
+    );
+
+    test('manager identity survives realtime inventory merges', () {
+      const manager = MobileManager(
+        id: 2,
+        name: 'Operations Manager',
+        role: 'admin',
+        position: 'Operations Manager',
+      );
+      final bootstrap = MobileBootstrap(
+        userName: 'Employee',
+        storages: const [storage],
+        items: const [],
+        tasks: const [],
+        permissions: const {'items.view'},
+        capabilities: const {},
+        manager: manager,
+      );
+
+      expect(bootstrap.copyWith(items: const []).manager?.id, 2);
+    });
   });
 }

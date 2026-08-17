@@ -41,9 +41,11 @@ trait MaintenanceSchemaState
         return self::tableExists('mobile_user_access')
             && self::columnExists('mobile_user_access', 'direct_restock_enabled')
             && self::tableExists('user_storage_assignments')
+            && self::columnExists('user_storage_assignments', 'access_role')
             && self::tableExists('mobile_device_sessions')
             && self::tableExists('mobile_operations')
             && self::columnExists('mobile_operations', 'storage_id')
+            && self::columnExists('mobile_operations', 'manager_user_id')
             && self::tableExists('inventory_movement_usage_details')
             && self::columnExists('inventory_movement_usage_details', 'custom_reason')
             && self::tableExists('inventory_change_events')
@@ -124,7 +126,8 @@ trait MaintenanceSchemaState
 
     private static function userSchemaIsCurrent(): bool
     {
-        return self::columnExists('users', 'position');
+        return self::columnExists('users', 'position')
+            && self::columnExists('users', 'manager_user_id');
     }
 
     private static function itemSchemaIsCurrent(): bool

@@ -12,6 +12,8 @@ function find_request_or_abort(int $requestId): array
                 requester.role AS requester_role,
                 approver.name AS approver_name,
                 approver.email AS approver_email,
+                manager.name AS manager_name,
+                manager.email AS manager_email,
                 source_storage.name AS source_storage_name,
                 source_storage.storage_type AS source_storage_type,
                 destination_storage.name AS destination_storage_name,
@@ -21,6 +23,7 @@ function find_request_or_abort(int $requestId): array
          FROM item_requests r
          INNER JOIN users requester ON requester.id = r.requester_user_id
          INNER JOIN users approver ON approver.id = r.approver_user_id
+         LEFT JOIN users manager ON manager.id = r.manager_user_id
          INNER JOIN storages source_storage ON source_storage.id = r.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = r.destination_storage_id
          LEFT JOIN users approved_by_user ON approved_by_user.id = r.approved_by

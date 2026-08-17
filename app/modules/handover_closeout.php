@@ -18,8 +18,7 @@ function handle_handovers_close_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
-    $isSourceOwner = Auth::isOwner()
-        || (int) ($handover['source_owner_user_id'] ?? 0) === (int) ($user['id'] ?? 0)
+    $isSourceOwner = handover_user_is_source_owner($handover, (int) ($user['id'] ?? 0))
         || (int) ($handover['created_by'] ?? 0) === (int) ($user['id'] ?? 0);
     $isRecipient = (int) ($handover['recipient_user_id'] ?? 0) === (int) ($user['id'] ?? 0);
 
@@ -216,18 +215,18 @@ function handle_handovers_close_submit(array $params): void
         redirect('/handovers/' . $handover['id']);
     }
 
-    if (!empty($handover['source_owner_user_id'])) {
-        create_notification(
-            (int) $handover['source_owner_user_id'],
-            'handover_waiting_approval',
-            'Handover ' . $handover['handover_number'] . ' is waiting for approval',
-            ($user['name'] ?? 'Someone') . ' submitted used quantities and the remaining stock is waiting for your approval.',
-            url('/handovers/' . $handover['id']),
-            'handover',
-            (int) $handover['id'],
-            (int) ($user['id'] ?? 0)
-        );
-    }
+    notify_workflow_observers(
+        (int) ($user['id'] ?? 0),
+        [(int) ($handover['source_storage_id'] ?? 0), (int) ($handover['destination_storage_id'] ?? 0)],
+        'handover_waiting_approval',
+        'Handover ' . $handover['handover_number'] . ' is waiting for approval',
+        ($user['name'] ?? 'Someone') . ' submitted used quantities and the remaining stock is waiting for approval.',
+        url('/handovers/' . $handover['id']),
+        'handover',
+        (int) $handover['id'],
+        [],
+        [(int) ($handover['recipient_user_id'] ?? 0), (int) ($handover['created_by'] ?? 0)]
+    );
 
     if (request_wants_json()) {
         json_response([

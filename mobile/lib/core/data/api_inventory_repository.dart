@@ -69,6 +69,11 @@ class ApiInventoryRepository implements InventoryRepository {
         .cast<Map<String, dynamic>>()
         .map(MobileRecipient.fromJson)
         .toList();
+    final manager = data['manager'] is Map
+        ? MobileManager.fromJson(
+            Map<String, dynamic>.from(data['manager'] as Map),
+          )
+        : null;
     return MobileBootstrap(
       userName: user['name'] as String? ?? 'Employee',
       storages: storages,
@@ -80,6 +85,7 @@ class ApiInventoryRepository implements InventoryRepository {
       permissions: Set<String>.from((data['permissions'] as List?) ?? const []),
       recipients: recipients,
       settings: Map<String, dynamic>.from(data['settings'] as Map? ?? const {}),
+      manager: manager,
     );
   }
 

@@ -40,13 +40,19 @@ function handle_requests_create_submit(): void
     }
 
     $sourceOwner = $payload['source_storage_id'] ? storage_owner_record((int) $payload['source_storage_id']) : null;
+    $sourceOwnerIds = $payload['source_storage_id'] ? storage_owner_user_ids((int) $payload['source_storage_id']) : [];
+    $managerUserId = manager_user_id_for((int) ($user['id'] ?? 0));
 
-    if (!$sourceOwner || empty($sourceOwner['owner_user_id']) || (int) ($sourceOwner['owner_is_active'] ?? 0) !== 1) {
+    if ($sourceOwnerIds === []) {
         $errors[] = 'The source storage needs an active owner admin before requests can be created.';
     }
 
-    if ($sourceOwner && (int) ($sourceOwner['owner_user_id'] ?? 0) === (int) ($user['id'] ?? 0)) {
+    if (in_array((int) ($user['id'] ?? 0), $sourceOwnerIds, true)) {
         $errors[] = 'You cannot create a request from a storage you own. Use a direct transfer, handover, or stock update instead.';
+    }
+
+    if ($isStaffRequest && $payload['source_storage_id'] && !user_can_view_storage((int) ($user['id'] ?? 0), (int) $payload['source_storage_id'])) {
+        $errors[] = 'You can only request items from a storage assigned to you.';
     }
 
     if ($requestMode === 'transfer') {
@@ -106,6 +112,7 @@ function handle_requests_create_submit(): void
                 request_mode,
                 requester_user_id,
                 approver_user_id,
+                manager_user_id,
                 source_storage_id,
                 destination_storage_id,
                 status,
@@ -127,6 +134,7 @@ function handle_requests_create_submit(): void
                 :request_mode,
                 :requester_user_id,
                 :approver_user_id,
+                :manager_user_id,
                 :source_storage_id,
                 :destination_storage_id,
                 :status,
@@ -148,7 +156,8 @@ function handle_requests_create_submit(): void
                 'request_number' => $requestNumber,
                 'request_mode' => $requestMode,
                 'requester_user_id' => (int) $user['id'],
-                'approver_user_id' => (int) $sourceOwner['owner_user_id'],
+                'approver_user_id' => storage_owner_user_id((int) $payload['source_storage_id']),
+                'manager_user_id' => $managerUserId,
                 'source_storage_id' => (int) $payload['source_storage_id'],
                 'destination_storage_id' => $payload['destination_storage_id'] ? (int) $payload['destination_storage_id'] : null,
                 'status' => $requestStatus,
@@ -209,8 +218,29 @@ function handle_requests_create_submit(): void
     }
 
     if ($requestStatus === 'pending') {
-        create_notification(
-            (int) $sourceOwner['owner_user_id'],
+        $designatedApproverId = storage_owner_user_id((int) $payload['source_storage_id']);
+
+        if ($designatedApproverId !== null && $designatedApproverId !== (int) ($user['id'] ?? 0)) {
+            create_notification(
+                $designatedApproverId,
+                'request_created',
+                'New item request ' . $requestNumber,
+                ($user['name'] ?? 'Someone') . ($requestMode === 'issue'
+                    ? ' asked for items to use from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.'
+                    : ' requested a storage transfer from ' . ($sourceOwner['storage_name'] ?? 'your storage') . '.'),
+                url('/requests/' . $requestId),
+                'request',
+                $requestId,
+                (int) ($user['id'] ?? 0)
+            );
+        }
+
+        notify_workflow_observers(
+            (int) ($user['id'] ?? 0),
+            array_values(array_filter([
+                (int) $payload['source_storage_id'],
+                (int) ($payload['destination_storage_id'] ?? 0),
+            ])),
             'request_created',
             'New item request ' . $requestNumber,
             ($user['name'] ?? 'Someone') . ($requestMode === 'issue'
@@ -219,7 +249,8 @@ function handle_requests_create_submit(): void
             url('/requests/' . $requestId),
             'request',
             $requestId,
-            (int) ($user['id'] ?? 0)
+            array_values(array_filter([$designatedApproverId])),
+            [(int) ($user['id'] ?? 0)]
         );
     }
 
@@ -256,17 +287,39 @@ function handle_requests_submit_submit(array $params): void
         ]
     );
 
-    create_notification(
-        (int) $request['approver_user_id'],
+    $notificationTitle = 'New item request ' . $request['request_number'];
+    $notificationBody = ($user['name'] ?? 'Someone') . ((string) ($request['request_mode'] ?? 'transfer') === 'issue'
+        ? ' asked for items to use from ' . ($request['source_storage_name'] ?? 'your storage') . '.'
+        : ' requested a storage transfer from ' . ($request['source_storage_name'] ?? 'your storage') . '.');
+    $designatedApproverId = normalize_entity_id($request['approver_user_id'] ?? null);
+
+    if ($designatedApproverId !== null && $designatedApproverId !== (int) ($user['id'] ?? 0)) {
+        create_notification(
+            $designatedApproverId,
+            'request_created',
+            $notificationTitle,
+            $notificationBody,
+            url('/requests/' . $request['id']),
+            'request',
+            (int) $request['id'],
+            (int) ($user['id'] ?? 0)
+        );
+    }
+
+    notify_workflow_observers(
+        (int) ($user['id'] ?? 0),
+        array_values(array_filter([
+            (int) ($request['source_storage_id'] ?? 0),
+            (int) ($request['destination_storage_id'] ?? 0),
+        ])),
         'request_created',
-        'New item request ' . $request['request_number'],
-        ($user['name'] ?? 'Someone') . ((string) ($request['request_mode'] ?? 'transfer') === 'issue'
-            ? ' asked for items to use from ' . ($request['source_storage_name'] ?? 'your storage') . '.'
-            : ' requested a storage transfer from ' . ($request['source_storage_name'] ?? 'your storage') . '.'),
+        $notificationTitle,
+        $notificationBody,
         url('/requests/' . $request['id']),
         'request',
         (int) $request['id'],
-        (int) ($user['id'] ?? 0)
+        array_values(array_filter([$designatedApproverId])),
+        [(int) ($request['requester_user_id'] ?? 0)]
     );
 
     record_activity('request.submitted', 'request', (int) $request['id'], 'Submitted request draft ' . $request['request_number'], [

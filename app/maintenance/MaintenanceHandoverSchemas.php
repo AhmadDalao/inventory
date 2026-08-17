@@ -14,6 +14,7 @@ trait MaintenanceHandoverSchemas
                 approver_user_id BIGINT UNSIGNED NULL,
                 recipient_name VARCHAR(160) NOT NULL,
                 recipient_user_id BIGINT UNSIGNED NULL,
+                manager_user_id BIGINT UNSIGNED NULL,
                 recipient_type ENUM("staff", "storage") NOT NULL DEFAULT "staff",
                 handover_purpose ENUM("temporary_use", "staff_custody", "storage_transfer") NOT NULL DEFAULT "temporary_use",
                 issue_condition VARCHAR(40) NOT NULL DEFAULT "good",
@@ -52,6 +53,7 @@ trait MaintenanceHandoverSchemas
                 INDEX idx_handovers_recipient_type (recipient_type),
                 INDEX idx_handovers_purpose (handover_purpose, status),
                 INDEX idx_handovers_recipient_user (recipient_user_id),
+                INDEX idx_handovers_manager (manager_user_id),
                 CONSTRAINT fk_handovers_source_storage FOREIGN KEY (source_storage_id) REFERENCES storages(id) ON DELETE RESTRICT,
                 CONSTRAINT fk_handovers_destination_storage FOREIGN KEY (destination_storage_id) REFERENCES storages(id) ON DELETE RESTRICT,
                 CONSTRAINT fk_handovers_approver_user FOREIGN KEY (approver_user_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -63,6 +65,19 @@ trait MaintenanceHandoverSchemas
                 CONSTRAINT fk_handovers_completed_by FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        if (!self::columnExists('handovers', 'manager_user_id')) {
+            Database::execute('ALTER TABLE handovers ADD COLUMN manager_user_id BIGINT UNSIGNED NULL AFTER recipient_user_id');
+        }
+        self::ensureIndexExists('handovers', 'idx_handovers_manager', 'CREATE INDEX `idx_handovers_manager` ON `handovers` (`manager_user_id`)');
+        self::ensureForeignKeyExists('handovers', 'fk_handovers_manager', 'ALTER TABLE `handovers` ADD CONSTRAINT `fk_handovers_manager` FOREIGN KEY (`manager_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL');
+        Database::execute(
+            'UPDATE handovers handover_row
+             INNER JOIN users recipient ON recipient.id = handover_row.recipient_user_id
+             SET handover_row.manager_user_id = recipient.manager_user_id
+             WHERE handover_row.manager_user_id IS NULL
+               AND recipient.manager_user_id IS NOT NULL'
         );
 
         $handoverApproverColumnExists = (int) Database::scalar(

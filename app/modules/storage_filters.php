@@ -19,6 +19,17 @@ function build_storage_where(array $filters, string $alias = 's'): array
     $conditions = ["{$alias}.is_system = 0"];
     $params = [];
 
+    $currentUserId = (int) (Auth::user()['id'] ?? 0);
+    if ($currentUserId > 0 && !user_can_view_all_storages($currentUserId)) {
+        $conditions[] = "EXISTS (
+            SELECT 1
+            FROM user_storage_assignments visible_assignment
+            WHERE visible_assignment.storage_id = {$alias}.id
+              AND visible_assignment.user_id = :visible_user_id
+        )";
+        $params['visible_user_id'] = $currentUserId;
+    }
+
     if ($filters['status'] === 'active') {
         $conditions[] = "{$alias}.is_active = 1";
     } elseif ($filters['status'] === 'archived') {

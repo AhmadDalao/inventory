@@ -3,6 +3,9 @@ $isEdit = $mode === 'edit';
 $copySource = $copySource ?? null;
 $isCopy = !$isEdit && $copySource !== null;
 $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storages/create');
+$selectedOwnerIds = array_map('intval', $selectedOwnerIds ?? []);
+$selectedMemberIds = array_map('intval', $selectedMemberIds ?? []);
+$canAssignUsers = (bool) ($canAssignUsers ?? false);
 ?>
 
 <section class="page-head">
@@ -45,8 +48,8 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
         </label>
 
         <label class="field">
-            <span>Owner Admin</span>
-            <select name="owner_user_id" required>
+            <span>Primary Storage Owner</span>
+            <select name="owner_user_id" required <?= $canAssignUsers ? '' : 'disabled' ?>>
                 <option value="">Select owner</option>
                 <?php foreach ($ownerCandidates as $ownerCandidate): ?>
                     <option value="<?= e((string) $ownerCandidate['id']) ?>" <?= selected((string) $ownerCandidate['id'], (string) ($storage['owner_user_id'] ?? '')) ?>>
@@ -54,8 +57,46 @@ $action = $isEdit ? url('/storages/' . $storage['id'] . '/edit') : url('/storage
                     </option>
                 <?php endforeach; ?>
             </select>
-            <small>This admin becomes the approval owner for requests and handovers that come from this storage.</small>
+            <?php if (!$canAssignUsers): ?>
+                <input type="hidden" name="owner_user_id" value="<?= e((string) ($storage['owner_user_id'] ?? '')) ?>">
+            <?php endif; ?>
+            <small>The primary owner is shown in summaries. Any assigned co-owner may approve storage workflows.</small>
         </label>
+
+        <details class="settings-accordion" open>
+            <summary>
+                <span><strong>Storage Access</strong><small>Assign co-owners and the employees allowed to see this storage.</small></span>
+                <span class="table-count-badge"><?= number_format(count($selectedOwnerIds) + count($selectedMemberIds)) ?></span>
+            </summary>
+            <div class="settings-accordion-body">
+                <?php if ($canAssignUsers): ?>
+                    <div class="settings-field-grid">
+                        <fieldset class="permission-list">
+                            <legend>Co-owners</legend>
+                            <?php foreach ($ownerCandidates as $ownerCandidate): ?>
+                                <label class="permission-option">
+                                    <input type="checkbox" name="owner_user_ids[]" value="<?= (int) $ownerCandidate['id'] ?>" <?= checked(in_array((int) $ownerCandidate['id'], $selectedOwnerIds, true)) ?>>
+                                    <span><strong><?= e((string) $ownerCandidate['name']) ?></strong><small><?= e((string) $ownerCandidate['email']) ?> · <?= e(user_role_label((string) $ownerCandidate['role'])) ?></small></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </fieldset>
+                        <fieldset class="permission-list">
+                            <legend>Assigned staff and admins</legend>
+                            <?php foreach ($memberCandidates as $memberCandidate): ?>
+                                <label class="permission-option">
+                                    <input type="checkbox" name="member_user_ids[]" value="<?= (int) $memberCandidate['id'] ?>" <?= checked(in_array((int) $memberCandidate['id'], $selectedMemberIds, true)) ?>>
+                                    <span><strong><?= e((string) $memberCandidate['name']) ?></strong><small><?= e((string) $memberCandidate['email']) ?> · <?= e(user_role_label((string) $memberCandidate['role'])) ?></small></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </fieldset>
+                    </div>
+                <?php else: ?>
+                    <p class="muted-copy">You can edit storage details, but changing owners or employee assignments requires the storage assignment permission.</p>
+                    <?php foreach ($selectedOwnerIds as $ownerUserId): ?><input type="hidden" name="owner_user_ids[]" value="<?= $ownerUserId ?>"><?php endforeach; ?>
+                    <?php foreach ($selectedMemberIds as $memberUserId): ?><input type="hidden" name="member_user_ids[]" value="<?= $memberUserId ?>"><?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </details>
 
         <?php if (!$isEdit && $isCopy): ?>
             <label class="field">

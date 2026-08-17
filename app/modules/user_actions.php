@@ -12,7 +12,9 @@ function handle_users_create_submit(): void
         'email' => strtolower(trim((string) input('email'))),
         'position' => trim((string) input('position', 'operations_manager')),
         'role' => trim((string) input('role', 'admin')),
-        'assigned_owner_user_id' => normalize_entity_id(input('assigned_owner_user_id')),
+        'manager_user_id' => normalize_entity_id(input('manager_user_id')),
+        'storage_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('storage_ids', []))))),
+        'default_storage_id' => normalize_entity_id(input('default_storage_id')),
         'password' => (string) input('password'),
         'password_confirmation' => (string) input('password_confirmation'),
         'permissions' => is_array(input('permissions', [])) ? input('permissions', []) : [],
@@ -23,7 +25,9 @@ function handle_users_create_submit(): void
         'email' => $payload['email'],
         'position' => $payload['position'],
         'role' => $payload['role'],
-        'assigned_owner_user_id' => (string) ($payload['assigned_owner_user_id'] ?? ''),
+        'manager_user_id' => (string) ($payload['manager_user_id'] ?? ''),
+        'storage_ids' => $payload['storage_ids'],
+        'default_storage_id' => (string) ($payload['default_storage_id'] ?? ''),
         'permissions' => $payload['permissions'],
     ]);
 
@@ -45,22 +49,19 @@ function handle_users_create_submit(): void
         $errors[] = 'Pick a valid position.';
     }
 
-    if ($payload['role'] !== 'staff') {
-        $payload['assigned_owner_user_id'] = null;
+    if (!(Auth::isOwner() || Auth::hasPermission('team.manage'))) {
+        $payload['manager_user_id'] = null;
     }
-
-    if ($payload['assigned_owner_user_id'] !== null) {
-        $assignedOwner = Database::fetch(
-            'SELECT id, role, is_active
-             FROM users
-             WHERE id = :id
-             LIMIT 1',
-            ['id' => $payload['assigned_owner_user_id']]
-        );
-
-        if (!$assignedOwner || (int) ($assignedOwner['is_active'] ?? 0) !== 1 || !in_array((string) ($assignedOwner['role'] ?? ''), ['owner', 'admin'], true)) {
-            $errors[] = 'Pick a valid active storage owner for this staff account.';
-        }
+    if (!(Auth::isOwner() || Auth::hasPermission('storages.assign_users'))) {
+        $payload['storage_ids'] = [];
+        $payload['default_storage_id'] = null;
+    }
+    $managerError = manager_assignment_block_reason(0, $payload['manager_user_id']);
+    if ($managerError !== null) {
+        $errors[] = $managerError;
+    }
+    if ($payload['default_storage_id'] !== null && !in_array($payload['default_storage_id'], $payload['storage_ids'], true)) {
+        $errors[] = 'The default storage must be one of the assigned storages.';
     }
 
     if (strlen($payload['password']) < 8) {
@@ -95,20 +96,22 @@ function handle_users_create_submit(): void
 
     try {
         Database::execute(
-            'INSERT INTO users (name, email, password_hash, role, position, is_active, assigned_owner_user_id, created_at, updated_at)
-             VALUES (:name, :email, :password_hash, :role, :position, 1, :assigned_owner_user_id, NOW(), NOW())',
+            'INSERT INTO users (name, email, password_hash, role, position, is_active, assigned_owner_user_id, manager_user_id, created_at, updated_at)
+             VALUES (:name, :email, :password_hash, :role, :position, 1, :legacy_manager_user_id, :manager_user_id, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'email' => $payload['email'],
                 'password_hash' => password_hash($payload['password'], PASSWORD_DEFAULT),
                 'role' => $payload['role'],
                 'position' => $payload['position'],
-                'assigned_owner_user_id' => $payload['assigned_owner_user_id'],
+                'legacy_manager_user_id' => $payload['manager_user_id'],
+                'manager_user_id' => $payload['manager_user_id'],
             ]
         );
 
         $userId = Database::lastInsertId();
         save_user_permissions($userId, $permissions, (int) (Auth::user()['id'] ?? 0));
+        sync_user_storage_memberships($userId, $payload['storage_ids'], $payload['default_storage_id'], (int) (Auth::user()['id'] ?? 0));
         $pdo->commit();
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
@@ -124,6 +127,9 @@ function handle_users_create_submit(): void
         record_activity('user.created', 'user', $userId, 'Created user ' . $payload['email'], [
             'role' => $payload['role'],
             'position' => $payload['position'],
+            'manager_user_id' => $payload['manager_user_id'],
+            'storage_ids' => $payload['storage_ids'],
+            'default_storage_id' => $payload['default_storage_id'],
             'permissions' => $permissions,
         ]);
     }
@@ -144,7 +150,9 @@ function handle_users_edit_submit(array $params): void
         'email' => strtolower(trim((string) input('email'))),
         'position' => trim((string) input('position', (string) ($userRecord['position'] ?? 'general_admin'))),
         'role' => trim((string) input('role', (string) $userRecord['role'])),
-        'assigned_owner_user_id' => normalize_entity_id(input('assigned_owner_user_id')),
+        'manager_user_id' => normalize_entity_id(input('manager_user_id')),
+        'storage_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('storage_ids', []))))),
+        'default_storage_id' => normalize_entity_id(input('default_storage_id')),
         'password' => (string) input('password'),
         'password_confirmation' => (string) input('password_confirmation'),
         'permissions' => is_array(input('permissions', [])) ? input('permissions', []) : [],
@@ -155,7 +163,9 @@ function handle_users_edit_submit(array $params): void
         'email' => $payload['email'],
         'position' => $payload['position'],
         'role' => $payload['role'],
-        'assigned_owner_user_id' => (string) ($payload['assigned_owner_user_id'] ?? ''),
+        'manager_user_id' => (string) ($payload['manager_user_id'] ?? ''),
+        'storage_ids' => $payload['storage_ids'],
+        'default_storage_id' => (string) ($payload['default_storage_id'] ?? ''),
         'permissions' => $payload['permissions'],
     ]);
 
@@ -177,22 +187,30 @@ function handle_users_edit_submit(array $params): void
         $errors[] = 'Pick a valid position.';
     }
 
-    if ($userRecord['role'] === 'owner' || $payload['role'] !== 'staff') {
-        $payload['assigned_owner_user_id'] = null;
+    $storedManagerUserId = normalize_entity_id($userRecord['manager_user_id'] ?? $userRecord['assigned_owner_user_id'] ?? null);
+    if ($userRecord['role'] === 'owner') {
+        $payload['manager_user_id'] = null;
+    } elseif (!(Auth::isOwner() || Auth::hasPermission('team.manage'))) {
+        $payload['manager_user_id'] = $storedManagerUserId;
     }
-
-    if ($payload['assigned_owner_user_id'] !== null) {
-        $assignedOwner = Database::fetch(
-            'SELECT id, role, is_active
-             FROM users
-             WHERE id = :id
-             LIMIT 1',
-            ['id' => $payload['assigned_owner_user_id']]
-        );
-
-        if (!$assignedOwner || (int) ($assignedOwner['is_active'] ?? 0) !== 1 || !in_array((string) ($assignedOwner['role'] ?? ''), ['owner', 'admin'], true)) {
-            $errors[] = 'Pick a valid active storage owner for this staff account.';
-        }
+    if (!(Auth::isOwner() || Auth::hasPermission('storages.assign_users'))) {
+        $payload['storage_ids'] = user_assigned_storage_ids((int) $userRecord['id'], false);
+        $payload['default_storage_id'] = normalize_entity_id(Database::scalar(
+            'SELECT storage_id FROM user_storage_assignments WHERE user_id = :user_id AND is_default = 1 LIMIT 1',
+            ['user_id' => $userRecord['id']]
+        ));
+    }
+    $ownedStorageIds = array_map('intval', array_column(Database::fetchAll(
+        'SELECT storage_id FROM user_storage_assignments WHERE user_id = :user_id AND access_role = "owner"',
+        ['user_id' => $userRecord['id']]
+    ), 'storage_id'));
+    $allowedDefaultStorageIds = array_values(array_unique(array_merge($payload['storage_ids'], $ownedStorageIds)));
+    $managerError = manager_assignment_block_reason((int) $userRecord['id'], $payload['manager_user_id']);
+    if ($managerError !== null) {
+        $errors[] = $managerError;
+    }
+    if ($payload['default_storage_id'] !== null && !in_array($payload['default_storage_id'], $allowedDefaultStorageIds, true)) {
+        $errors[] = 'The default storage must be one of the assigned or owned storages.';
     }
 
     if ($payload['password'] !== '' && strlen($payload['password']) < 8) {
@@ -236,7 +254,8 @@ function handle_users_edit_submit(array $params): void
                      email = :email,
                      role = :role,
                      position = :position,
-                     assigned_owner_user_id = :assigned_owner_user_id,
+                     assigned_owner_user_id = :legacy_manager_user_id,
+                     manager_user_id = :manager_user_id,
                      updated_at = NOW()
                  WHERE id = :id',
             [
@@ -244,7 +263,8 @@ function handle_users_edit_submit(array $params): void
                 'email' => $payload['email'],
                 'role' => $nextRole,
                 'position' => $payload['position'],
-                'assigned_owner_user_id' => $payload['assigned_owner_user_id'],
+                'legacy_manager_user_id' => $payload['manager_user_id'],
+                'manager_user_id' => $payload['manager_user_id'],
                 'id' => $userRecord['id'],
             ]
         );
@@ -262,6 +282,12 @@ function handle_users_edit_submit(array $params): void
         if ($nextRole !== 'owner') {
             save_user_permissions((int) $userRecord['id'], $permissions, (int) (Auth::user()['id'] ?? 0));
         }
+        sync_user_storage_memberships(
+            (int) $userRecord['id'],
+            array_values(array_unique(array_merge($payload['storage_ids'], $payload['default_storage_id'] !== null ? [$payload['default_storage_id']] : []))),
+            $payload['default_storage_id'],
+            (int) (Auth::user()['id'] ?? 0)
+        );
 
         $pdo->commit();
     } catch (Throwable $exception) {
@@ -278,6 +304,9 @@ function handle_users_edit_submit(array $params): void
         record_activity('user.updated', 'user', (int) $userRecord['id'], 'Updated user ' . $payload['email'], [
             'role' => $nextRole,
             'position' => $payload['position'],
+            'manager_user_id' => $payload['manager_user_id'],
+            'storage_ids' => $payload['storage_ids'],
+            'default_storage_id' => $payload['default_storage_id'],
             'password_changed' => $payload['password'] !== '',
             'permissions' => $nextRole === 'owner' ? ['owner_all'] : $permissions,
         ]);

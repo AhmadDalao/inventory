@@ -29,6 +29,7 @@ return [
         'item_actions',
         'item_movements',
         'storage_support',
+        'team_access',
         'storage_pages',
         'storages',
         'inventory_stock',

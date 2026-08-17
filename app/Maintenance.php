@@ -37,7 +37,7 @@ final class Maintenance
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-14-mobile-realtime-v1';
+    private const SCHEMA_VERSION = '2026-08-17-team-storage-access-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -104,6 +104,14 @@ final class Maintenance
         self::ensureIndexExists('users', 'idx_users_assigned_owner', 'CREATE INDEX `idx_users_assigned_owner` ON `users` (`assigned_owner_user_id`)');
         self::ensureForeignKeyExists('users', 'fk_users_assigned_owner', 'ALTER TABLE `users` ADD CONSTRAINT `fk_users_assigned_owner` FOREIGN KEY (`assigned_owner_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL');
 
+        if (!self::columnExists('users', 'manager_user_id')) {
+            Database::execute('ALTER TABLE users ADD COLUMN manager_user_id BIGINT UNSIGNED NULL AFTER assigned_owner_user_id');
+        }
+
+        self::ensureIndexExists('users', 'idx_users_manager', 'CREATE INDEX `idx_users_manager` ON `users` (`manager_user_id`)');
+        self::ensureForeignKeyExists('users', 'fk_users_manager', 'ALTER TABLE `users` ADD CONSTRAINT `fk_users_manager` FOREIGN KEY (`manager_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL');
+        Database::execute('UPDATE users SET manager_user_id = assigned_owner_user_id WHERE manager_user_id IS NULL AND assigned_owner_user_id IS NOT NULL');
+
         self::ensurePlatformSchemas();
 
         self::ensureFileWorkflowDocumentSchemas();
@@ -137,6 +145,7 @@ final class Maintenance
         self::seedEmailLogPermissions();
         self::seedAdminAssetPermissions();
         self::seedHandoverCustodyPermissions();
+        self::seedTeamStoragePermissions();
         self::backfillFileAssets();
         self::markSchemaCurrent();
     }
