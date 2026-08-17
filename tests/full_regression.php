@@ -5307,7 +5307,11 @@ assert_true(
 );
 
 $staffScanPage = http_request($baseUrl, $staffCookie, 'GET', '/scan');
-assert_true($staffScanPage['status'] === 302 && location_matches($staffScanPage['location'], '/dashboard'), 'Staff should be redirected away from Scan Center.');
+assert_true($staffScanPage['status'] === 403, 'Staff should be denied access to the web Scan Center.');
+assert_true(
+    strpos($staffScanPage['body'], 'Scanner is for inventory operators') !== false,
+    'Staff Scan Center denial should explain that mobile access is handled separately.'
+);
 $reportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
 assert_true($reportsPage['status'] === 200, 'Reports page did not load for owner.');
 assert_true(strpos($reportsPage['body'], 'reports-summary-panel') !== false, 'Reports page is missing the daily summary panel.');
