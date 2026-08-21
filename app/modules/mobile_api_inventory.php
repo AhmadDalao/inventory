@@ -68,7 +68,7 @@ function handle_mobile_api_me(): void
     mobile_api_run(function (): void {
         $session = mobile_api_session();
         $permissions = mobile_api_permissions((int) $session['user_id']);
-        $storageIds = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
+        $storageIds = mobile_api_inventory_scope_ids($session, $permissions);
         mobile_api_success([
             'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'email' => $session['email'], 'role' => $session['role'], 'position' => $session['position']],
             'manager' => mobile_api_manager_payload((int) $session['user_id']),
@@ -86,7 +86,7 @@ function handle_mobile_api_bootstrap(): void
         $session = mobile_api_session();
         $access = mobile_api_require_employee_access($session);
         $permissions = mobile_api_permissions((int) $session['user_id']);
-        $ids = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
+        $ids = mobile_api_inventory_scope_ids($session, $permissions);
         $storageAccessRoles = mobile_api_storage_access_roles($session, $ids);
         $storages = $ids === [] ? [] : Database::fetchAll(
             'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default
@@ -189,7 +189,7 @@ function handle_mobile_api_sync(): void
         );
         $access = mobile_api_require_employee_access($session);
         $permissions = mobile_api_permissions((int) $session['user_id']);
-        $ids = in_array('items.view', $permissions, true) ? mobile_api_storage_ids($session) : [];
+        $ids = mobile_api_inventory_scope_ids($session, $permissions);
         $capabilities = mobile_api_effective_capabilities($access, $permissions, $ids);
         $after = max(0, (int) query('after', 0));
         $limit = min(500, max(25, (int) query('limit', 250)));

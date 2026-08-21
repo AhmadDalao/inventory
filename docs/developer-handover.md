@@ -794,7 +794,7 @@ The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inv
 - `app/modules/web_realtime.php`: permission-safe browser differential sync payloads.
 - `app/modules/mobile_api_movements.php`: usage, privileged restock, atomic batches, protected proofs, and balance conflicts.
 - `app/modules/mobile_api_handovers.php`: staff handovers, storage transfers, custody, receipt differences, closeout, approval, and proof routes.
-- `app/modules/mobile_admin.php`: owner Mobile Access page, user/storage grants, capabilities, devices, operations, and minimum version.
+- `app/modules/mobile_admin.php`: owner Mobile Access page, unified employee setup, manager routing, user/storage grants, default storage, prerequisite permissions, capabilities, devices, operations, and minimum version.
 - `app/maintenance/MaintenanceMobileSchemas.php`: access, assignment, device-session, idempotency-operation, and direct-usage detail tables.
 
 The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/mobile-api.md`. Routes are under `/api/v1`. Responses always use `data`, `meta`, and `error`.
@@ -805,6 +805,8 @@ The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/
 
 - Mobile API access is globally disabled by default and enabled from Website Control only for a pilot.
 - Effective mobile access is the intersection of the current website permission, the matching Mobile Access capability, an assigned storage, an active employee account, an active mobile grant, an unrevoked device session, and the supported app version. Mobile Access may narrow website permissions; it can never expand them.
+- Owners configure this intersection from `/mobile-access`. Each employee card contains manager, mobile enablement, capabilities, storage memberships, default storage, and prerequisite website permissions. Enabling staff without a manager or storage is rejected; disabling mobile access revokes existing device sessions.
+- `/me`, `/bootstrap`, and `/sync` call the same inventory-scope resolver. Incomplete setup returns `mobile_setup_incomplete` with actionable fields instead of silently returning zero storages.
 - Read endpoints require `items.view` or `handovers.view` as applicable. Mutation endpoints recheck their exact website permission, capability, assigned storage, workflow status, and record relationship on every request.
 - Handover responses include server-computed `allowed_actions`. Flutter uses these for navigation and buttons, but the API remains authoritative and rejects stale screens, direct URLs, and replayed actions after access changes.
 - Permission and storage changes take effect on the next API request. Flutter refreshes bootstrap data when it resumes and before protected submissions; UI visibility is not treated as security.
@@ -830,7 +832,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.2.0
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.2.1
 ```
 
 Production-connected builds use:
@@ -839,7 +841,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.2.0
+  --dart-define=APP_VERSION=1.2.1
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.
@@ -864,6 +866,8 @@ The planned v1.2 scope is intentionally narrow: guided blind stocktakes and FCM/
 ### Mobile 1.2 release checkpoint
 
 Mobile `1.2.0+5` adds server-confirmed near-realtime balances, foreground-only five-second differential sync, cursor expiry recovery, machine-readable stale-balance conflicts, permission/access fingerprint refresh, secure keep-signed-in, optional biometric cold-start unlock, refresh-token reuse detection, stronger rate limits, and complete mobile operation/event logging. The release APK and checksum are under `output/mobile/`; exact backup, live regression, stock-invariant, signature, checksum, and emulator evidence is maintained in `docs/mobile/release-1.2.0.md`.
+
+Mobile `1.2.1+6` fixes staff/storage administration and assigned-storage discovery. The owner now configures manager, storage memberships, default storage, capabilities, and required website permissions from one Mobile Access card. Flutter lists every assigned storage and can open Quantity Check pre-scoped to the selected location. The API reports incomplete setup explicitly instead of returning an empty storage collection. Release evidence is maintained in `docs/mobile/release-1.2.1.md`.
 
 The realtime contract is documented in `docs/realtime-data-flow.md`. Security controls, credential rotation, and incident response are documented in `docs/security.md`.
 

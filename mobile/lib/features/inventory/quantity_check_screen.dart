@@ -10,7 +10,9 @@ import '../../core/widgets/kona_page.dart';
 import '../../core/widgets/status_widgets.dart';
 
 class QuantityCheckScreen extends ConsumerStatefulWidget {
-  const QuantityCheckScreen({super.key});
+  const QuantityCheckScreen({super.key, this.initialStorageId});
+
+  final int? initialStorageId;
 
   @override
   ConsumerState<QuantityCheckScreen> createState() =>
@@ -22,6 +24,12 @@ class _QuantityCheckScreenState extends ConsumerState<QuantityCheckScreen> {
   List<InventoryItem> _results = const [];
   int? _storageId;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _storageId = widget.initialStorageId;
+  }
 
   @override
   void dispose() {

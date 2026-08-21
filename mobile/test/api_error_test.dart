@@ -39,5 +39,18 @@ void main() {
         expected,
       );
     });
+
+    test('incomplete mobile setup explains the owner action', () {
+      final message = apiErrorMessage(
+        const ApiFailure(
+          'mobile_setup_incomplete',
+          'Mobile inventory setup is incomplete.',
+        ),
+      );
+
+      expect(message, contains('assign your manager'));
+      expect(message, contains('storages'));
+      expect(message, contains('Mobile Access'));
+    });
   });
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/api_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/data/providers.dart';
+import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
 import '../../core/widgets/status_widgets.dart';
@@ -106,7 +107,9 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          '${_number(units)} units across ${storageItems.length} items',
+                          storage == null
+                              ? 'Ask the owner to finish Mobile Access setup.'
+                              : '${_number(units)} units across ${storageItems.length} items',
                           style: const TextStyle(color: Colors.white70),
                         ),
                       ],
@@ -116,6 +119,41 @@ class HomeScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            if (data.storages.isNotEmpty)
+              KonaSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SectionHeading(
+                      eyebrow: 'Storage access',
+                      title: 'My storages',
+                      trailing: StatusPill(
+                        label: '${data.storages.length} assigned',
+                        tone: StatusTone.neutral,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    for (final assignedStorage in data.storages)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 9),
+                        child: _AssignedStorageTile(
+                          storage: assignedStorage,
+                          items: data.items
+                              .where(
+                                (item) => item.storageId == assignedStorage.id,
+                              )
+                              .toList(),
+                          number: _number,
+                          onTap: data.canViewItems
+                              ? () => context.go(
+                                  '/quantity?storage_id=${assignedStorage.id}',
+                                )
+                              : null,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             LayoutBuilder(
               builder: (context, constraints) {
                 final width = (constraints.maxWidth - 12) / 2;
@@ -278,6 +316,92 @@ class HomeScreen extends ConsumerWidget {
   String _number(double value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
+}
+
+class _AssignedStorageTile extends StatelessWidget {
+  const _AssignedStorageTile({
+    required this.storage,
+    required this.items,
+    required this.number,
+    this.onTap,
+  });
+
+  final StorageLocation storage;
+  final List<InventoryItem> items;
+  final String Function(double) number;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final units = items.fold<double>(0, (sum, item) => sum + item.quantity);
+    final role = storage.isOwner ? 'Owner' : 'Assigned';
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: KonaColors.canvas,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: storage.isDefault ? KonaColors.gold : KonaColors.line,
+          ),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: storage.isDefault
+                  ? const Color(0xFFFFF4CF)
+                  : KonaColors.soft,
+              foregroundColor: KonaColors.ink,
+              child: Icon(
+                storage.type == 'warehouse'
+                    ? Icons.factory_outlined
+                    : Icons.warehouse_outlined,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          storage.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      if (storage.isDefault) ...[
+                        const SizedBox(width: 7),
+                        const StatusPill(
+                          label: 'Default',
+                          tone: StatusTone.warning,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$role · ${items.length} items · ${number(units)} units',
+                    style: const TextStyle(
+                      color: KonaColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null)
+              const Icon(Icons.chevron_right, color: KonaColors.muted),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Metric extends StatelessWidget {

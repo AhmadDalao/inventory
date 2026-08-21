@@ -1,6 +1,6 @@
 # Inventory KONA Mobile API
 
-Updated: 2026-08-17
+Updated: 2026-08-21
 
 The mobile API is the controlled bridge between the Flutter application and the existing Inventory KONA stock engine. The app never writes MySQL directly and never calculates final stock locally.
 
@@ -18,13 +18,17 @@ The mobile API is the controlled bridge between the Flutter application and the 
 
 ## Enablement
 
-Mobile access is disabled by default. An owner must open `/mobile-access` and:
+Mobile access is disabled by default. An owner must open `/mobile-access`, search for the employee, and configure the employee from one setup card:
 
 1. Enable the global API switch.
-2. Enable an employee.
-3. Assign allowed storages and one default storage.
-4. Grant only the required capabilities.
-5. Enable direct restock only for trusted users.
+2. Select the employee's direct manager.
+3. Enable mobile access for the employee.
+4. Assign one or more allowed storages and one default storage.
+5. Grant only the required mobile capabilities.
+6. Review the matching website permissions. The page can add the required baseline permissions automatically.
+7. Enable direct restock only for trusted users.
+
+Enabled staff accounts must have both a manager and an assigned storage. The default storage must be one of the assigned storages. Disabling mobile access revokes the employee's active mobile device sessions.
 
 The existing permission catalog still applies. A mobile capability does not bypass `items.view`, movement, handover, or custody permissions. Effective access is always the intersection of the website permission, Mobile Access capability, assigned storage, active account/grant/device, supported app version, workflow status, and record relationship.
 
@@ -38,6 +42,8 @@ Key permission rules:
 - Transfers require `handovers.create` plus the Transfer capability and an assigned source storage.
 - Staff requests/handovers require `handovers.request` or `handovers.create` plus the Handover capability.
 - Receipt, closeout, approval, custody return, cancellation, and record reads also require the correct workflow status and user relationship.
+
+If an employee's mobile setup is incomplete, `/me`, `/bootstrap`, and `/sync` return `mobile_setup_incomplete` with machine-readable `missing_permissions`, `requires_storage`, and `requires_manager` details. Flutter shows a short setup instruction instead of an empty storage screen or a raw HTTP exception.
 
 ### Manager Routing And Storage Roles
 
@@ -84,6 +90,8 @@ Errors return `data: null` and include a stable code, message, field errors, and
 ### Quantity Check
 
 `GET /items/lookup?q=...` finds an item by barcode, SKU, or name and returns balances only for assigned storages.
+
+The Flutter Home screen lists every assigned storage under **My storages**, including role, item count, units, and the default marker. Selecting a storage opens Quantity Check already scoped to it. This replaces the old behavior that exposed only the default storage and made valid secondary assignments look missing.
 
 ### Usage and Restock
 

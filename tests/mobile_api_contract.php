@@ -257,6 +257,45 @@ if (strpos($inventory, "'permissions' => \$permissions") === false
 }
 
 foreach ([
+    'function mobile_api_inventory_scope_ids(',
+    'mobile_setup_incomplete',
+    'requires_storage',
+    'requires_manager',
+] as $scopeMarker) {
+    if (strpos($support, $scopeMarker) === false) {
+        fail_mobile_contract('Mobile inventory setup validation is missing marker: ' . $scopeMarker);
+    }
+}
+
+foreach ([
+    'handle_mobile_api_me',
+    'handle_mobile_api_bootstrap',
+    'handle_mobile_api_sync',
+] as $scopeHandler) {
+    $handlerOffset = strpos($inventory, 'function ' . $scopeHandler . '(');
+    if ($handlerOffset === false) {
+        fail_mobile_contract('Missing mobile inventory handler: ' . $scopeHandler);
+    }
+
+    $handlerSource = substr($inventory, $handlerOffset, 2200);
+    if (strpos($handlerSource, 'mobile_api_inventory_scope_ids(') === false) {
+        fail_mobile_contract($scopeHandler . ' must enforce configured storage scope.');
+    }
+}
+
+foreach ([
+    'mobile_admin_required_permissions',
+    'mobile_admin_setup_state',
+    'sync_user_storage_memberships',
+    'manager_user_id',
+    'apply_required_permissions',
+] as $adminMarker) {
+    if (strpos($admin, $adminMarker) === false) {
+        fail_mobile_contract('Unified Mobile Access configuration is missing marker: ' . $adminMarker);
+    }
+}
+
+foreach ([
     'allowed_actions',
     'mobile_api_require_handover_view',
     'mobile_api_require_handover_action',

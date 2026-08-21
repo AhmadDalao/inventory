@@ -337,6 +337,40 @@ function mobile_api_storage_ids(array $session): array
     ), 'storage_id'));
 }
 
+/**
+ * Resolve the inventory scope used by mobile reads and sync. A broken employee
+ * setup is an actionable configuration error, not an empty inventory result.
+ */
+function mobile_api_inventory_scope_ids(array $session, ?array $permissions = null): array
+{
+    $permissions ??= mobile_api_permissions((int) $session['user_id']);
+    $role = (string) ($session['role'] ?? '');
+    $missingPermissions = array_values(array_diff(
+        ['mobile.access', 'storages.view', 'items.view'],
+        $permissions
+    ));
+    $storageIds = mobile_api_storage_ids($session);
+    $missingStorage = $role !== 'owner' && $storageIds === [];
+    $missingManager = $role === 'staff' && manager_user_for((int) $session['user_id']) === null;
+
+    if ($missingPermissions !== [] || $missingStorage || $missingManager) {
+        throw new MobileApiException(
+            'mobile_setup_incomplete',
+            'Your mobile account is not fully configured. Ask the owner to assign your manager, storage access, and required permissions in Mobile Access.',
+            403,
+            [],
+            false,
+            [
+                'missing_permissions' => $missingPermissions,
+                'requires_storage' => $missingStorage,
+                'requires_manager' => $missingManager,
+            ]
+        );
+    }
+
+    return $storageIds;
+}
+
 function mobile_api_manager_payload(int $userId): ?array
 {
     $manager = manager_user_for($userId);

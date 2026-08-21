@@ -26,6 +26,7 @@ import { init as initPurchases } from './js/domains/purchases.js';
 import { init as initOcr } from './js/domains/ocr.js';
 import { init as initManualStock } from './js/domains/manual-stock.js';
 import { init as initScan } from './js/domains/scan.js';
+import { init as initMobileAdmin } from './js/domains/mobile-admin.js';
 
 registerInitializer('navigation', initNavigation);
 registerInitializer('dialogs', initDialogs);
@@ -54,6 +55,7 @@ registerInitializer('purchases', initPurchases);
 registerInitializer('ocr', initOcr);
 registerInitializer('manual-stock', initManualStock);
 registerInitializer('scan', initScan);
+registerInitializer('mobile-admin', initMobileAdmin);
 
 document.addEventListener('DOMContentLoaded', () => {
   initInteractiveUi(document);

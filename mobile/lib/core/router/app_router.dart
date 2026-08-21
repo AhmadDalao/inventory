@@ -60,8 +60,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
           GoRoute(
             path: '/quantity',
-            builder: (_, _) => _guarded(
-              const QuantityCheckScreen(),
+            builder: (_, state) => _guarded(
+              QuantityCheckScreen(
+                initialStorageId: int.tryParse(
+                  state.uri.queryParameters['storage_id'] ?? '',
+                ),
+              ),
               (access) => access.canViewItems,
               'Quantity checks require item access and an assigned storage.',
             ),

@@ -225,6 +225,8 @@ String apiErrorMessage(
         'The mobile app is not enabled yet. Ask the owner to enable Mobile Access on the website.',
       'mobile_access_denied' || 'mobile_access_revoked' =>
         'Mobile access is not enabled for this account. Ask the owner to update Mobile Access.',
+      'mobile_setup_incomplete' =>
+        'Your mobile setup is incomplete. Ask the owner to assign your manager, storages, default storage, and required permissions in Mobile Access.',
       'upgrade_required' =>
         'This app version is no longer supported. Install the latest Inventory KONA APK.',
       'rate_limited' => 'Too many attempts. Wait a moment, then try again.',
