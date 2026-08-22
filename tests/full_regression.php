@@ -5444,14 +5444,17 @@ $packagePresetDelete = http_request(
 assert_true(
     $packagePresetDelete['status'] === 302
         && location_matches($packagePresetDelete['location'], '/items/' . (int) $seededItems[0]['id']),
-    'Package preset delete did not redirect to the item detail.'
+    'Package preset disable did not redirect to the item detail. Status='
+        . $packagePresetDelete['status']
+        . ', location=' . ($packagePresetDelete['location'] ?? 'none')
+        . ', response=' . trim(strip_tags(substr((string) $packagePresetDelete['body'], 0, 500)))
 );
 assert_true(
     (int) Database::scalar(
-        'SELECT COUNT(*) FROM item_package_presets WHERE id = :id',
+        'SELECT COUNT(*) FROM item_package_presets WHERE id = :id AND is_active = 0',
         ['id' => (int) $packagePreset['id']]
-    ) === 0,
-    'Package preset delete did not remove the preset.'
+    ) === 1,
+    'Package preset disable did not preserve an inactive history record.'
 );
 
 $staffScanPage = http_request($baseUrl, $staffCookie, 'GET', '/scan');

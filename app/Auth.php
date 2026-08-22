@@ -56,6 +56,13 @@ final class Auth
         return self::user() !== null;
     }
 
+    public static function id(): ?int
+    {
+        $user = self::user();
+
+        return $user === null ? null : (int) $user['id'];
+    }
+
     public static function logout(): void
     {
         self::$cachedUser = null;
