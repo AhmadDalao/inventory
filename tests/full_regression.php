@@ -5325,7 +5325,13 @@ foreach ([
     assert_true(strpos($appJs, 'batchInput.addEventListener') !== false && strpos($appJs, 'scheduleBatchLookup') !== false, 'Scan Center JS is missing live batch scan lookup.');
     assert_true(strpos($appJs, 'initManualStockAdd') !== false && strpos($appJs, 'data-manual-stock-add') !== false && strpos($appJs, 'draftLines') !== false, 'App JS is missing the Manual Stock Add draft flow.');
     assert_true(strpos($appJs, 'data-scan-batch-camera-toggle') !== false && strpos($appJs, 'Start Batch Camera Scan') !== false && strpos($appJs, 'placeCamera') !== false, 'Scan Center JS is missing dedicated batch camera handling.');
-    assert_true(strpos($appJs, 'package_presets') !== false && strpos($appJs, 'Scan conversion:') !== false, 'Scan Center JS is missing package quantity conversion.');
+    assert_true(
+        strpos($appJs, 'package_presets') !== false
+        && strpos($appJs, 'pieces_per_unit_raw') !== false
+        && strpos($appJs, 'packagePresetId') !== false
+        && strpos($appJs, 'baseQuantity') !== false,
+        'Scan Center JS is missing package quantity conversion.'
+    );
     assert_true(strpos($appCss, '.scan-batch-panel[hidden]') !== false && strpos($appCss, '.scan-batch-scan') !== false, 'Scan Center CSS should keep hidden batch panel closed and style the dedicated batch scanner.');
     assert_true(strpos($appCss, '.manual-stock-builder') !== false && strpos($appCss, '.manual-stock-draft-row') !== false, 'App CSS is missing Manual Stock Add page styling.');
     assert_true(strpos($appCss, '.package-preset-card') !== false && strpos($appCss, '.scan-batch-packaging') !== false, 'App CSS is missing package preset or batch packaging styles.');
