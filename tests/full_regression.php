@@ -5458,10 +5458,12 @@ assert_true(
 );
 
 $staffScanPage = http_request($baseUrl, $staffCookie, 'GET', '/scan');
-assert_true($staffScanPage['status'] === 403, 'Staff should be denied access to the web Scan Center.');
+assert_true($staffScanPage['status'] === 200, 'Assigned staff with item visibility should be able to open Scan Center for quantity lookup.');
 assert_true(
-    strpos($staffScanPage['body'], 'Scanner is for inventory operators') !== false,
-    'Staff Scan Center denial should explain that mobile access is handled separately.'
+    strpos($staffScanPage['body'], 'data-scan-center') !== false
+        && strpos($staffScanPage['body'], 'data-scan-manual-form') === false
+        && strpos($staffScanPage['body'], '/scan/manual-restock') === false,
+    'Scan Center should permit staff lookup without exposing ungranted stock mutation controls.'
 );
 $reportsPage = http_request($baseUrl, $ownerCookie, 'GET', '/reports');
 assert_true($reportsPage['status'] === 200, 'Reports page did not load for owner.');
