@@ -9,7 +9,7 @@ function normalize_package_preset_label($value): string
     return mb_substr($label, 0, 60);
 }
 
-function item_package_presets(int $itemId): array
+function item_package_presets(int $itemId, bool $includeInactive = false): array
 {
     $rows = Database::fetchAll(
         'SELECT presets.*,
@@ -19,6 +19,7 @@ function item_package_presets(int $itemId): array
          LEFT JOIN users created_user ON created_user.id = presets.created_by
          LEFT JOIN users updated_user ON updated_user.id = presets.updated_by
          WHERE presets.item_id = :item_id
+           ' . ($includeInactive ? '' : 'AND presets.is_active = 1') . '
          ORDER BY presets.is_default DESC, presets.label ASC',
         ['item_id' => $itemId]
     );
@@ -28,9 +29,11 @@ function item_package_presets(int $itemId): array
             'id' => (int) $preset['id'],
             'item_id' => (int) $preset['item_id'],
             'label' => (string) $preset['label'],
+            'scan_code' => trim((string) ($preset['scan_code'] ?? '')),
             'pieces_per_unit' => format_quantity($preset['pieces_per_unit']),
             'pieces_per_unit_raw' => (float) $preset['pieces_per_unit'],
             'is_default' => (int) $preset['is_default'],
+            'is_active' => (int) ($preset['is_active'] ?? 1),
             'created_by_name' => $preset['created_by_name'] ?? null,
             'updated_by_name' => $preset['updated_by_name'] ?? null,
         ];
@@ -58,7 +61,8 @@ function ensure_item_package_default(int $itemId): void
         'SELECT COUNT(*)
          FROM item_package_presets
          WHERE item_id = :item_id
-           AND is_default = 1',
+           AND is_default = 1
+           AND is_active = 1',
         ['item_id' => $itemId]
     );
 
@@ -70,6 +74,7 @@ function ensure_item_package_default(int $itemId): void
         'SELECT id
          FROM item_package_presets
          WHERE item_id = :item_id
+           AND is_active = 1
          ORDER BY id ASC
          LIMIT 1',
         ['item_id' => $itemId]
@@ -97,8 +102,10 @@ function handle_item_package_preset_save_submit(array $params): void
     $user = Auth::user();
     $presetId = normalize_entity_id(input('preset_id'));
     $label = normalize_package_preset_label(input('label'));
+    $scanCode = normalize_item_barcode(input('scan_code'));
     $piecesPerUnit = quantity_value(input('pieces_per_unit'));
     $isDefault = input('is_default') === '1';
+    $isActive = input('is_active', '1') === '1';
     $errors = [];
 
     if ($label === '') {
@@ -134,6 +141,22 @@ function handle_item_package_preset_save_submit(array $params): void
         $errors[] = 'This item already has a package preset with that label.';
     }
 
+    if ($scanCode !== '') {
+        $scanDuplicateParams = ['scan_code' => $scanCode];
+        $scanDuplicateSql = 'SELECT id FROM item_package_presets WHERE scan_code = :scan_code';
+        if ($presetId !== null) {
+            $scanDuplicateSql .= ' AND id != :preset_id';
+            $scanDuplicateParams['preset_id'] = $presetId;
+        }
+        if (Database::fetch($scanDuplicateSql . ' LIMIT 1', $scanDuplicateParams) !== null) {
+            $errors[] = 'That package barcode is already assigned to another preset.';
+        }
+    }
+
+    if (!$isActive) {
+        $isDefault = false;
+    }
+
     if ($errors !== []) {
         flash_errors($errors);
         redirect('/items/' . $item['id']);
@@ -160,16 +183,20 @@ function handle_item_package_preset_save_submit(array $params): void
             Database::execute(
                 'UPDATE item_package_presets
                  SET label = :label,
+                     scan_code = :scan_code,
                      pieces_per_unit = :pieces_per_unit,
                      is_default = :is_default,
+                     is_active = :is_active,
                      updated_by = :updated_by,
                      updated_at = NOW()
                  WHERE id = :id
                    AND item_id = :item_id',
                 [
                     'label' => $label,
+                    'scan_code' => $scanCode !== '' ? $scanCode : null,
                     'pieces_per_unit' => $piecesPerUnit,
                     'is_default' => $isDefault ? 1 : 0,
+                    'is_active' => $isActive ? 1 : 0,
                     'updated_by' => (int) $user['id'],
                     'id' => $presetId,
                     'item_id' => (int) $item['id'],
@@ -185,8 +212,10 @@ function handle_item_package_preset_save_submit(array $params): void
                 'INSERT INTO item_package_presets (
                     item_id,
                     label,
+                    scan_code,
                     pieces_per_unit,
                     is_default,
+                    is_active,
                     created_by,
                     updated_by,
                     created_at,
@@ -194,8 +223,10 @@ function handle_item_package_preset_save_submit(array $params): void
                  ) VALUES (
                     :item_id,
                     :label,
+                    :scan_code,
                     :pieces_per_unit,
                     :is_default,
+                    :is_active,
                     :created_by,
                     :updated_by,
                     NOW(),
@@ -204,8 +235,10 @@ function handle_item_package_preset_save_submit(array $params): void
                 [
                     'item_id' => (int) $item['id'],
                     'label' => $label,
+                    'scan_code' => $scanCode !== '' ? $scanCode : null,
                     'pieces_per_unit' => $piecesPerUnit,
-                    'is_default' => ($isDefault || !$hasPresets) ? 1 : 0,
+                    'is_default' => ($isDefault || (!$hasPresets && $isActive)) ? 1 : 0,
+                    'is_active' => $isActive ? 1 : 0,
                     'created_by' => (int) $user['id'],
                     'updated_by' => (int) $user['id'],
                 ]
@@ -243,16 +276,21 @@ function handle_item_package_preset_delete_submit(array $params): void
     }
 
     Database::execute(
-        'DELETE FROM item_package_presets
+        'UPDATE item_package_presets
+         SET is_active = 0,
+             is_default = 0,
+             updated_by = :updated_by,
+             updated_at = NOW()
          WHERE id = :id
            AND item_id = :item_id',
         [
             'id' => $presetId,
             'item_id' => (int) $item['id'],
+            'updated_by' => (int) Auth::id(),
         ]
     );
 
     ensure_item_package_default((int) $item['id']);
-    flash('success', 'Package preset removed.');
+    flash('success', 'Package preset disabled. Existing movement history keeps its conversion snapshot.');
     redirect('/items/' . $item['id']);
 }

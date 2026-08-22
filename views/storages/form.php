@@ -63,7 +63,7 @@ $canAssignUsers = (bool) ($canAssignUsers ?? false);
             <small>The primary owner is shown in summaries. Any assigned co-owner may approve storage workflows.</small>
         </label>
 
-        <details class="settings-accordion" open>
+        <details class="settings-accordion" id="storage-access" open>
             <summary>
                 <span><strong>Storage Access</strong><small>Assign co-owners and the employees allowed to see this storage.</small></span>
                 <span class="table-count-badge"><?= number_format(count($selectedOwnerIds) + count($selectedMemberIds)) ?></span>

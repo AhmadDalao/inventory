@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-08-17
+Updated: 2026-08-22
 
 ## 1. What This System Is
 
@@ -832,7 +832,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.2.1
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.0
 ```
 
 Production-connected builds use:
@@ -841,7 +841,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.2.1
+  --dart-define=APP_VERSION=1.3.0
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.
@@ -861,13 +861,57 @@ Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or pa
 
 Add the server endpoint and OpenAPI contract first. Reuse existing stock/workflow functions rather than reproducing stock math in Dart. Then add repository method, mock fixture, screen/state, offline-draft representation if applicable, API contract test, Flutter unit/widget test, and physical-device acceptance case. A mobile screen is not complete until retries are idempotent and permissions are enforced on the server.
 
-The planned v1.2 scope is intentionally narrow: guided blind stocktakes and FCM/APNs reference-only alerts. See `docs/mobile/next-update-v1.1.md`.
+The next mobile scope remains intentionally narrow: guided blind stocktakes and FCM/APNs reference-only alerts. Measured inventory must complete its pilot first.
 
 ### Mobile 1.2 release checkpoint
 
 Mobile `1.2.0+5` adds server-confirmed near-realtime balances, foreground-only five-second differential sync, cursor expiry recovery, machine-readable stale-balance conflicts, permission/access fingerprint refresh, secure keep-signed-in, optional biometric cold-start unlock, refresh-token reuse detection, stronger rate limits, and complete mobile operation/event logging. The release APK and checksum are under `output/mobile/`; exact backup, live regression, stock-invariant, signature, checksum, and emulator evidence is maintained in `docs/mobile/release-1.2.0.md`.
 
 Mobile `1.2.1+6` fixes staff/storage administration and assigned-storage discovery. The owner now configures manager, storage memberships, default storage, capabilities, and required website permissions from one Mobile Access card. Flutter lists every assigned storage and can open Quantity Check pre-scoped to the selected location. The API reports incomplete setup explicitly instead of returning an empty storage collection. Release evidence is maintained in `docs/mobile/release-1.2.1.md`.
+
+### Measured inventory release checkpoint
+
+Mobile `1.3.0+7` adds measured usage and refill carts. The invariant is strict: every item has one canonical unit and compatible dimension; package presets only convert employee input into that canonical quantity. Never trust a client-supplied multiplier.
+
+- `app/modules/measurements.php` owns conversion, compatibility, department/manager snapshots, proof policy, and movement measurement metadata.
+- `app/modules/scan_movements.php` owns atomic web Scan Center/manual batches.
+- `app/maintenance/MaintenanceMeasurementSchemas.php` owns the backward-compatible schema upgrade.
+- `inventory_movement_measurement_details` preserves entered quantity, package, conversion, canonical quantity/unit, reason, department, and manager.
+- `inventory_movement_documents` links protected proof files to accepted movements.
+- Managed `departments` plus `users.department_id` provide immutable historical attribution; `Unassigned` is the safe default.
+
+The web and mobile paths must call the same measurement helpers. Balances, locks, reorder calculations, and stock invariants always use canonical quantities. Reports may display `2 x 1 L = 2,000 mL`, but they must never add `bottles` and `mL` as separate stocks. Dashboard totals are grouped by compatible unit.
+
+Storage detail owns `Manage Owners & Staff`. Use the existing storage assignment service for owner/member changes; do not create another access table. API bootstrap, lookup, sync, and mutations all consume that scope. Flutter hides unavailable actions and PHP rejects them independently.
+
+Verification for this release adds:
+
+```bash
+php tests/measured_inventory.php
+php tests/mobile_api_contract.php
+cd mobile && flutter analyze && flutter test
+```
+
+After production backup and migration, run full regression and stock invariants on the server before enabling pilot users. Release evidence is maintained in `docs/mobile/release-1.3.0.md`.
+
+The August 22, 2026 release backup set is:
+
+- SQL: `storage/backups/inventory-backup-20260822-071221.sql`
+- Manifest: `storage/backups/inventory-backup-20260822-071221.manifest.json`
+- Protected files: `storage/backups/inventory-backup-20260822-071221.files.zip`
+- Signed APK SHA-256: `d909ab81125c34137054619680ea5ffffe15078a3c8ce6d737f41bf8e4ca46da`
+- Production web PHP: `8.3.30`; the SSH shell PHP is older and must not be used as evidence for web-runtime syntax compatibility.
+
+The measured inventory release adds these maintained boundaries:
+
+- `app/modules/departments.php`: department administration and user assignment.
+- `app/modules/measurements.php`: canonical dimensions, package conversion, proof policy, and movement snapshots.
+- `app/modules/scan_movements.php`: transactional measured usage/refill for web field workflows.
+- `app/maintenance/MaintenanceMeasurementSchemas.php`: backward-compatible measurement, department, and proof-link schema.
+- `mobile/lib/features/movements/measured_cart_support.dart`: shared Flutter package and canonical-quantity calculations for previews only.
+- `mobile/lib/features/movements/refill_cart_screen.dart`: privileged refill review cart.
+
+Do not calculate authoritative conversion in JavaScript or Dart. Clients may preview the result, but PHP must resolve the preset, validate its item/dimension/active state, enforce proof and storage access, and return the accepted canonical quantity.
 
 The realtime contract is documented in `docs/realtime-data-flow.md`. Security controls, credential rotation, and incident response are documented in `docs/security.md`.
 

@@ -1,13 +1,14 @@
 <?php
 declare(strict_types=1);
 
-function mobile_api_item_payload(array $item, array $allowedStorageIds): array
+function mobile_api_item_payload(array $item, array $allowedStorageIds, ?int $matchedPackagePresetId = null): array
 {
     $balances = [];
     $packagePresets = Database::fetchAll(
-        'SELECT id, label, pieces_per_unit, is_default
+        'SELECT id, label, scan_code, pieces_per_unit, is_default, is_active
          FROM item_package_presets
          WHERE item_id = :item_id
+           AND is_active = 1
          ORDER BY is_default DESC, label ASC',
         ['item_id' => $item['id']]
     );
@@ -23,7 +24,16 @@ function mobile_api_item_payload(array $item, array $allowedStorageIds): array
     }
     return [
         'id' => (int) $item['id'], 'name' => $item['name'], 'sku' => $item['sku'],
-        'barcode' => $item['barcode'] ?: null, 'unit' => $item['unit'], 'category' => $item['category'] ?: null,
+        'barcode' => $item['barcode'] ?: null,
+        'unit' => item_canonical_unit($item),
+        'canonical_unit' => item_canonical_unit($item),
+        'measurement_dimension' => normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count'),
+        'usage_proof_policy' => normalize_inventory_proof_policy($item['usage_proof_policy'] ?? 'inherit'),
+        'refill_proof_policy' => normalize_inventory_proof_policy($item['refill_proof_policy'] ?? 'inherit'),
+        'requires_usage_proof' => inventory_operation_requires_proof([$item], 'usage'),
+        'requires_refill_proof' => inventory_operation_requires_proof([$item], 'refill'),
+        'matched_package_preset_id' => $matchedPackagePresetId,
+        'category' => $item['category'] ?: null,
         'image_url' => mobile_api_absolute_url(item_image_url($item['image_path'] ?? null)),
         'balances' => array_map(static fn (array $row): array => [
             'storage_id' => (int) $row['storage_id'], 'storage_name' => $row['storage_name'],
@@ -32,9 +42,28 @@ function mobile_api_item_payload(array $item, array $allowedStorageIds): array
         'package_presets' => array_map(static fn (array $preset): array => [
             'id' => (int) $preset['id'],
             'label' => (string) $preset['label'],
+            'scan_code' => trim((string) ($preset['scan_code'] ?? '')) ?: null,
             'pieces_per_unit' => (float) $preset['pieces_per_unit'],
+            'conversion' => (float) $preset['pieces_per_unit'],
+            'base_unit' => item_canonical_unit($item),
             'is_default' => (int) $preset['is_default'],
+            'is_active' => (int) ($preset['is_active'] ?? 1),
         ], $packagePresets),
+    ];
+}
+
+function mobile_api_user_payload(array $session): array
+{
+    $department = inventory_actor_department_snapshot((int) $session['user_id']);
+
+    return [
+        'id' => (int) $session['user_id'],
+        'name' => (string) $session['name'],
+        'email' => (string) ($session['email'] ?? ''),
+        'role' => (string) $session['role'],
+        'position' => (string) ($session['position'] ?? ''),
+        'department_id' => $department['department_id'],
+        'department_name' => $department['department_name'],
     ];
 }
 
@@ -70,7 +99,7 @@ function handle_mobile_api_me(): void
         $permissions = mobile_api_permissions((int) $session['user_id']);
         $storageIds = mobile_api_inventory_scope_ids($session, $permissions);
         mobile_api_success([
-            'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'email' => $session['email'], 'role' => $session['role'], 'position' => $session['position']],
+            'user' => mobile_api_user_payload($session),
             'manager' => mobile_api_manager_payload((int) $session['user_id']),
             'permissions' => $permissions,
             'storage_ids' => $storageIds,
@@ -131,7 +160,7 @@ function handle_mobile_api_bootstrap(): void
         }
         $cursor = inventory_latest_event_cursor();
         mobile_api_success([
-            'user' => ['id' => (int) $session['user_id'], 'name' => $session['name'], 'role' => $session['role'], 'position' => $session['position']],
+            'user' => mobile_api_user_payload($session),
             'manager' => mobile_api_manager_payload((int) $session['user_id']),
             'permissions' => $permissions,
             'storages' => $storages,
@@ -148,6 +177,9 @@ function handle_mobile_api_bootstrap(): void
                 'manual_restock_enabled' => site_setting('mobile.manual_restock_enabled', '0') === '1',
                 'offline_drafts_enabled' => site_setting('mobile.offline_drafts_enabled', '1') === '1',
                 'require_usage_proof' => site_setting('mobile.require_usage_proof', '0') === '1',
+                'usage_proof_default' => site_setting('proof.usage_default', 'optional'),
+                'refill_proof_default' => site_setting('proof.refill_default', 'optional'),
+                'department_required' => site_setting('departments.require_assignment', '0') === '1',
                 'min_supported_version' => site_setting('mobile.min_supported_version', '1.0.0'),
                 'usage_reasons' => mobile_usage_reason_catalog(true),
             ],
@@ -168,12 +200,16 @@ function mobile_api_access_fingerprint(array $session, array $permissions, array
     return hash('sha256', json_encode([
         'user_id' => (int) $session['user_id'],
         'manager_user_id' => manager_user_id_for((int) $session['user_id']),
+        'department_id' => inventory_actor_department_snapshot((int) $session['user_id'])['department_id'],
         'permissions' => array_values($permissions),
         'storage_ids' => array_values($storageIds),
         'storage_access_roles' => $storageAccessRoles,
         'capabilities' => array_values($capabilities),
         'mobile_enabled' => site_setting('mobile.enabled', '0'),
         'minimum_version' => site_setting('mobile.min_supported_version', '1.0.0'),
+        'department_required' => site_setting('departments.require_assignment', '0'),
+        'usage_proof_default' => site_setting('proof.usage_default', 'optional'),
+        'refill_proof_default' => site_setting('proof.refill_default', 'optional'),
     ], JSON_UNESCAPED_SLASHES));
 }
 
@@ -373,6 +409,29 @@ function handle_mobile_api_storages(): void
         $ids = mobile_api_storage_ids($session);
         if ($ids === []) {
             mobile_api_success([]);
+        }
+        $packageRows = Database::fetchAll(
+            'SELECT DISTINCT item.*, preset.id AS matched_package_preset_id
+             FROM item_package_presets preset
+             INNER JOIN items item ON item.id = preset.item_id
+             INNER JOIN item_storage_balances balance ON balance.item_id = item.id
+             WHERE item.is_active = 1
+               AND preset.is_active = 1
+               AND preset.scan_code = ?
+               AND balance.storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')
+             ORDER BY preset.is_default DESC, item.name ASC
+             LIMIT 25',
+            array_merge([$term], $ids)
+        );
+        if ($packageRows !== []) {
+            mobile_api_success(array_map(
+                static fn (array $item): array => mobile_api_item_payload(
+                    $item,
+                    $ids,
+                    (int) $item['matched_package_preset_id']
+                ),
+                $packageRows
+            ));
         }
         $rows = Database::fetchAll(
             'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default,

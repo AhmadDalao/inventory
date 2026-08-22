@@ -26,6 +26,8 @@ abstract class InventoryRepository {
     required int storageId,
     required List<CartLine> lines,
     String? reference,
+    String? notes,
+    String? proofPath,
     String? clientOperationId,
   });
   Future<OperationReceipt> createHandover({

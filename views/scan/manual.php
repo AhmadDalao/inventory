@@ -62,8 +62,16 @@ $storageJson = json_encode($storageRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED
                     </select>
                 </label>
                 <label class="field">
-                    <span>Quantity to add</span>
-                    <input type="number" name="quantity" min="0.01" step="0.01" placeholder="Example: 100" required data-manual-stock-quantity>
+                    <span>Package / measurement</span>
+                    <select name="package_preset_id" data-manual-stock-package disabled>
+                        <option value="">Select an item first</option>
+                    </select>
+                    <small data-manual-stock-package-help>Stock is always saved in the item's canonical unit.</small>
+                </label>
+                <label class="field">
+                    <span>Amount to add</span>
+                    <input type="number" name="input_quantity" min="0.000001" step="0.000001" placeholder="Example: 2" required data-manual-stock-quantity>
+                    <small data-manual-stock-conversion>Pick an item and package to preview the converted quantity.</small>
                 </label>
                 <label class="field">
                     <span>Reference</span>
@@ -94,6 +102,12 @@ $storageJson = json_encode($storageRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED
         </div>
 
         <div class="manual-stock-summary" data-manual-stock-summary hidden></div>
+
+        <label class="field manual-stock-proof-field">
+            <span>Proof image <em data-manual-stock-proof-label>optional</em></span>
+            <input type="file" name="proof_image" accept="image/jpeg,image/png,image/webp" capture="environment" data-manual-stock-proof>
+            <small>One protected image can prove the complete refill batch.</small>
+        </label>
 
         <div class="button-row manual-stock-actions">
             <button class="ghost-button" type="button" data-manual-stock-clear><?= ui_icon('trash') ?><span>Clear Draft</span></button>

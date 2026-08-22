@@ -13,6 +13,7 @@ require_once __DIR__ . '/maintenance/MaintenanceAssetSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceOperationalSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMovementSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMobileSchemas.php';
+require_once __DIR__ . '/maintenance/MaintenanceMeasurementSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceFileWorkflowSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceNotificationSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceBackfills.php';
@@ -32,12 +33,13 @@ final class Maintenance
     use MaintenanceOperationalSchemas;
     use MaintenanceMovementSchemas;
     use MaintenanceMobileSchemas;
+    use MaintenanceMeasurementSchemas;
     use MaintenanceFileWorkflowSchemas;
     use MaintenanceNotificationSchemas;
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-17-team-storage-access-v1';
+    private const SCHEMA_VERSION = '2026-08-22-measured-inventory-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -118,6 +120,8 @@ final class Maintenance
 
         self::ensureStorageItemSchemas();
 
+        self::ensureMeasurementCatalogSchemas();
+
         self::ensureNotificationSchemas();
 
         self::ensureRequestSchemas();
@@ -135,6 +139,8 @@ final class Maintenance
         if (!self::ensureMovementSchemasAndRepairs()) {
             return;
         }
+
+        self::ensureMeasurementMovementSchemas();
 
         self::seedUserPermissionDefaults();
         self::seedStaffHandoverRequestPermission();

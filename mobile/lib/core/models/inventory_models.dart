@@ -55,19 +55,30 @@ class ItemPackagePreset {
     required this.label,
     required this.piecesPerUnit,
     this.isDefault = false,
+    this.scanCode,
+    this.isActive = true,
   });
 
   final int id;
   final String label;
   final double piecesPerUnit;
   final bool isDefault;
+  final String? scanCode;
+  final bool isActive;
 
   factory ItemPackagePreset.fromJson(Map<String, dynamic> json) =>
       ItemPackagePreset(
         id: (json['id'] as num? ?? 0).toInt(),
         label: json['label'] as String? ?? 'Package',
-        piecesPerUnit: (json['pieces_per_unit'] as num? ?? 1).toDouble(),
+        piecesPerUnit:
+            (json['conversion'] as num? ?? json['pieces_per_unit'] as num? ?? 1)
+                .toDouble(),
         isDefault: json['is_default'] == true || json['is_default'] == 1,
+        scanCode: json['scan_code'] as String?,
+        isActive:
+            json['is_active'] == null ||
+            json['is_active'] == true ||
+            json['is_active'] == 1,
       );
 }
 
@@ -137,6 +148,10 @@ class InventoryItem {
     this.imageUrl,
     this.reorderLevel = 0,
     this.packagePresets = const [],
+    this.measurementDimension = 'count',
+    this.requiresUsageProof = false,
+    this.requiresRefillProof = false,
+    this.matchedPackagePresetId,
   });
 
   final int id;
@@ -150,6 +165,12 @@ class InventoryItem {
   final String? imageUrl;
   final double reorderLevel;
   final List<ItemPackagePreset> packagePresets;
+  final String measurementDimension;
+  final bool requiresUsageProof;
+  final bool requiresRefillProof;
+  final int? matchedPackagePresetId;
+
+  String get canonicalUnit => unit;
 
   factory InventoryItem.fromJson(
     Map<String, dynamic> json, {
@@ -175,13 +196,22 @@ class InventoryItem {
         '',
     imageUrl: json['image_url'] as String?,
     reorderLevel: (json['reorder_level'] as num? ?? 0).toDouble(),
+    measurementDimension: json['measurement_dimension'] as String? ?? 'count',
+    requiresUsageProof:
+        json['requires_usage_proof'] == true ||
+        json['requires_usage_proof'] == 1,
+    requiresRefillProof:
+        json['requires_refill_proof'] == true ||
+        json['requires_refill_proof'] == 1,
+    matchedPackagePresetId: (json['matched_package_preset_id'] as num?)
+        ?.toInt(),
     packagePresets: ((json['package_presets'] as List?) ?? const [])
         .whereType<Map>()
         .map(
           (entry) =>
               ItemPackagePreset.fromJson(Map<String, dynamic>.from(entry)),
         )
-        .where((preset) => preset.piecesPerUnit > 0)
+        .where((preset) => preset.isActive && preset.piecesPerUnit > 0)
         .toList(),
   );
 
@@ -222,6 +252,10 @@ class InventoryItem {
     imageUrl: imageUrl,
     reorderLevel: reorderLevel,
     packagePresets: packagePresets,
+    measurementDimension: measurementDimension,
+    requiresUsageProof: requiresUsageProof,
+    requiresRefillProof: requiresRefillProof,
+    matchedPackagePresetId: matchedPackagePresetId,
   );
 }
 
@@ -610,7 +644,11 @@ class MobileBootstrap {
     return reasons;
   }
 
-  bool get requireUsageProof => settings['require_usage_proof'] == true;
+  bool get requireUsageProof =>
+      settings['require_usage_proof'] == true ||
+      settings['usage_proof_default'] == 'required';
+
+  bool get requireRefillProof => settings['refill_proof_default'] == 'required';
 
   MobileBootstrap copyWith({
     List<StorageLocation>? storages,
@@ -707,8 +745,9 @@ class CartLine {
   const CartLine({
     required this.item,
     required this.quantity,
-    this.packageLabel = 'Pieces',
+    this.packageLabel = 'Base unit',
     this.packageMultiplier = 1,
+    this.packagePresetId,
     this.expectedBalance,
     this.reasonCode,
     this.customReason,
@@ -718,16 +757,22 @@ class CartLine {
   final double quantity;
   final String packageLabel;
   final double packageMultiplier;
+  final int? packagePresetId;
   final double? expectedBalance;
   final String? reasonCode;
   final String? customReason;
 
-  double get pieceQuantity => quantity * packageMultiplier;
+  double get baseQuantity => quantity * packageMultiplier;
+
+  // Kept for old drafts and handover code until every call site is migrated.
+  double get pieceQuantity => baseQuantity;
 
   CartLine copyWith({
     double? quantity,
     String? packageLabel,
     double? packageMultiplier,
+    int? packagePresetId,
+    bool clearPackagePreset = false,
     double? expectedBalance,
     String? reasonCode,
     bool clearReason = false,
@@ -738,6 +783,9 @@ class CartLine {
     quantity: quantity ?? this.quantity,
     packageLabel: packageLabel ?? this.packageLabel,
     packageMultiplier: packageMultiplier ?? this.packageMultiplier,
+    packagePresetId: clearPackagePreset
+        ? null
+        : packagePresetId ?? this.packagePresetId,
     expectedBalance: expectedBalance ?? this.expectedBalance,
     reasonCode: clearReason ? null : reasonCode ?? this.reasonCode,
     customReason: clearCustomReason ? null : customReason ?? this.customReason,

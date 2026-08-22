@@ -3,6 +3,7 @@ import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/logic/handover_reconciliation.dart';
 import 'package:inventory_kona/core/logic/scan_debouncer.dart';
 import 'package:inventory_kona/core/models/inventory_models.dart';
+import 'package:inventory_kona/features/movements/measured_cart_support.dart';
 
 void main() {
   group('handover reconciliation', () {
@@ -114,6 +115,124 @@ void main() {
 
     expect(preset.label, 'Bag');
     expect(line.pieceQuantity, 100);
+  });
+
+  test('measured package conversions preserve decimal base quantities', () {
+    const soap = InventoryItem(
+      id: 20,
+      name: 'Floor soap',
+      sku: 'SOAP-1',
+      unit: 'ml',
+      quantity: 10000,
+      storageId: 10,
+      storageName: 'KONA',
+      measurementDimension: 'volume',
+    );
+    const rolls = InventoryItem(
+      id: 21,
+      name: 'Toilet paper',
+      sku: 'ROLL-1',
+      unit: 'roll',
+      quantity: 200,
+      storageId: 10,
+      storageName: 'KONA',
+    );
+    const powder = InventoryItem(
+      id: 22,
+      name: 'Cleaning powder',
+      sku: 'POWDER-1',
+      unit: 'g',
+      quantity: 20000,
+      storageId: 10,
+      storageName: 'KONA',
+      measurementDimension: 'mass',
+    );
+
+    expect(
+      const CartLine(
+        item: soap,
+        quantity: 2,
+        packageLabel: '1 L bottle',
+        packageMultiplier: 1000,
+      ).baseQuantity,
+      2000,
+    );
+    expect(
+      const CartLine(
+        item: soap,
+        quantity: 3,
+        packageLabel: '250 mL bottle',
+        packageMultiplier: 250,
+      ).baseQuantity,
+      750,
+    );
+    expect(
+      const CartLine(
+        item: rolls,
+        quantity: 2,
+        packageLabel: '24-roll box',
+        packageMultiplier: 24,
+      ).baseQuantity,
+      48,
+    );
+    expect(
+      const CartLine(
+        item: powder,
+        quantity: 1.5,
+        packageLabel: '5 kg bag',
+        packageMultiplier: 5000,
+      ).baseQuantity,
+      7500,
+    );
+  });
+
+  test('package barcode scans increment only the matching item and preset', () {
+    final scanned = InventoryItem.fromJson(const {
+      'id': 30,
+      'name': 'Floor soap',
+      'sku': 'SOAP-1',
+      'unit': 'ml',
+      'quantity': 12000,
+      'storage_id': 10,
+      'storage_name': 'KONA',
+      'measurement_dimension': 'volume',
+      'matched_package_preset_id': 8,
+      'package_presets': [
+        {
+          'id': 8,
+          'label': '1 L bottle',
+          'pieces_per_unit': 1000,
+          'scan_code': 'SOAP-1L',
+          'is_active': true,
+        },
+      ],
+    });
+    final lines = <CartLine>[];
+
+    addOrIncrementMeasuredLine(lines, scanned);
+    addOrIncrementMeasuredLine(lines, scanned);
+
+    expect(lines, hasLength(1));
+    expect(lines.single.packagePresetId, 8);
+    expect(lines.single.quantity, 2);
+    expect(lines.single.baseQuantity, 2000);
+  });
+
+  test('item proof requirements are parsed for usage and refill', () {
+    final item = InventoryItem.fromJson(const {
+      'id': 40,
+      'name': 'Cleaning chemical',
+      'sku': 'CHEM-1',
+      'unit': 'ml',
+      'quantity': 5000,
+      'storage_id': 10,
+      'storage_name': 'KONA',
+      'requires_usage_proof': true,
+      'requires_refill_proof': 1,
+    });
+
+    expect(item.requiresUsageProof, isTrue);
+    expect(item.requiresRefillProof, isTrue);
   });
 
   test('Other is the only default reason requiring a description', () {

@@ -103,6 +103,9 @@ if (brand_custom_logo_asset() !== null) {
                 <?php if (!Auth::isStaff() && Auth::hasPermission('users.view')): ?>
                     <a class="nav-link <?= active_route('/users', true) ?>" href="<?= e(url('/users')) ?>"><?= ui_icon('users') ?><span><?= e(site_setting('nav.users', 'Admins')) ?></span></a>
                 <?php endif; ?>
+                <?php if (!Auth::isStaff() && Auth::hasPermission('departments.view')): ?>
+                    <a class="nav-link <?= active_route('/departments', true) ?>" href="<?= e(url('/departments')) ?>"><?= ui_icon('team') ?><span>Departments</span></a>
+                <?php endif; ?>
                 <?php if (!Auth::isStaff() && Auth::hasPermission('audit.view')): ?>
                     <a class="nav-link <?= active_route('/audit-log') ?>" href="<?= e(url('/audit-log')) ?>"><?= ui_icon('audit') ?><span><?= e(site_setting('nav.audit', 'Audit Log')) ?></span></a>
                 <?php endif; ?>

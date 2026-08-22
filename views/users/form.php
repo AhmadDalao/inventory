@@ -173,6 +173,19 @@ foreach ($permissionGroups as $group) {
                                 <?php if (!$canManageTeam): ?><input type="hidden" name="manager_user_id" value="<?= e((string) ($userRecord['manager_user_id'] ?? '')) ?>"><?php endif; ?>
                                 <small>This manager receives the employee's request and mobile stock notifications. Storage ownership stays separate.</small>
                             </label>
+
+                            <label class="field">
+                                <span>Department</span>
+                                <select name="department_id" <?= $canManageDepartments ? '' : 'disabled' ?>>
+                                    <?php foreach ($departmentOptions as $departmentOption): ?>
+                                        <option value="<?= (int) $departmentOption['id'] ?>" <?= selected((string) $departmentOption['id'], (string) ($userRecord['department_id'] ?? '')) ?>>
+                                            <?= e((string) $departmentOption['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (!$canManageDepartments): ?><input type="hidden" name="department_id" value="<?= e((string) ($userRecord['department_id'] ?? '')) ?>"><?php endif; ?>
+                                <small>Movements snapshot this department so old reports stay accurate after employee transfers.</small>
+                            </label>
                         </div>
                     </div>
                 </details>

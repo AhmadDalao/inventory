@@ -10,9 +10,9 @@ function report_summary_usage_reason_groups(array $filters): array
     [$usageWhere, $usageParams] = build_report_summary_where($usageFilters);
     $reasonWhere = $usageWhere . " AND m.context_type = 'handover'";
 
-    $rows = Database::fetchAll(
+    $legacyRows = Database::fetchAll(
         "SELECT m.item_id,
-                COALESCE(i.unit, 'pcs') AS unit,
+                COALESCE(NULLIF(CASE WHEN i.unit = 'custom' THEN i.custom_unit ELSE i.unit END, ''), 'pcs') AS unit,
                 hub.reason_code,
                 hub.reason_custom,
                 hub.notes,
@@ -23,7 +23,28 @@ function report_summary_usage_reason_groups(array $filters): array
            AND hub.item_id = m.item_id
          LEFT JOIN items i ON i.id = m.item_id
          {$reasonWhere}
-         GROUP BY m.item_id, i.unit, hub.reason_code, hub.reason_custom, hub.notes
+         GROUP BY m.item_id, unit, hub.reason_code, hub.reason_custom, hub.notes
+         HAVING quantity > 0
+         ORDER BY m.item_id ASC, quantity DESC",
+        $usageParams
+    );
+
+    $measurementQuantity = report_summary_base_quantity_expression();
+    $measurementUnit = report_summary_base_unit_expression();
+    $directRows = Database::fetchAll(
+        "SELECT m.item_id,
+                {$measurementUnit} AS unit,
+                COALESCE(NULLIF(mud.reason_code, ''), NULLIF(md.reason_code, ''), 'unspecified') AS reason_code,
+                COALESCE(NULLIF(mud.custom_reason, ''), NULLIF(md.custom_reason, '')) AS reason_custom,
+                COALESCE(NULLIF(mud.notes, ''), NULLIF(m.notes, '')) AS notes,
+                COALESCE(SUM({$measurementQuantity}), 0) AS quantity
+         FROM inventory_movements m
+         LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
+         LEFT JOIN inventory_movement_usage_details mud ON mud.movement_id = m.id
+         {$usageWhere}
+           AND (mud.id IS NOT NULL OR NULLIF(md.reason_code, '') IS NOT NULL)
+         GROUP BY m.item_id, unit, reason_code, reason_custom, notes
          HAVING quantity > 0
          ORDER BY m.item_id ASC, quantity DESC",
         $usageParams
@@ -31,15 +52,16 @@ function report_summary_usage_reason_groups(array $filters): array
 
     $groups = [];
 
-    foreach ($rows as $row) {
+    foreach (array_merge($legacyRows, $directRows) as $row) {
         $itemId = (int) ($row['item_id'] ?? 0);
 
         if ($itemId <= 0) {
             continue;
         }
 
+        $reasonCode = mobile_usage_reason_normalize_code((string) ($row['reason_code'] ?? 'unspecified'));
         $groups[$itemId][] = [
-            'label' => handover_usage_reason_label((string) ($row['reason_code'] ?? 'unspecified'), (string) ($row['reason_custom'] ?? '')),
+            'label' => handover_usage_reason_label($reasonCode, (string) ($row['reason_custom'] ?? '')),
             'quantity' => (float) ($row['quantity'] ?? 0),
             'unit' => (string) ($row['unit'] ?: 'pcs'),
             'notes' => trim((string) ($row['notes'] ?? '')),
@@ -56,11 +78,11 @@ function report_summary_usage_reason_groups_by_day(array $filters): array
     [$usageWhere, $usageParams] = build_report_summary_where($usageFilters);
     $reasonWhere = $usageWhere . " AND m.context_type = 'handover'";
 
-    $rows = Database::fetchAll(
+    $legacyRows = Database::fetchAll(
         "SELECT DATE(m.used_at) AS usage_date,
                 m.item_id,
                 m.context_id AS handover_id,
-                COALESCE(i.unit, 'pcs') AS unit,
+                COALESCE(NULLIF(CASE WHEN i.unit = 'custom' THEN i.custom_unit ELSE i.unit END, ''), 'pcs') AS unit,
                 hub.reason_code,
                 hub.reason_custom,
                 hub.notes,
@@ -71,7 +93,30 @@ function report_summary_usage_reason_groups_by_day(array $filters): array
            AND hub.item_id = m.item_id
          LEFT JOIN items i ON i.id = m.item_id
          {$reasonWhere}
-         GROUP BY DATE(m.used_at), m.item_id, m.context_id, i.unit, hub.reason_code, hub.reason_custom, hub.notes
+         GROUP BY DATE(m.used_at), m.item_id, m.context_id, unit, hub.reason_code, hub.reason_custom, hub.notes
+         HAVING quantity > 0
+         ORDER BY usage_date DESC, m.item_id ASC, quantity DESC",
+        $usageParams
+    );
+
+    $measurementQuantity = report_summary_base_quantity_expression();
+    $measurementUnit = report_summary_base_unit_expression();
+    $directRows = Database::fetchAll(
+        "SELECT DATE(m.used_at) AS usage_date,
+                m.item_id,
+                COALESCE(m.context_id, 0) AS handover_id,
+                {$measurementUnit} AS unit,
+                COALESCE(NULLIF(mud.reason_code, ''), NULLIF(md.reason_code, ''), 'unspecified') AS reason_code,
+                COALESCE(NULLIF(mud.custom_reason, ''), NULLIF(md.custom_reason, '')) AS reason_custom,
+                COALESCE(NULLIF(mud.notes, ''), NULLIF(m.notes, '')) AS notes,
+                COALESCE(SUM({$measurementQuantity}), 0) AS quantity
+         FROM inventory_movements m
+         LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
+         LEFT JOIN inventory_movement_usage_details mud ON mud.movement_id = m.id
+         {$usageWhere}
+           AND (mud.id IS NOT NULL OR NULLIF(md.reason_code, '') IS NOT NULL)
+         GROUP BY DATE(m.used_at), m.item_id, COALESCE(m.context_id, 0), unit, reason_code, reason_custom, notes
          HAVING quantity > 0
          ORDER BY usage_date DESC, m.item_id ASC, quantity DESC",
         $usageParams
@@ -79,7 +124,7 @@ function report_summary_usage_reason_groups_by_day(array $filters): array
 
     $groups = [];
 
-    foreach ($rows as $row) {
+    foreach (array_merge($legacyRows, $directRows) as $row) {
         $itemId = (int) ($row['item_id'] ?? 0);
         $handoverId = (int) ($row['handover_id'] ?? 0);
         $usageDate = trim((string) ($row['usage_date'] ?? ''));
@@ -88,8 +133,9 @@ function report_summary_usage_reason_groups_by_day(array $filters): array
             continue;
         }
 
+        $reasonCode = mobile_usage_reason_normalize_code((string) ($row['reason_code'] ?? 'unspecified'));
         $groups[$usageDate . ':' . $itemId . ':' . $handoverId][] = [
-            'label' => handover_usage_reason_label((string) ($row['reason_code'] ?? 'unspecified'), (string) ($row['reason_custom'] ?? '')),
+            'label' => handover_usage_reason_label($reasonCode, (string) ($row['reason_custom'] ?? '')),
             'quantity' => (float) ($row['quantity'] ?? 0),
             'unit' => (string) ($row['unit'] ?: 'pcs'),
             'notes' => trim((string) ($row['notes'] ?? '')),
@@ -150,6 +196,12 @@ function report_summary_operational_usage(array $filters): array
         return [];
     }
 
+    // Operational reconciliation belongs to the whole handover. It cannot be
+    // truthfully attributed to one SKU or package preset.
+    if (!empty($filters['item_id']) || !empty($filters['package_preset_id'])) {
+        return [];
+    }
+
     $conditions = [
         "h.usage_reporting_mode = 'operational_summary'",
         "COALESCE(h.recipient_type, 'staff') = 'staff'",
@@ -173,6 +225,39 @@ function report_summary_operational_usage(array $filters): array
     if ((int) ($filters['storage_id'] ?? 0) > 0) {
         $conditions[] = 'h.source_storage_id = :operational_storage_id';
         $params['operational_storage_id'] = (int) $filters['storage_id'];
+    }
+
+    if ((int) ($filters['employee_id'] ?? 0) > 0) {
+        $conditions[] = 'h.recipient_user_id = :operational_employee_id';
+        $params['operational_employee_id'] = (int) $filters['employee_id'];
+    }
+
+    if ((int) ($filters['manager_id'] ?? 0) > 0) {
+        $conditions[] = 'COALESCE(h.manager_user_id, receiver.manager_user_id) = :operational_manager_id';
+        $params['operational_manager_id'] = (int) $filters['manager_id'];
+    }
+
+    if ((int) ($filters['department_id'] ?? 0) > 0) {
+        $conditions[] = 'receiver.department_id = :operational_department_id';
+        $params['operational_department_id'] = (int) $filters['department_id'];
+    }
+
+    if (trim((string) ($filters['unit'] ?? '')) !== '') {
+        $conditions[] = 'r.unit = :operational_unit';
+        $params['operational_unit'] = trim((string) $filters['unit']);
+    }
+
+    if (trim((string) ($filters['reason'] ?? '')) !== '') {
+        $reason = mobile_usage_reason_normalize_code((string) $filters['reason']);
+        $legacyReason = $reason === 'no_show' ? 'noshow' : $reason;
+        $conditions[] = 'EXISTS (
+            SELECT 1
+            FROM handover_reconciliation_entries operational_reason
+            WHERE operational_reason.reconciliation_id = r.id
+              AND operational_reason.reason_code IN (:operational_reason, :operational_legacy_reason)
+        )';
+        $params['operational_reason'] = $reason;
+        $params['operational_legacy_reason'] = $legacyReason;
     }
 
     $rows = Database::fetchAll(
@@ -249,39 +334,191 @@ function report_summary_operational_usage(array $filters): array
     return $rows;
 }
 
+function report_summary_unit_totals(string $where, array $params): array
+{
+    $baseQuantity = report_summary_base_quantity_expression();
+    $baseUnit = report_summary_base_unit_expression();
+    $rows = Database::fetchAll(
+        "SELECT m.movement_type,
+                {$baseUnit} AS unit,
+                COALESCE(SUM({$baseQuantity}), 0) AS quantity
+         FROM inventory_movements m
+         LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
+         {$where}
+         GROUP BY m.movement_type, unit
+         ORDER BY m.movement_type ASC, unit ASC",
+        $params
+    );
+    $totals = [
+        'usage' => [],
+        'restock' => [],
+        'transfer' => [],
+        'adjustment' => [],
+    ];
+
+    foreach ($rows as $row) {
+        $type = (string) ($row['movement_type'] ?? '');
+        if (!array_key_exists($type, $totals)) {
+            continue;
+        }
+        $totals[$type][] = [
+            'unit' => trim((string) ($row['unit'] ?? '')) ?: 'pcs',
+            'quantity' => (float) ($row['quantity'] ?? 0),
+        ];
+    }
+
+    return $totals;
+}
+
+function report_summary_proof_join(): string
+{
+    return "LEFT JOIN (
+        SELECT movement_documents.movement_id,
+               COUNT(*) AS proof_count,
+               GROUP_CONCAT(
+                   DISTINCT CONCAT(file_rows.id, ':', file_rows.display_name)
+                   ORDER BY file_rows.display_name
+                   SEPARATOR ' | '
+               ) AS proof_files
+        FROM inventory_movement_documents movement_documents
+        INNER JOIN file_assets file_rows ON file_rows.id = movement_documents.file_asset_id
+        WHERE file_rows.deleted_at IS NULL
+        GROUP BY movement_documents.movement_id
+    ) movement_proofs ON movement_proofs.movement_id = m.id";
+}
+
+function report_summary_user_breakdown(string $where, array $params): array
+{
+    $baseQuantity = report_summary_base_quantity_expression();
+    $baseUnit = report_summary_base_unit_expression();
+    $employeeId = "CASE WHEN usage_handover.id IS NOT NULL
+        THEN COALESCE(usage_handover.recipient_user_id, 0)
+        ELSE COALESCE(m.performed_by, 0)
+    END";
+    $employeeName = "CASE WHEN usage_handover.id IS NOT NULL
+        THEN COALESCE(recipient_user.name, NULLIF(usage_handover.recipient_name, ''), 'Unassigned')
+        ELSE COALESCE(performed_user.name, 'System')
+    END";
+    $departmentName = "CASE WHEN usage_handover.id IS NOT NULL
+        THEN COALESCE(recipient_department.name, 'Unassigned')
+        ELSE COALESCE(NULLIF(md.department_name, ''), performed_department.name, 'Unassigned')
+    END";
+    $managerName = "CASE WHEN usage_handover.id IS NOT NULL
+        THEN COALESCE(handover_manager.name, recipient_manager.name, 'Unassigned')
+        ELSE COALESCE(NULLIF(md.manager_name, ''), performed_manager.name, 'Unassigned')
+    END";
+    $joins = "LEFT JOIN items i ON i.id = m.item_id
+        LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
+        LEFT JOIN users performed_user ON performed_user.id = m.performed_by
+        LEFT JOIN departments performed_department ON performed_department.id = performed_user.department_id
+        LEFT JOIN users performed_manager ON performed_manager.id = performed_user.manager_user_id
+        LEFT JOIN handovers usage_handover ON usage_handover.id = m.context_id AND m.context_type = 'handover'
+        LEFT JOIN users recipient_user ON recipient_user.id = usage_handover.recipient_user_id
+        LEFT JOIN departments recipient_department ON recipient_department.id = recipient_user.department_id
+        LEFT JOIN users recipient_manager ON recipient_manager.id = recipient_user.manager_user_id
+        LEFT JOIN users handover_manager ON handover_manager.id = usage_handover.manager_user_id";
+    $summaryRows = Database::fetchAll(
+        "SELECT {$employeeId} AS employee_id,
+                {$employeeName} AS user_name,
+                {$departmentName} AS department_name,
+                {$managerName} AS manager_name,
+                COUNT(*) AS movement_count,
+                COUNT(DISTINCT m.item_id) AS item_count,
+                MAX(m.used_at) AS last_activity_at
+         FROM inventory_movements m
+         {$joins}
+         {$where}
+         GROUP BY employee_id, user_name, department_name, manager_name
+         ORDER BY movement_count DESC, user_name ASC
+         LIMIT 30",
+        $params
+    );
+    $unitRows = Database::fetchAll(
+        "SELECT {$employeeId} AS employee_id,
+                m.movement_type,
+                {$baseUnit} AS unit,
+                COALESCE(SUM({$baseQuantity}), 0) AS quantity
+         FROM inventory_movements m
+         {$joins}
+         {$where}
+         GROUP BY employee_id, m.movement_type, unit
+         ORDER BY employee_id ASC, m.movement_type ASC, unit ASC",
+        $params
+    );
+    $totals = [];
+    foreach ($unitRows as $row) {
+        $employeeKey = (string) ((int) ($row['employee_id'] ?? 0));
+        $type = (string) ($row['movement_type'] ?? '');
+        if (!in_array($type, ['usage', 'restock', 'transfer', 'adjustment'], true)) {
+            continue;
+        }
+        $totals[$employeeKey][$type][] = [
+            'unit' => trim((string) ($row['unit'] ?? '')) ?: 'pcs',
+            'quantity' => (float) ($row['quantity'] ?? 0),
+        ];
+    }
+
+    foreach ($summaryRows as &$row) {
+        $employeeKey = (string) ((int) ($row['employee_id'] ?? 0));
+        foreach (['usage', 'restock', 'transfer', 'adjustment'] as $type) {
+            $row[$type . '_totals'] = $totals[$employeeKey][$type] ?? [];
+        }
+    }
+    unset($row);
+
+    return $summaryRows;
+}
+
 function report_summary_data(array $filters): array
 {
     [$where, $params] = build_report_summary_where($filters);
-    $quantity = report_summary_quantity_expression();
-
     $cards = Database::fetch(
         "SELECT COUNT(*) AS movement_count,
                 COUNT(DISTINCT m.item_id) AS item_count,
-                COUNT(DISTINCT m.performed_by) AS user_count,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'usage' THEN {$quantity} ELSE 0 END), 0) AS used_units,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'restock' THEN {$quantity} ELSE 0 END), 0) AS restocked_units,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'transfer' THEN {$quantity} ELSE 0 END), 0) AS transferred_units,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'adjustment' THEN {$quantity} ELSE 0 END), 0) AS adjusted_units
+                COUNT(DISTINCT CASE
+                    WHEN usage_handover.id IS NOT NULL THEN usage_handover.recipient_user_id
+                    ELSE m.performed_by
+                END) AS user_count
          FROM inventory_movements m
+         LEFT JOIN handovers usage_handover ON usage_handover.id = m.context_id AND m.context_type = 'handover'
          {$where}",
         $params
     ) ?: [];
+    $cardUnitTotals = report_summary_unit_totals($where, $params);
 
     $usageFilters = $filters;
     $usageFilters['movement_type'] = 'usage';
     [$usageWhere, $usageParams] = build_report_summary_where($usageFilters);
-    $usageQuantity = report_summary_quantity_expression();
+    $usageQuantity = report_summary_base_quantity_expression();
+    $usageUnit = report_summary_base_unit_expression();
+    $proofJoin = report_summary_proof_join();
 
     $usageByItem = Database::fetchAll(
         "SELECT m.item_id,
                 COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
                 COALESCE(i.sku, '') AS sku,
-                COALESCE(i.unit, '') AS unit,
+                {$usageUnit} AS unit,
                 COALESCE(i.barcode, '') AS barcode,
                 i.is_active AS item_is_active,
                 i.image_path,
                 COALESCE(SUM({$usageQuantity}), 0) AS used_quantity,
                 COUNT(*) AS movement_count,
+                COALESCE(SUM(movement_proofs.proof_count), 0) AS proof_count,
+                GROUP_CONCAT(DISTINCT NULLIF(movement_proofs.proof_files, '') SEPARATOR ' | ') AS proof_files,
+                GROUP_CONCAT(
+                    DISTINCT CASE WHEN md.id IS NOT NULL THEN CONCAT(
+                        md.input_quantity,
+                        ' x ',
+                        COALESCE(NULLIF(md.package_label, ''), md.base_unit),
+                        ' = ',
+                        md.base_quantity,
+                        ' ',
+                        md.base_unit
+                    ) END
+                    SEPARATOR ' | '
+                ) AS entered_measurements,
+                GROUP_CONCAT(DISTINCT NULLIF(md.package_label, '') ORDER BY md.package_label SEPARATOR ', ') AS packages,
                 GROUP_CONCAT(
                     DISTINCT CASE
                         WHEN usage_handover.id IS NOT NULL
@@ -321,21 +558,42 @@ function report_summary_data(array $filters): array
                     END
                     SEPARATOR ', '
                 ) AS locations,
+                GROUP_CONCAT(
+                    DISTINCT CASE
+                        WHEN usage_handover.id IS NOT NULL THEN COALESCE(recipient_department.name, 'Unassigned')
+                        ELSE COALESCE(NULLIF(md.department_name, ''), performed_department.name, 'Unassigned')
+                    END
+                    SEPARATOR ', '
+                ) AS departments,
+                GROUP_CONCAT(
+                    DISTINCT CASE
+                        WHEN usage_handover.id IS NOT NULL THEN COALESCE(handover_manager.name, recipient_manager.name, 'Unassigned')
+                        ELSE COALESCE(NULLIF(md.manager_name, ''), performed_manager.name, 'Unassigned')
+                    END
+                    SEPARATOR ', '
+                ) AS managers,
                 MAX(m.used_at) AS last_activity_at,
                 GROUP_CONCAT(DISTINCT NULLIF(m.reference_code, '') ORDER BY m.reference_code SEPARATOR ', ') AS references_list
          FROM inventory_movements m
          LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
+         LEFT JOIN departments performed_department ON performed_department.id = u.department_id
+         LEFT JOIN users performed_manager ON performed_manager.id = u.manager_user_id
          LEFT JOIN handovers usage_handover ON usage_handover.id = m.context_id AND m.context_type = 'handover'
          LEFT JOIN users recipient_user ON recipient_user.id = usage_handover.recipient_user_id
+         LEFT JOIN departments recipient_department ON recipient_department.id = recipient_user.department_id
+         LEFT JOIN users recipient_manager ON recipient_manager.id = recipient_user.manager_user_id
+         LEFT JOIN users handover_manager ON handover_manager.id = usage_handover.manager_user_id
          LEFT JOIN users approved_user ON approved_user.id = usage_handover.approved_by
          LEFT JOIN users assigned_approver ON assigned_approver.id = usage_handover.approver_user_id
          LEFT JOIN storages handover_source ON handover_source.id = usage_handover.source_storage_id
          LEFT JOIN storages handover_destination ON handover_destination.id = usage_handover.destination_storage_id
+         {$proofJoin}
          {$usageWhere}
-         GROUP BY m.item_id, i.name, i.sku, i.unit, i.barcode, i.is_active, i.image_path
+         GROUP BY m.item_id, i.name, i.sku, unit, i.barcode, i.is_active, i.image_path
          ORDER BY used_quantity DESC, item_name ASC
          LIMIT 50",
         $usageParams
@@ -355,12 +613,27 @@ function report_summary_data(array $filters): array
                 COALESCE(m.context_id, 0) AS context_id,
                 COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
                 COALESCE(i.sku, '') AS sku,
-                COALESCE(i.unit, '') AS unit,
+                {$usageUnit} AS unit,
                 COALESCE(i.barcode, '') AS barcode,
                 i.is_active AS item_is_active,
                 i.image_path,
                 COALESCE(SUM({$usageQuantity}), 0) AS used_quantity,
                 COUNT(*) AS movement_count,
+                COALESCE(SUM(movement_proofs.proof_count), 0) AS proof_count,
+                GROUP_CONCAT(DISTINCT NULLIF(movement_proofs.proof_files, '') SEPARATOR ' | ') AS proof_files,
+                GROUP_CONCAT(
+                    DISTINCT CASE WHEN md.id IS NOT NULL THEN CONCAT(
+                        md.input_quantity,
+                        ' x ',
+                        COALESCE(NULLIF(md.package_label, ''), md.base_unit),
+                        ' = ',
+                        md.base_quantity,
+                        ' ',
+                        md.base_unit
+                    ) END
+                    SEPARATOR ' | '
+                ) AS entered_measurements,
+                GROUP_CONCAT(DISTINCT NULLIF(md.package_label, '') ORDER BY md.package_label SEPARATOR ', ') AS packages,
                 CASE
                     WHEN usage_handover.id IS NOT NULL
                         THEN COALESCE(recipient_user.name, NULLIF(usage_handover.recipient_name, ''), 'Unassigned')
@@ -376,21 +649,38 @@ function report_summary_data(array $filters): array
                         THEN COALESCE(handover_source.name, handover_destination.name, 'Unassigned')
                     ELSE COALESCE(source_storage.name, destination_storage.name, 'Unassigned')
                 END AS usage_location,
+                CASE
+                    WHEN usage_handover.id IS NOT NULL
+                        THEN COALESCE(recipient_department.name, 'Unassigned')
+                    ELSE COALESCE(NULLIF(md.department_name, ''), performed_department.name, 'Unassigned')
+                END AS department_name,
+                CASE
+                    WHEN usage_handover.id IS NOT NULL
+                        THEN COALESCE(handover_manager.name, recipient_manager.name, 'Unassigned')
+                    ELSE COALESCE(NULLIF(md.manager_name, ''), performed_manager.name, 'Unassigned')
+                END AS manager_name,
                 MIN(m.used_at) AS first_activity_at,
                 MAX(m.used_at) AS last_activity_at,
                 GROUP_CONCAT(DISTINCT NULLIF(m.reference_code, '') ORDER BY m.reference_code SEPARATOR ', ') AS references_list,
                 GROUP_CONCAT(DISTINCT NULLIF(TRIM(m.notes), '') ORDER BY m.notes SEPARATOR ' | ') AS notes_list
          FROM inventory_movements m
          LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
+         LEFT JOIN departments performed_department ON performed_department.id = u.department_id
+         LEFT JOIN users performed_manager ON performed_manager.id = u.manager_user_id
          LEFT JOIN handovers usage_handover ON usage_handover.id = m.context_id AND m.context_type = 'handover'
          LEFT JOIN users recipient_user ON recipient_user.id = usage_handover.recipient_user_id
+         LEFT JOIN departments recipient_department ON recipient_department.id = recipient_user.department_id
+         LEFT JOIN users recipient_manager ON recipient_manager.id = recipient_user.manager_user_id
+         LEFT JOIN users handover_manager ON handover_manager.id = usage_handover.manager_user_id
          LEFT JOIN users approved_user ON approved_user.id = usage_handover.approved_by
          LEFT JOIN users assigned_approver ON assigned_approver.id = usage_handover.approver_user_id
          LEFT JOIN storages handover_source ON handover_source.id = usage_handover.source_storage_id
          LEFT JOIN storages handover_destination ON handover_destination.id = usage_handover.destination_storage_id
+         {$proofJoin}
          {$usageWhere}
          GROUP BY DATE(m.used_at),
                   m.item_id,
@@ -398,13 +688,15 @@ function report_summary_data(array $filters): array
                   COALESCE(m.context_id, 0),
                   i.name,
                   i.sku,
-                  i.unit,
+                  unit,
                   i.barcode,
                   i.is_active,
                   i.image_path,
                   staff_name,
                   approver_name,
-                  usage_location
+                  usage_location,
+                  department_name,
+                  manager_name
          ORDER BY usage_date DESC, last_activity_at DESC, used_quantity DESC, item_name ASC",
         $usageParams
     );
@@ -420,40 +712,59 @@ function report_summary_data(array $filters): array
     unset($usageDayRow);
     $operationalUsage = report_summary_operational_usage($filters);
 
-    $userBreakdown = Database::fetchAll(
-        "SELECT COALESCE(u.name, 'System') AS user_name,
-                COUNT(*) AS movement_count,
-                COUNT(DISTINCT m.item_id) AS item_count,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'usage' THEN {$quantity} ELSE 0 END), 0) AS used_units,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'restock' THEN {$quantity} ELSE 0 END), 0) AS restocked_units,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'transfer' THEN {$quantity} ELSE 0 END), 0) AS transferred_units,
-                COALESCE(SUM(CASE WHEN m.movement_type = 'adjustment' THEN {$quantity} ELSE 0 END), 0) AS adjusted_units,
-                MAX(m.used_at) AS last_activity_at
-         FROM inventory_movements m
-         LEFT JOIN users u ON u.id = m.performed_by
-         {$where}
-         GROUP BY COALESCE(u.name, 'System')
-         ORDER BY movement_count DESC, user_name ASC
-         LIMIT 30",
-        $params
-    );
+    $userBreakdown = report_summary_user_breakdown($where, $params);
 
     $timeline = Database::fetchAll(
         "SELECT m.*,
                 COALESCE(i.name, CONCAT('Item #', m.item_id)) AS item_name,
                 COALESCE(i.sku, '') AS sku,
-                COALESCE(i.unit, '') AS unit,
+                " . report_summary_base_unit_expression() . " AS unit,
                 COALESCE(i.barcode, '') AS barcode,
                 i.is_active AS item_is_active,
                 i.image_path,
                 source_storage.name AS source_storage_name,
                 destination_storage.name AS destination_storage_name,
-                COALESCE(u.name, 'System') AS user_name
+                CASE
+                    WHEN usage_handover.id IS NOT NULL
+                        THEN COALESCE(recipient_user.name, NULLIF(usage_handover.recipient_name, ''), 'Unassigned')
+                    ELSE COALESCE(u.name, 'System')
+                END AS user_name,
+                CASE
+                    WHEN usage_handover.id IS NOT NULL
+                        THEN COALESCE(recipient_department.name, 'Unassigned')
+                    ELSE COALESCE(NULLIF(md.department_name, ''), performed_department.name, 'Unassigned')
+                END AS department_name,
+                CASE
+                    WHEN usage_handover.id IS NOT NULL
+                        THEN COALESCE(handover_manager.name, recipient_manager.name, 'Unassigned')
+                    ELSE COALESCE(NULLIF(md.manager_name, ''), performed_manager.name, 'Unassigned')
+                END AS manager_name,
+                md.input_quantity,
+                md.package_label,
+                md.package_scan_code,
+                md.conversion_multiplier,
+                md.base_quantity,
+                md.base_unit,
+                md.measurement_dimension,
+                COALESCE(NULLIF(mud.reason_code, ''), NULLIF(md.reason_code, '')) AS reason_code,
+                COALESCE(NULLIF(mud.custom_reason, ''), NULLIF(md.custom_reason, '')) AS custom_reason,
+                COALESCE(movement_proofs.proof_count, 0) AS proof_count,
+                movement_proofs.proof_files
          FROM inventory_movements m
          LEFT JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
+         LEFT JOIN inventory_movement_usage_details mud ON mud.movement_id = m.id
          LEFT JOIN storages source_storage ON source_storage.id = m.source_storage_id
          LEFT JOIN storages destination_storage ON destination_storage.id = m.destination_storage_id
          LEFT JOIN users u ON u.id = m.performed_by
+         LEFT JOIN departments performed_department ON performed_department.id = u.department_id
+         LEFT JOIN users performed_manager ON performed_manager.id = u.manager_user_id
+         LEFT JOIN handovers usage_handover ON usage_handover.id = m.context_id AND m.context_type = 'handover'
+         LEFT JOIN users recipient_user ON recipient_user.id = usage_handover.recipient_user_id
+         LEFT JOIN departments recipient_department ON recipient_department.id = recipient_user.department_id
+         LEFT JOIN users recipient_manager ON recipient_manager.id = recipient_user.manager_user_id
+         LEFT JOIN users handover_manager ON handover_manager.id = usage_handover.manager_user_id
+         {$proofJoin}
          {$where}
          ORDER BY m.used_at DESC, m.id DESC
          LIMIT 120",
@@ -464,20 +775,10 @@ function report_summary_data(array $filters): array
         $timeline
     );
 
-    $query = array_filter([
-        'date_from' => $filters['date_from'],
-        'date_to' => $filters['date_to'],
-        'storage_id' => $filters['storage_id'] ?? null,
-        'movement_type' => $filters['movement_type'] ?? '',
-        'item_status' => ($filters['item_status'] ?? 'all') !== 'all' ? $filters['item_status'] : null,
-    ], static fn ($value): bool => $value !== '' && $value !== null);
+    $query = report_summary_filter_query($filters);
 
-    $movementQuery = array_filter([
-        'date_from' => $filters['date_from'],
-        'date_to' => $filters['date_to'],
-        'storage_id' => $filters['storage_id'] ?? null,
-        'movement_type' => $filters['movement_type'] ?? '',
-    ], static fn ($value): bool => $value !== '' && $value !== null);
+    $movementQuery = $query;
+    unset($movementQuery['item_status']);
     $usageExportQuery = $query;
     $usageExportQuery['movement_type'] = 'usage';
     $usageExportQuery['report_scope'] = 'usage_by_day';
@@ -490,10 +791,16 @@ function report_summary_data(array $filters): array
             'movement_count' => (int) ($cards['movement_count'] ?? 0),
             'item_count' => (int) ($cards['item_count'] ?? 0),
             'user_count' => (int) ($cards['user_count'] ?? 0),
-            'used_units' => (float) ($cards['used_units'] ?? 0),
-            'restocked_units' => (float) ($cards['restocked_units'] ?? 0),
-            'transferred_units' => (float) ($cards['transferred_units'] ?? 0),
-            'adjusted_units' => (float) ($cards['adjusted_units'] ?? 0),
+            'used_totals' => $cardUnitTotals['usage'],
+            'restocked_totals' => $cardUnitTotals['restock'],
+            'transferred_totals' => $cardUnitTotals['transfer'],
+            'adjusted_totals' => $cardUnitTotals['adjustment'],
+            // Compatibility keys remain for older templates, but new UI and
+            // exports use the unit-grouped values above.
+            'used_units' => 0.0,
+            'restocked_units' => 0.0,
+            'transferred_units' => 0.0,
+            'adjusted_units' => 0.0,
         ],
         'usage_by_item' => $usageByItem,
         'usage_by_day' => $usageByDay,

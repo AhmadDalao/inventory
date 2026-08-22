@@ -31,6 +31,14 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
         'Reference',
         'Used At',
         'Notes',
+        'Entered Measurement',
+        'Package',
+        'Base Quantity',
+        'Base Unit',
+        'Department',
+        'Manager',
+        'Approver',
+        'Proof Files',
     ];
 
     $imageWidth = max(40, min(500, (int) ($imageSize['width'] ?? 120)));
@@ -74,6 +82,14 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
             (string) $row['reference'],
             (string) $row['used_at'],
             (string) $row['notes'],
+            (string) $row['entered_measurement'],
+            (string) $row['package'],
+            (string) $row['base_quantity'],
+            (string) $row['base_unit'],
+            (string) $row['department'],
+            (string) $row['manager'],
+            (string) $row['approver'],
+            (string) $row['proof_files'],
         ];
         $cells = '';
 
@@ -111,6 +127,14 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
         22,
         20,
         46,
+        28,
+        24,
+        16,
+        12,
+        22,
+        22,
+        22,
+        34,
     ];
     $columnXml = '';
 
@@ -151,6 +175,13 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
         'Approver',
         'Location',
         'Reference',
+        'Entered Measurement',
+        'Package',
+        'Base Quantity',
+        'Base Unit',
+        'Department',
+        'Manager',
+        'Proof Files',
     ];
     $imageWidth = max(40, min(500, (int) ($imageSize['width'] ?? 120)));
     $imageHeight = max(40, min(400, (int) ($imageSize['height'] ?? 90)));
@@ -180,6 +211,13 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
             (string) $row['approver'],
             (string) $row['location'],
             (string) $row['reference'],
+            (string) $row['entered_measurement'],
+            (string) $row['package'],
+            (string) $row['base_quantity'],
+            (string) $row['base_unit'],
+            (string) $row['department'],
+            (string) $row['manager'],
+            (string) $row['proof_files'],
         ];
         $cells = '';
 
@@ -191,7 +229,7 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
         $rowNumber++;
     }
 
-    $columnWidths = [$imageColumnWidth, 14, 14, 24, 20, 10, 14, 42, 34, 22, 22, 24, 28];
+    $columnWidths = [$imageColumnWidth, 14, 14, 24, 20, 10, 14, 42, 34, 22, 22, 24, 28, 28, 24, 16, 12, 22, 22, 34];
     $columnXml = '';
 
     foreach ($columnWidths as $index => $width) {
@@ -205,7 +243,7 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
     $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
     $xml .= '<cols>' . $columnXml . '</cols>';
     $xml .= '<sheetData>' . implode('', $sheetRows) . '</sheetData>';
-    $xml .= '<autoFilter ref="A1:M' . $lastRow . '"/>';
+    $xml .= '<autoFilter ref="A1:T' . $lastRow . '"/>';
     $xml .= '<pageMargins left="0.25" right="0.25" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>';
     $xml .= '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
 

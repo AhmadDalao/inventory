@@ -13,6 +13,7 @@ function handle_users_create_submit(): void
         'position' => trim((string) input('position', 'operations_manager')),
         'role' => trim((string) input('role', 'admin')),
         'manager_user_id' => normalize_entity_id(input('manager_user_id')),
+        'department_id' => valid_department_assignment_id(input('department_id')),
         'storage_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('storage_ids', []))))),
         'default_storage_id' => normalize_entity_id(input('default_storage_id')),
         'password' => (string) input('password'),
@@ -26,6 +27,7 @@ function handle_users_create_submit(): void
         'position' => $payload['position'],
         'role' => $payload['role'],
         'manager_user_id' => (string) ($payload['manager_user_id'] ?? ''),
+        'department_id' => (string) ($payload['department_id'] ?? ''),
         'storage_ids' => $payload['storage_ids'],
         'default_storage_id' => (string) ($payload['default_storage_id'] ?? ''),
         'permissions' => $payload['permissions'],
@@ -51,6 +53,12 @@ function handle_users_create_submit(): void
 
     if (!(Auth::isOwner() || Auth::hasPermission('team.manage'))) {
         $payload['manager_user_id'] = null;
+    }
+    if (!(Auth::isOwner() || Auth::hasPermission('departments.manage'))) {
+        $payload['department_id'] = unassigned_department_id();
+    }
+    if ($payload['department_id'] === null) {
+        $errors[] = 'Pick an active department.';
     }
     if (!(Auth::isOwner() || Auth::hasPermission('storages.assign_users'))) {
         $payload['storage_ids'] = [];
@@ -96,8 +104,8 @@ function handle_users_create_submit(): void
 
     try {
         Database::execute(
-            'INSERT INTO users (name, email, password_hash, role, position, is_active, assigned_owner_user_id, manager_user_id, created_at, updated_at)
-             VALUES (:name, :email, :password_hash, :role, :position, 1, :legacy_manager_user_id, :manager_user_id, NOW(), NOW())',
+            'INSERT INTO users (name, email, password_hash, role, position, is_active, assigned_owner_user_id, manager_user_id, department_id, created_at, updated_at)
+             VALUES (:name, :email, :password_hash, :role, :position, 1, :legacy_manager_user_id, :manager_user_id, :department_id, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'email' => $payload['email'],
@@ -106,6 +114,7 @@ function handle_users_create_submit(): void
                 'position' => $payload['position'],
                 'legacy_manager_user_id' => $payload['manager_user_id'],
                 'manager_user_id' => $payload['manager_user_id'],
+                'department_id' => $payload['department_id'],
             ]
         );
 
@@ -128,6 +137,7 @@ function handle_users_create_submit(): void
             'role' => $payload['role'],
             'position' => $payload['position'],
             'manager_user_id' => $payload['manager_user_id'],
+            'department_id' => $payload['department_id'],
             'storage_ids' => $payload['storage_ids'],
             'default_storage_id' => $payload['default_storage_id'],
             'permissions' => $permissions,
@@ -151,6 +161,7 @@ function handle_users_edit_submit(array $params): void
         'position' => trim((string) input('position', (string) ($userRecord['position'] ?? 'general_admin'))),
         'role' => trim((string) input('role', (string) $userRecord['role'])),
         'manager_user_id' => normalize_entity_id(input('manager_user_id')),
+        'department_id' => valid_department_assignment_id(input('department_id')),
         'storage_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('storage_ids', []))))),
         'default_storage_id' => normalize_entity_id(input('default_storage_id')),
         'password' => (string) input('password'),
@@ -164,6 +175,7 @@ function handle_users_edit_submit(array $params): void
         'position' => $payload['position'],
         'role' => $payload['role'],
         'manager_user_id' => (string) ($payload['manager_user_id'] ?? ''),
+        'department_id' => (string) ($payload['department_id'] ?? ''),
         'storage_ids' => $payload['storage_ids'],
         'default_storage_id' => (string) ($payload['default_storage_id'] ?? ''),
         'permissions' => $payload['permissions'],
@@ -192,6 +204,12 @@ function handle_users_edit_submit(array $params): void
         $payload['manager_user_id'] = null;
     } elseif (!(Auth::isOwner() || Auth::hasPermission('team.manage'))) {
         $payload['manager_user_id'] = $storedManagerUserId;
+    }
+    if (!(Auth::isOwner() || Auth::hasPermission('departments.manage'))) {
+        $payload['department_id'] = normalize_entity_id($userRecord['department_id'] ?? null) ?? unassigned_department_id();
+    }
+    if ($payload['department_id'] === null) {
+        $errors[] = 'Pick an active department.';
     }
     if (!(Auth::isOwner() || Auth::hasPermission('storages.assign_users'))) {
         $payload['storage_ids'] = user_assigned_storage_ids((int) $userRecord['id'], false);
@@ -256,6 +274,7 @@ function handle_users_edit_submit(array $params): void
                      position = :position,
                      assigned_owner_user_id = :legacy_manager_user_id,
                      manager_user_id = :manager_user_id,
+                     department_id = :department_id,
                      updated_at = NOW()
                  WHERE id = :id',
             [
@@ -265,6 +284,7 @@ function handle_users_edit_submit(array $params): void
                 'position' => $payload['position'],
                 'legacy_manager_user_id' => $payload['manager_user_id'],
                 'manager_user_id' => $payload['manager_user_id'],
+                'department_id' => $payload['department_id'],
                 'id' => $userRecord['id'],
             ]
         );
@@ -305,6 +325,7 @@ function handle_users_edit_submit(array $params): void
             'role' => $nextRole,
             'position' => $payload['position'],
             'manager_user_id' => $payload['manager_user_id'],
+            'department_id' => $payload['department_id'],
             'storage_ids' => $payload['storage_ids'],
             'default_storage_id' => $payload['default_storage_id'],
             'password_changed' => $payload['password'] !== '',

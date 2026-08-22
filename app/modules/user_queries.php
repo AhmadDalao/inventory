@@ -12,9 +12,11 @@ function users_for_access_control(): array
                 users.is_active,
                 users.assigned_owner_user_id,
                 users.manager_user_id,
+                users.department_id,
                 users.last_login_at,
                 users.created_at,
                 manager_user.name AS manager_name,
+                department.name AS department_name,
                 (SELECT COUNT(*)
                    FROM user_storage_assignments assignment
                    INNER JOIN storages storage ON storage.id = assignment.storage_id
@@ -29,6 +31,7 @@ function users_for_access_control(): array
                     AND storage.is_system = 0) AS storage_names
          FROM users
          LEFT JOIN users manager_user ON manager_user.id = COALESCE(users.manager_user_id, users.assigned_owner_user_id)
+         LEFT JOIN departments department ON department.id = users.department_id
          ORDER BY FIELD(users.role, "owner", "admin", "staff"), users.created_at ASC'
     );
 

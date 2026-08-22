@@ -15,6 +15,13 @@ $selectedDateFrom = (string) ($summaryFilters['date_from'] ?? date('Y-m-d'));
 $selectedDateTo = (string) ($summaryFilters['date_to'] ?? $selectedDateFrom);
 $selectedType = (string) ($summaryFilters['movement_type'] ?? '');
 $selectedItemStatus = (string) ($summaryFilters['item_status'] ?? 'all');
+$selectedItemId = (string) ($summaryFilters['item_id'] ?? '');
+$selectedDepartmentId = (string) ($summaryFilters['department_id'] ?? '');
+$selectedEmployeeId = (string) ($summaryFilters['employee_id'] ?? '');
+$selectedManagerId = (string) ($summaryFilters['manager_id'] ?? '');
+$selectedPackagePresetId = (string) ($summaryFilters['package_preset_id'] ?? '');
+$selectedReason = (string) ($summaryFilters['reason'] ?? '');
+$selectedUnit = (string) ($summaryFilters['unit'] ?? '');
 $isSummaryLocationScoped = !empty($summaryFilters['storage_id']);
 $dateTitle = report_summary_period_label($summaryFilters);
 ?>
@@ -82,6 +89,80 @@ $dateTitle = report_summary_period_label($summaryFilters);
             </select>
         </label>
 
+        <label class="field">
+            <span>Item</span>
+            <select name="item_id">
+                <option value="">All items</option>
+                <?php foreach ($items as $item): ?>
+                    <option value="<?= e((string) $item['id']) ?>" <?= selected((string) $item['id'], $selectedItemId) ?>>
+                        <?= e((string) $item['name']) ?> (<?= e((string) $item['sku']) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Department</span>
+            <select name="department_id">
+                <option value="">All departments</option>
+                <?php foreach ($departments as $department): ?>
+                    <option value="<?= e((string) $department['id']) ?>" <?= selected((string) $department['id'], $selectedDepartmentId) ?>><?= e((string) $department['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Employee</span>
+            <select name="employee_id">
+                <option value="">All employees</option>
+                <?php foreach ($employees as $employee): ?>
+                    <option value="<?= e((string) $employee['id']) ?>" <?= selected((string) $employee['id'], $selectedEmployeeId) ?>><?= e((string) $employee['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Manager</span>
+            <select name="manager_id">
+                <option value="">All managers</option>
+                <?php foreach ($managers as $manager): ?>
+                    <option value="<?= e((string) $manager['id']) ?>" <?= selected((string) $manager['id'], $selectedManagerId) ?>><?= e((string) $manager['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Package</span>
+            <select name="package_preset_id">
+                <option value="">All packages</option>
+                <?php foreach ($packagePresets as $preset): ?>
+                    <option value="<?= e((string) $preset['id']) ?>" <?= selected((string) $preset['id'], $selectedPackagePresetId) ?>>
+                        <?= e((string) $preset['item_name']) ?> · <?= e((string) $preset['label']) ?> = <?= e(format_quantity($preset['pieces_per_unit'] ?? 0)) ?> <?= e((string) $preset['base_unit']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Usage Reason</span>
+            <select name="reason">
+                <option value="">All reasons</option>
+                <?php foreach ($usageReasons as $reason): ?>
+                    <option value="<?= e((string) $reason['code']) ?>" <?= selected((string) $reason['code'], $selectedReason) ?>><?= e((string) $reason['label']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
+        <label class="field">
+            <span>Canonical Unit</span>
+            <select name="unit">
+                <option value="">All units</option>
+                <?php foreach ($units as $unit): ?>
+                    <option value="<?= e((string) $unit['value']) ?>" <?= selected((string) $unit['value'], $selectedUnit) ?>><?= e((string) $unit['value']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+
         <div class="filter-actions">
             <button class="primary-button" type="submit"><?= ui_icon('filter') ?><span>Filter</span></button>
             <a class="ghost-button" href="<?= e(url('/reports')) ?>" data-live-filter-link><?= ui_icon('back') ?><span>Reset</span></a>
@@ -97,8 +178,8 @@ $dateTitle = report_summary_period_label($summaryFilters);
     <div class="metric-grid reports-summary-metrics">
         <article class="metric-card metric-card-active">
             <span class="metric-card-icon"><?= ui_icon('movements') ?><span>Used Units</span></span>
-            <strong><?= e(format_quantity($summaryCards['used_units'] ?? 0)) ?></strong>
-            <span class="metric-card-note">Items consumed in this range</span>
+            <strong><?= e(report_summary_unit_totals_text($summaryCards['used_totals'] ?? [])) ?></strong>
+            <span class="metric-card-note">Grouped by compatible canonical unit</span>
         </article>
         <article class="metric-card">
             <span class="metric-card-icon"><?= ui_icon('items') ?><span>Items Touched</span></span>
@@ -117,13 +198,13 @@ $dateTitle = report_summary_period_label($summaryFilters);
         </article>
         <article class="metric-card">
             <span class="metric-card-icon"><?= ui_icon('supplier') ?><span>Restocked</span></span>
-            <strong><?= e(format_quantity($summaryCards['restocked_units'] ?? 0)) ?></strong>
-            <span class="metric-card-note">Units added</span>
+            <strong><?= e(report_summary_unit_totals_text($summaryCards['restocked_totals'] ?? [])) ?></strong>
+            <span class="metric-card-note">Added, grouped by canonical unit</span>
         </article>
         <article class="metric-card">
             <span class="metric-card-icon"><?= ui_icon('transfer') ?><span>Transferred</span></span>
-            <strong><?= e(format_quantity($summaryCards['transferred_units'] ?? 0)) ?></strong>
-            <span class="metric-card-note">Units moved between locations</span>
+            <strong><?= e(report_summary_unit_totals_text($summaryCards['transferred_totals'] ?? [])) ?></strong>
+            <span class="metric-card-note">Moved, grouped by canonical unit</span>
         </article>
     </div>
 
@@ -145,6 +226,7 @@ $dateTitle = report_summary_period_label($summaryFilters);
                 <?php foreach (($summary['usage_by_item'] ?? []) as $row): ?>
                     <?php $imageUrl = item_image_url($row['image_path'] ?? null); ?>
                     <?php $usageReasons = (array) ($row['usage_reasons'] ?? []); ?>
+                    <?php $proofFiles = report_summary_proof_file_entries($row['proof_files'] ?? null); ?>
                     <article class="summary-item-row">
                         <?php if ($imageUrl): ?>
                             <img class="item-thumb expandable-image" src="<?= e($imageUrl) ?>" alt="<?= e($row['item_name']) ?>" data-expand-image tabindex="0">
@@ -163,6 +245,17 @@ $dateTitle = report_summary_period_label($summaryFilters);
                                         <?php if (trim((string) ($reason['notes'] ?? '')) !== ''): ?>
                                             <span class="summary-usage-note">Note: <?= e(truncate_text((string) $reason['notes'], 64)) ?></span>
                                         <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                            <?php if (trim((string) ($row['entered_measurements'] ?? '')) !== ''): ?>
+                                <small>Entered: <?= e(truncate_text((string) $row['entered_measurements'], 120)) ?></small>
+                            <?php endif; ?>
+                            <small>Department: <?= e(truncate_text((string) ($row['departments'] ?: 'Unassigned'), 70)) ?> · Manager: <?= e(truncate_text((string) ($row['managers'] ?: 'Unassigned'), 70)) ?></small>
+                            <?php if ($proofFiles !== []): ?>
+                                <div class="summary-proof-links">
+                                    <?php foreach ($proofFiles as $proof): ?>
+                                        <a href="<?= e(url('/files/' . $proof['id'] . '/download')) ?>"><?= ui_icon('files') ?><span><?= e(truncate_text($proof['name'], 42)) ?></span></a>
                                     <?php endforeach; ?>
                                 </div>
                             <?php endif; ?>
@@ -191,11 +284,12 @@ $dateTitle = report_summary_period_label($summaryFilters);
                 <?php foreach (($summary['user_breakdown'] ?? []) as $row): ?>
                     <article class="summary-user-card">
                         <strong><?= e((string) $row['user_name']) ?></strong>
+                        <span><?= e((string) ($row['department_name'] ?: 'Unassigned')) ?> · Manager: <?= e((string) ($row['manager_name'] ?: 'Unassigned')) ?></span>
                         <span><?= number_format((int) $row['movement_count']) ?> movement<?= (int) $row['movement_count'] === 1 ? '' : 's' ?> · <?= number_format((int) $row['item_count']) ?> item<?= (int) $row['item_count'] === 1 ? '' : 's' ?></span>
                         <div>
-                            <small>Used <?= e(format_quantity($row['used_units'] ?? 0)) ?></small>
-                            <small>Restocked <?= e(format_quantity($row['restocked_units'] ?? 0)) ?></small>
-                            <small>Transferred <?= e(format_quantity($row['transferred_units'] ?? 0)) ?></small>
+                            <small>Used <?= e(report_summary_unit_totals_text($row['usage_totals'] ?? [])) ?></small>
+                            <small>Restocked <?= e(report_summary_unit_totals_text($row['restock_totals'] ?? [])) ?></small>
+                            <small>Transferred <?= e(report_summary_unit_totals_text($row['transfer_totals'] ?? [])) ?></small>
                         </div>
                     </article>
                 <?php endforeach; ?>
@@ -331,17 +425,20 @@ $dateTitle = report_summary_period_label($summaryFilters);
                     <th>Date / Time</th>
                     <th>Item</th>
                     <th>Used</th>
+                    <th>Entered / Package</th>
                     <th>Breakdown / Notes</th>
                     <th>Staff</th>
+                    <th>Department / Manager</th>
                     <th>Approver</th>
                     <th>Location</th>
+                    <th>Proof</th>
                     <th>Reference</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if (($summary['usage_by_day'] ?? []) === []): ?>
                     <tr>
-                        <td colspan="8" class="empty-cell">No usage was recorded for this date range and filter.</td>
+                        <td colspan="11" class="empty-cell">No usage was recorded for this date range and filter.</td>
                     </tr>
                 <?php endif; ?>
                 <?php foreach (($summary['usage_by_day'] ?? []) as $row): ?>
@@ -349,6 +446,7 @@ $dateTitle = report_summary_period_label($summaryFilters);
                     $imageUrl = item_image_url($row['image_path'] ?? null);
                     $usageReasons = (array) ($row['usage_reasons'] ?? []);
                     $lastActivity = trim((string) ($row['last_activity_at'] ?? ''));
+                    $proofFiles = report_summary_proof_file_entries($row['proof_files'] ?? null);
                     ?>
                     <tr>
                         <td data-label="Date / Time">
@@ -371,6 +469,16 @@ $dateTitle = report_summary_period_label($summaryFilters);
                             </div>
                         </td>
                         <td data-label="Used"><strong><?= e(format_quantity($row['used_quantity'] ?? 0)) ?> <?= e((string) $row['unit']) ?></strong></td>
+                        <td data-label="Entered / Package">
+                            <?php if (trim((string) ($row['entered_measurements'] ?? '')) !== ''): ?>
+                                <strong><?= e(truncate_text((string) $row['entered_measurements'], 100)) ?></strong>
+                                <?php if (trim((string) ($row['packages'] ?? '')) !== ''): ?>
+                                    <div class="tiny-copy"><?= e(truncate_text((string) $row['packages'], 80)) ?></div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span class="tiny-copy">Base unit entry</span>
+                            <?php endif; ?>
+                        </td>
                         <td data-label="Breakdown / Notes">
                             <?php if ($usageReasons !== []): ?>
                                 <div class="summary-usage-tags">
@@ -390,8 +498,23 @@ $dateTitle = report_summary_period_label($summaryFilters);
                             <?php endif; ?>
                         </td>
                         <td data-label="Staff"><?= e(truncate_text((string) ($row['staff_name'] ?: 'System'), 80)) ?></td>
+                        <td data-label="Department / Manager">
+                            <strong><?= e(truncate_text((string) ($row['department_name'] ?: 'Unassigned'), 70)) ?></strong>
+                            <div class="tiny-copy">Manager: <?= e(truncate_text((string) ($row['manager_name'] ?: 'Unassigned'), 70)) ?></div>
+                        </td>
                         <td data-label="Approver"><?= e(truncate_text((string) ($row['approver_name'] ?: '-'), 80)) ?></td>
                         <td data-label="Location"><?= e(truncate_text((string) ($row['usage_location'] ?: 'Unassigned'), 90)) ?></td>
+                        <td data-label="Proof">
+                            <?php if ($proofFiles === []): ?>
+                                <span class="tiny-copy">None</span>
+                            <?php else: ?>
+                                <div class="summary-proof-links">
+                                    <?php foreach ($proofFiles as $proof): ?>
+                                        <a href="<?= e(url('/files/' . $proof['id'] . '/download')) ?>"><?= ui_icon('files') ?><span><?= e(truncate_text($proof['name'], 32)) ?></span></a>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
                         <td data-label="Reference"><?= e(truncate_text((string) ($row['references_list'] ?: '-'), 70)) ?></td>
                     </tr>
                 <?php endforeach; ?>
@@ -423,6 +546,7 @@ $dateTitle = report_summary_period_label($summaryFilters);
                     <th>Item</th>
                     <th>Type</th>
                     <th>Qty</th>
+                    <th>Entered / Package</th>
                     <?php if ($isSummaryLocationScoped): ?>
                         <th>Location Change</th>
                         <th>Location Balance</th>
@@ -430,13 +554,15 @@ $dateTitle = report_summary_period_label($summaryFilters);
                     <th>From</th>
                     <th>To</th>
                     <th>By</th>
+                    <th>Department / Manager</th>
+                    <th>Proof</th>
                     <th>Reference</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if (($summary['timeline'] ?? []) === []): ?>
                     <tr>
-                        <td colspan="<?= $isSummaryLocationScoped ? '10' : '8' ?>" class="empty-cell">No movement activity found for this date range and filter.</td>
+                        <td colspan="<?= $isSummaryLocationScoped ? '13' : '11' ?>" class="empty-cell">No movement activity found for this date range and filter.</td>
                     </tr>
                 <?php endif; ?>
                 <?php foreach (($summary['timeline'] ?? []) as $movement): ?>
@@ -444,6 +570,7 @@ $dateTitle = report_summary_period_label($summaryFilters);
                     $movementQuantity = $movement['movement_quantity'] !== null && $movement['movement_quantity'] !== ''
                         ? $movement['movement_quantity']
                         : abs((float) ($movement['quantity_delta'] ?? 0));
+                    $timelineProofs = report_summary_proof_file_entries($movement['proof_files'] ?? null);
                     ?>
                     <tr>
                         <td data-label="Date / Time">
@@ -466,6 +593,14 @@ $dateTitle = report_summary_period_label($summaryFilters);
                         </td>
                         <td data-label="Type"><?= e(ucfirst((string) $movement['movement_type'])) ?></td>
                         <td data-label="Qty"><?= e(format_quantity($movementQuantity)) ?> <?= e((string) $movement['unit']) ?></td>
+                        <td data-label="Entered / Package">
+                            <?php if ($movement['input_quantity'] !== null && $movement['input_quantity'] !== ''): ?>
+                                <strong><?= e(format_quantity($movement['input_quantity'])) ?> × <?= e((string) ($movement['package_label'] ?: $movement['base_unit'])) ?></strong>
+                                <div class="tiny-copy"><?= e(format_quantity($movement['base_quantity'] ?? $movementQuantity)) ?> <?= e((string) ($movement['base_unit'] ?: $movement['unit'])) ?></div>
+                            <?php else: ?>
+                                <span class="tiny-copy">Base unit entry</span>
+                            <?php endif; ?>
+                        </td>
                         <?php if ($isSummaryLocationScoped): ?>
                             <td data-label="Location Change"><?= e(format_quantity($movement['location_change'])) ?> <?= e((string) $movement['unit']) ?></td>
                             <td data-label="Location Balance"><?= e(format_quantity($movement['location_balance_after'])) ?> <?= e((string) $movement['unit']) ?></td>
@@ -473,6 +608,21 @@ $dateTitle = report_summary_period_label($summaryFilters);
                         <td data-label="From"><?= e((string) ($movement['source_storage_name'] ?: '-')) ?></td>
                         <td data-label="To"><?= e((string) ($movement['destination_storage_name'] ?: '-')) ?></td>
                         <td data-label="By"><?= e((string) $movement['user_name']) ?></td>
+                        <td data-label="Department / Manager">
+                            <strong><?= e((string) ($movement['department_name'] ?: 'Unassigned')) ?></strong>
+                            <div class="tiny-copy">Manager: <?= e((string) ($movement['manager_name'] ?: 'Unassigned')) ?></div>
+                        </td>
+                        <td data-label="Proof">
+                            <?php if ($timelineProofs === []): ?>
+                                <span class="tiny-copy">None</span>
+                            <?php else: ?>
+                                <div class="summary-proof-links">
+                                    <?php foreach ($timelineProofs as $proof): ?>
+                                        <a href="<?= e(url('/files/' . $proof['id'] . '/download')) ?>"><?= ui_icon('files') ?><span><?= e(truncate_text($proof['name'], 32)) ?></span></a>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
                         <td data-label="Reference"><?= e((string) ($movement['reference_code'] ?: '-')) ?></td>
                     </tr>
                 <?php endforeach; ?>

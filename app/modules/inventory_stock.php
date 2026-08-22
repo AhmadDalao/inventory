@@ -6,10 +6,10 @@ declare(strict_types=1);
 
 function sync_item_inventory_snapshot(int $itemId, int $updatedBy): float
 {
-    $currentQuantity = round((float) Database::scalar(
+    $currentQuantity = inventory_quantity((float) Database::scalar(
         'SELECT COALESCE(SUM(quantity), 0) FROM item_storage_balances WHERE item_id = :item_id',
         ['item_id' => $itemId]
-    ), 2);
+    ));
 
     Database::execute(
         'UPDATE items
@@ -47,7 +47,7 @@ function quantity_delta_for_type(string $type, float $quantity): float
 
 function persist_item_storage_balance(int $itemId, int $storageId, float $quantity): void
 {
-    $normalizedQuantity = round($quantity, 2);
+    $normalizedQuantity = inventory_quantity($quantity);
 
     if ($normalizedQuantity < 0) {
         throw new RuntimeException('Storage balances cannot be negative.');
@@ -95,8 +95,10 @@ function apply_inventory_movement(
     ?string $notes,
     int $performedBy,
     ?string $contextType = null,
-    ?int $contextId = null
-): void {
+    ?int $contextId = null,
+    ?array $measurement = null,
+    ?int $overrideDepartmentId = null
+): int {
     $pdo = Database::connection();
     $ownsTransaction = !$pdo->inTransaction();
 
@@ -112,37 +114,38 @@ function apply_inventory_movement(
 
         $balanceMap = current_item_balance_map_for_update((int) $item['id']);
         $rawQuantity = $type === 'adjustment' ? $quantity : abs($quantity);
-        $movementQuantity = round(abs($rawQuantity), 2);
-        $delta = round(quantity_delta_for_type($type, $quantity), 2);
+        $movementQuantity = inventory_quantity(abs($rawQuantity));
+        $delta = inventory_quantity(quantity_delta_for_type($type, $quantity));
         $sourceBalanceAfter = null;
         $destinationBalanceAfter = null;
 
         if ($type === 'usage' || $type === 'transfer' || $type === 'adjustment') {
-            $currentSourceBalance = round($balanceMap[$sourceStorageId ?? 0] ?? 0.0, 2);
+            $currentSourceBalance = inventory_quantity($balanceMap[$sourceStorageId ?? 0] ?? 0.0);
 
             if ($type === 'usage') {
-                $sourceBalanceAfter = round($currentSourceBalance - $movementQuantity, 2);
+                $sourceBalanceAfter = inventory_quantity($currentSourceBalance - $movementQuantity);
             } elseif ($type === 'transfer') {
-                $sourceBalanceAfter = round($currentSourceBalance - $movementQuantity, 2);
+                $sourceBalanceAfter = inventory_quantity($currentSourceBalance - $movementQuantity);
             } else {
-                $sourceBalanceAfter = round($currentSourceBalance + $quantity, 2);
+                $sourceBalanceAfter = inventory_quantity($currentSourceBalance + $quantity);
             }
 
-            if ($sourceBalanceAfter < 0) {
+            if ($sourceBalanceAfter < -inventory_quantity_tolerance()) {
                 throw new RuntimeException('That movement would make the source location go negative. Hard no.');
             }
+            $sourceBalanceAfter = max(0.0, $sourceBalanceAfter);
 
             $balanceMap[(int) $sourceStorageId] = $sourceBalanceAfter;
         }
 
         if ($type === 'restock' || $type === 'transfer') {
-            $currentDestinationBalance = round($balanceMap[$destinationStorageId ?? 0] ?? 0.0, 2);
-            $destinationBalanceAfter = round($currentDestinationBalance + $movementQuantity, 2);
+            $currentDestinationBalance = inventory_quantity($balanceMap[$destinationStorageId ?? 0] ?? 0.0);
+            $destinationBalanceAfter = inventory_quantity($currentDestinationBalance + $movementQuantity);
             $balanceMap[(int) $destinationStorageId] = $destinationBalanceAfter;
         }
 
         if ($type === 'adjustment') {
-            $movementQuantity = round(abs($quantity), 2);
+            $movementQuantity = inventory_quantity(abs($quantity));
         }
 
         foreach ($balanceMap as $storageId => $balanceQuantity) {
@@ -211,6 +214,14 @@ function apply_inventory_movement(
         );
 
         $movementId = Database::lastInsertId();
+        record_inventory_movement_measurement(
+            $movementId,
+            $item,
+            $movementQuantity,
+            $performedBy,
+            $measurement,
+            $overrideDepartmentId
+        );
         $eventPayload = [
             'movement_type' => $type,
             'quantity' => $movementQuantity,
@@ -234,6 +245,8 @@ function apply_inventory_movement(
         if ($ownsTransaction && $pdo->inTransaction()) {
             $pdo->commit();
         }
+
+        return $movementId;
     } catch (Throwable $exception) {
         if ($ownsTransaction && $pdo->inTransaction()) {
             $pdo->rollBack();
@@ -248,7 +261,7 @@ function clone_storage_inventory_to_location(array $sourceStorage, int $destinat
     $items = storage_items((int) $sourceStorage['id']);
 
     foreach ($items as $item) {
-        $quantity = round((float) $item['quantity'], 2);
+        $quantity = inventory_quantity((float) $item['quantity']);
 
         if ($quantity <= 0) {
             continue;
@@ -300,6 +313,7 @@ function clone_storage_inventory_to_location(array $sourceStorage, int $destinat
             ]
         );
         $movementId = Database::lastInsertId();
+        record_inventory_movement_measurement($movementId, $item, $quantity, $performedBy);
         inventory_record_change_event(
             'stock.changed',
             (int) $item['id'],

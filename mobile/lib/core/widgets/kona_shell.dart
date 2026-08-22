@@ -49,7 +49,9 @@ class _KonaShellState extends ConsumerState<KonaShell>
         Icons.inventory_2_outlined,
         Icons.inventory_2_rounded,
       ),
-    if (access?.hasScanOutAction == true || access?.canScanIn == true)
+    if (access?.hasScanOutAction == true ||
+        access?.canScanIn == true ||
+        access?.canRestock == true)
       (
         access?.hasScanOutAction == true ? '/scan-out' : '/scan-in',
         'Scan',
@@ -74,6 +76,7 @@ class _KonaShellState extends ConsumerState<KonaShell>
 
     String? targetLabel;
     if (widget.location.startsWith('/usage-cart') ||
+        widget.location.startsWith('/refill-cart') ||
         widget.location.startsWith('/scan-in') ||
         widget.location.startsWith('/scan-out') ||
         widget.location.startsWith('/scanner')) {

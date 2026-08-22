@@ -12,6 +12,7 @@ import '../../features/handovers/handover_receipt_screen.dart';
 import '../../features/inventory/home_screen.dart';
 import '../../features/inventory/quantity_check_screen.dart';
 import '../../features/movements/scan_in_screen.dart';
+import '../../features/movements/refill_cart_screen.dart';
 import '../../features/movements/usage_cart_screen.dart';
 import '../../features/scanner/scan_out_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
@@ -82,8 +83,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/scan-in',
             builder: (_, _) => _guarded(
               const ScanInScreen(),
-              (access) => access.canScanIn,
-              'Scan In requires handover receipt or approval access.',
+              (access) => access.canScanIn || access.canRestock,
+              'Scan In requires receipt access or direct refill permission.',
+            ),
+          ),
+          GoRoute(
+            path: '/refill-cart',
+            builder: (_, _) => _guarded(
+              const RefillCartScreen(),
+              (access) => access.canRestock,
+              'Direct refill is not enabled for your account.',
             ),
           ),
           GoRoute(

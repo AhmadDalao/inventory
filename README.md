@@ -16,10 +16,10 @@ Start here:
 - [Realtime data-flow guide](docs/realtime-data-flow.md)
 - [Security and incident guide](docs/security.md)
 - [Mobile mockup review](docs/mobile/mockups/README.md)
-- [Mobile v1.2 release evidence](docs/mobile/release-1.2.0.md)
+- [Mobile v1.3 measured-inventory release evidence](docs/mobile/release-1.3.0.md)
 - [System data-flow and use-case diagrams](docs/system-diagrams.md)
-- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-07-28.docx)
-- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-07-28.docx)
+- [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-08-22.docx)
+- [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-08-22.docx)
 - Production URL: `https://inventory.ahmaddalao.com`
 - Live app path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
 - Main branch: `main`
@@ -46,6 +46,8 @@ find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 node --check assets/app.js
 php tests/module_boundaries.php
 php tests/frontend_assets.php
+php tests/mobile_api_contract.php
+php tests/measured_inventory.php
 NODE_PATH=/path/to/playwright/node_modules BASE_URL=https://inventory.ahmaddalao.com INVENTORY_EMAIL=owner@example.com INVENTORY_PASSWORD='password' node tests/responsive_ui_smoke.js
 php tests/full_regression.php
 php tests/stock_invariants.php

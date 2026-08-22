@@ -1,6 +1,6 @@
 # Realtime Inventory Data Flow
 
-Updated: 2026-08-14
+Updated: 2026-08-22
 
 Inventory KONA uses server-confirmed near-realtime synchronization. The PHP/MySQL application remains the only stock authority; phones and browser pages are projections of that state.
 
@@ -69,3 +69,18 @@ Offline work remains a draft. On reconnect, the server compares `expected_balanc
 ## Reporting
 
 Reports, exports, movement logs, and stock invariants query MySQL movements and storage balances. They never depend on Flutter cache state or whether a visible page has completed its latest poll.
+
+## Measured Movement Flow
+
+```mermaid
+flowchart LR
+    INPUT["Employee enters 2 bottles"] --> PRESET["Admin preset: 1 bottle = 1,000 mL"]
+    PRESET --> API["PHP validates item, dimension, preset and access"]
+    API --> BASE["Canonical movement: 2,000 mL"]
+    API --> META["Snapshot: 2 bottles, package, department, manager and proof"]
+    BASE --> BALANCE["Storage balance and negative-stock lock"]
+    BASE --> EVENT["Realtime event cursor"]
+    META --> REPORT["Human-readable reports and exports"]
+```
+
+The client may preview the calculation, but only the server conversion is accepted. A disabled preset, preset from another item, incompatible dimension, stale balance, missing required proof, or revoked storage assignment rolls back the complete batch.

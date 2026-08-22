@@ -12,38 +12,30 @@ import '../../core/widgets/kona_page.dart';
 import '../../core/widgets/status_widgets.dart';
 import 'measured_cart_support.dart';
 
-class UsageCartScreen extends ConsumerStatefulWidget {
-  const UsageCartScreen({super.key});
+class RefillCartScreen extends ConsumerStatefulWidget {
+  const RefillCartScreen({super.key});
 
   @override
-  ConsumerState<UsageCartScreen> createState() => _UsageCartScreenState();
+  ConsumerState<RefillCartScreen> createState() => _RefillCartScreenState();
 }
 
-class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
+class _RefillCartScreenState extends ConsumerState<RefillCartScreen> {
   final List<CartLine> _lines = [];
+  final _reference = TextEditingController();
   final _notes = TextEditingController();
-  final _defaultCustomReason = TextEditingController();
-  String _defaultReason = 'online';
   int? _storageId;
   XFile? _proof;
-  bool _catalogInitialized = false;
   bool _submitting = false;
 
   @override
   void dispose() {
+    _reference.dispose();
     _notes.dispose();
-    _defaultCustomReason.dispose();
     super.dispose();
   }
 
   void _configure(MobileBootstrap data) {
     _storageId ??= data.defaultStorage?.id;
-    if (_catalogInitialized) return;
-    final reasons = data.usageReasons;
-    if (!reasons.any((reason) => reason.code == _defaultReason)) {
-      _defaultReason = reasons.first.code;
-    }
-    _catalogInitialized = true;
   }
 
   void _addItem(InventoryItem item) {
@@ -57,14 +49,14 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
         context: context,
         builder: (context) => AlertDialog(
           icon: const Icon(Icons.warning_amber_rounded),
-          title: const Text('Clear this cart?'),
+          title: const Text('Clear this refill cart?'),
           content: const Text(
-            'Cart quantities belong to the current storage. Clear them before switching storage.',
+            'Projected balances belong to the current storage. Clear the cart before switching.',
           ),
           actions: [
             TextButton(
               onPressed: () => context.pop(false),
-              child: const Text('Keep current storage'),
+              child: const Text('Keep storage'),
             ),
             FilledButton(
               onPressed: () => context.pop(true),
@@ -90,7 +82,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
           .searchItems(code, storageId: _storageId);
       if (!mounted) return;
       if (matches.isEmpty) {
-        _message('No assigned item matched that code.');
+        _message('No assigned item or package matched that code.');
         return;
       }
       _addItem(matches.first);
@@ -106,7 +98,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _ItemPicker(
+      builder: (_) => _RefillItemPicker(
         items: data.items
             .where((item) => _storageId == null || item.storageId == _storageId)
             .toList(),
@@ -115,51 +107,50 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     if (selected != null) _addItem(selected);
   }
 
-  UsageReason? _reason(List<UsageReason> reasons, String code) {
-    for (final reason in reasons) {
-      if (reason.code == UsageReason.normalizeCode(code)) return reason;
-    }
-    return null;
-  }
+  bool _proofRequired(MobileBootstrap data) =>
+      data.requireRefillProof ||
+      _lines.any((line) => line.item.requiresRefillProof);
 
   String? _validationMessage(MobileBootstrap data, {bool requireProof = true}) {
-    if (_storageId == null) return 'Select a source storage.';
+    if (_storageId == null) return 'Select a storage to refill.';
     if (_lines.isEmpty) return 'Scan or add at least one item.';
-    final proofRequired =
-        data.requireUsageProof ||
-        _lines.any((line) => line.item.requiresUsageProof);
-    if (requireProof && proofRequired && _proof == null) {
-      return 'A proof image is required before this usage can be submitted.';
-    }
-
-    final reasons = data.usageReasons;
-    final defaultDefinition = _reason(reasons, _defaultReason);
-    if (defaultDefinition == null) return 'Pick an active usage reason.';
-    if (defaultDefinition.requiresCustomText &&
-        _defaultCustomReason.text.trim().isEmpty) {
-      return 'Describe the default Other reason.';
-    }
-
     for (final line in _lines) {
       if (line.quantity <= 0 || line.baseQuantity <= 0) {
         return 'Enter a positive quantity for ${line.item.name}.';
       }
-      if (line.baseQuantity > line.item.quantity) {
-        return '${line.item.name} exceeds the last synced storage balance.';
-      }
-      final code = line.reasonCode ?? _defaultReason;
-      final definition = _reason(reasons, code);
-      if (definition == null) {
-        return 'Pick an active reason for ${line.item.name}.';
-      }
-      final custom = line.reasonCode == null
-          ? _defaultCustomReason.text
-          : line.customReason ?? '';
-      if (definition.requiresCustomText && custom.trim().isEmpty) {
-        return 'Describe the Other reason for ${line.item.name}.';
-      }
+    }
+    if (requireProof && _proofRequired(data) && _proof == null) {
+      return 'A proof image is required before this refill can be submitted.';
     }
     return null;
+  }
+
+  Future<void> _pickProof() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take photo'),
+              onTap: () => context.pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => context.pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    final image = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 82,
+    );
+    if (mounted && image != null) setState(() => _proof = image);
   }
 
   Future<void> _submit(MobileBootstrap data) async {
@@ -172,13 +163,12 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     try {
       final receipt = await ref
           .read(inventoryRepositoryProvider)
-          .submitUsage(
+          .submitRestock(
             storageId: _storageId!,
             lines: _lines,
-            defaultReason: _defaultReason,
-            defaultCustomReason: _defaultCustomReason.text.trim().isEmpty
+            reference: _reference.text.trim().isEmpty
                 ? null
-                : _defaultCustomReason.text.trim(),
+                : _reference.text.trim(),
             notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
             proofPath: _proof?.path,
           );
@@ -187,15 +177,15 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       ref.invalidate(mobileOperationsProvider);
       await showDialog<void>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (context) => AlertDialog(
           icon: const Icon(
             Icons.check_circle,
             color: KonaColors.success,
             size: 42,
           ),
-          title: const Text('Usage submitted'),
+          title: const Text('Refill posted'),
           content: Text(
-            '${receipt.reference}\nThe server validated the balance before posting.',
+            '${receipt.reference}\nThe server converted every package and returned authoritative balances.',
           ),
           actions: [
             FilledButton(
@@ -219,19 +209,16 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       _message(validation);
       return;
     }
-    if (_lines.isEmpty || _storageId == null) return;
     await ref
         .read(draftStoreProvider)
         .save(
-          type: 'usage',
+          type: 'restock',
           title:
-              'Usage · ${_number(_lines.fold<double>(0, (sum, line) => sum + line.baseQuantity))} base units',
+              'Refill · ${measuredNumber(_lines.fold<double>(0, (sum, line) => sum + line.baseQuantity))} base units',
           payload: {
             'schema_version': 3,
             'storage_id': _storageId,
-            'reason': _defaultReason,
-            'default_reason': _defaultReason,
-            'default_custom_reason': _defaultCustomReason.text.trim(),
+            'reference': _reference.text.trim(),
             'notes': _notes.text.trim(),
             'proof_path': _proof?.path,
             'lines': [
@@ -247,14 +234,11 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                   'base_unit': line.item.canonicalUnit,
                   'expected_balance':
                       line.expectedBalance ?? line.item.quantity,
-                  'reason': line.reasonCode,
-                  'custom_reason': line.customReason,
                 },
             ],
           },
         );
-    if (!mounted) return;
-    _message('Draft saved on this device. Stock was not posted.');
+    if (mounted) _message('Refill draft saved. Stock was not posted.');
   }
 
   void _message(String message) {
@@ -267,17 +251,15 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
   Widget build(BuildContext context) {
     final data = ref.watch(bootstrapProvider).valueOrNull;
     if (data != null) _configure(data);
-    final reasons = data?.usageReasons ?? UsageReason.defaults;
-    final defaultDefinition = _reason(reasons, _defaultReason);
     final total = _lines.fold<double>(
       0,
       (sum, line) => sum + line.baseQuantity,
     );
     return KonaPage(
-      eyebrow: 'Review before posting',
-      title: 'Usage cart',
+      eyebrow: 'Privileged stock entry',
+      title: 'Refill storage',
       description:
-          'Repeated scans increment the matching item. Nothing posts until you review and submit.',
+          'Scan packages or add catalog items, review conversions, attach proof, then let the server post stock.',
       trailing: IconButton.filledTonal(
         onPressed: _scan,
         icon: const Icon(Icons.qr_code_scanner),
@@ -297,12 +279,14 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
           Expanded(
             flex: 2,
             child: ElevatedButton.icon(
-              onPressed: _submitting || _lines.isEmpty || data == null
+              onPressed: _submitting || data == null || _lines.isEmpty
                   ? null
                   : () => _submit(data),
-              icon: const Icon(Icons.shield_outlined),
+              icon: const Icon(Icons.add_business_outlined),
               label: Text(
-                _submitting ? 'Validating' : 'Submit ${_number(total)} units',
+                _submitting
+                    ? 'Validating'
+                    : 'Post ${measuredNumber(total)} base units',
               ),
             ),
           ),
@@ -312,7 +296,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
         DropdownButtonFormField<int>(
           initialValue: _storageId,
           decoration: const InputDecoration(
-            labelText: 'Source storage',
+            labelText: 'Destination storage',
             prefixIcon: Icon(Icons.warehouse_outlined),
           ),
           items: (data?.storages ?? const [])
@@ -330,7 +314,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SectionHeading(
-                eyebrow: 'Cart',
+                eyebrow: 'Review cart',
                 title: '${_lines.length} item${_lines.length == 1 ? '' : 's'}',
                 trailing: TextButton.icon(
                   onPressed: _pickItem,
@@ -341,17 +325,15 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
               const SizedBox(height: 12),
               if (_lines.isEmpty)
                 const EmptyState(
-                  key: ValueKey('usage-cart-empty'),
                   icon: Icons.inventory_2_outlined,
-                  title: 'Cart is empty',
-                  message: 'Scan or add an item. No demo stock is inserted.',
+                  title: 'No refill lines yet',
+                  message:
+                      'Scan an item/package barcode or select an existing catalog item.',
                 )
               else
                 ..._lines.asMap().entries.map(
-                  (entry) => _CartLineEditor(
+                  (entry) => _RefillLineEditor(
                     line: entry.value,
-                    reasons: reasons,
-                    defaultReason: _defaultReason,
                     onChanged: (line) =>
                         setState(() => _lines[entry.key] = line),
                     onRemove: () => setState(() => _lines.removeAt(entry.key)),
@@ -365,45 +347,19 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SectionHeading(
-                eyebrow: 'Accountability',
-                title: 'Default usage reason',
+                eyebrow: 'Evidence',
+                title: 'Reference and proof',
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'This reason applies to every item unless you override it inside an item row.',
-                style: TextStyle(color: KonaColors.muted),
-              ),
-              const SizedBox(height: 13),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: reasons
-                    .map(
-                      (reason) => ChoiceChip(
-                        key: ValueKey('usage-default-reason-${reason.code}'),
-                        label: Text(reason.label),
-                        selected: _defaultReason == reason.code,
-                        onSelected: (_) => setState(() {
-                          _defaultReason = reason.code;
-                          if (!reason.requiresCustomText) {
-                            _defaultCustomReason.clear();
-                          }
-                        }),
-                      ),
-                    )
-                    .toList(),
-              ),
-              if (defaultDefinition?.requiresCustomText == true) ...[
-                const SizedBox(height: 13),
-                TextField(
-                  controller: _defaultCustomReason,
-                  decoration: const InputDecoration(
-                    labelText: 'Describe Other',
-                    prefixIcon: Icon(Icons.edit_note_outlined),
-                  ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reference,
+                decoration: const InputDecoration(
+                  labelText: 'Reference (optional)',
+                  hintText: 'Invoice, delivery, or supplier reference',
+                  prefixIcon: Icon(Icons.receipt_long_outlined),
                 ),
-              ],
-              const SizedBox(height: 13),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _notes,
                 maxLines: 3,
@@ -414,26 +370,17 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () async {
-                  final image = await ImagePicker().pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 82,
-                  );
-                  if (mounted) setState(() => _proof = image);
-                },
+                onPressed: _pickProof,
                 icon: Icon(
                   _proof == null
-                      ? Icons.camera_alt_outlined
+                      ? Icons.add_a_photo_outlined
                       : Icons.check_circle_outline,
                 ),
                 label: Text(
                   _proof == null
-                      ? (data?.requireUsageProof == true ||
-                                _lines.any(
-                                  (line) => line.item.requiresUsageProof,
-                                ))
-                            ? 'Add proof image · required'
-                            : 'Add proof image · optional'
+                      ? (data != null && _proofRequired(data))
+                            ? 'Attach refill proof · required'
+                            : 'Attach refill proof · optional'
                       : 'Proof attached',
                 ),
               ),
@@ -443,39 +390,29 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       ],
     );
   }
-
-  String _number(double value) => value == value.roundToDouble()
-      ? value.toInt().toString()
-      : value.toStringAsFixed(2);
 }
 
-class _CartLineEditor extends StatelessWidget {
-  const _CartLineEditor({
+class _RefillLineEditor extends StatelessWidget {
+  const _RefillLineEditor({
     required this.line,
-    required this.reasons,
-    required this.defaultReason,
     required this.onChanged,
     required this.onRemove,
   });
 
-  static const _useDefault = '__default__';
-
   final CartLine line;
-  final List<UsageReason> reasons;
-  final String defaultReason;
   final ValueChanged<CartLine> onChanged;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final packages = <_PackageChoice>[
-      _PackageChoice(
+    final choices = <_RefillPackageChoice>[
+      _RefillPackageChoice(
         key: 'base',
         label: line.item.canonicalUnit,
         multiplier: 1,
       ),
       ...line.item.packagePresets.map(
-        (preset) => _PackageChoice(
+        (preset) => _RefillPackageChoice(
           key: 'preset-${preset.id}',
           presetId: preset.id,
           label: preset.label,
@@ -483,16 +420,11 @@ class _CartLineEditor extends StatelessWidget {
         ),
       ),
     ];
-    final selectedPackage = packages.firstWhere(
+    final selected = choices.firstWhere(
       (choice) => choice.presetId == line.packagePresetId,
-      orElse: () => packages.first,
+      orElse: () => choices.first,
     );
-    final effectiveReasonCode = line.reasonCode ?? defaultReason;
-    final effectiveReason = reasons.firstWhere(
-      (reason) => reason.code == effectiveReasonCode,
-      orElse: () => reasons.first,
-    );
-
+    final projected = line.item.quantity + line.baseQuantity;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
@@ -519,27 +451,27 @@ class _CartLineEditor extends StatelessWidget {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     key: ValueKey(
-                      '${line.item.id}-${selectedPackage.key}-${packages.length}',
+                      'refill-${line.item.id}-${selected.key}-${choices.length}',
                     ),
-                    initialValue: selectedPackage.key,
+                    initialValue: selected.key,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Unit / package',
                     ),
-                    items: packages
+                    items: choices
                         .map(
                           (choice) => DropdownMenuItem(
                             value: choice.key,
                             child: Text(
-                              '${choice.label} · ×${_format(choice.multiplier)}',
+                              '${choice.label} · ×${measuredNumber(choice.multiplier)}',
                             ),
                           ),
                         )
                         .toList(),
                     onChanged: (value) {
-                      final choice = packages.firstWhere(
-                        (entry) => entry.key == value,
-                        orElse: () => packages.first,
+                      final choice = choices.firstWhere(
+                        (candidate) => candidate.key == value,
+                        orElse: () => choices.first,
                       );
                       onChanged(
                         line.copyWith(
@@ -555,11 +487,13 @@ class _CartLineEditor extends StatelessWidget {
                 const SizedBox(width: 9),
                 Expanded(
                   child: TextFormField(
-                    initialValue: _format(line.quantity),
+                    initialValue: measuredNumber(line.quantity),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(labelText: 'Quantity'),
+                    decoration: const InputDecoration(
+                      labelText: 'Quantity to add',
+                    ),
                     onChanged: (value) => onChanged(
                       line.copyWith(quantity: double.tryParse(value) ?? 0),
                     ),
@@ -567,90 +501,34 @@ class _CartLineEditor extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              key: ValueKey('${line.item.id}-${line.reasonCode}'),
-              initialValue: line.reasonCode ?? _useDefault,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Reason override',
-                prefixIcon: Icon(Icons.rule_outlined),
-              ),
-              items: [
-                DropdownMenuItem(
-                  value: _useDefault,
-                  child: Text(
-                    'Use cart default · ${_labelFor(reasons, defaultReason)}',
+            const SizedBox(height: 9),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                Text(
+                  '${measuredNumber(line.quantity)} × ${selected.label} = ${measuredNumber(line.baseQuantity)} ${line.item.canonicalUnit}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: KonaColors.goldDark,
                   ),
                 ),
-                ...reasons.map(
-                  (reason) => DropdownMenuItem(
-                    value: reason.code,
-                    child: Text(reason.label),
-                  ),
+                Text(
+                  'Projected: ${measuredNumber(projected)} ${line.item.canonicalUnit}',
+                  style: const TextStyle(color: KonaColors.muted),
                 ),
               ],
-              onChanged: (value) {
-                if (value == _useDefault) {
-                  onChanged(
-                    line.copyWith(clearReason: true, clearCustomReason: true),
-                  );
-                  return;
-                }
-                onChanged(
-                  line.copyWith(
-                    reasonCode: value,
-                    clearCustomReason: value != 'other',
-                  ),
-                );
-              },
-            ),
-            if (line.reasonCode != null &&
-                effectiveReason.requiresCustomText) ...[
-              const SizedBox(height: 10),
-              TextFormField(
-                key: ValueKey('${line.item.id}-custom-${line.reasonCode}'),
-                initialValue: line.customReason,
-                decoration: const InputDecoration(
-                  labelText: 'Describe Other for this item',
-                  prefixIcon: Icon(Icons.edit_note_outlined),
-                ),
-                onChanged: (value) =>
-                    onChanged(line.copyWith(customReason: value)),
-              ),
-            ],
-            const SizedBox(height: 7),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '${_format(line.quantity)} × ${selectedPackage.label} = '
-                '${_format(line.baseQuantity)} ${line.item.canonicalUnit}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: KonaColors.goldDark,
-                ),
-              ),
             ),
           ],
         ),
       ),
     );
   }
-
-  static String _labelFor(List<UsageReason> reasons, String code) {
-    for (final reason in reasons) {
-      if (reason.code == code) return reason.label;
-    }
-    return code;
-  }
-
-  static String _format(double value) => value == value.roundToDouble()
-      ? value.toInt().toString()
-      : value.toStringAsFixed(2);
 }
 
-class _PackageChoice {
-  const _PackageChoice({
+class _RefillPackageChoice {
+  const _RefillPackageChoice({
     required this.key,
     required this.label,
     required this.multiplier,
@@ -663,15 +541,16 @@ class _PackageChoice {
   final int? presetId;
 }
 
-class _ItemPicker extends StatefulWidget {
-  const _ItemPicker({required this.items});
+class _RefillItemPicker extends StatefulWidget {
+  const _RefillItemPicker({required this.items});
+
   final List<InventoryItem> items;
 
   @override
-  State<_ItemPicker> createState() => _ItemPickerState();
+  State<_RefillItemPicker> createState() => _RefillItemPickerState();
 }
 
-class _ItemPickerState extends State<_ItemPicker> {
+class _RefillItemPickerState extends State<_RefillItemPicker> {
   String _query = '';
 
   @override
@@ -694,7 +573,7 @@ class _ItemPickerState extends State<_ItemPicker> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionHeading(eyebrow: 'Catalog', title: 'Add item'),
+          const SectionHeading(eyebrow: 'Catalog', title: 'Add refill item'),
           const SizedBox(height: 12),
           TextField(
             autofocus: true,

@@ -33,7 +33,7 @@ class HomeScreen extends ConsumerWidget {
               label: 'Scan out',
               onTap: () => context.go('/scan-out'),
             ),
-          if (data.canScanIn)
+          if (data.canScanIn || data.canRestock)
             _ActionSpec(
               icon: Icons.move_to_inbox_outlined,
               label: 'Scan in',

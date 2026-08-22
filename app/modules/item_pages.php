@@ -151,7 +151,7 @@ function handle_items_show(array $params): void
     }
 
     $stockPositions = item_stock_positions($balances, $isStorageScoped ? null : (int) $item['id']);
-    $packagePresets = item_package_presets((int) $item['id']);
+    $packagePresets = item_package_presets((int) $item['id'], Auth::hasPermission('items.edit'));
 
     View::render('items/show', [
         'title' => $item['name'],
@@ -162,6 +162,8 @@ function handle_items_show(array $params): void
         'stockPositions' => $stockPositions,
         'isStorageScoped' => $isStorageScoped,
         'packagePresets' => $packagePresets,
+        'usageReasons' => mobile_usage_reason_catalog(true),
+        'departmentOptions' => Auth::hasPermission('movements.override_department') ? department_options() : [],
         'purchaseHistory' => Auth::hasPermission('purchases.view') && function_exists('purchase_history_for_item')
             ? purchase_history_for_item((int) $item['id'])
             : [],
@@ -204,6 +206,9 @@ function handle_items_edit_page(array $params): void
             'storage_id' => old('storage_id', $item['storage_id']),
             'unit' => old('unit', $unitState['unit']),
             'custom_unit' => old('custom_unit', $unitState['custom_unit']),
+            'measurement_dimension' => old('measurement_dimension', normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count')),
+            'usage_proof_policy' => old('usage_proof_policy', normalize_inventory_proof_policy($item['usage_proof_policy'] ?? 'inherit')),
+            'refill_proof_policy' => old('refill_proof_policy', normalize_inventory_proof_policy($item['refill_proof_policy'] ?? 'inherit')),
             'reorder_level' => old('reorder_level', format_quantity($item['reorder_level'])),
             'cost_per_unit' => old('cost_per_unit', format_quantity($item['cost_per_unit'])),
             'current_quantity' => format_quantity($item['current_quantity']),

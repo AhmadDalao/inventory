@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Inventory KONA Mobile API
-  version: 1.2.0
+  version: 1.3.0
   description: |
     Versioned API used by the Inventory KONA Flutter application. The PHP
     service remains authoritative for permissions, balances, movements, and
@@ -549,6 +549,8 @@ components:
               type: array
               items: { $ref: '#/components/schemas/UsageReason' }
             require_usage_proof: { type: boolean }
+            require_refill_proof: { type: boolean }
+            department_required: { type: boolean }
         server_time: { type: string, format: date-time }
     SyncEnvelope:
       allOf:
@@ -612,6 +614,15 @@ components:
         sku: { type: string }
         barcode: { type: [string, 'null'] }
         unit: { type: string }
+        measurement_dimension:
+          type: string
+          enum: [count, volume, mass, length, area, custom]
+        usage_proof_policy:
+          type: string
+          enum: [inherit, required, optional]
+        refill_proof_policy:
+          type: string
+          enum: [inherit, required, optional]
         category: { type: [string, 'null'] }
         image_url: { type: [string, 'null'], format: uri }
         balances:
@@ -627,10 +638,14 @@ components:
           type: array
           items:
             type: object
-            required: [label, multiplier]
+            required: [id, label, multiplier, active]
             properties:
+              id: { type: integer }
               label: { type: string, example: Box }
               multiplier: { type: number, exclusiveMinimum: 0, example: 50 }
+              scan_code: { type: [string, 'null'], example: SOAP-1L }
+              active: { type: boolean }
+        matched_package_preset_id: { type: [integer, 'null'] }
     UsageReason:
       type: object
       required: [code, label, active, sort_order, requires_custom_text]
@@ -650,12 +665,22 @@ components:
         notes: { type: string, nullable: true }
     MovementLine:
       type: object
-      required: [type, item_id, storage_id, quantity, expected_balance]
+      required: [type, item_id, storage_id, expected_balance]
+      anyOf:
+        - required: [quantity]
+        - required: [input_quantity]
       properties:
         type: { type: string, enum: [usage, restock] }
         item_id: { type: integer }
         storage_id: { type: integer }
         quantity: { type: number, exclusiveMinimum: 0 }
+        input_quantity:
+          type: number
+          exclusiveMinimum: 0
+          description: Employee-entered package count or canonical quantity when no preset is supplied.
+        package_preset_id:
+          type: [integer, 'null']
+          description: Active admin-defined package preset belonging to this item. The server owns the multiplier.
         expected_balance:
           type: number
           minimum: 0
@@ -673,11 +698,16 @@ components:
       allOf:
         - $ref: '#/components/schemas/OperationRequest'
         - type: object
-          required: [item_id, storage_id, quantity, expected_balance]
+          required: [item_id, storage_id, expected_balance]
+          anyOf:
+            - required: [quantity]
+            - required: [input_quantity]
           properties:
             item_id: { type: integer }
             storage_id: { type: integer }
             quantity: { type: number, exclusiveMinimum: 0 }
+            input_quantity: { type: number, exclusiveMinimum: 0 }
+            package_preset_id: { type: [integer, 'null'] }
             expected_balance: { type: number, minimum: 0 }
             reason:
               type: string

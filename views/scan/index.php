@@ -19,6 +19,14 @@ foreach ($scanMovementTypeOptions as $type => $label) {
 }
 
 $scanMovementTypeJson = json_encode($scanMovementTypeRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$usageReasons = $usageReasons ?? [];
+$departmentOptions = $departmentOptions ?? [];
+$usageReasonJson = json_encode(array_values($usageReasons), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$departmentJson = json_encode(array_map(static fn (array $department): array => [
+    'id' => (int) $department['id'],
+    'name' => (string) $department['name'],
+    'code' => (string) ($department['code'] ?? ''),
+], array_values($departmentOptions)), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 $firstScanMovementType = array_key_first($scanMovementTypeOptions);
 ?>
 
@@ -41,9 +49,12 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
     class="scan-shell"
     data-scan-center
     data-scan-lookup-url="<?= e(url('/scan/lookup')) ?>"
+    data-scan-batch-url="<?= e(url('/scan/movements/batch')) ?>"
     data-scan-storages="<?= e((string) $storageJson) ?>"
     data-can-create-movement="<?= $canCreateMovement ? '1' : '0' ?>"
     data-scan-movement-types="<?= e((string) $scanMovementTypeJson) ?>"
+    data-scan-usage-reasons="<?= e((string) $usageReasonJson) ?>"
+    data-scan-departments="<?= e((string) $departmentJson) ?>"
 >
     <?= csrf_field() ?>
     <article class="panel scan-entry-panel">
@@ -87,7 +98,7 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
                     <button class="ghost-button" type="button" data-scan-batch-clear>Clear Batch</button>
                 </div>
             </div>
-            <form class="scan-batch-scan" data-scan-batch-form>
+            <form class="scan-batch-scan" data-scan-batch-form enctype="multipart/form-data">
                 <label class="scan-search-field scan-batch-search-field">
                     <?= ui_icon('scan') ?>
                     <input type="search" name="batch_scan_query" autocomplete="off" placeholder="Scan barcode, SKU, or item name into this batch" data-scan-batch-input>
@@ -121,6 +132,35 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
                 <label class="field">
                     <span>Notes</span>
                     <input type="text" data-scan-batch-notes placeholder="Optional note for every scanned line">
+                </label>
+                <label class="field scan-context-field" data-scan-batch-reason-field>
+                    <span>Usage reason</span>
+                    <select data-scan-batch-reason>
+                        <option value="">Pick reason</option>
+                        <?php foreach ($usageReasons as $reason): ?>
+                            <option value="<?= e((string) $reason['code']) ?>" data-requires-custom="<?= !empty($reason['requires_custom_text']) ? '1' : '0' ?>"><?= e((string) $reason['label']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label class="field scan-context-field" data-scan-batch-custom-reason-field hidden>
+                    <span>Other reason</span>
+                    <input type="text" data-scan-batch-custom-reason placeholder="Describe how it was used">
+                </label>
+                <?php if ($departmentOptions !== []): ?>
+                    <label class="field scan-context-field" data-scan-batch-department-field>
+                        <span>Department</span>
+                        <select data-scan-batch-department>
+                            <option value="">Use my assigned department</option>
+                            <?php foreach ($departmentOptions as $department): ?>
+                                <option value="<?= e((string) $department['id']) ?>"><?= e((string) $department['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                <?php endif; ?>
+                <label class="field scan-proof-field" data-scan-batch-proof-field>
+                    <span>Proof image</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-scan-batch-proof>
+                    <small data-scan-batch-proof-hint>Optional unless an item requires proof.</small>
                 </label>
             </div>
             <div class="scan-batch-list" data-scan-batch-list>

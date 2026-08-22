@@ -13,7 +13,10 @@ export const initManualStockAdd = (root = document) => {
     const selectedWrap = page.querySelector('[data-manual-stock-selected]');
     const lineForm = page.querySelector('[data-manual-stock-line-form]');
     const storageSelect = page.querySelector('[data-manual-stock-storage]');
+    const packageSelect = page.querySelector('[data-manual-stock-package]');
+    const packageHelp = page.querySelector('[data-manual-stock-package-help]');
     const quantityInput = page.querySelector('[data-manual-stock-quantity]');
+    const conversionPreview = page.querySelector('[data-manual-stock-conversion]');
     const referenceInput = page.querySelector('[data-manual-stock-reference]');
     const notesInput = page.querySelector('[data-manual-stock-notes]');
     const status = page.querySelector('[data-manual-stock-status]');
@@ -22,6 +25,8 @@ export const initManualStockAdd = (root = document) => {
     const count = page.querySelector('[data-manual-stock-count]');
     const clearButton = page.querySelector('[data-manual-stock-clear]');
     const confirmButton = page.querySelector('[data-manual-stock-confirm]');
+    const proofInput = page.querySelector('[data-manual-stock-proof]');
+    const proofLabel = page.querySelector('[data-manual-stock-proof-label]');
 
     if (!lookupUrl || !submitUrl || !(searchInput instanceof HTMLInputElement) || !(lineForm instanceof HTMLFormElement) || !(results instanceof HTMLElement) || !(draftWrap instanceof HTMLElement)) {
       return;
@@ -67,8 +72,101 @@ export const initManualStockAdd = (root = document) => {
       || items.find((item) => String(item.sku || '').toLowerCase() === String(query || '').toLowerCase())
       || (items.length === 1 ? items[0] : null);
 
+    const canonicalUnit = (item = selectedItem) => String(item?.canonical_unit || item?.unit || 'unit');
+
+    const activePresets = (item = selectedItem) => Array.isArray(item?.package_presets)
+      ? item.package_presets.filter((preset) => Number(preset.is_active ?? 1) === 1)
+      : [];
+
+    const selectedPreset = () => {
+      if (!(packageSelect instanceof HTMLSelectElement) || !selectedItem || packageSelect.value === '') {
+        return null;
+      }
+
+      return activePresets().find((preset) => String(preset.id) === packageSelect.value) || null;
+    };
+
+    const populatePackageOptions = (item) => {
+      if (!(packageSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      if (!item) {
+        packageSelect.disabled = true;
+        packageSelect.innerHTML = '<option value="">Select an item first</option>';
+
+        if (packageHelp instanceof HTMLElement) {
+          packageHelp.textContent = 'Stock is always saved in the item\'s canonical unit.';
+        }
+        return;
+      }
+
+      const unit = canonicalUnit(item);
+      const presets = activePresets(item);
+      packageSelect.disabled = false;
+      packageSelect.innerHTML = [
+        `<option value="">${escapeHtml(unit)} (base unit)</option>`,
+        ...presets.map((preset) => (
+          `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.label)} = ${escapeHtml(formatNumber(preset.pieces_per_unit_raw ?? preset.pieces_per_unit))} ${escapeHtml(unit)}</option>`
+        )),
+      ].join('');
+
+      if (packageHelp instanceof HTMLElement) {
+        packageHelp.textContent = presets.length > 0
+          ? `Choose how the stock arrived. It will be stored as ${unit}.`
+          : `No package presets are configured. Enter the amount in ${unit}.`;
+      }
+    };
+
+    const conversionForSelection = () => {
+      const preset = selectedPreset();
+
+      return preset ? parseNumber(preset.pieces_per_unit_raw ?? preset.pieces_per_unit) : 1;
+    };
+
+    const updateConversionPreview = () => {
+      if (!(conversionPreview instanceof HTMLElement)) {
+        return;
+      }
+
+      if (!selectedItem) {
+        conversionPreview.textContent = 'Pick an item and package to preview the converted quantity.';
+        return;
+      }
+
+      const inputQuantity = quantityInput instanceof HTMLInputElement ? parseNumber(quantityInput.value) : 0;
+      const preset = selectedPreset();
+      const unit = canonicalUnit();
+
+      if (inputQuantity <= 0) {
+        conversionPreview.textContent = preset
+          ? `1 ${preset.label} = ${formatNumber(conversionForSelection())} ${unit}.`
+          : `Enter the amount in ${unit}.`;
+        return;
+      }
+
+      const baseQuantity = inputQuantity * conversionForSelection();
+      const enteredLabel = preset ? preset.label : unit;
+      conversionPreview.textContent = `${formatNumber(inputQuantity)} ${enteredLabel} = ${formatNumber(baseQuantity)} ${unit}.`;
+    };
+
+    const updateProofRequirement = () => {
+      const required = draftLines.some((line) => line.requires_refill_proof === true);
+
+      if (proofInput instanceof HTMLInputElement) {
+        proofInput.required = required;
+      }
+
+      if (proofLabel instanceof HTMLElement) {
+        proofLabel.textContent = required ? 'required' : 'optional';
+        proofLabel.classList.toggle('danger-text', required);
+      }
+    };
+
     const setSelectedItem = (item) => {
       selectedItem = item || null;
+      populatePackageOptions(selectedItem);
+      updateConversionPreview();
 
       if (selectedWrap instanceof HTMLElement) {
         if (!selectedItem) {
@@ -193,7 +291,11 @@ export const initManualStockAdd = (root = document) => {
       }, looksLikeScanCode(value) ? 40 : 240);
     };
 
-    const draftTotal = () => draftLines.reduce((sum, line) => sum + parseNumber(line.quantity), 0);
+    const draftTotals = () => draftLines.reduce((totals, line) => {
+      const unit = String(line.base_unit || line.item.unit || 'unit');
+      totals[unit] = (totals[unit] || 0) + parseNumber(line.base_quantity);
+      return totals;
+    }, {});
 
     const renderDraft = () => {
       const lineCount = draftLines.length;
@@ -210,6 +312,8 @@ export const initManualStockAdd = (root = document) => {
           summary.innerHTML = '';
         }
 
+        updateProofRequirement();
+
         return;
       }
 
@@ -223,23 +327,39 @@ export const initManualStockAdd = (root = document) => {
             ${line.reference_code ? `<small>Ref: ${escapeHtml(line.reference_code)}</small>` : ''}
             ${line.notes ? `<small>Notes: ${escapeHtml(line.notes)}</small>` : ''}
           </span>
-          <em>${escapeHtml(formatNumber(line.quantity))} ${escapeHtml(line.item.unit)}</em>
+          <em>
+            ${escapeHtml(formatNumber(line.input_quantity))} ${escapeHtml(line.package_label)}
+            <small>= ${escapeHtml(formatNumber(line.base_quantity))} ${escapeHtml(line.base_unit)}</small>
+          </em>
           <button class="ghost-button danger-link" type="button" data-manual-stock-remove>Remove</button>
         </div>
       `).join('');
 
       if (summary instanceof HTMLElement) {
+        const totals = Object.entries(draftTotals())
+          .map(([unit, total]) => `${formatNumber(total)} ${unit}`)
+          .join(' · ');
         summary.hidden = false;
         summary.innerHTML = `
           <strong>${lineCount} pending line${lineCount === 1 ? '' : 's'}</strong>
-          <span>${escapeHtml(formatNumber(draftTotal()))} total units across selected items</span>
+          <span>${escapeHtml(totals)} in canonical stock units</span>
         `;
       }
+
+      updateProofRequirement();
     };
 
     page.dataset.manualStockBound = 'true';
 
     searchInput.addEventListener('input', scheduleLookup);
+
+    if (packageSelect instanceof HTMLSelectElement) {
+      packageSelect.addEventListener('change', updateConversionPreview);
+    }
+
+    if (quantityInput instanceof HTMLInputElement) {
+      quantityInput.addEventListener('input', updateConversionPreview);
+    }
 
     results.addEventListener('click', (event) => {
       const target = event.target;
@@ -277,12 +397,27 @@ export const initManualStockAdd = (root = document) => {
         return;
       }
 
+      const preset = selectedPreset();
+      const conversion = conversionForSelection();
+      const baseQuantity = quantity * conversion;
+
+      if (!Number.isFinite(baseQuantity) || baseQuantity <= 0) {
+        setStatus('That package conversion is invalid. Review the item package preset.', 'danger');
+        return;
+      }
+
       draftLines.push({
         item: selectedItem,
         item_id: String(selectedItem.id || ''),
         storage_id: storageId,
         storage_label: storageLabel(storageId),
-        quantity: formatNumber(quantity),
+        input_quantity: formatNumber(quantity),
+        package_preset_id: preset ? String(preset.id) : null,
+        package_label: preset ? String(preset.label) : canonicalUnit(),
+        conversion: formatNumber(conversion),
+        base_quantity: formatNumber(baseQuantity),
+        base_unit: canonicalUnit(),
+        requires_refill_proof: selectedItem.requires_refill_proof === true,
         reference_code: referenceInput instanceof HTMLInputElement ? referenceInput.value.trim() : '',
         notes: notesInput instanceof HTMLInputElement ? notesInput.value.trim() : '',
       });
@@ -297,6 +432,10 @@ export const initManualStockAdd = (root = document) => {
 
       if (notesInput instanceof HTMLInputElement) {
         notesInput.value = '';
+      }
+
+      if (packageSelect instanceof HTMLSelectElement) {
+        packageSelect.value = '';
       }
 
       searchInput.value = '';
@@ -327,6 +466,9 @@ export const initManualStockAdd = (root = document) => {
     if (clearButton instanceof HTMLButtonElement) {
       clearButton.addEventListener('click', () => {
         draftLines = [];
+        if (proofInput instanceof HTMLInputElement) {
+          proofInput.value = '';
+        }
         renderDraft();
         setStatus('Draft cleared.');
       });
@@ -339,6 +481,14 @@ export const initManualStockAdd = (root = document) => {
           return;
         }
 
+        const proofRequired = draftLines.some((line) => line.requires_refill_proof === true);
+
+        if (proofRequired && (!(proofInput instanceof HTMLInputElement) || !proofInput.files?.[0])) {
+          setStatus('A proof image is required for one or more items in this refill.', 'danger');
+          proofInput?.focus();
+          return;
+        }
+
         confirmButton.disabled = true;
         setStatus('Confirming manual stock additions...');
 
@@ -347,10 +497,15 @@ export const initManualStockAdd = (root = document) => {
         formData.append('lines', JSON.stringify(draftLines.map((line) => ({
           item_id: line.item_id,
           storage_id: line.storage_id,
-          quantity: line.quantity,
+          input_quantity: line.input_quantity,
+          package_preset_id: line.package_preset_id,
           reference_code: line.reference_code,
           notes: line.notes,
         }))));
+
+        if (proofInput instanceof HTMLInputElement && proofInput.files?.[0]) {
+          formData.append('proof_image', proofInput.files[0]);
+        }
 
         try {
           const response = await fetch(submitUrl, {
@@ -368,6 +523,9 @@ export const initManualStockAdd = (root = document) => {
           }
 
           draftLines = [];
+          if (proofInput instanceof HTMLInputElement) {
+            proofInput.value = '';
+          }
           renderDraft();
           setStatus(payload.message || 'Manual stock additions saved.', 'success');
         } catch (error) {

@@ -63,6 +63,13 @@ function documentation_important_sections(): array
             'tags' => ['Owner', 'Admin', 'CFO', 'Accountant', 'Staff'],
         ],
         [
+            'title' => 'Measured Stock And Departments',
+            'icon' => 'reports',
+            'summary' => 'Canonical units, package conversions, proof policies, and department-attributed usage/refill reporting.',
+            'anchor' => 'doc-departments-measured-reporting',
+            'tags' => ['Departments', 'mL', 'grams', 'packages', 'proof', 'usage', 'refill', 'manager'],
+        ],
+        [
             'title' => 'Password Recovery And Email',
             'icon' => 'notification',
             'summary' => 'Cost-free SMTP or PHP mail for reset links, admin setup links, test email, and optional workflow alert copies.',

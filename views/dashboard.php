@@ -184,8 +184,8 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
         <strong><?= number_format($metrics['warehouses_total']) ?></strong>
     </article>
     <article class="metric-card">
-        <span class="metric-card-icon"><?= ui_icon('dashboard') ?><span><?= e(site_setting('metric.units_total', 'Total Units In Stock')) ?></span></span>
-        <strong><?= format_quantity($metrics['units_total']) ?></strong>
+        <span class="metric-card-icon"><?= ui_icon('dashboard') ?><span><?= e(site_setting('metric.units_total', 'Stock On Hand By Unit')) ?></span></span>
+        <strong><?= e(dashboard_unit_totals_text((array) ($metrics['stock_totals'] ?? []))) ?></strong>
     </article>
     <article class="metric-card">
         <span class="metric-card-icon"><?= ui_icon('flash') ?><span><?= e(site_setting('metric.low_stock', 'Low Stock Items')) ?></span></span>
@@ -196,8 +196,8 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
         <strong><?= format_money($metrics['inventory_value']) ?></strong>
     </article>
     <article class="metric-card metric-card-wide">
-        <span class="metric-card-icon"><?= ui_icon('movements') ?><span><?= e(site_setting('metric.used_last_30', 'Units Used In Last 30 Days')) ?></span></span>
-        <strong><?= format_quantity($metrics['used_last_30']) ?></strong>
+        <span class="metric-card-icon"><?= ui_icon('movements') ?><span><?= e(site_setting('metric.used_last_30', 'Used By Unit')) ?></span></span>
+        <strong><?= e(dashboard_unit_totals_text((array) ($metrics['used_totals'] ?? []))) ?></strong>
         <span class="metric-card-note"><?= e($filterLabels['date']) ?></span>
     </article>
     <?php if (Auth::hasPermission('requests.view')): ?>

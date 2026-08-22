@@ -1,6 +1,6 @@
 # Security And Incident Guide
 
-Updated: 2026-08-14
+Updated: 2026-08-22
 
 ## Security Boundaries
 
@@ -35,6 +35,10 @@ Mobile access is the intersection of:
 8. Valid workflow status and user relationship.
 
 Flutter hides unauthorized actions, but PHP performs the authoritative check on every request. Removing a permission, storage, grant, device, or account access takes effect on the next request/sync.
+
+Package conversion is also a server authorization boundary. Employees submit a package preset ID, never a trusted conversion multiplier. PHP verifies that the preset is active, belongs to the item, matches the item's canonical dimension, and that proof/department requirements are satisfied before it locks or changes stock.
+
+Storage owners and assigned staff are managed through the shared storage-access service. Co-owner status does not bypass explicit movement permissions. Revocation removes visibility on the next sync and every mutation fails server-side immediately.
 
 ## Abuse Controls
 

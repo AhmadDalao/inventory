@@ -130,6 +130,46 @@ function site_setting_schema(): array
             ],
         ],
         [
+            'id' => 'measurement-proof',
+            'title' => 'Measurement And Proof',
+            'copy' => 'Set organization-wide accountability defaults. Individual items can override each proof rule.',
+            'fields' => [
+                'proof.usage_default' => [
+                    'label' => 'Usage proof default',
+                    'default' => 'optional',
+                    'type' => 'select',
+                    'options' => [
+                        'optional' => 'Optional',
+                        'required' => 'Required',
+                    ],
+                    'help' => 'Applied to items whose usage proof policy is Inherit.',
+                    'maxlength' => 12,
+                ],
+                'proof.refill_default' => [
+                    'label' => 'Refill proof default',
+                    'default' => 'optional',
+                    'type' => 'select',
+                    'options' => [
+                        'optional' => 'Optional',
+                        'required' => 'Required',
+                    ],
+                    'help' => 'Applied to items whose refill proof policy is Inherit.',
+                    'maxlength' => 12,
+                ],
+                'departments.require_assignment' => [
+                    'label' => 'Require department for stock activity',
+                    'default' => '0',
+                    'type' => 'select',
+                    'options' => [
+                        '0' => 'No',
+                        '1' => 'Yes',
+                    ],
+                    'help' => 'When enabled, employees in Unassigned cannot submit stock movements until an admin assigns their department.',
+                    'maxlength' => 1,
+                ],
+            ],
+        ],
+        [
             'id' => 'inventory-controls',
             'title' => 'Inventory Controls',
             'copy' => 'Operational rules for catalog data entry.',

@@ -23,6 +23,8 @@ return [
     ],
     'inventory' => [
         'inventory_events',
+        'measurements',
+        'departments',
         'item_support',
         'item_pages',
         'items',
@@ -41,6 +43,7 @@ return [
         'scan_pages',
         'scan_lookup',
         'scan_manual_restock',
+        'scan_movements',
     ],
     'exports' => [
         'export_items',

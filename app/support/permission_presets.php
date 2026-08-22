@@ -57,6 +57,7 @@ function default_permissions_for_role(string $role): array
         'movements.restock',
         'movements.transfer',
         'movements.adjustment',
+        'movements.override_department',
         'movements.export',
         'requests.view',
         'requests.create',
@@ -98,6 +99,8 @@ function default_permissions_for_role(string $role): array
         'team.view',
         'team.activity.view',
         'team.manage',
+        'departments.view',
+        'departments.manage',
     ];
 }
 
@@ -145,6 +148,7 @@ function default_permissions_for_position(string $position): array
                 'audit.export',
                 'email_logs.view',
                 'email_logs.export',
+                'departments.view',
             ];
 
         case 'accountant':
@@ -216,6 +220,7 @@ function default_permissions_for_position(string $position): array
                 'movements.restock',
                 'movements.transfer',
                 'movements.adjustment',
+                'movements.override_department',
                 'movements.export',
                 'requests.view',
                 'requests.create',
@@ -261,6 +266,8 @@ function default_permissions_for_position(string $position): array
                 'team.view',
                 'team.activity.view',
                 'team.manage',
+                'departments.view',
+                'departments.manage',
             ];
 
         case 'storage_manager':
@@ -321,6 +328,7 @@ function default_permissions_for_position(string $position): array
                 'team.view',
                 'team.activity.view',
                 'team.manage',
+                'departments.view',
             ];
 
         case 'reception_staff':

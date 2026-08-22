@@ -116,6 +116,10 @@ $permissions = mobile_contract_source('app/support/permission_catalog.php');
 $schema = mobile_contract_source('app/maintenance/MaintenanceMobileSchemas.php');
 $schemaState = mobile_contract_source('app/maintenance/MaintenanceSchemaState.php');
 $schemaHelpers = mobile_contract_source('app/maintenance/MaintenanceSchemaHelpers.php');
+$measurementSchema = mobile_contract_source('app/maintenance/MaintenanceMeasurementSchemas.php');
+$measurements = mobile_contract_source('app/modules/measurements.php');
+$scanMovements = mobile_contract_source('app/modules/scan_movements.php');
+$departments = mobile_contract_source('app/modules/departments.php');
 
 if (strpos($schemaHelpers, 'private static function indexExists(') === false) {
     fail_mobile_contract('Mobile schema upgrades require the shared indexExists helper.');
@@ -146,6 +150,50 @@ foreach ([
 ] as $marker) {
     if (strpos($support . $schema . $schemaState, $marker) === false) {
         fail_mobile_contract('Idempotency or conflict protection is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    'measurement_dimension',
+    'usage_proof_policy',
+    'refill_proof_policy',
+    'inventory_movement_measurement_details',
+    'inventory_movement_documents',
+    'departments',
+    'department_id',
+] as $marker) {
+    if (strpos($measurementSchema, $marker) === false) {
+        fail_mobile_contract('Measured inventory schema is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    'resolve_inventory_measurement',
+    'inventory_actor_department_snapshot',
+    'inventory_operation_requires_proof',
+    'record_inventory_movement_measurement',
+] as $marker) {
+    if (strpos($measurements, $marker) === false) {
+        fail_mobile_contract('Measured inventory service is missing marker: ' . $marker);
+    }
+}
+
+foreach ([
+    'scan_movement_batch_validate_line',
+    'inventory_measurement_from_payload',
+    'inventory_operation_requires_proof',
+    'register_inventory_operation_proof',
+    '$pdo->beginTransaction()',
+    '$pdo->rollBack()',
+] as $marker) {
+    if (strpos($scanMovements, $marker) === false) {
+        fail_mobile_contract('Measured Scan Center batch is missing marker: ' . $marker);
+    }
+}
+
+foreach (['handle_departments_page', 'handle_department_save_submit', 'handle_department_archive_submit'] as $marker) {
+    if (strpos($departments, $marker) === false) {
+        fail_mobile_contract('Department lifecycle is missing handler: ' . $marker);
     }
 }
 
@@ -186,8 +234,9 @@ if (strpos($inventory, "'usage_reasons' => mobile_usage_reason_catalog(true)") =
     fail_mobile_contract('Bootstrap must return the active server-owned usage reason catalog.');
 }
 
-if (strpos($movements, 'custom_reason, notes') === false
-    || strpos($movements, "'custom_reason' => \$customReason") === false
+if (substr_count($movements, 'custom_reason, notes') < 2
+    || strpos($movements, "'custom_reason' => \$reasonInput['custom_reason']") === false
+    || strpos($movements, "'custom_reason' => \$entry['reason']['custom_reason']") === false
 ) {
     fail_mobile_contract('Single and batch usage must persist custom reasons.');
 }

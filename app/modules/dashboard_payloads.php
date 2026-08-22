@@ -43,6 +43,63 @@ function dashboard_staff_payload(): array
     ];
 }
 
+function dashboard_item_unit_expression(string $alias = 'i'): string
+{
+    return "COALESCE(NULLIF(CASE WHEN {$alias}.unit = 'custom' THEN {$alias}.custom_unit ELSE {$alias}.unit END, ''), 'pcs')";
+}
+
+function dashboard_unit_totals_text(array $totals): string
+{
+    $parts = [];
+    foreach ($totals as $row) {
+        $parts[] = format_quantity($row['quantity'] ?? 0) . ' ' . ((string) ($row['unit'] ?? '') ?: 'pcs');
+    }
+
+    return $parts === [] ? '0' : implode(' · ', $parts);
+}
+
+function dashboard_stock_unit_totals(?int $storageId = null): array
+{
+    $unitExpression = dashboard_item_unit_expression('i');
+    if ($storageId !== null) {
+        return Database::fetchAll(
+            "SELECT {$unitExpression} AS unit, COALESCE(SUM(balances.quantity), 0) AS quantity
+             FROM item_storage_balances balances
+             INNER JOIN items i ON i.id = balances.item_id
+             WHERE balances.storage_id = :storage_id AND i.is_active = 1
+             GROUP BY {$unitExpression}
+             ORDER BY unit ASC",
+            ['storage_id' => $storageId]
+        );
+    }
+
+    return Database::fetchAll(
+        "SELECT {$unitExpression} AS unit, COALESCE(SUM(i.current_quantity), 0) AS quantity
+         FROM items i
+         WHERE i.is_active = 1
+         GROUP BY {$unitExpression}
+         ORDER BY unit ASC"
+    );
+}
+
+function dashboard_movement_unit_totals(string $movementWhere, array $movementParams, string $movementType): array
+{
+    $unitExpression = "COALESCE(NULLIF(md.base_unit, ''), " . dashboard_item_unit_expression('i') . ')';
+
+    return Database::fetchAll(
+        "SELECT {$unitExpression} AS unit,
+                COALESCE(SUM(ABS(COALESCE(md.base_quantity, NULLIF(m.movement_quantity, 0), m.quantity_delta, 0))), 0) AS quantity
+         FROM inventory_movements m
+         INNER JOIN items i ON i.id = m.item_id
+         LEFT JOIN inventory_movement_measurement_details md ON md.movement_id = m.id
+         {$movementWhere}
+           AND m.movement_type = :dashboard_movement_type
+         GROUP BY {$unitExpression}
+         ORDER BY unit ASC",
+        array_merge($movementParams, ['dashboard_movement_type' => $movementType])
+    );
+}
+
 function dashboard_summary_metrics(?array $selectedStorage, string $movementWhere, array $movementParams): array
 {
     $assetDashboardEnabled = Auth::hasPermission('assets.view');
@@ -69,6 +126,7 @@ function dashboard_summary_metrics(?array $selectedStorage, string $movementWher
                    AND i.is_active = 1',
                 $storageParams
             ),
+            'stock_totals' => dashboard_stock_unit_totals((int) $selectedStorage['id']),
             'low_stock' => (int) Database::scalar(
                 'SELECT COUNT(*)
                  FROM item_storage_balances balances
@@ -94,6 +152,7 @@ function dashboard_summary_metrics(?array $selectedStorage, string $movementWher
                    AND m.movement_type = 'usage'",
                 $movementParams
             ),
+            'used_totals' => dashboard_movement_unit_totals($movementWhere, $movementParams, 'usage'),
             'assets_total' => $assetDashboardEnabled ? (int) Database::scalar(
                 'SELECT COUNT(*)
                  FROM company_assets
@@ -132,6 +191,7 @@ function dashboard_summary_metrics(?array $selectedStorage, string $movementWher
         'storages_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0'),
         'warehouses_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0 AND storage_type = "warehouse"'),
         'units_total' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity), 0) FROM items WHERE is_active = 1'),
+        'stock_totals' => dashboard_stock_unit_totals(),
         'low_stock' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1 AND current_quantity <= reorder_level'),
         'inventory_value' => (float) Database::scalar('SELECT COALESCE(SUM(current_quantity * cost_per_unit), 0) FROM items WHERE is_active = 1'),
         'used_last_30' => (float) Database::scalar(
@@ -142,6 +202,7 @@ function dashboard_summary_metrics(?array $selectedStorage, string $movementWher
                AND m.movement_type = 'usage'",
             $movementParams
         ),
+        'used_totals' => dashboard_movement_unit_totals($movementWhere, $movementParams, 'usage'),
         'assets_total' => $assetDashboardEnabled ? (int) Database::scalar('SELECT COUNT(*) FROM company_assets WHERE is_active = 1') : 0,
         'assets_assigned' => $assetDashboardEnabled ? (int) Database::scalar("SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND status IN ('assigned', 'pending_receipt', 'return_requested')") : 0,
         'assets_maintenance' => $assetDashboardEnabled ? (int) Database::scalar("SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND status IN ('maintenance', 'damaged', 'lost')") : 0,

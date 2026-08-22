@@ -362,6 +362,9 @@ $router->post('/scan/manual-restock', static function (): void {
 $router->post('/scan/manual-restock/batch', static function (): void {
     handle_scan_manual_restock_batch_submit();
 });
+$router->post('/scan/movements/batch', static function (): void {
+    handle_scan_movement_batch_submit();
+});
 $router->get('/requests', static function (): void {
     handle_requests_index();
 });
@@ -698,6 +701,19 @@ $router->post('/users/{id}/send-reset', static function (array $params): void {
 });
 $router->post('/users/{id}/status', static function (array $params): void {
     handle_users_status_submit($params);
+});
+
+$router->get('/departments', static function (): void {
+    handle_departments_page();
+});
+$router->post('/departments/save', static function (): void {
+    handle_department_save_submit();
+});
+$router->post('/departments/{id}/archive', static function (array $params): void {
+    handle_department_archive_submit($params);
+});
+$router->post('/departments/{id}/recover', static function (array $params): void {
+    handle_department_recover_submit($params);
 });
 
 $router->get('/settings/site', static function (): void {

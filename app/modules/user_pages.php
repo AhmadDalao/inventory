@@ -23,6 +23,7 @@ function handle_users_create_page(): void
     $managerUserId = normalize_entity_id(old('manager_user_id', ''));
     $selectedStorageIds = array_values(array_unique(array_filter(array_map('intval', (array) old('storage_ids', [])))));
     $defaultStorageId = normalize_entity_id(old('default_storage_id', ''));
+    $departmentId = valid_department_assignment_id(old('department_id', unassigned_department_id()));
 
     View::render('users/form', [
         'title' => 'Create Admin',
@@ -33,6 +34,7 @@ function handle_users_create_page(): void
             'position' => $selectedPosition,
             'role' => $selectedRole,
             'manager_user_id' => $managerUserId,
+            'department_id' => $departmentId,
             'is_active' => 1,
         ],
         'positionOptions' => user_position_options(),
@@ -43,6 +45,8 @@ function handle_users_create_page(): void
         'ownedStorageIds' => [],
         'defaultStorageId' => $defaultStorageId,
         'canManageTeam' => Auth::isOwner() || Auth::hasPermission('team.manage'),
+        'canManageDepartments' => Auth::isOwner() || Auth::hasPermission('departments.manage'),
+        'departmentOptions' => department_options(),
         'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
         'permissionGroups' => permission_groups_for_form(is_array($selectedPermissions) ? sanitize_permission_input($selectedPermissions) : default_permissions_for_position($selectedPosition)),
     ]);
@@ -70,6 +74,10 @@ function handle_users_edit_page(array $params): void
         ['user_id' => $userRecord['id']]
     ));
     $defaultStorageId = normalize_entity_id(old('default_storage_id', (string) ($storedDefaultStorageId ?? '')));
+    $departmentId = valid_department_assignment_id(
+        old('department_id', (string) ($userRecord['department_id'] ?? '')),
+        normalize_entity_id($userRecord['department_id'] ?? null)
+    );
 
     View::render('users/form', [
         'title' => 'Edit ' . $userRecord['name'],
@@ -81,6 +89,7 @@ function handle_users_edit_page(array $params): void
             'position' => old('position', $userRecord['position'] ?: ($userRecord['role'] === 'owner' ? 'owner_operator' : ($userRecord['role'] === 'admin' ? 'general_admin' : 'staff'))),
             'role' => old('role', $userRecord['role']),
             'manager_user_id' => $managerUserId,
+            'department_id' => $departmentId,
             'is_active' => (int) $userRecord['is_active'],
         ],
         'positionOptions' => user_position_options(),
@@ -91,6 +100,8 @@ function handle_users_edit_page(array $params): void
         'ownedStorageIds' => $storedOwnedStorageIds,
         'defaultStorageId' => $defaultStorageId,
         'canManageTeam' => Auth::isOwner() || Auth::hasPermission('team.manage'),
+        'canManageDepartments' => Auth::isOwner() || Auth::hasPermission('departments.manage'),
+        'departmentOptions' => department_options(),
         'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
         'permissionGroups' => permission_groups_for_form(
             is_array(old('permissions'))

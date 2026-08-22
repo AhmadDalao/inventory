@@ -7,6 +7,7 @@ export const initScanCenter = (root = document) => {
     }
 
     const lookupUrl = scanner.dataset.scanLookupUrl;
+    const batchUrl = scanner.dataset.scanBatchUrl || '';
     const manualRestockUrl = scanner.dataset.scanManualRestockUrl || '';
     const canCreateMovement = scanner.dataset.canCreateMovement === '1';
     const form = scanner.querySelector('[data-scan-form]');
@@ -33,6 +34,15 @@ export const initScanCenter = (root = document) => {
     const batchStorageLabel = scanner.querySelector('[data-scan-batch-storage-label]');
     const batchReference = scanner.querySelector('[data-scan-batch-reference]');
     const batchNotes = scanner.querySelector('[data-scan-batch-notes]');
+    const batchReason = scanner.querySelector('[data-scan-batch-reason]');
+    const batchReasonField = scanner.querySelector('[data-scan-batch-reason-field]');
+    const batchCustomReason = scanner.querySelector('[data-scan-batch-custom-reason]');
+    const batchCustomReasonField = scanner.querySelector('[data-scan-batch-custom-reason-field]');
+    const batchDepartment = scanner.querySelector('[data-scan-batch-department]');
+    const batchDepartmentField = scanner.querySelector('[data-scan-batch-department-field]');
+    const batchProof = scanner.querySelector('[data-scan-batch-proof]');
+    const batchProofField = scanner.querySelector('[data-scan-batch-proof-field]');
+    const batchProofHint = scanner.querySelector('[data-scan-batch-proof-hint]');
     const batchSubmit = scanner.querySelector('[data-scan-batch-submit]');
     const batchClear = scanner.querySelector('[data-scan-batch-clear]');
     const batchCameraToggle = scanner.querySelector('[data-scan-batch-camera-toggle]');
@@ -45,6 +55,8 @@ export const initScanCenter = (root = document) => {
     const manualStatus = scanner.querySelector('[data-scan-manual-status]');
     let storages = [];
     let movementTypes = [];
+    let usageReasons = [];
+    let departments = [];
     let currentItems = [];
     let manualItems = [];
     let manualSelectedItem = null;
@@ -72,6 +84,18 @@ export const initScanCenter = (root = document) => {
       movementTypes = JSON.parse(scanner.dataset.scanMovementTypes || '[]');
     } catch (error) {
       movementTypes = [];
+    }
+
+    try {
+      usageReasons = JSON.parse(scanner.dataset.scanUsageReasons || '[]');
+    } catch (error) {
+      usageReasons = [];
+    }
+
+    try {
+      departments = JSON.parse(scanner.dataset.scanDepartments || '[]');
+    } catch (error) {
+      departments = [];
     }
 
     if (!lookupUrl || !(form instanceof HTMLFormElement) || !(input instanceof HTMLInputElement) || !results || !selectedPanel || !selectedBody) {
@@ -320,6 +344,16 @@ export const initScanCenter = (root = document) => {
       `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`
     )).join('');
 
+    const usageReasonOptionsMarkup = () => usageReasons.map((reason) => (
+      `<option value="${escapeHtml(reason.code)}" data-requires-custom="${reason.requires_custom_text ? '1' : '0'}">${escapeHtml(reason.label)}</option>`
+    )).join('');
+
+    const departmentOptionsMarkup = () => departments.map((department) => (
+      `<option value="${escapeHtml(department.id)}">${escapeHtml(department.name)}</option>`
+    )).join('');
+
+    const usageReasonDefinition = (code) => usageReasons.find((reason) => String(reason.code) === String(code)) || null;
+
     const movementStorageLabel = (type) => (type === 'restock' ? 'To Location' : 'From Location');
 
     const balanceRows = (item) => {
@@ -344,123 +378,64 @@ export const initScanCenter = (root = document) => {
 
     const packagePresetsForItem = (item) => (
       Array.isArray(item.package_presets)
-        ? item.package_presets.filter((preset) => parseNumber(preset.pieces_per_unit_raw ?? preset.pieces_per_unit) > 0)
+        ? item.package_presets.filter((preset) => Number(preset.is_active ?? 1) === 1 && parseNumber(preset.pieces_per_unit_raw ?? preset.pieces_per_unit) > 0)
         : []
     );
 
     const packagePresetById = (item, presetId) => packagePresetsForItem(item).find((preset) => String(preset.id) === String(presetId)) || null;
 
-    const defaultPackagePreset = (item) => packagePresetsForItem(item).find((preset) => Number(preset.is_default) === 1) || packagePresetsForItem(item)[0] || null;
-
     const packageOptionMarkup = (item, selectedPresetId = '') => {
       const presets = packagePresetsForItem(item);
-      const selected = selectedPresetId || defaultPackagePreset(item)?.id || 'custom';
 
       return [
-        ...presets.map((preset) => `<option value="${escapeHtml(preset.id)}"${String(selected) === String(preset.id) ? ' selected' : ''}>${escapeHtml(preset.label)} · ${escapeHtml(preset.pieces_per_unit)} ${escapeHtml(item.unit)}</option>`),
-        `<option value="custom"${String(selected) === 'custom' ? ' selected' : ''}>Custom package</option>`,
+        `<option value=""${selectedPresetId === '' ? ' selected' : ''}>Direct quantity · ${escapeHtml(item.unit)}</option>`,
+        ...presets.map((preset) => `<option value="${escapeHtml(preset.id)}"${String(selectedPresetId) === String(preset.id) ? ' selected' : ''}>${escapeHtml(preset.label)} · ${escapeHtml(preset.pieces_per_unit)} ${escapeHtml(item.unit)}</option>`),
       ].join('');
     };
 
-    const packageControlsMarkup = (item, namespace, quantityLabel = 'Quantity') => `
+    const packageControlsMarkup = (item, namespace, quantityLabel = 'Entered quantity') => `
       <label class="field scan-quantity-field">
         <span>${escapeHtml(quantityLabel)}</span>
-        <input type="number" step="0.01" min="0.01" name="${namespace === 'scan' ? 'scan_quantity' : ''}" placeholder="Type 1, 10, 100" data-${namespace}-quantity-input ${namespace === 'scan' ? 'required' : ''}>
+        <input type="number" step="0.0001" min="0.0001" name="${namespace === 'scan' ? 'input_quantity' : ''}" placeholder="Type 1, 10, 100" data-${namespace}-quantity-input ${namespace === 'scan' ? 'required' : ''}>
       </label>
       <label class="field">
-        <span>Count as</span>
-        <select data-${namespace}-quantity-mode>
-          <option value="pieces">Pieces / direct quantity</option>
-          <option value="container">Package / box / bag</option>
+        <span>Unit or package</span>
+        <select name="${namespace === 'scan' ? 'package_preset_id' : ''}" data-${namespace}-package-preset>
+          ${packageOptionMarkup(item, String(item.matched_package_preset_id || ''))}
         </select>
       </label>
-      <div class="scan-package-controls" data-${namespace}-package-controls hidden>
-        <label class="field">
-          <span>Package type</span>
-          <select data-${namespace}-package-preset>
-            ${packageOptionMarkup(item)}
-          </select>
-        </label>
-        <div class="scan-custom-package-fields" data-${namespace}-custom-package-fields hidden>
-          <label class="field">
-            <span>Custom label</span>
-            <input type="text" placeholder="Box, bag, pack" value="Custom" data-${namespace}-package-custom-label>
-          </label>
-          <label class="field">
-            <span>Contains</span>
-            <input type="number" step="0.01" min="0.01" value="1" data-${namespace}-package-custom-pieces>
-            <small>${escapeHtml(item.unit)} per package.</small>
-          </label>
-        </div>
-      </div>
-      <p class="scan-conversion-card tiny-copy" data-${namespace}-conversion>Direct pieces. Saved as ${escapeHtml(item.unit)}.</p>
+      <p class="scan-conversion-card tiny-copy" data-${namespace}-conversion>Direct quantity. Saved as ${escapeHtml(item.unit)}.</p>
     `;
 
     const quantityDetails = (scope, item, namespace) => {
       const quantityInput = scope.querySelector(`[data-${namespace}-quantity-input]`);
-      const modeSelect = scope.querySelector(`[data-${namespace}-quantity-mode]`);
       const presetSelect = scope.querySelector(`[data-${namespace}-package-preset]`);
-      const customLabelInput = scope.querySelector(`[data-${namespace}-package-custom-label]`);
-      const customPiecesInput = scope.querySelector(`[data-${namespace}-package-custom-pieces]`);
       const count = parseNumber(quantityInput instanceof HTMLInputElement ? quantityInput.value : '');
-      const mode = modeSelect instanceof HTMLSelectElement ? modeSelect.value : 'pieces';
-      let piecesPerUnit = 1;
-      let label = item.unit || 'pcs';
-
-      if (mode === 'container') {
-        const selectedPresetId = presetSelect instanceof HTMLSelectElement ? presetSelect.value : '';
-        const preset = selectedPresetId !== 'custom' ? packagePresetById(item, selectedPresetId) : null;
-
-        if (preset) {
-          piecesPerUnit = parseNumber(preset.pieces_per_unit_raw ?? preset.pieces_per_unit);
-          label = preset.label || 'Package';
-        } else {
-          piecesPerUnit = parseNumber(customPiecesInput instanceof HTMLInputElement ? customPiecesInput.value : '');
-          label = (customLabelInput instanceof HTMLInputElement && customLabelInput.value.trim() !== '') ? customLabelInput.value.trim() : 'Custom package';
-        }
-      }
-
-      const baseQuantity = mode === 'container' ? count * piecesPerUnit : count;
-      const note = mode === 'container'
-        ? `Scan conversion: ${formatNumber(count)} ${label} x ${formatNumber(piecesPerUnit)} ${item.unit} = ${formatNumber(baseQuantity)} ${item.unit}.`
-        : '';
+      const packagePresetId = presetSelect instanceof HTMLSelectElement ? presetSelect.value : '';
+      const preset = packagePresetId !== '' ? packagePresetById(item, packagePresetId) : null;
+      const conversion = preset ? parseNumber(preset.pieces_per_unit_raw ?? preset.pieces_per_unit) : 1;
+      const label = preset?.label || item.unit || 'unit';
+      const baseQuantity = count * conversion;
 
       return {
-        mode,
-        count,
+        inputQuantity: count,
+        packagePresetId: preset ? String(preset.id) : '',
         label,
-        piecesPerUnit,
+        conversion,
         baseQuantity,
-        note,
-        ok: count > 0 && (mode !== 'container' || piecesPerUnit > 0),
+        ok: count > 0 && conversion > 0 && (packagePresetId === '' || preset !== null),
       };
     };
 
     const syncPackageControls = (scope, item, namespace) => {
-      const modeSelect = scope.querySelector(`[data-${namespace}-quantity-mode]`);
-      const presetSelect = scope.querySelector(`[data-${namespace}-package-preset]`);
-      const controls = scope.querySelector(`[data-${namespace}-package-controls]`);
-      const customFields = scope.querySelector(`[data-${namespace}-custom-package-fields]`);
       const conversion = scope.querySelector(`[data-${namespace}-conversion]`);
-      const mode = modeSelect instanceof HTMLSelectElement ? modeSelect.value : 'pieces';
-      const useContainer = mode === 'container';
-      const useCustom = useContainer && presetSelect instanceof HTMLSelectElement && presetSelect.value === 'custom';
-
-      if (controls instanceof HTMLElement) {
-        controls.hidden = !useContainer;
-      }
-
-      if (customFields instanceof HTMLElement) {
-        customFields.hidden = !useCustom;
-      }
-
       const details = quantityDetails(scope, item, namespace);
 
       if (conversion instanceof HTMLElement) {
-        if (details.mode === 'container') {
+        if (details.packagePresetId !== '') {
           conversion.textContent = details.ok
-            ? `${formatNumber(details.count)} ${details.label} x ${formatNumber(details.piecesPerUnit)} ${item.unit} = ${formatNumber(details.baseQuantity)} ${item.unit}`
-            : 'Enter package count and pieces per package.';
+            ? `${formatNumber(details.inputQuantity)} × ${details.label} = ${formatNumber(details.baseQuantity)} ${item.unit}`
+            : 'Enter a valid package quantity.';
         } else {
           conversion.textContent = `Direct quantity. Saved as ${item.unit}.`;
         }
@@ -477,41 +452,20 @@ export const initScanCenter = (root = document) => {
       batchStatus.classList.toggle('success-text', type === 'success');
     };
 
-    const entryBaseQuantity = (entry) => {
-      const count = parseNumber(entry.quantity);
+    const batchEntryKey = (itemId, packagePresetId = '') => `${String(itemId)}:${String(packagePresetId || 'base')}`;
 
-      if (entry.quantityMode !== 'container') {
-        return count;
-      }
+    const entryPreset = (entry) => entry.packagePresetId ? packagePresetById(entry.item, entry.packagePresetId) : null;
 
-      let piecesPerUnit = parseNumber(entry.customPiecesPerUnit || 0);
-
-      if (entry.packagePresetId && entry.packagePresetId !== 'custom') {
-        const preset = packagePresetById(entry.item, entry.packagePresetId);
-        piecesPerUnit = parseNumber(preset?.pieces_per_unit_raw ?? preset?.pieces_per_unit ?? 0);
-      }
-
-      return count * piecesPerUnit;
-    };
+    const entryBaseQuantity = (entry) => parseNumber(entry.quantity) * (entryPreset(entry)
+      ? parseNumber(entryPreset(entry).pieces_per_unit_raw ?? entryPreset(entry).pieces_per_unit)
+      : 1);
 
     const entryConversionNote = (entry) => {
-      if (entry.quantityMode !== 'container') {
-        return '';
-      }
-
-      let label = entry.customPackageLabel || 'Custom package';
-      let piecesPerUnit = parseNumber(entry.customPiecesPerUnit || 0);
-
-      if (entry.packagePresetId && entry.packagePresetId !== 'custom') {
-        const preset = packagePresetById(entry.item, entry.packagePresetId);
-        label = preset?.label || label;
-        piecesPerUnit = parseNumber(preset?.pieces_per_unit_raw ?? preset?.pieces_per_unit ?? piecesPerUnit);
-      }
-
-      return `Scan conversion: ${formatNumber(entry.quantity)} ${label} x ${formatNumber(piecesPerUnit)} ${entry.item.unit} = ${formatNumber(entryBaseQuantity(entry))} ${entry.item.unit}.`;
+      const preset = entryPreset(entry);
+      return preset
+        ? `${formatNumber(entry.quantity)} × ${preset.label} = ${formatNumber(entryBaseQuantity(entry))} ${entry.item.unit}`
+        : `Direct quantity: ${formatNumber(entry.quantity)} ${entry.item.unit}`;
     };
-
-    const batchTotalQuantity = () => Array.from(batchItems.values()).reduce((total, entry) => total + entryBaseQuantity(entry), 0);
 
     const selectedBatchMovementType = () => (batchType instanceof HTMLSelectElement ? batchType.value : (movementTypes[0]?.value || 'usage'));
 
@@ -523,6 +477,108 @@ export const initScanCenter = (root = document) => {
       }
 
       return item.balances.find((balance) => String(balance.storage_id) === String(storageId)) || null;
+    };
+
+    const itemRequiresProof = (item, movementType) => (
+      movementType === 'usage'
+        ? Boolean(item.requires_usage_proof)
+        : movementType === 'restock' && Boolean(item.requires_refill_proof)
+    );
+
+    const syncQuickContext = (movementForm, item) => {
+      if (!(movementForm instanceof HTMLElement)) {
+        return;
+      }
+
+      const movementType = movementForm.querySelector('[name="scan_movement_type"]')?.value || 'usage';
+      const storageLabel = movementForm.querySelector('[data-scan-storage-label]');
+      const reasonField = movementForm.querySelector('[data-scan-reason-field]');
+      const reasonSelect = movementForm.querySelector('[name="usage_reason"]');
+      const customField = movementForm.querySelector('[data-scan-custom-reason-field]');
+      const customInput = movementForm.querySelector('[name="custom_reason"]');
+      const proofField = movementForm.querySelector('[data-scan-proof-field]');
+      const proofInput = movementForm.querySelector('[name="proof_image"]');
+      const proofHint = movementForm.querySelector('[data-scan-proof-hint]');
+      const tracksProof = movementType === 'usage' || movementType === 'restock';
+      const requiresProof = itemRequiresProof(item, movementType);
+      const needsCustom = movementType === 'usage'
+        && usageReasonDefinition(reasonSelect instanceof HTMLSelectElement ? reasonSelect.value : '')?.requires_custom_text === true;
+
+      if (storageLabel) {
+        storageLabel.textContent = movementStorageLabel(movementType);
+      }
+      if (reasonField instanceof HTMLElement) {
+        reasonField.hidden = movementType !== 'usage';
+      }
+      if (reasonSelect instanceof HTMLSelectElement) {
+        reasonSelect.required = movementType === 'usage';
+        reasonSelect.disabled = movementType !== 'usage';
+      }
+      if (customField instanceof HTMLElement) {
+        customField.hidden = !needsCustom;
+      }
+      if (customInput instanceof HTMLInputElement) {
+        customInput.required = needsCustom;
+        customInput.disabled = !needsCustom;
+      }
+      if (proofField instanceof HTMLElement) {
+        proofField.hidden = !tracksProof;
+      }
+      if (proofInput instanceof HTMLInputElement) {
+        proofInput.required = requiresProof;
+        proofInput.disabled = !tracksProof;
+      }
+      if (proofHint instanceof HTMLElement) {
+        proofHint.textContent = requiresProof
+          ? `Required for ${movementType === 'restock' ? 'refill' : 'usage'} of this item.`
+          : 'Optional proof image.';
+      }
+    };
+
+    const syncBatchContext = () => {
+      const movementType = selectedBatchMovementType();
+      const entries = Array.from(batchItems.values());
+      const isUsage = movementType === 'usage';
+      const tracksProof = isUsage || movementType === 'restock';
+      const needsCustom = isUsage
+        && usageReasonDefinition(batchReason instanceof HTMLSelectElement ? batchReason.value : '')?.requires_custom_text === true;
+      const requiresProof = entries.some((entry) => itemRequiresProof(entry.item, movementType));
+
+      if (batchStorageLabel) {
+        batchStorageLabel.textContent = movementStorageLabel(movementType);
+      }
+      if (batchReasonField instanceof HTMLElement) {
+        batchReasonField.hidden = !isUsage;
+      }
+      if (batchReason instanceof HTMLSelectElement) {
+        batchReason.required = isUsage;
+        batchReason.disabled = !isUsage;
+      }
+      if (batchCustomReasonField instanceof HTMLElement) {
+        batchCustomReasonField.hidden = !needsCustom;
+      }
+      if (batchCustomReason instanceof HTMLInputElement) {
+        batchCustomReason.required = needsCustom;
+        batchCustomReason.disabled = !needsCustom;
+      }
+      if (batchDepartmentField instanceof HTMLElement) {
+        batchDepartmentField.hidden = false;
+      }
+      if (batchProofField instanceof HTMLElement) {
+        batchProofField.hidden = !tracksProof;
+      }
+      if (batchProof instanceof HTMLInputElement) {
+        batchProof.required = requiresProof;
+        batchProof.disabled = !tracksProof;
+      }
+      if (batchProofHint instanceof HTMLElement) {
+        batchProofHint.textContent = requiresProof
+          ? 'Required because at least one item in this batch requires proof.'
+          : 'Optional unless an item requires proof.';
+      }
+      if (batchSubmit instanceof HTMLButtonElement) {
+        batchSubmit.textContent = movementType === 'restock' ? 'Save Refill Batch' : 'Save Usage Batch';
+      }
     };
 
     const renderBatch = () => {
@@ -541,7 +597,7 @@ export const initScanCenter = (root = document) => {
       batchList.innerHTML = `
         <div class="scan-batch-table">
           ${entries.map((entry) => `
-            <div class="scan-batch-row" data-scan-batch-item="${escapeHtml(entry.item.id)}">
+            <div class="scan-batch-row" data-scan-batch-key="${escapeHtml(entry.key)}">
               <div class="scan-batch-row-main">
                 ${itemImageMarkup(entry.item, 'scan-item-thumb')}
                 <span>
@@ -557,32 +613,13 @@ export const initScanCenter = (root = document) => {
               </div>
               <div class="scan-batch-packaging">
                 <label class="field compact-field">
-                  <span>Count as</span>
-                  <select data-scan-batch-quantity-mode>
-                    <option value="pieces"${entry.quantityMode !== 'container' ? ' selected' : ''}>Pieces</option>
-                    <option value="container"${entry.quantityMode === 'container' ? ' selected' : ''}>Package / box / bag</option>
+                  <span>Unit or package</span>
+                  <select data-scan-batch-package-preset>
+                    ${packageOptionMarkup(entry.item, entry.packagePresetId || '')}
                   </select>
                 </label>
-                <div class="scan-package-controls" data-scan-batch-package-controls${entry.quantityMode === 'container' ? '' : ' hidden'}>
-                  <label class="field compact-field">
-                    <span>Package type</span>
-                    <select data-scan-batch-package-preset>
-                      ${packageOptionMarkup(entry.item, entry.packagePresetId || '')}
-                    </select>
-                  </label>
-                  <div class="scan-custom-package-fields" data-scan-batch-custom-package-fields${entry.packagePresetId === 'custom' && entry.quantityMode === 'container' ? '' : ' hidden'}>
-                    <label class="field compact-field">
-                      <span>Label</span>
-                      <input type="text" value="${escapeHtml(entry.customPackageLabel || 'Custom')}" data-scan-batch-package-custom-label>
-                    </label>
-                    <label class="field compact-field">
-                      <span>Contains</span>
-                      <input type="number" min="0.01" step="0.01" value="${escapeHtml(entry.customPiecesPerUnit || '1')}" data-scan-batch-package-custom-pieces>
-                    </label>
-                  </div>
-                </div>
                 <p class="scan-conversion-card tiny-copy" data-scan-batch-conversion>
-                  ${entry.quantityMode === 'container' ? escapeHtml(entryConversionNote(entry)) : `Direct quantity. Saved as ${escapeHtml(entry.item.unit)}.`}
+                  ${escapeHtml(entryConversionNote(entry))}
                 </p>
               </div>
             </div>
@@ -590,7 +627,8 @@ export const initScanCenter = (root = document) => {
         </div>
       `;
 
-      setBatchStatus(`${entries.length} item${entries.length === 1 ? '' : 's'} · ${formatNumber(batchTotalQuantity())} total base units`, 'success');
+      setBatchStatus(`${entries.length} measured line${entries.length === 1 ? '' : 's'} ready for review.`, 'success');
+      syncBatchContext();
     };
 
     const addItemToBatch = (item, quantity = 1) => {
@@ -598,20 +636,18 @@ export const initScanCenter = (root = document) => {
         return;
       }
 
-      const key = String(item.id);
+      const packagePresetId = String(item.matched_package_preset_id || '');
+      const key = batchEntryKey(item.id, packagePresetId);
       const existing = batchItems.get(key);
 
       if (existing) {
         existing.quantity = formatNumber(parseNumber(existing.quantity) + quantity);
       } else {
-        const defaultPreset = defaultPackagePreset(item);
         batchItems.set(key, {
+          key,
           item,
           quantity: formatNumber(quantity),
-          quantityMode: 'pieces',
-          packagePresetId: defaultPreset ? String(defaultPreset.id) : 'custom',
-          customPackageLabel: 'Custom',
-          customPiecesPerUnit: '1',
+          packagePresetId,
         });
       }
 
@@ -628,45 +664,46 @@ export const initScanCenter = (root = document) => {
       renderBatch();
     };
 
-    const updateBatchEntryFromRow = (row) => {
+    const updateBatchEntryFromRow = (row, rekey = false) => {
       if (!(row instanceof Element)) {
         return null;
       }
 
-      const itemId = row.getAttribute('data-scan-batch-item') || '';
-      const entry = batchItems.get(itemId);
+      const currentKey = row.getAttribute('data-scan-batch-key') || '';
+      const entry = batchItems.get(currentKey);
 
       if (!entry) {
         return null;
       }
 
       const quantityInput = row.querySelector('[data-scan-batch-qty]');
-      const modeSelect = row.querySelector('[data-scan-batch-quantity-mode]');
       const presetSelect = row.querySelector('[data-scan-batch-package-preset]');
-      const customLabelInput = row.querySelector('[data-scan-batch-package-custom-label]');
-      const customPiecesInput = row.querySelector('[data-scan-batch-package-custom-pieces]');
 
       if (quantityInput instanceof HTMLInputElement) {
         entry.quantity = quantityInput.value;
       }
 
-      if (modeSelect instanceof HTMLSelectElement) {
-        entry.quantityMode = modeSelect.value;
-      }
-
       if (presetSelect instanceof HTMLSelectElement) {
-        entry.packagePresetId = presetSelect.value;
+        const nextPresetId = presetSelect.value;
+        if (nextPresetId !== '' && packagePresetById(entry.item, nextPresetId) === null) {
+          return null;
+        }
+        entry.packagePresetId = nextPresetId;
       }
 
-      if (customLabelInput instanceof HTMLInputElement) {
-        entry.customPackageLabel = customLabelInput.value;
+      if (rekey) {
+        const nextKey = batchEntryKey(entry.item.id, entry.packagePresetId);
+        if (nextKey !== currentKey) {
+          const collision = batchItems.get(nextKey);
+          batchItems.delete(currentKey);
+          if (collision) {
+            collision.quantity = formatNumber(parseNumber(collision.quantity) + parseNumber(entry.quantity));
+            return collision;
+          }
+          entry.key = nextKey;
+          batchItems.set(nextKey, entry);
+        }
       }
-
-      if (customPiecesInput instanceof HTMLInputElement) {
-        entry.customPiecesPerUnit = customPiecesInput.value;
-      }
-
-      syncPackageControls(row, entry.item, 'scan-batch');
 
       return entry;
     };
@@ -756,7 +793,7 @@ export const initScanCenter = (root = document) => {
         </div>
 
         ${canCreateMovement ? `
-          <form class="scan-quick-form" data-scan-movement-form>
+          <form class="scan-quick-form" data-scan-movement-form enctype="multipart/form-data">
             <div class="scan-quick-grid">
               <label class="field">
                 <span>Action</span>
@@ -772,6 +809,26 @@ export const initScanCenter = (root = document) => {
                 </select>
               </label>
               ${packageControlsMarkup(item, 'scan', 'Quantity')}
+              <label class="field scan-context-field" data-scan-reason-field>
+                <span>Usage reason</span>
+                <select name="usage_reason">
+                  <option value="">Pick reason</option>
+                  ${usageReasonOptionsMarkup()}
+                </select>
+              </label>
+              <label class="field scan-context-field" data-scan-custom-reason-field hidden>
+                <span>Other reason</span>
+                <input type="text" name="custom_reason" maxlength="160" placeholder="Describe how it was used">
+              </label>
+              ${departments.length ? `
+                <label class="field scan-context-field">
+                  <span>Department</span>
+                  <select name="department_id">
+                    <option value="">Use my assigned department</option>
+                    ${departmentOptionsMarkup()}
+                  </select>
+                </label>
+              ` : ''}
               <label class="field">
                 <span>Reference</span>
                 <input type="text" name="scan_reference" placeholder="Scan, event, note">
@@ -780,6 +837,11 @@ export const initScanCenter = (root = document) => {
             <label class="field">
               <span>Notes</span>
               <input type="text" name="scan_notes" placeholder="Optional quick movement note">
+            </label>
+            <label class="field scan-proof-field" data-scan-proof-field>
+              <span>Proof image</span>
+              <input type="file" name="proof_image" accept="image/jpeg,image/png,image/webp" capture="environment">
+              <small data-scan-proof-hint>Optional proof image.</small>
             </label>
             <button class="primary-button" type="submit">Save Quick Movement</button>
             <p class="tiny-copy" data-scan-movement-status>Usage subtracts automatically. Restock adds to the selected location.</p>
@@ -790,6 +852,7 @@ export const initScanCenter = (root = document) => {
       const quickForm = selectedBody.querySelector('[data-scan-movement-form]');
       if (quickForm instanceof HTMLElement) {
         syncPackageControls(quickForm, item, 'scan');
+        syncQuickContext(quickForm, item);
       }
     };
 
@@ -836,7 +899,8 @@ export const initScanCenter = (root = document) => {
       if (batchMode && options.addToBatch) {
         if (exact) {
           addItemToBatch(exact);
-          const addedMessage = `Added ${exact.name}. Quantity is now ${batchItems.get(String(exact.id))?.quantity || '1'}.`;
+          const key = batchEntryKey(exact.id, String(exact.matched_package_preset_id || ''));
+          const addedMessage = `Added ${exact.name}. Quantity is now ${batchItems.get(key)?.quantity || '1'}.`;
           setStatus(addedMessage, 'success');
           setBatchStatus(addedMessage, 'success');
           return;
@@ -1160,15 +1224,15 @@ export const initScanCenter = (root = document) => {
         return;
       }
 
-      if (target.matches('[data-scan-movement-type]')) {
-        const label = selectedBody.querySelector('[data-scan-storage-label]');
+      if (selectedItem && (target.matches('[data-scan-movement-type]') || target.matches('[name="usage_reason"]'))) {
+        const movementForm = target.closest('[data-scan-movement-form]');
 
-        if (label) {
-          label.textContent = target.value === 'restock' ? 'To Location' : 'From Location';
+        if (movementForm instanceof HTMLElement) {
+          syncQuickContext(movementForm, selectedItem);
         }
       }
 
-      if (selectedItem && (target.matches('[data-scan-quantity-mode]') || target.matches('[data-scan-package-preset]'))) {
+      if (selectedItem && target.matches('[data-scan-package-preset]')) {
         const movementForm = target.closest('[data-scan-movement-form]');
 
         if (movementForm instanceof HTMLElement) {
@@ -1184,7 +1248,7 @@ export const initScanCenter = (root = document) => {
         return;
       }
 
-      if (!target.matches('[data-scan-quantity-input], [data-scan-package-custom-label], [data-scan-package-custom-pieces]')) {
+      if (!target.matches('[data-scan-quantity-input]')) {
         return;
       }
 
@@ -1207,10 +1271,12 @@ export const initScanCenter = (root = document) => {
       const movementStatus = movementForm.querySelector('[data-scan-movement-status]');
       const movementType = movementForm.querySelector('[name="scan_movement_type"]')?.value || 'usage';
       const storageId = movementForm.querySelector('[name="scan_storage_id"]')?.value || '';
-      const reference = movementForm.querySelector('[name="scan_reference"]')?.value || '';
-      const notes = movementForm.querySelector('[name="scan_notes"]')?.value || '';
       const quantityInfo = quantityDetails(movementForm, selectedItem, 'scan');
-      const formData = new FormData();
+      const reason = movementForm.querySelector('[name="usage_reason"]')?.value || '';
+      const customReason = movementForm.querySelector('[name="custom_reason"]')?.value || '';
+      const proof = movementForm.querySelector('[name="proof_image"]');
+      const proofRequired = itemRequiresProof(selectedItem, movementType);
+      const formData = new FormData(movementForm);
 
       if (!quantityInfo.ok) {
         if (movementStatus) {
@@ -1220,14 +1286,39 @@ export const initScanCenter = (root = document) => {
         return;
       }
 
-      formData.append('_token', csrfToken(scanner));
-      formData.append('movement_type', movementType);
-      formData.append('quantity', formatNumber(quantityInfo.baseQuantity));
-      formData.append('used_at', nowDateTimeLocal());
-      formData.append('reference_code', reference);
-      formData.append('notes', [notes, quantityInfo.note].filter(Boolean).join(' '));
-      formData.append('source_storage_id', movementType === 'usage' ? storageId : '');
-      formData.append('destination_storage_id', movementType === 'restock' ? storageId : '');
+      if (movementType === 'usage' && reason === '') {
+        if (movementStatus) {
+          movementStatus.textContent = 'Pick a usage reason.';
+          movementStatus.classList.add('danger-text');
+        }
+        return;
+      }
+
+      if (movementType === 'usage' && usageReasonDefinition(reason)?.requires_custom_text === true && String(customReason).trim() === '') {
+        if (movementStatus) {
+          movementStatus.textContent = 'Describe the Other usage reason.';
+          movementStatus.classList.add('danger-text');
+        }
+        return;
+      }
+
+      if (proofRequired && (!(proof instanceof HTMLInputElement) || !proof.files?.length)) {
+        if (movementStatus) {
+          movementStatus.textContent = 'Attach the required proof image.';
+          movementStatus.classList.add('danger-text');
+        }
+        return;
+      }
+
+      formData.set('_token', csrfToken(scanner));
+      formData.set('movement_type', movementType);
+      formData.set('input_quantity', String(quantityInfo.inputQuantity));
+      formData.set('package_preset_id', quantityInfo.packagePresetId);
+      formData.set('used_at', nowDateTimeLocal());
+      formData.set('reference_code', movementForm.querySelector('[name="scan_reference"]')?.value || '');
+      formData.set('notes', movementForm.querySelector('[name="scan_notes"]')?.value || '');
+      formData.set('source_storage_id', movementType === 'usage' ? storageId : '');
+      formData.set('destination_storage_id', movementType === 'restock' ? storageId : '');
 
       if (movementStatus) {
         movementStatus.textContent = 'Saving movement...';
@@ -1272,10 +1363,12 @@ export const initScanCenter = (root = document) => {
 
     if (batchType instanceof HTMLSelectElement) {
       batchType.addEventListener('change', () => {
-        if (batchStorageLabel) {
-          batchStorageLabel.textContent = batchType.value === 'restock' ? 'To Location' : 'From Location';
-        }
+        syncBatchContext();
       });
+    }
+
+    if (batchReason instanceof HTMLSelectElement) {
+      batchReason.addEventListener('change', syncBatchContext);
     }
 
     if (batchClear instanceof HTMLButtonElement) {
@@ -1322,16 +1415,16 @@ export const initScanCenter = (root = document) => {
           return;
         }
 
-        const row = target.closest('[data-scan-batch-item]');
-        const itemId = row?.getAttribute('data-scan-batch-item') || '';
-        const entry = batchItems.get(itemId);
+        const row = target.closest('[data-scan-batch-key]');
+        const entryKey = row?.getAttribute('data-scan-batch-key') || '';
+        const entry = batchItems.get(entryKey);
 
         if (!entry) {
           return;
         }
 
         if (target.closest('[data-scan-batch-remove]')) {
-          batchItems.delete(itemId);
+          batchItems.delete(entryKey);
           renderBatch();
           return;
         }
@@ -1346,7 +1439,7 @@ export const initScanCenter = (root = document) => {
           const nextQuantity = parseNumber(entry.quantity) - 1;
 
           if (nextQuantity <= 0) {
-            batchItems.delete(itemId);
+            batchItems.delete(entryKey);
           } else {
             entry.quantity = formatNumber(nextQuantity);
           }
@@ -1358,35 +1451,40 @@ export const initScanCenter = (root = document) => {
       batchList.addEventListener('input', (event) => {
         const target = event.target;
 
-        if (!(target instanceof HTMLInputElement) || !target.matches('[data-scan-batch-qty], [data-scan-batch-package-custom-label], [data-scan-batch-package-custom-pieces]')) {
+        if (!(target instanceof HTMLInputElement) || !target.matches('[data-scan-batch-qty]')) {
           return;
         }
 
-        const row = target.closest('[data-scan-batch-item]');
+        const row = target.closest('[data-scan-batch-key]');
         const entry = updateBatchEntryFromRow(row);
 
         if (!entry) {
           return;
         }
 
-        setBatchStatus(`${batchItems.size} item${batchItems.size === 1 ? '' : 's'} · ${formatNumber(batchTotalQuantity())} total base units`, 'success');
+        const conversion = row?.querySelector('[data-scan-batch-conversion]');
+        if (conversion instanceof HTMLElement) {
+          conversion.textContent = entryConversionNote(entry);
+        }
+        syncBatchContext();
+        setBatchStatus(`${batchItems.size} measured line${batchItems.size === 1 ? '' : 's'} ready for review.`, 'success');
       });
 
       batchList.addEventListener('change', (event) => {
         const target = event.target;
 
-        if (!(target instanceof HTMLSelectElement) || !target.matches('[data-scan-batch-quantity-mode], [data-scan-batch-package-preset]')) {
+        if (!(target instanceof HTMLSelectElement) || !target.matches('[data-scan-batch-package-preset]')) {
           return;
         }
 
-        const row = target.closest('[data-scan-batch-item]');
-        const entry = updateBatchEntryFromRow(row);
+        const row = target.closest('[data-scan-batch-key]');
+        const entry = updateBatchEntryFromRow(row, true);
 
         if (!entry) {
           return;
         }
 
-        setBatchStatus(`${batchItems.size} item${batchItems.size === 1 ? '' : 's'} · ${formatNumber(batchTotalQuantity())} total base units`, 'success');
+        renderBatch();
       });
     }
 
@@ -1395,6 +1493,9 @@ export const initScanCenter = (root = document) => {
         const entries = Array.from(batchItems.values());
         const movementType = selectedBatchMovementType();
         const storageId = selectedBatchStorageId();
+        const usageReason = batchReason instanceof HTMLSelectElement ? batchReason.value : '';
+        const customReason = batchCustomReason instanceof HTMLInputElement ? batchCustomReason.value.trim() : '';
+        const departmentId = batchDepartment instanceof HTMLSelectElement ? batchDepartment.value : '';
 
         if (!entries.length) {
           setBatchStatus('Scan at least one item before saving.', 'danger');
@@ -1403,6 +1504,27 @@ export const initScanCenter = (root = document) => {
 
         if (storageId === '') {
           setBatchStatus('Pick the location for this batch.', 'danger');
+          return;
+        }
+
+        if (!batchUrl) {
+          setBatchStatus('Batch submission is not configured.', 'danger');
+          return;
+        }
+
+        if (movementType === 'usage' && usageReason === '') {
+          setBatchStatus('Pick a usage reason for this batch.', 'danger');
+          return;
+        }
+
+        if (movementType === 'usage' && usageReasonDefinition(usageReason)?.requires_custom_text === true && customReason === '') {
+          setBatchStatus('Describe the Other usage reason.', 'danger');
+          return;
+        }
+
+        const requiresProof = entries.some((entry) => itemRequiresProof(entry.item, movementType));
+        if (requiresProof && (!(batchProof instanceof HTMLInputElement) || !batchProof.files?.length)) {
+          setBatchStatus('Attach the required proof image before saving.', 'danger');
           return;
         }
 
@@ -1435,41 +1557,66 @@ export const initScanCenter = (root = document) => {
         setBatchStatus('Saving batch movements...');
 
         try {
-          let saved = 0;
+          const lines = entries.map((entry) => ({
+            item_id: entry.item.id,
+            input_quantity: parseNumber(entry.quantity),
+            package_preset_id: entry.packagePresetId || null,
+          }));
+          const formData = new FormData();
+          formData.append('_token', csrfToken(scanner));
+          formData.append('movement_type', movementType);
+          formData.append('storage_id', storageId);
+          formData.append('lines', JSON.stringify(lines));
+          formData.append('used_at', nowDateTimeLocal());
+          formData.append('reference_code', batchReference instanceof HTMLInputElement ? batchReference.value : '');
+          formData.append('notes', batchNotes instanceof HTMLInputElement ? batchNotes.value : '');
+          if (movementType === 'usage') {
+            formData.append('usage_reason', usageReason);
+            formData.append('custom_reason', customReason);
+          }
+          if (departmentId !== '') {
+            formData.append('department_id', departmentId);
+          }
+          if (batchProof instanceof HTMLInputElement && batchProof.files?.[0]) {
+            formData.append('proof_image', batchProof.files[0]);
+          }
 
-          for (const entry of entries) {
-            const conversionNote = entryConversionNote(entry);
-            const batchNoteText = batchNotes instanceof HTMLInputElement ? batchNotes.value : '';
-            const formData = new FormData();
-            formData.append('_token', csrfToken(scanner));
-            formData.append('movement_type', movementType);
-            formData.append('quantity', formatNumber(entryBaseQuantity(entry)));
-            formData.append('used_at', nowDateTimeLocal());
-            formData.append('reference_code', batchReference instanceof HTMLInputElement ? batchReference.value : '');
-            formData.append('notes', [batchNoteText, conversionNote].filter(Boolean).join(' '));
-            formData.append('source_storage_id', movementType === 'usage' ? storageId : '');
-            formData.append('destination_storage_id', movementType === 'restock' ? storageId : '');
+          const response = await fetch(batchUrl, {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+          });
+          const payload = await response.json();
 
-            const response = await fetch(entry.item.movement_url, {
-              method: 'POST',
-              headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-              },
-              body: formData,
-            });
-            const payload = await response.json();
-
-            if (!response.ok) {
-              throw new Error(payload.errors?.join(' ') || payload.message || `Could not save ${entry.item.name}.`);
-            }
-
-            saved++;
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.errors?.join(' ') || payload.message || 'Batch save failed.');
           }
 
           clearBatch();
           resetLookupState();
-          setBatchStatus(`Saved ${saved} movement${saved === 1 ? '' : 's'}.`, 'success');
+          if (batchReference instanceof HTMLInputElement) {
+            batchReference.value = '';
+          }
+          if (batchNotes instanceof HTMLInputElement) {
+            batchNotes.value = '';
+          }
+          if (batchReason instanceof HTMLSelectElement) {
+            batchReason.value = '';
+          }
+          if (batchCustomReason instanceof HTMLInputElement) {
+            batchCustomReason.value = '';
+          }
+          if (batchDepartment instanceof HTMLSelectElement) {
+            batchDepartment.value = '';
+          }
+          if (batchProof instanceof HTMLInputElement) {
+            batchProof.value = '';
+          }
+          syncBatchContext();
+          setBatchStatus(payload.message || `Saved ${entries.length} measured line${entries.length === 1 ? '' : 's'}.`, 'success');
         } catch (error) {
           setBatchStatus(error.message || 'Batch save failed.', 'danger');
         } finally {

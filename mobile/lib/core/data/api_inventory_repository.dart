@@ -188,7 +188,8 @@ class ApiInventoryRepository implements InventoryRepository {
           'type': 'usage',
           'item_id': line.item.id,
           'storage_id': storageId,
-          'quantity': line.pieceQuantity,
+          'input_quantity': line.quantity,
+          'package_preset_id': line.packagePresetId,
           'expected_balance': line.expectedBalance ?? line.item.quantity,
           'reason': reason,
           'custom_reason': reason == 'other' ? customReason : null,
@@ -212,26 +213,35 @@ class ApiInventoryRepository implements InventoryRepository {
     required int storageId,
     required List<CartLine> lines,
     String? reference,
+    String? notes,
+    String? proofPath,
     String? clientOperationId,
   }) async {
-    final data = await _api.post(
-      '/movements/batch',
-      data: {
-        'client_operation_id': clientOperationId ?? _api.operationId(),
-        'lines': lines
-            .map(
-              (line) => {
-                'type': 'restock',
-                'item_id': line.item.id,
-                'storage_id': storageId,
-                'quantity': line.pieceQuantity,
-                'expected_balance': line.expectedBalance ?? line.item.quantity,
-                'reference': reference,
-              },
-            )
-            .toList(),
-      },
-    );
+    final payload = {
+      'client_operation_id': clientOperationId ?? _api.operationId(),
+      'lines': lines
+          .map(
+            (line) => {
+              'type': 'restock',
+              'item_id': line.item.id,
+              'storage_id': storageId,
+              'input_quantity': line.quantity,
+              'package_preset_id': line.packagePresetId,
+              'expected_balance': line.expectedBalance ?? line.item.quantity,
+              'reference': reference,
+              'notes': notes,
+            },
+          )
+          .toList(),
+    };
+    final data = proofPath == null
+        ? await _api.post('/movements/batch', data: payload)
+        : await _api.postMultipart(
+            '/movements/batch',
+            fields: payload,
+            filePath: proofPath,
+            fileField: 'proof_image',
+          );
     return _receipt(data);
   }
 

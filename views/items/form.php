@@ -4,6 +4,8 @@ $copySource = $copySource ?? null;
 $isCopy = !$isEdit && $copySource !== null;
 $action = $isEdit ? url('/items/' . $item['id'] . '/edit') : url('/items/create');
 $unitOptions = item_unit_options();
+$measurementDimensions = inventory_measurement_dimensions();
+$proofPolicies = inventory_proof_policies();
 $imageUrl = item_image_url($item['image_path'] ?? null);
 $barcodeRequired = item_barcodes_required();
 $barcodeValue = trim((string) ($item['barcode'] ?? ''));
@@ -159,7 +161,7 @@ $initialScanSource = $barcodeValue !== '' ? 'Barcode preview' : 'SKU fallback pr
                         </label>
 
                         <label class="field">
-                            <span>Unit</span>
+                            <span>Canonical stock unit</span>
                             <select name="unit" data-unit-select>
                                 <?php foreach ($unitOptions as $value => $label): ?>
                                     <option value="<?= e($value) ?>" <?= selected($value, $item['unit']) ?>><?= e($label) ?></option>
@@ -173,7 +175,17 @@ $initialScanSource = $barcodeValue !== '' ? 'Barcode preview' : 'SKU fallback pr
                                 data-custom-unit
                                 <?= ($item['unit'] ?? 'pcs') === 'custom' ? '' : 'hidden' ?>
                             >
-                            <small class="item-form-help">Default is pcs.</small>
+                            <small class="item-form-help">All balances use this unit. Packages only convert into it.</small>
+                        </label>
+
+                        <label class="field">
+                            <span>Measurement type</span>
+                            <select name="measurement_dimension" required>
+                                <?php foreach ($measurementDimensions as $value => $label): ?>
+                                    <option value="<?= e($value) ?>" <?= selected($value, (string) ($item['measurement_dimension'] ?? 'count')) ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="item-form-help">Count, volume, mass, length, area, or a custom dimension.</small>
                         </label>
                     </div>
                 </div>
@@ -196,19 +208,47 @@ $initialScanSource = $barcodeValue !== '' ? 'Barcode preview' : 'SKU fallback pr
                         <?php else: ?>
                             <label class="field">
                                 <span>Initial Quantity</span>
-                                <input type="number" min="0" step="0.01" name="current_quantity" value="<?= e((string) $item['current_quantity']) ?>" required>
+                                <input type="number" min="0" step="0.000001" name="current_quantity" value="<?= e((string) $item['current_quantity']) ?>" required>
                                 <small class="item-form-help">Use 0 to assign location without adding stock.</small>
                             </label>
                         <?php endif; ?>
 
                         <label class="field">
                             <span>Reorder Level</span>
-                            <input type="number" min="0" step="0.01" name="reorder_level" value="<?= e((string) $item['reorder_level']) ?>" required>
+                            <input type="number" min="0" step="0.000001" name="reorder_level" value="<?= e((string) $item['reorder_level']) ?>" required>
                         </label>
 
                         <label class="field">
                             <span>Cost Per Unit</span>
                             <input type="number" min="0" step="0.01" name="cost_per_unit" value="<?= e((string) $item['cost_per_unit']) ?>" required>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="item-form-section">
+                    <div class="item-form-section-head">
+                        <div>
+                            <p class="eyebrow">Evidence</p>
+                            <h4>Proof Requirements</h4>
+                        </div>
+                        <span class="item-form-section-note">Per-item rules override Website Control defaults.</span>
+                    </div>
+                    <div class="item-form-grid">
+                        <label class="field">
+                            <span>Usage proof</span>
+                            <select name="usage_proof_policy">
+                                <?php foreach ($proofPolicies as $value => $label): ?>
+                                    <option value="<?= e($value) ?>" <?= selected($value, (string) ($item['usage_proof_policy'] ?? 'inherit')) ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label class="field">
+                            <span>Refill proof</span>
+                            <select name="refill_proof_policy">
+                                <?php foreach ($proofPolicies as $value => $label): ?>
+                                    <option value="<?= e($value) ?>" <?= selected($value, (string) ($item['refill_proof_policy'] ?? 'inherit')) ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </label>
                     </div>
                 </div>

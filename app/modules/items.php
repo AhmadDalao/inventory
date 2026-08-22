@@ -24,6 +24,9 @@ function handle_items_create_submit(): void
         'storage_id' => $storageId,
         'unit' => $selectedUnit,
         'custom_unit' => $customUnit,
+        'measurement_dimension' => normalize_inventory_measurement_dimension(input('measurement_dimension', 'count')),
+        'usage_proof_policy' => normalize_inventory_proof_policy(input('usage_proof_policy', 'inherit')),
+        'refill_proof_policy' => normalize_inventory_proof_policy(input('refill_proof_policy', 'inherit')),
         'reorder_level' => quantity_value(input('reorder_level')),
         'cost_per_unit' => quantity_value(input('cost_per_unit')),
         'current_quantity' => quantity_value(input('current_quantity')),
@@ -61,6 +64,10 @@ function handle_items_create_submit(): void
 
     if ($resolvedUnit === '') {
         $errors[] = 'Unit is required.';
+    }
+
+    if ($resolvedUnit !== '' && !inventory_measurement_matches_unit($payload['measurement_dimension'], $resolvedUnit)) {
+        $errors[] = 'The canonical unit does not match the selected measurement type.';
     }
 
     if (!storage_exists_for_assignment($storageId)) {
@@ -172,8 +179,8 @@ function handle_items_create_submit(): void
 
     try {
         Database::execute(
-            'INSERT INTO items (name, sku, barcode, category, storage_id, unit, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, :sku, :barcode, :category, :storage_id, :unit, :current_quantity, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
+            'INSERT INTO items (name, sku, barcode, category, storage_id, unit, measurement_dimension, usage_proof_policy, refill_proof_policy, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
+             VALUES (:name, :sku, :barcode, :category, :storage_id, :unit, :measurement_dimension, :usage_proof_policy, :refill_proof_policy, 0, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'sku' => $payload['sku'],
@@ -181,7 +188,9 @@ function handle_items_create_submit(): void
                 'category' => $payload['category'] !== '' ? $payload['category'] : null,
                 'storage_id' => $payload['storage_id'],
                 'unit' => $resolvedUnit,
-                'current_quantity' => $payload['current_quantity'],
+                'measurement_dimension' => $payload['measurement_dimension'],
+                'usage_proof_policy' => $payload['usage_proof_policy'],
+                'refill_proof_policy' => $payload['refill_proof_policy'],
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
                 'image_path' => null,
@@ -216,63 +225,28 @@ function handle_items_create_submit(): void
             }
         }
 
-        if ($storageId !== null) {
-            persist_item_storage_balance($itemId, (int) $storageId, $payload['current_quantity']);
-        }
-
         if ($payload['current_quantity'] > 0) {
-            Database::execute(
-                'INSERT INTO inventory_movements (
-                    item_id,
-                    movement_type,
-                    movement_quantity,
-                    quantity_delta,
-                    balance_after,
-                    destination_storage_id,
-                    destination_balance_after,
-                    reference_code,
-                    notes,
-                    used_at,
-                    performed_by,
-                    created_at
-                 ) VALUES (
-                    :item_id,
-                    :movement_type,
-                    :movement_quantity,
-                    :quantity_delta,
-                    :balance_after,
-                    :destination_storage_id,
-                    :destination_balance_after,
-                    :reference_code,
-                    :notes,
-                    NOW(),
-                    :performed_by,
-                    NOW()
-                 )',
-                [
-                    'item_id' => $itemId,
-                    'movement_type' => 'restock',
-                    'movement_quantity' => $payload['current_quantity'],
-                    'quantity_delta' => $payload['current_quantity'],
-                    'balance_after' => $payload['current_quantity'],
-                    'destination_storage_id' => $storageId,
-                    'destination_balance_after' => $payload['current_quantity'],
-                    'reference_code' => 'INITIAL',
-                    'notes' => 'Initial stock on item creation',
-                    'performed_by' => $user['id'],
-                ]
-            );
-            $movementId = Database::lastInsertId();
-            inventory_record_change_event(
-                'stock.changed',
-                $itemId,
-                $storageId,
+            $createdItem = Database::fetch('SELECT * FROM items WHERE id = :id LIMIT 1', ['id' => $itemId]);
+            if ($createdItem === null) {
+                throw new RuntimeException('The new item could not be loaded for initial stock posting.');
+            }
+            apply_inventory_movement(
+                $createdItem,
+                'restock',
+                $payload['current_quantity'],
+                null,
+                (int) $storageId,
+                date('Y-m-d H:i:s'),
+                'INITIAL',
+                'Initial stock on item creation',
+                (int) $user['id'],
                 'item',
                 $itemId,
-                $movementId,
-                (int) $user['id'],
-                ['movement_type' => 'restock', 'quantity' => $payload['current_quantity'], 'item_total' => $payload['current_quantity']]
+                inventory_base_measurement($createdItem, $payload['current_quantity'])
             );
+        } elseif ($storageId !== null) {
+            persist_item_storage_balance($itemId, (int) $storageId, 0.0);
+            sync_item_inventory_snapshot($itemId, (int) $user['id']);
         }
 
         $pdo->commit();
@@ -324,6 +298,9 @@ function handle_items_edit_submit(array $params): void
         'storage_id' => $storageId,
         'unit' => $selectedUnit,
         'custom_unit' => $customUnit,
+        'measurement_dimension' => normalize_inventory_measurement_dimension(input('measurement_dimension', $item['measurement_dimension'] ?? 'count')),
+        'usage_proof_policy' => normalize_inventory_proof_policy(input('usage_proof_policy', $item['usage_proof_policy'] ?? 'inherit')),
+        'refill_proof_policy' => normalize_inventory_proof_policy(input('refill_proof_policy', $item['refill_proof_policy'] ?? 'inherit')),
         'reorder_level' => quantity_value(input('reorder_level')),
         'cost_per_unit' => quantity_value(input('cost_per_unit')),
         'notes' => trim((string) input('notes')),
@@ -352,6 +329,16 @@ function handle_items_edit_submit(array $params): void
 
     if ($resolvedUnit === '') {
         $errors[] = 'Unit is required.';
+    }
+
+    if ($resolvedUnit !== '' && !inventory_measurement_matches_unit($payload['measurement_dimension'], $resolvedUnit)) {
+        $errors[] = 'The canonical unit does not match the selected measurement type.';
+    }
+
+    $canonicalChanged = $resolvedUnit !== (string) $item['unit']
+        || $payload['measurement_dimension'] !== normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count');
+    if ($canonicalChanged && abs((float) $item['current_quantity']) > inventory_quantity_tolerance()) {
+        $errors[] = 'Canonical unit or measurement type cannot change while this item has stock. Reduce it to zero or use an audited conversion.';
     }
 
     if (!storage_exists_for_assignment($storageId)) {
@@ -404,6 +391,9 @@ function handle_items_edit_submit(array $params): void
                  category = :category,
                  storage_id = :storage_id,
                  unit = :unit,
+                 measurement_dimension = :measurement_dimension,
+                 usage_proof_policy = :usage_proof_policy,
+                 refill_proof_policy = :refill_proof_policy,
                  reorder_level = :reorder_level,
                  cost_per_unit = :cost_per_unit,
                  image_path = :image_path,
@@ -418,6 +408,9 @@ function handle_items_edit_submit(array $params): void
                 'category' => $payload['category'] !== '' ? $payload['category'] : null,
                 'storage_id' => $payload['storage_id'],
                 'unit' => $resolvedUnit,
+                'measurement_dimension' => $payload['measurement_dimension'],
+                'usage_proof_policy' => $payload['usage_proof_policy'],
+                'refill_proof_policy' => $payload['refill_proof_policy'],
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
                 'image_path' => $nextImagePath,

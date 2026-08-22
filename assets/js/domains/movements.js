@@ -9,6 +9,15 @@ export const initMovementForm = (root = document) => {
     const movementType = movementForm.querySelector('[data-movement-type]');
     const quantityInput = movementForm.querySelector('[data-quantity-input]');
     const quantityHint = movementForm.querySelector('[data-quantity-hint]');
+    const packageField = movementForm.querySelector('[data-package-field]');
+    const packagePreset = movementForm.querySelector('[data-package-preset]');
+    const usageReasonField = movementForm.querySelector('[data-usage-reason-field]');
+    const usageReason = movementForm.querySelector('[data-usage-reason]');
+    const customReasonField = movementForm.querySelector('[data-custom-reason-field]');
+    const customReason = movementForm.querySelector('[data-custom-reason]');
+    const proofField = movementForm.querySelector('[data-movement-proof-field]');
+    const proofInput = movementForm.querySelector('[data-movement-proof]');
+    const proofRequirement = movementForm.querySelector('[data-proof-requirement]');
     const feedback = movementForm.querySelector('[data-movement-feedback]');
     const summary = document.querySelector('[data-item-summary]');
 
@@ -47,7 +56,7 @@ export const initMovementForm = (root = document) => {
 
     let currentQuantity = parseNumber(summary.dataset.currentQuantity);
     let costPerUnit = parseNumber(summary.dataset.costPerUnit);
-    let currentUnit = summary.dataset.unit || 'pcs';
+    let currentUnit = movementForm.dataset.baseUnit || summary.dataset.unit || 'pcs';
     let locationBalances = {};
 
     try {
@@ -89,6 +98,12 @@ export const initMovementForm = (root = document) => {
       const type = movementType.value;
       const needsSource = type === 'usage' || type === 'transfer' || type === 'adjustment';
       const needsDestination = type === 'restock' || type === 'transfer';
+      const supportsPackage = type !== 'adjustment';
+      const showsReason = type === 'usage';
+      const showsProof = type === 'usage' || type === 'restock';
+      const proofRequired = type === 'usage'
+        ? movementForm.dataset.usageProofRequired === '1'
+        : type === 'restock' && movementForm.dataset.refillProofRequired === '1';
 
       if (sourceField) {
         sourceField.hidden = !needsSource;
@@ -106,6 +121,35 @@ export const initMovementForm = (root = document) => {
         destinationStorage.required = needsDestination;
       }
 
+      if (packageField) {
+        packageField.hidden = !supportsPackage;
+      }
+      if (packagePreset) {
+        packagePreset.disabled = !supportsPackage;
+        if (!supportsPackage) {
+          packagePreset.value = '';
+        }
+      }
+
+      if (usageReasonField) {
+        usageReasonField.hidden = !showsReason;
+      }
+      if (usageReason) {
+        usageReason.disabled = !showsReason;
+        usageReason.required = showsReason;
+      }
+
+      if (proofField) {
+        proofField.hidden = !showsProof;
+      }
+      if (proofInput) {
+        proofInput.disabled = !showsProof;
+        proofInput.required = showsProof && proofRequired;
+      }
+      if (proofRequirement) {
+        proofRequirement.textContent = proofRequired ? '· Required' : '· Optional';
+      }
+
       if (sourceLabel) {
         sourceLabel.textContent = type === 'adjustment' ? 'Adjust Location' : 'From Location';
       }
@@ -121,12 +165,38 @@ export const initMovementForm = (root = document) => {
       if (previewDestinationLabel) {
         previewDestinationLabel.textContent = type === 'restock' ? 'Restock Location After' : 'Destination After';
       }
+
+      syncCustomReason();
+    };
+
+    const selectedConversion = () => {
+      if (!packagePreset || packagePreset.disabled) {
+        return 1;
+      }
+
+      return Math.max(0, parseNumber(packagePreset.selectedOptions[0]?.dataset.conversion || '1')) || 1;
+    };
+
+    const syncCustomReason = () => {
+      const option = usageReason?.selectedOptions[0];
+      const needsCustom = !usageReason?.disabled && option?.dataset.requiresCustom === '1';
+      if (customReasonField) {
+        customReasonField.hidden = !needsCustom;
+      }
+      if (customReason) {
+        customReason.disabled = !needsCustom;
+        customReason.required = needsCustom;
+        if (!needsCustom) {
+          customReason.value = '';
+        }
+      }
     };
 
     const syncMovementState = () => {
       const type = movementType.value;
       const rawQuantity = parseNumber(quantityInput.value);
-      const absoluteQuantity = Math.abs(rawQuantity);
+      const conversion = type === 'adjustment' ? 1 : selectedConversion();
+      const absoluteQuantity = Math.abs(rawQuantity * conversion);
       const sourceId = sourceStorage ? sourceStorage.value : '';
       const destinationId = destinationStorage ? destinationStorage.value : '';
       const sourceCurrent = getLocationBalance(sourceId);
@@ -149,20 +219,20 @@ export const initMovementForm = (root = document) => {
         delta = absoluteQuantity;
         projectedBalance = currentQuantity + delta;
         destinationAfter = destinationId ? destinationCurrent + absoluteQuantity : null;
-        quantityHint.textContent = 'Restock adds stock to the selected location.';
+        quantityHint.textContent = `${formatQuantity(Math.abs(rawQuantity))} × ${formatQuantity(conversion)} = ${formatQuantity(absoluteQuantity)} ${currentUnit} added.`;
         invalid = !destinationId;
       } else if (type === 'transfer') {
         delta = 0;
         projectedBalance = currentQuantity;
         sourceAfter = sourceId ? sourceCurrent - absoluteQuantity : null;
         destinationAfter = destinationId ? destinationCurrent + absoluteQuantity : null;
-        quantityHint.textContent = 'Transfer moves stock between locations without changing the total on hand.';
+        quantityHint.textContent = `${formatQuantity(Math.abs(rawQuantity))} × ${formatQuantity(conversion)} = ${formatQuantity(absoluteQuantity)} ${currentUnit} transferred.`;
         invalid = !sourceId || !destinationId || sourceId === destinationId || sourceAfter === null || sourceAfter < 0;
       } else {
         delta = -absoluteQuantity;
         projectedBalance = currentQuantity + delta;
         sourceAfter = sourceId ? sourceCurrent - absoluteQuantity : null;
-        quantityHint.textContent = 'Usage subtracts stock from the selected location. Type 100 to use 100.';
+        quantityHint.textContent = `${formatQuantity(Math.abs(rawQuantity))} × ${formatQuantity(conversion)} = ${formatQuantity(absoluteQuantity)} ${currentUnit} used.`;
         invalid = !sourceId || sourceAfter === null || sourceAfter < 0;
       }
 
@@ -199,6 +269,11 @@ export const initMovementForm = (root = document) => {
     });
 
     quantityInput.addEventListener('input', syncMovementState);
+    packagePreset?.addEventListener('change', syncMovementState);
+    usageReason?.addEventListener('change', () => {
+      syncCustomReason();
+      syncMovementState();
+    });
     sourceStorage?.addEventListener('change', syncMovementState);
     destinationStorage?.addEventListener('change', syncMovementState);
 
@@ -236,6 +311,7 @@ export const initMovementForm = (root = document) => {
         currentQuantity = payload.item.current_quantity_raw;
         costPerUnit = payload.item.cost_per_unit_raw;
         currentUnit = payload.item.unit;
+        currentUnit = movementForm.dataset.baseUnit || currentUnit;
 
         summary.dataset.currentQuantity = String(currentQuantity);
         summary.dataset.costPerUnit = String(costPerUnit);
@@ -312,6 +388,22 @@ export const initMovementForm = (root = document) => {
         }
 
         quantityInput.value = '';
+
+        if (packagePreset) {
+          packagePreset.value = '';
+        }
+
+        if (usageReason) {
+          usageReason.selectedIndex = 0;
+        }
+
+        if (customReason) {
+          customReason.value = '';
+        }
+
+        if (proofInput) {
+          proofInput.value = '';
+        }
 
         if (sourceStorage) {
           sourceStorage.value = '';

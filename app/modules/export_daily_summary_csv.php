@@ -3,6 +3,20 @@ declare(strict_types=1);
 
 // Daily summary CSV export handler.
 
+function report_summary_csv_row(array $base, array $details = []): array
+{
+    return array_merge($base, [
+        (string) ($details['entered_measurement'] ?? ''),
+        (string) ($details['package'] ?? ''),
+        (string) ($details['base_quantity'] ?? ''),
+        (string) ($details['base_unit'] ?? ''),
+        (string) ($details['department'] ?? ''),
+        (string) ($details['manager'] ?? ''),
+        (string) ($details['approver'] ?? ''),
+        (string) ($details['proof_files'] ?? ''),
+    ]);
+}
+
 function handle_export_daily_summary(): void
 {
     app_ready_or_redirect();
@@ -97,6 +111,13 @@ function handle_export_daily_summary(): void
                 (string) ($row['usage_location'] ?: 'Unassigned'),
                 (string) ($row['references_list'] ?: ''),
                 item_image_url($row['image_path'] ?? null) ?? '',
+                (string) ($row['entered_measurements'] ?? ''),
+                (string) ($row['packages'] ?? ''),
+                format_quantity($row['used_quantity'] ?? 0),
+                (string) ($row['unit'] ?? 'pcs'),
+                (string) ($row['department_name'] ?? 'Unassigned'),
+                (string) ($row['manager_name'] ?? 'Unassigned'),
+                report_summary_proof_file_names_text($row['proof_files'] ?? null),
             ];
         }
 
@@ -114,6 +135,13 @@ function handle_export_daily_summary(): void
             'Location',
             'Reference',
             'Image URL',
+            'Entered Measurement',
+            'Package',
+            'Base Quantity',
+            'Base Unit',
+            'Department',
+            'Manager',
+            'Proof Files',
         ], $rows);
     }
 
@@ -125,7 +153,7 @@ function handle_export_daily_summary(): void
     $itemStatusLabel = report_summary_item_status_label((string) ($filters['item_status'] ?? 'all'));
     $rows = [];
 
-    $rows[] = [
+    $rows[] = report_summary_csv_row([
         'Overall',
         $dateFrom,
         $dateTo,
@@ -149,43 +177,50 @@ function handle_export_daily_summary(): void
         '',
         'Items touched: ' . number_format((int) $cards['item_count']) . '; People: ' . number_format((int) $cards['user_count']),
         '',
-    ];
+    ]);
 
     foreach ([
-        'Used Units' => 'used_units',
-        'Restocked Units' => 'restocked_units',
-        'Transferred Units' => 'transferred_units',
-        'Adjusted Units' => 'adjusted_units',
+        'Used' => 'used_totals',
+        'Restocked' => 'restocked_totals',
+        'Transferred' => 'transferred_totals',
+        'Adjusted' => 'adjusted_totals',
     ] as $label => $key) {
-        $rows[] = [
-            'Overall',
-            $dateFrom,
-            $dateTo,
-            '',
-            $storageLabel,
-            $movementLabel,
-            $itemStatusLabel,
-            $label,
-            '',
-            '',
-            '',
-            'Summary',
-            format_quantity($cards[$key] ?? 0),
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-        ];
+        $unitTotals = (array) ($cards[$key] ?? []);
+        if ($unitTotals === []) {
+            $unitTotals = [['unit' => '', 'quantity' => 0]];
+        }
+        foreach ($unitTotals as $total) {
+            $unit = (string) ($total['unit'] ?? '');
+            $rows[] = report_summary_csv_row([
+                'Overall',
+                $dateFrom,
+                $dateTo,
+                '',
+                $storageLabel,
+                $movementLabel,
+                $itemStatusLabel,
+                $label . ($unit !== '' ? ' (' . $unit . ')' : ''),
+                '',
+                $unit,
+                '',
+                'Summary',
+                format_quantity($total['quantity'] ?? 0),
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+            ]);
+        }
     }
 
     foreach ($summary['usage_by_item'] as $row) {
-        $rows[] = [
+        $rows[] = report_summary_csv_row([
             'Usage By Item',
             $dateFrom,
             $dateTo,
@@ -209,7 +244,16 @@ function handle_export_daily_summary(): void
             (string) ($row['last_activity_at'] ?: ''),
             '',
             item_image_url($row['image_path'] ?? null) ?? '',
-        ];
+        ], [
+            'entered_measurement' => $row['entered_measurements'] ?? '',
+            'package' => $row['packages'] ?? '',
+            'base_quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'base_unit' => $row['unit'] ?? 'pcs',
+            'department' => $row['departments'] ?? 'Unassigned',
+            'manager' => $row['managers'] ?? 'Unassigned',
+            'approver' => $row['approvers'] ?? '',
+            'proof_files' => report_summary_proof_file_names_text($row['proof_files'] ?? null),
+        ]);
     }
 
     foreach ($summary['usage_by_day'] as $row) {
@@ -219,7 +263,7 @@ function handle_export_daily_summary(): void
         );
         $movementNotes = trim((string) ($row['notes_list'] ?? ''));
 
-        $rows[] = [
+        $rows[] = report_summary_csv_row([
             'Usage By Day',
             $dateFrom,
             $dateTo,
@@ -243,7 +287,16 @@ function handle_export_daily_summary(): void
             (string) ($row['last_activity_at'] ?: ''),
             trim(($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '') . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')),
             item_image_url($row['image_path'] ?? null) ?? '',
-        ];
+        ], [
+            'entered_measurement' => $row['entered_measurements'] ?? '',
+            'package' => $row['packages'] ?? '',
+            'base_quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'base_unit' => $row['unit'] ?? 'pcs',
+            'department' => $row['department_name'] ?? 'Unassigned',
+            'manager' => $row['manager_name'] ?? 'Unassigned',
+            'approver' => $row['approver_name'] ?? '',
+            'proof_files' => report_summary_proof_file_names_text($row['proof_files'] ?? null),
+        ]);
     }
 
     foreach ($summary['operational_usage'] as $row) {
@@ -271,7 +324,7 @@ function handle_export_daily_summary(): void
             $operationalNotes[] = 'Variance: ' . implode(' / ', $varianceNotes);
         }
 
-        $rows[] = [
+        $rows[] = report_summary_csv_row([
             'Operational Usage',
             $dateFrom,
             $dateTo,
@@ -295,11 +348,15 @@ function handle_export_daily_summary(): void
             (string) ($row['activity_at'] ?? ''),
             implode('; ', $operationalNotes),
             '',
-        ];
+        ], [
+            'department' => '',
+            'manager' => '',
+            'approver' => $row['approver_name'] ?? '',
+        ]);
     }
 
     foreach ($summary['user_breakdown'] as $row) {
-        $rows[] = [
+        $rows[] = report_summary_csv_row([
             'Who Did What',
             $dateFrom,
             $dateTo,
@@ -322,12 +379,15 @@ function handle_export_daily_summary(): void
             '',
             (string) ($row['last_activity_at'] ?: ''),
             'Items: ' . number_format((int) $row['item_count'])
-                . '; Used: ' . format_quantity($row['used_units'] ?? 0)
-                . '; Restocked: ' . format_quantity($row['restocked_units'] ?? 0)
-                . '; Transferred: ' . format_quantity($row['transferred_units'] ?? 0)
-                . '; Adjusted: ' . format_quantity($row['adjusted_units'] ?? 0),
+                . '; Used: ' . report_summary_unit_totals_text($row['usage_totals'] ?? [])
+                . '; Restocked: ' . report_summary_unit_totals_text($row['restock_totals'] ?? [])
+                . '; Transferred: ' . report_summary_unit_totals_text($row['transfer_totals'] ?? [])
+                . '; Adjusted: ' . report_summary_unit_totals_text($row['adjustment_totals'] ?? []),
             '',
-        ];
+        ], [
+            'department' => $row['department_name'] ?? 'Unassigned',
+            'manager' => $row['manager_name'] ?? 'Unassigned',
+        ]);
     }
 
     foreach ($summary['timeline'] as $movement) {
@@ -335,7 +395,7 @@ function handle_export_daily_summary(): void
             ? $movement['movement_quantity']
             : abs((float) ($movement['quantity_delta'] ?? 0));
 
-        $rows[] = [
+        $rows[] = report_summary_csv_row([
             'Timeline',
             $dateFrom,
             $dateTo,
@@ -359,7 +419,17 @@ function handle_export_daily_summary(): void
             (string) $movement['used_at'],
             (string) ($movement['notes'] ?: ''),
             item_image_url($movement['image_path'] ?? null) ?? '',
-        ];
+        ], [
+            'entered_measurement' => $movement['input_quantity'] !== null && $movement['input_quantity'] !== ''
+                ? format_quantity($movement['input_quantity']) . ' x ' . (string) ($movement['package_label'] ?: $movement['base_unit'])
+                : '',
+            'package' => $movement['package_label'] ?? '',
+            'base_quantity' => format_quantity($movement['base_quantity'] ?? $movementQuantity),
+            'base_unit' => $movement['base_unit'] ?? $movement['unit'],
+            'department' => $movement['department_name'] ?? 'Unassigned',
+            'manager' => $movement['manager_name'] ?? 'Unassigned',
+            'proof_files' => report_summary_proof_file_names_text($movement['proof_files'] ?? null),
+        ]);
     }
 
     export_csv('daily-summary-' . report_summary_period_filename($filters) . '-' . date('His') . '.csv', [
@@ -386,5 +456,13 @@ function handle_export_daily_summary(): void
         'Used At',
         'Notes',
         'Image URL',
+        'Entered Measurement',
+        'Package',
+        'Base Quantity',
+        'Base Unit',
+        'Department',
+        'Manager',
+        'Approver',
+        'Proof Files',
     ], $rows);
 }

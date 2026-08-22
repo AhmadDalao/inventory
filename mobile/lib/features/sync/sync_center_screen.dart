@@ -44,6 +44,17 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
               proofPath: payload['proof_path'] as String?,
               clientOperationId: draft.id,
             );
+      } else if (draft.type == 'restock') {
+        await ref
+            .read(inventoryRepositoryProvider)
+            .submitRestock(
+              storageId: (payload['storage_id'] as num).toInt(),
+              lines: lines,
+              reference: payload['reference'] as String?,
+              notes: payload['notes'] as String?,
+              proofPath: payload['proof_path'] as String?,
+              clientOperationId: draft.id,
+            );
       } else if (draft.type == 'handover') {
         await ref
             .read(inventoryRepositoryProvider)
@@ -92,9 +103,12 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
       final item = items.firstWhere((candidate) => candidate.id == itemId);
       return CartLine(
         item: item,
-        quantity: (line['quantity'] as num? ?? 0).toDouble(),
-        packageLabel: line['package_label'] as String? ?? 'Pieces',
+        quantity:
+            (line['input_quantity'] as num? ?? line['quantity'] as num? ?? 0)
+                .toDouble(),
+        packageLabel: line['package_label'] as String? ?? item.canonicalUnit,
         packageMultiplier: (line['package_multiplier'] as num? ?? 1).toDouble(),
+        packagePresetId: (line['package_preset_id'] as num?)?.toInt(),
         expectedBalance:
             (line['expected_balance'] as num?)?.toDouble() ?? item.quantity,
         reasonCode: line['reason'] as String?,

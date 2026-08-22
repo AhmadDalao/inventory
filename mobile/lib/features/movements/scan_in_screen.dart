@@ -41,128 +41,168 @@ class ScanInScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = ref.watch(bootstrapProvider).valueOrNull;
     final tasks = ref.watch(handoversProvider);
     return KonaPage(
       eyebrow: 'Inbound accountability',
       title: 'Scan in',
       description:
           'Open an arriving handover, then confirm every line exactly as received.',
-      trailing: IconButton.filledTonal(
-        onPressed: () => _scanReference(context, ref),
-        icon: const Icon(Icons.qr_code_scanner),
-      ),
+      trailing: access?.canScanIn == true
+          ? IconButton.filledTonal(
+              onPressed: () => _scanReference(context, ref),
+              icon: const Icon(Icons.qr_code_scanner),
+            )
+          : null,
       children: [
-        tasks.when(
-          loading: () => const KonaSectionCard(
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          error: (error, _) =>
-              KonaSectionCard(child: Text(apiErrorMessage(error))),
-          data: (items) {
-            final available = items
-                .where(
-                  (task) =>
-                      task.can('confirm_receipt') || task.can('review_receipt'),
-                )
-                .toList();
-            return KonaSectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SectionHeading(
-                    eyebrow: 'Waiting',
-                    title: 'Choose a handover',
+        if (access?.canRestock == true)
+          KonaSectionCard(
+            color: const Color(0xFFFFF4CF),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: KonaColors.gold,
+                  foregroundColor: KonaColors.ink,
+                  child: Icon(Icons.add_business_outlined),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Refill an assigned storage',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        'Scan packages or add existing items to a review cart before posting stock.',
+                        style: TextStyle(color: KonaColors.muted),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  if (available.isEmpty)
-                    const EmptyState(
-                      icon: Icons.move_to_inbox_outlined,
-                      title: 'Nothing arriving',
-                      message: 'No assigned handovers are waiting for receipt.',
-                    )
-                  else
-                    ...available.map(
-                      (task) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: InkWell(
-                          onTap: () => _openReceipt(context, task),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: KonaColors.canvas,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: KonaColors.line),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: task.can('review_receipt')
-                                      ? const Color(0xFFFFE5D8)
-                                      : KonaColors.soft,
-                                  foregroundColor: KonaColors.ink,
-                                  child: Icon(
-                                    task.purpose == 'storage_transfer'
-                                        ? Icons.warehouse_outlined
-                                        : Icons.inventory_2_outlined,
+                ),
+                FilledButton(
+                  onPressed: () => context.push('/refill-cart'),
+                  child: const Text('Open'),
+                ),
+              ],
+            ),
+          ),
+        if (access?.canScanIn == true)
+          tasks.when(
+            loading: () => const KonaSectionCard(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) =>
+                KonaSectionCard(child: Text(apiErrorMessage(error))),
+            data: (items) {
+              final available = items
+                  .where(
+                    (task) =>
+                        task.can('confirm_receipt') ||
+                        task.can('review_receipt'),
+                  )
+                  .toList();
+              return KonaSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SectionHeading(
+                      eyebrow: 'Waiting',
+                      title: 'Choose a handover',
+                    ),
+                    const SizedBox(height: 12),
+                    if (available.isEmpty)
+                      const EmptyState(
+                        icon: Icons.move_to_inbox_outlined,
+                        title: 'Nothing arriving',
+                        message:
+                            'No assigned handovers are waiting for receipt.',
+                      )
+                    else
+                      ...available.map(
+                        (task) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: InkWell(
+                            onTap: () => _openReceipt(context, task),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: KonaColors.canvas,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: KonaColors.line),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: task.can('review_receipt')
+                                        ? const Color(0xFFFFE5D8)
+                                        : KonaColors.soft,
+                                    foregroundColor: KonaColors.ink,
+                                    child: Icon(
+                                      task.purpose == 'storage_transfer'
+                                          ? Icons.warehouse_outlined
+                                          : Icons.inventory_2_outlined,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        task.reference,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          task.reference,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        '${task.source ?? 'Source'} · ${_number(task.quantity)} units · ${task.itemCount} lines',
-                                        style: const TextStyle(
-                                          color: KonaColors.muted,
-                                          fontSize: 12,
+                                        Text(
+                                          '${task.source ?? 'Source'} · ${_number(task.quantity)} units · ${task.itemCount} lines',
+                                          style: const TextStyle(
+                                            color: KonaColors.muted,
+                                            fontSize: 12,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                StatusPill(
-                                  label: task.can('review_receipt')
-                                      ? 'Review'
-                                      : 'Receive',
-                                  tone: StatusTone.warning,
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.chevron_right),
-                              ],
+                                  StatusPill(
+                                    label: task.can('review_receipt')
+                                        ? 'Review'
+                                        : 'Receive',
+                                    tone: StatusTone.warning,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.chevron_right),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-        const KonaSectionCard(
-          color: Color(0xFFFFF4CF),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.shield_outlined, color: KonaColors.goldDark),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Exact, short, and excess receipts are valid reports. Differences are reviewed by the issuer before stock changes.',
+                  ],
                 ),
-              ),
-            ],
+              );
+            },
           ),
-        ),
+        if (access?.canScanIn == true)
+          const KonaSectionCard(
+            color: Color(0xFFFFF4CF),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.shield_outlined, color: KonaColors.goldDark),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Exact, short, and excess receipts are valid reports. Differences are reviewed by the issuer before stock changes.',
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

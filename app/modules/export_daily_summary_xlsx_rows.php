@@ -39,6 +39,14 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
         'reference' => '',
         'used_at' => '',
         'notes' => '',
+        'entered_measurement' => '',
+        'package' => '',
+        'base_quantity' => '',
+        'base_unit' => '',
+        'department' => '',
+        'manager' => '',
+        'approver' => '',
+        'proof_files' => '',
     ];
 
     $rows[] = array_merge($base, [
@@ -50,17 +58,27 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
     ]);
 
     foreach ([
-        'Used Units' => 'used_units',
-        'Restocked Units' => 'restocked_units',
-        'Transferred Units' => 'transferred_units',
-        'Adjusted Units' => 'adjusted_units',
+        'Used' => 'used_totals',
+        'Restocked' => 'restocked_totals',
+        'Transferred' => 'transferred_totals',
+        'Adjusted' => 'adjusted_totals',
     ] as $label => $key) {
-        $rows[] = array_merge($base, [
-            'section' => 'Overall',
-            'item' => $label,
-            'user' => 'Summary',
-            'quantity' => format_quantity($cards[$key] ?? 0),
-        ]);
+        $unitTotals = (array) ($cards[$key] ?? []);
+        if ($unitTotals === []) {
+            $unitTotals = [['unit' => '', 'quantity' => 0]];
+        }
+        foreach ($unitTotals as $total) {
+            $unit = trim((string) ($total['unit'] ?? ''));
+            $rows[] = array_merge($base, [
+                'section' => 'Overall',
+                'item' => $label . ($unit !== '' ? ' (' . $unit . ')' : ''),
+                'unit' => $unit,
+                'user' => 'Summary',
+                'quantity' => format_quantity($total['quantity'] ?? 0),
+                'base_quantity' => format_quantity($total['quantity'] ?? 0),
+                'base_unit' => $unit,
+            ]);
+        }
     }
 
     foreach ($summary['usage_by_item'] as $row) {
@@ -88,6 +106,14 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'reference' => (string) ($row['references_list'] ?: ''),
             'used_at' => (string) ($row['last_activity_at'] ?: ''),
             'notes' => $usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '',
+            'entered_measurement' => (string) ($row['entered_measurements'] ?? ''),
+            'package' => (string) ($row['packages'] ?? ''),
+            'base_quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'base_unit' => (string) ($row['unit'] ?? 'pcs'),
+            'department' => (string) ($row['departments'] ?? 'Unassigned'),
+            'manager' => (string) ($row['managers'] ?? 'Unassigned'),
+            'approver' => (string) ($row['approvers'] ?? ''),
+            'proof_files' => report_summary_proof_file_names_text($row['proof_files'] ?? null),
         ]);
     }
 
@@ -122,6 +148,14 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
                 . ($usageReasonText !== '' ? 'Usage: ' . $usageReasonText : '')
                 . ($movementNotes !== '' ? ($usageReasonText !== '' ? '; ' : '') . $movementNotes : '')
             ),
+            'entered_measurement' => (string) ($row['entered_measurements'] ?? ''),
+            'package' => (string) ($row['packages'] ?? ''),
+            'base_quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'base_unit' => (string) ($row['unit'] ?? 'pcs'),
+            'department' => (string) ($row['department_name'] ?? 'Unassigned'),
+            'manager' => (string) ($row['manager_name'] ?? 'Unassigned'),
+            'approver' => (string) ($row['approver_name'] ?? ''),
+            'proof_files' => report_summary_proof_file_names_text($row['proof_files'] ?? null),
         ]);
     }
 
@@ -167,6 +201,7 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'reference' => (string) ($row['handover_number'] ?? ''),
             'used_at' => (string) ($row['activity_at'] ?? ''),
             'notes' => implode('; ', $operationalNotes),
+            'approver' => (string) ($row['approver_name'] ?? ''),
         ]);
     }
 
@@ -178,10 +213,12 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'movement_count' => (string) $row['movement_count'],
             'used_at' => (string) ($row['last_activity_at'] ?: ''),
             'notes' => 'Items: ' . number_format((int) $row['item_count'])
-                . '; Used: ' . format_quantity($row['used_units'] ?? 0)
-                . '; Restocked: ' . format_quantity($row['restocked_units'] ?? 0)
-                . '; Transferred: ' . format_quantity($row['transferred_units'] ?? 0)
-                . '; Adjusted: ' . format_quantity($row['adjusted_units'] ?? 0),
+                . '; Used: ' . report_summary_unit_totals_text($row['usage_totals'] ?? [])
+                . '; Restocked: ' . report_summary_unit_totals_text($row['restock_totals'] ?? [])
+                . '; Transferred: ' . report_summary_unit_totals_text($row['transfer_totals'] ?? [])
+                . '; Adjusted: ' . report_summary_unit_totals_text($row['adjustment_totals'] ?? []),
+            'department' => (string) ($row['department_name'] ?? 'Unassigned'),
+            'manager' => (string) ($row['manager_name'] ?? 'Unassigned'),
         ]);
     }
 
@@ -214,6 +251,15 @@ function daily_summary_xlsx_rows(array $summary, array $filters): array
             'reference' => (string) ($movement['reference_code'] ?: ''),
             'used_at' => (string) $movement['used_at'],
             'notes' => (string) ($movement['notes'] ?: ''),
+            'entered_measurement' => $movement['input_quantity'] !== null && $movement['input_quantity'] !== ''
+                ? format_quantity($movement['input_quantity']) . ' x ' . (string) ($movement['package_label'] ?: $movement['base_unit'])
+                : '',
+            'package' => (string) ($movement['package_label'] ?? ''),
+            'base_quantity' => format_quantity($movement['base_quantity'] ?? $movementQuantity),
+            'base_unit' => (string) ($movement['base_unit'] ?? $movement['unit']),
+            'department' => (string) ($movement['department_name'] ?? 'Unassigned'),
+            'manager' => (string) ($movement['manager_name'] ?? 'Unassigned'),
+            'proof_files' => report_summary_proof_file_names_text($movement['proof_files'] ?? null),
         ]);
     }
 
@@ -245,6 +291,13 @@ function daily_usage_xlsx_rows(array $summary): array
             'approver' => (string) ($row['approver_name'] ?: ''),
             'location' => (string) ($row['usage_location'] ?: 'Unassigned'),
             'reference' => (string) ($row['references_list'] ?: ''),
+            'entered_measurement' => (string) ($row['entered_measurements'] ?? ''),
+            'package' => (string) ($row['packages'] ?? ''),
+            'base_quantity' => format_quantity($row['used_quantity'] ?? 0),
+            'base_unit' => (string) ($row['unit'] ?? 'pcs'),
+            'department' => (string) ($row['department_name'] ?? 'Unassigned'),
+            'manager' => (string) ($row['manager_name'] ?? 'Unassigned'),
+            'proof_files' => report_summary_proof_file_names_text($row['proof_files'] ?? null),
         ];
     }
 

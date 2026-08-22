@@ -4,7 +4,7 @@ declare(strict_types=1);
 function format_quantity($value): string
 {
     $number = (float) ($value ?? 0);
-    $formatted = number_format($number, 2, '.', '');
+    $formatted = number_format($number, defined('INVENTORY_QUANTITY_PRECISION') ? INVENTORY_QUANTITY_PRECISION : 6, '.', '');
 
     return rtrim(rtrim($formatted, '0'), '.') ?: '0';
 }

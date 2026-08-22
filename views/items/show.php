@@ -9,6 +9,16 @@ $itemScanCode = item_scan_code($item);
 $itemHasBarcode = normalize_item_barcode($item['barcode'] ?? '') !== '';
 $itemScanSourceLabel = $itemHasBarcode ? 'Item barcode' : 'SKU label';
 $packagePresets = $packagePresets ?? [];
+$activePackagePresets = array_values(array_filter(
+    $packagePresets,
+    static fn (array $preset): bool => (int) ($preset['is_active'] ?? 1) === 1
+));
+$usageReasons = $usageReasons ?? mobile_usage_reason_catalog(true);
+$departmentOptions = $departmentOptions ?? [];
+$canonicalUnit = item_canonical_unit($item);
+$measurementDimension = normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count');
+$usageProofRequired = inventory_operation_requires_proof([$item], 'usage');
+$refillProofRequired = inventory_operation_requires_proof([$item], 'refill');
 $stockPositions = $stockPositions ?? item_stock_positions($balances);
 $isStorageScoped = $isStorageScoped ?? false;
 ?>
@@ -150,13 +160,16 @@ $isStorageScoped = $isStorageScoped ?? false;
             <?php if ($packagePresets !== []): ?>
                 <div class="package-preset-grid">
                     <?php foreach ($packagePresets as $preset): ?>
-                        <article class="package-preset-card <?= (int) $preset['is_default'] === 1 ? 'is-default' : '' ?>">
+                        <article class="package-preset-card <?= (int) $preset['is_default'] === 1 ? 'is-default' : '' ?> <?= (int) $preset['is_active'] !== 1 ? 'is-disabled' : '' ?>">
                             <div>
                                 <strong><?= e($preset['label']) ?></strong>
                                 <span><?= e($preset['pieces_per_unit']) ?> <?= e($item['unit']) ?> each</span>
+                                <?php if ($preset['scan_code'] !== ''): ?><small>Scan: <?= e($preset['scan_code']) ?></small><?php endif; ?>
                             </div>
                             <?php if ((int) $preset['is_default'] === 1): ?>
                                 <em>Default</em>
+                            <?php elseif ((int) $preset['is_active'] !== 1): ?>
+                                <em>Disabled</em>
                             <?php endif; ?>
                             <?php if (Auth::hasPermission('items.edit')): ?>
                                 <div class="package-preset-actions">
@@ -165,15 +178,30 @@ $isStorageScoped = $isStorageScoped ?? false;
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="preset_id" value="<?= e((string) $preset['id']) ?>">
                                             <input type="hidden" name="label" value="<?= e($preset['label']) ?>">
+                                            <input type="hidden" name="scan_code" value="<?= e($preset['scan_code']) ?>">
                                             <input type="hidden" name="pieces_per_unit" value="<?= e((string) $preset['pieces_per_unit_raw']) ?>">
                                             <input type="hidden" name="is_default" value="1">
+                                            <input type="hidden" name="is_active" value="1">
                                             <button class="text-link" type="submit">Make default</button>
                                         </form>
                                     <?php endif; ?>
-                                    <form method="post" action="<?= e(url('/items/' . $item['id'] . '/package-presets/' . $preset['id'] . '/delete')) ?>">
-                                        <?= csrf_field() ?>
-                                        <button class="text-link danger-link" type="submit" data-confirm="Remove this package preset?">Remove</button>
-                                    </form>
+                                    <?php if ((int) $preset['is_active'] === 1): ?>
+                                        <form method="post" action="<?= e(url('/items/' . $item['id'] . '/package-presets/' . $preset['id'] . '/delete')) ?>">
+                                            <?= csrf_field() ?>
+                                            <button class="text-link danger-link" type="submit" data-confirm="Disable this package preset? Existing movement history will be preserved.">Disable</button>
+                                        </form>
+                                    <?php endif; ?>
+                                    <?php if ((int) $preset['is_active'] !== 1): ?>
+                                        <form method="post" action="<?= e(url('/items/' . $item['id'] . '/package-presets')) ?>">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="preset_id" value="<?= e((string) $preset['id']) ?>">
+                                            <input type="hidden" name="label" value="<?= e($preset['label']) ?>">
+                                            <input type="hidden" name="scan_code" value="<?= e($preset['scan_code']) ?>">
+                                            <input type="hidden" name="pieces_per_unit" value="<?= e((string) $preset['pieces_per_unit_raw']) ?>">
+                                            <input type="hidden" name="is_active" value="1">
+                                            <button class="text-link" type="submit">Enable</button>
+                                        </form>
+                                    <?php endif; ?>
                                 </div>
                             <?php endif; ?>
                         </article>
@@ -194,9 +222,15 @@ $isStorageScoped = $isStorageScoped ?? false;
                         </label>
                         <label class="field">
                             <span>Contains</span>
-                            <input type="number" name="pieces_per_unit" step="0.01" min="0.01" placeholder="100" required>
+                            <input type="number" name="pieces_per_unit" step="0.000001" min="0.000001" placeholder="100" required>
                             <small><?= e($item['unit']) ?> per package.</small>
                         </label>
+                        <label class="field">
+                            <span>Package barcode (optional)</span>
+                            <input type="text" name="scan_code" maxlength="120" placeholder="Scan or type package barcode">
+                            <small>Scanning this code selects this exact conversion.</small>
+                        </label>
+                        <input type="hidden" name="is_active" value="1">
                         <label class="checkbox-card package-default-toggle">
                             <input type="checkbox" name="is_default" value="1">
                             <span>Use as default package in Scan Center</span>
@@ -266,7 +300,17 @@ $isStorageScoped = $isStorageScoped ?? false;
         <?php elseif ($movementTypeOptions === []): ?>
             <p class="empty-state">You can view history here, but you do not have permission to create new movement logs.</p>
         <?php else: ?>
-            <form class="stack-form movement-form" method="post" action="<?= e(url('/items/' . $item['id'] . '/movements')) ?>" data-movement-form>
+            <form
+                class="stack-form movement-form"
+                method="post"
+                enctype="multipart/form-data"
+                action="<?= e(url('/items/' . $item['id'] . '/movements')) ?>"
+                data-movement-form
+                data-base-unit="<?= e($canonicalUnit) ?>"
+                data-measurement-dimension="<?= e($measurementDimension) ?>"
+                data-usage-proof-required="<?= $usageProofRequired ? '1' : '0' ?>"
+                data-refill-proof-required="<?= $refillProofRequired ? '1' : '0' ?>"
+            >
                 <?= csrf_field() ?>
                 <div class="movement-feedback" data-movement-feedback hidden></div>
 
@@ -307,9 +351,22 @@ $isStorageScoped = $isStorageScoped ?? false;
 
                 <div class="movement-form-grid movement-form-grid-details">
                     <label class="field">
-                        <span>Quantity</span>
-                        <input type="number" step="0.01" name="quantity" placeholder="Type 100, not -100" data-quantity-input required>
-                        <small data-quantity-hint>For usage, just type a positive number. The app subtracts it for you.</small>
+                        <span>Entered Quantity</span>
+                        <input type="number" step="any" name="input_quantity" placeholder="Type 2 boxes or 750 mL" data-quantity-input required>
+                        <small data-quantity-hint>Enter a positive amount. The selected package converts it to <?= e($canonicalUnit) ?>.</small>
+                    </label>
+
+                    <label class="field" data-package-field>
+                        <span>Unit / Package</span>
+                        <select name="package_preset_id" data-package-preset>
+                            <option value="" data-conversion="1">Base unit · <?= e($canonicalUnit) ?></option>
+                            <?php foreach ($activePackagePresets as $preset): ?>
+                                <option value="<?= e((string) $preset['id']) ?>" data-conversion="<?= e((string) $preset['pieces_per_unit']) ?>">
+                                    <?= e((string) $preset['label']) ?> · ×<?= format_quantity((float) $preset['pieces_per_unit']) ?> <?= e($canonicalUnit) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small>Only admin-defined conversions are available.</small>
                     </label>
 
                     <label class="field">
@@ -322,6 +379,42 @@ $isStorageScoped = $isStorageScoped ?? false;
                         <input type="text" name="reference_code" placeholder="Invoice, order, note">
                     </label>
                 </div>
+
+                <div class="movement-form-grid" data-usage-reason-field hidden>
+                    <label class="field">
+                        <span>Usage Reason</span>
+                        <select name="usage_reason" data-usage-reason>
+                            <?php foreach ($usageReasons as $reason): ?>
+                                <option value="<?= e((string) $reason['code']) ?>" data-requires-custom="<?= !empty($reason['requires_custom_text']) ? '1' : '0' ?>">
+                                    <?= e((string) $reason['label']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label class="field" data-custom-reason-field hidden>
+                        <span>Describe Other</span>
+                        <input type="text" name="custom_reason" maxlength="160" placeholder="What was it used for?" data-custom-reason>
+                    </label>
+                </div>
+
+                <?php if ($departmentOptions !== []): ?>
+                    <label class="field">
+                        <span>Department Attribution</span>
+                        <select name="department_id">
+                            <option value="">Employee's assigned department</option>
+                            <?php foreach ($departmentOptions as $department): ?>
+                                <option value="<?= e((string) $department['id']) ?>"><?= e((string) $department['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small>Override only when this operation belongs to a different department.</small>
+                    </label>
+                <?php endif; ?>
+
+                <label class="field" data-movement-proof-field hidden>
+                    <span>Proof Image <strong data-proof-requirement></strong></span>
+                    <input type="file" name="proof_image" accept="image/jpeg,image/png,image/webp" capture="environment" data-movement-proof>
+                    <small>Attach one protected photo for this stock operation.</small>
+                </label>
 
                 <label class="field">
                     <span>Notes</span>

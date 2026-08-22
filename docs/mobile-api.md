@@ -1,6 +1,6 @@
 # Inventory KONA Mobile API
 
-Updated: 2026-08-21
+Updated: 2026-08-22
 
 The mobile API is the controlled bridge between the Flutter application and the existing Inventory KONA stock engine. The app never writes MySQL directly and never calculates final stock locally.
 
@@ -101,6 +101,37 @@ The bootstrap payload returns `settings.usage_reasons`. The app may apply one ca
 
 If proof is mandatory in Mobile Access, the batch is rejected before any stock changes unless a proof image is attached. Direct restock requires both the owner setting and per-employee enablement.
 
+### Measured Inventory And Refill
+
+Every item owns one canonical stock unit and one compatible measurement dimension. Examples are `roll` for toilet paper, `mL` for liquid soap, `g` for powder, and `mm` or `m` for pipe/material. Balances and negative-stock checks use only that canonical unit.
+
+Admins define reusable package presets on the item. A preset includes a label, conversion multiplier, optional scan code, and active state. Employees may select a preset but cannot submit their own multiplier. For example, `2 x 1 L bottle` is validated by PHP and stored as `2,000 mL`; reports retain both representations.
+
+New movement lines may send:
+
+```json
+{
+  "item_id": 15,
+  "storage_id": 10,
+  "input_quantity": 2,
+  "package_preset_id": 7,
+  "expected_balance": 7250,
+  "reason": "school"
+}
+```
+
+Legacy clients may continue sending `quantity`; it is interpreted as canonical-unit quantity. Mutation responses return the server-approved input quantity, package, conversion, canonical quantity, authoritative balance, employee department snapshot, and realtime cursor.
+
+Flutter provides separate Usage and Refill review carts. Refill remains restricted by assigned storage, `movements.restock`, mobile restock capability, the employee direct-restock grant, and the global direct-restock switch. Repeated scans increment only the same item/package combination.
+
+Usage and refill proof are controlled independently by global defaults plus each item's `Inherit`, `Required`, or `Optional` policy. If one cart line requires proof, the entire batch is rejected atomically until a protected image is attached. The resulting file is linked to every movement in that submission.
+
+### Department Attribution
+
+Users may be assigned to a managed department and a direct manager. Accepted movements snapshot department and manager names/IDs at submission time, so historical reports do not change when an employee later transfers teams. The optional `departments.require_assignment` setting blocks new operational movements for employees without a department; it is disabled by default and existing users begin under `Unassigned`.
+
+Mobile bootstrap and sync expose only assigned storages. Co-owner/member changes from the storage detail page alter the access fingerprint and take effect on the next visible sync. The API repeats the storage-scope check for every lookup and mutation; hiding a storage in Flutter is not the security boundary.
+
 ### Temporary Handover
 
 The recipient confirms exact, short, or excess quantities. Exact receipt becomes active immediately; a variance waits for issuer confirmation. The recipient enters returned quantities first, the app calculates used quantities, and the issuer approves final stock posting.
@@ -135,6 +166,7 @@ Permission, storage-assignment, device, account, global API, and minimum-version
 php -l tests/mobile_api_contract.php
 php tests/mobile_api_contract.php
 php tests/mobile_usage_reasons.php
+php tests/measured_inventory.php
 php tests/ocr_parser_contract.php
 php tests/module_boundaries.php
 php tests/full_regression.php

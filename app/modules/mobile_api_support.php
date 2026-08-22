@@ -440,9 +440,9 @@ function mobile_api_assert_expected_balance(int $itemId, int $storageId, mixed $
         'SELECT quantity FROM item_storage_balances WHERE item_id = :item_id AND storage_id = :storage_id FOR UPDATE',
         ['item_id' => $itemId, 'storage_id' => $storageId]
     );
-    $currentBalance = round((float) ($row['quantity'] ?? 0), 2);
-    $expected = round((float) $expectedBalance, 2);
-    if (abs($currentBalance - $expected) > 0.005) {
+    $currentBalance = inventory_quantity((float) ($row['quantity'] ?? 0));
+    $expected = inventory_quantity((float) $expectedBalance);
+    if (abs($currentBalance - $expected) > inventory_quantity_tolerance()) {
         throw new MobileApiException(
             'balance_changed',
             'Stock changed since this item was reviewed. Refresh and confirm the latest quantity.',

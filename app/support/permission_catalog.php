@@ -61,7 +61,15 @@ function permission_catalog(): array
                 'movements.restock' => 'Record manual restocks only.',
                 'movements.transfer' => 'Transfer stock between storages only.',
                 'movements.adjustment' => 'Post manual stock adjustments only.',
+                'movements.override_department' => 'Correct the department attributed to a movement before posting it.',
                 'movements.export' => 'Export movement history.',
+            ],
+        ],
+        'departments' => [
+            'label' => 'Departments',
+            'permissions' => [
+                'departments.view' => 'Open the department directory and department reporting filters.',
+                'departments.manage' => 'Create, edit, archive, recover, and assign departments.',
             ],
         ],
         'requests' => [

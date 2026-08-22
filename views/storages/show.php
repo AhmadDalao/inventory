@@ -147,6 +147,16 @@ $ownerNames = array_values(array_unique(array_filter(array_map(
         </div>
 
         <div class="storage-action-list">
+            <?php if (Auth::isOwner() || Auth::hasPermission('storages.assign_users')): ?>
+                <a class="storage-action-card" href="<?= e(url('/storages/' . $storage['id'] . '/edit#storage-access')) ?>">
+                    <span class="storage-action-icon"><?= ui_icon('users') ?></span>
+                    <span class="storage-action-copy">
+                        <strong>Manage Owners &amp; Staff</strong>
+                        <span>Search and update the people allowed to view and use this location.</span>
+                    </span>
+                    <span class="storage-action-cta">Manage</span>
+                </a>
+            <?php endif; ?>
             <?php if (Auth::hasPermission('items.view')): ?>
                 <a class="storage-action-card" href="<?= e(url('/items?storage_id=' . $storage['id'])) ?>">
                     <span class="storage-action-icon"><?= ui_icon('items') ?></span>

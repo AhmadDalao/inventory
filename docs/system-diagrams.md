@@ -1,6 +1,6 @@
 # Inventory KONA System Diagrams
 
-Updated: 2026-08-17
+Updated: 2026-08-22
 
 These diagrams describe the current production architecture and business cycles. They are maintained as Mermaid so GitHub and compatible documentation tools can render them without storing another stale image.
 
@@ -173,6 +173,31 @@ flowchart LR
 ```
 
 Flutter and browser caches never become accounting sources. Reports and exports read the committed movement/balance data even when a client has not completed its next visible-page poll.
+
+## Data Flow Diagram: Measured Inventory
+
+```mermaid
+flowchart LR
+    ADMIN["Admin defines item dimension, canonical unit and packages"]
+    EMPLOYEE["Employee scans/selects package and entered quantity"]
+    PROOF["Protected proof when required"]
+    SERVER(("Server conversion and authorization"))
+    BALANCE[("Canonical storage balance")]
+    MOVEMENT[("Immutable movement")]
+    SNAPSHOT[("Input/package/department/manager snapshot")]
+    REPORT["Department, employee, unit and package reports"]
+
+    ADMIN --> SERVER
+    EMPLOYEE --> SERVER
+    PROOF --> SERVER
+    SERVER --> BALANCE
+    SERVER --> MOVEMENT
+    SERVER --> SNAPSHOT
+    MOVEMENT --> REPORT
+    SNAPSHOT --> REPORT
+```
+
+Canonical units are the only accounting quantities. Package values are presentation and conversion metadata. Incompatible dimensions are never combined into one dashboard total.
 
 ## Data Flow Diagram: Temporary Handover Reconciliation
 
