@@ -3021,7 +3021,13 @@ $fileAsset = Database::fetch(
     ['source_id' => $documentId]
 );
 assert_true($fileAsset !== null, 'Purchase document was not indexed in the file library.');
-assert_true(!empty($fileAsset['archive_path']) && is_file(base_path((string) $fileAsset['archive_path'])), 'File library did not keep a protected archive copy.');
+assert_true(!empty($fileAsset['archive_path']), 'File library did not record a protected archive copy.');
+
+// A live HTTP run shares the production database, not the production filesystem.
+// The protected download assertion below verifies the remote archive itself.
+if (!array_key_exists('allow-live', $options)) {
+    assert_true(is_file(base_path((string) $fileAsset['archive_path'])), 'File library did not keep a protected archive copy.');
+}
 $staffFilesPage = http_request($baseUrl, $staffCookie, 'GET', '/files');
 assert_true($staffFilesPage['status'] === 302, 'Staff should not open the central file library.');
 $ownerFilesPage = http_request($baseUrl, $ownerCookie, 'GET', '/files?search=' . rawurlencode($prefix));
