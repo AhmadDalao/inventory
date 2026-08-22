@@ -60,6 +60,17 @@ function inventory_measurement_matches_unit(string $dimension, string $unit): bo
     return $knownDimension === null || $dimension === 'custom' || $knownDimension === $dimension;
 }
 
+function inventory_item_unit_sql_expression(string $alias = 'i'): string
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias)) {
+        throw new InvalidArgumentException('Invalid item table alias.');
+    }
+
+    // Custom unit labels are persisted directly in items.unit. custom_unit is
+    // only a form field and is not a database column.
+    return "COALESCE(NULLIF({$alias}.unit, ''), 'pcs')";
+}
+
 function inventory_proof_policies(): array
 {
     return [

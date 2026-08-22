@@ -45,7 +45,7 @@ function dashboard_staff_payload(): array
 
 function dashboard_item_unit_expression(string $alias = 'i'): string
 {
-    return "COALESCE(NULLIF(CASE WHEN {$alias}.unit = 'custom' THEN {$alias}.custom_unit ELSE {$alias}.unit END, ''), 'pcs')";
+    return inventory_item_unit_sql_expression($alias);
 }
 
 function dashboard_unit_totals_text(array $totals): string

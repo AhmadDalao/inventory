@@ -12,7 +12,7 @@ function report_summary_usage_reason_groups(array $filters): array
 
     $legacyRows = Database::fetchAll(
         "SELECT m.item_id,
-                COALESCE(NULLIF(CASE WHEN i.unit = 'custom' THEN i.custom_unit ELSE i.unit END, ''), 'pcs') AS unit,
+                " . inventory_item_unit_sql_expression('i') . " AS unit,
                 hub.reason_code,
                 hub.reason_custom,
                 hub.notes,
@@ -82,7 +82,7 @@ function report_summary_usage_reason_groups_by_day(array $filters): array
         "SELECT DATE(m.used_at) AS usage_date,
                 m.item_id,
                 m.context_id AS handover_id,
-                COALESCE(NULLIF(CASE WHEN i.unit = 'custom' THEN i.custom_unit ELSE i.unit END, ''), 'pcs') AS unit,
+                " . inventory_item_unit_sql_expression('i') . " AS unit,
                 hub.reason_code,
                 hub.reason_custom,
                 hub.notes,

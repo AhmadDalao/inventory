@@ -149,6 +149,17 @@ if (!inventory_measurement_matches_unit('volume', 'ml')
     measured_inventory_fail('Measurement dimensions must reject incompatible canonical units.');
 }
 
+if (inventory_item_unit_sql_expression('items') !== "COALESCE(NULLIF(items.unit, ''), 'pcs')") {
+    measured_inventory_fail('Canonical unit SQL must read the persisted items.unit value.');
+}
+
+foreach (glob(__DIR__ . '/../app/modules/*.php') ?: [] as $moduleFile) {
+    $moduleSource = (string) file_get_contents($moduleFile);
+    if (preg_match('/(?:[A-Za-z_][A-Za-z0-9_]*\.)custom_unit\b|THEN\s+custom_unit\b/i', $moduleSource) === 1) {
+        measured_inventory_fail('SQL must not reference the form-only custom_unit field: ' . basename($moduleFile));
+    }
+}
+
 $measuredInventorySettings = [
     'proof.usage_default' => 'required',
     'proof.refill_default' => 'optional',

@@ -76,7 +76,7 @@ function report_summary_base_quantity_expression(string $movementAlias = 'm', st
 
 function report_summary_base_unit_expression(string $itemAlias = 'i', string $measurementAlias = 'md'): string
 {
-    return "COALESCE(NULLIF({$measurementAlias}.base_unit, ''), NULLIF(CASE WHEN {$itemAlias}.unit = 'custom' THEN {$itemAlias}.custom_unit ELSE {$itemAlias}.unit END, ''), 'pcs')";
+    return "COALESCE(NULLIF({$measurementAlias}.base_unit, ''), " . inventory_item_unit_sql_expression($itemAlias) . ')';
 }
 
 function report_summary_filter_query(array $filters): array

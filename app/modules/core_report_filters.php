@@ -160,7 +160,7 @@ function build_report_summary_where(array $filters, string $alias = 'm'): array
                     SELECT 1
                     FROM items summary_unit_item
                     WHERE summary_unit_item.id = {$alias}.item_id
-                      AND COALESCE(NULLIF(CASE WHEN summary_unit_item.unit = 'custom' THEN summary_unit_item.custom_unit ELSE summary_unit_item.unit END, ''), 'pcs') = :summary_item_unit
+                      AND " . inventory_item_unit_sql_expression('summary_unit_item') . " = :summary_item_unit
                 )
             )
         )";

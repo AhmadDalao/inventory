@@ -32,7 +32,7 @@ function handle_reports_index(): void
         'managers' => manager_candidates_for_select(),
         'usageReasons' => mobile_usage_reason_catalog(true),
         'units' => Database::fetchAll(
-            "SELECT DISTINCT COALESCE(NULLIF(CASE WHEN unit = 'custom' THEN custom_unit ELSE unit END, ''), 'pcs') AS value
+            'SELECT DISTINCT ' . inventory_item_unit_sql_expression('items') . " AS value
              FROM items
              WHERE is_active = 1
              ORDER BY value ASC"
@@ -43,7 +43,7 @@ function handle_reports_index(): void
                     presets.label,
                     presets.pieces_per_unit,
                     items.name AS item_name,
-                    COALESCE(NULLIF(CASE WHEN items.unit = "custom" THEN items.custom_unit ELSE items.unit END, ""), "pcs") AS base_unit
+                    ' . inventory_item_unit_sql_expression('items') . ' AS base_unit
              FROM item_package_presets presets
              INNER JOIN items ON items.id = presets.item_id
              WHERE presets.is_active = 1
