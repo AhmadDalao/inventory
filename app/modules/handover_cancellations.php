@@ -55,6 +55,8 @@ function handle_handovers_cancel_submit(array $params): void
             ]
         );
 
+        wristband_close_session_for_handover((int) $handover['id'], (int) ($user['id'] ?? 0));
+
         $pdo->commit();
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
@@ -148,6 +150,8 @@ function handle_handovers_void_submit(array $params): void
                 'id' => (int) $handover['id'],
             ]
         );
+
+        wristband_close_session_for_handover((int) $handover['id'], (int) ($user['id'] ?? 0));
 
         $pdo->commit();
     } catch (Throwable $exception) {

@@ -97,6 +97,19 @@ function permission_catalog(): array
                 'handovers.export' => 'Export handover reports.',
             ],
         ],
+        'wristbands' => [
+            'label' => 'Wristband API Audit',
+            'permissions' => [
+                'wristbands.view' => 'View registered wristband codes and availability counts.',
+                'wristbands.import' => 'Import CSV or XLSX wristband code files.',
+                'wristbands.manage' => 'Void or restore unused wristband codes.',
+                'wristbands.sessions' => 'Start, pause, resume, and switch wristband audit sessions to manual mode.',
+                'wristbands.exceptions' => 'Review and resolve paused, unknown, and rejected API events.',
+                'wristbands.integrations' => 'Configure storage integrations, IP allowlists, and rotate API keys.',
+                'wristbands.reverse' => 'Reverse an accepted API evidence event without changing stock.',
+                'wristbands.evidence' => 'View hidden wristband API evidence during owner handover review.',
+            ],
+        ],
         'purchases' => [
             'label' => 'Purchases',
             'permissions' => [

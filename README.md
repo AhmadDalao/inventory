@@ -2,7 +2,7 @@
 
 Internal inventory, handover, purchasing, asset, and reporting system for KONA operations.
 
-This is no longer a tiny CRUD app. The current application tracks consumable stock by storage, movement history, requests, handovers, supplier purchases, fixed assets, files, reports, notifications, roles, permissions, and audit logs.
+This is no longer a tiny CRUD app. The current application tracks consumable stock by storage, movement history, requests, handovers, supplier purchases, fixed assets, wristband API audit evidence, files, reports, notifications, roles, permissions, and audit logs.
 
 ## Developer Handover
 
@@ -14,6 +14,8 @@ Start here:
 - [Mobile API reference](docs/mobile-api.md)
 - [Mobile OpenAPI contract](docs/openapi/mobile-api-v1.yaml)
 - [Realtime data-flow guide](docs/realtime-data-flow.md)
+- [KONA wristband API audit guide](docs/wristband-api.md)
+- [KONA wristband OpenAPI contract](docs/openapi/wristband-api-v1.yaml)
 - [Security and incident guide](docs/security.md)
 - [Mobile mockup review](docs/mobile/mockups/README.md)
 - [Mobile v1.3 measured-inventory release evidence](docs/mobile/release-1.3.0.md)
@@ -48,6 +50,9 @@ php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/mobile_api_contract.php
 php tests/measured_inventory.php
+php tests/wristband_api_contract.php
+php tests/wristband_code_performance.php
+php tests/wristband_workflow.php
 NODE_PATH=/path/to/playwright/node_modules BASE_URL=https://inventory.ahmaddalao.com INVENTORY_EMAIL=owner@example.com INVENTORY_PASSWORD='password' node tests/responsive_ui_smoke.js
 php tests/full_regression.php
 php tests/stock_invariants.php

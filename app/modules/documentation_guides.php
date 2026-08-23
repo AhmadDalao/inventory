@@ -21,6 +21,13 @@ function documentation_important_sections(): array
             'tags' => ['Long-term custody', 'Damaged', 'Quarantine', 'Replacement', 'Partial return', 'Proof image'],
         ],
         [
+            'title' => 'Wristband API Audit',
+            'icon' => 'scan',
+            'summary' => 'Import wristband codes, control KONA API Audit sessions, resolve paused events, and compare check-ins without double-deducting stock.',
+            'anchor' => 'doc-wristband-api-audit',
+            'tags' => ['Wristbands', 'KONA API', 'QR codes', 'Manual Only', 'API Audit', 'Pause', 'Exceptions'],
+        ],
+        [
             'title' => 'Manager Approval Flow',
             'icon' => 'requests',
             'summary' => 'Where owners/admins approve requests, handovers, purchases, receipt differences, and closeouts.',

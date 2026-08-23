@@ -27,6 +27,7 @@ function handle_items_create_submit(): void
         'measurement_dimension' => normalize_inventory_measurement_dimension(input('measurement_dimension', 'count')),
         'usage_proof_policy' => normalize_inventory_proof_policy(input('usage_proof_policy', 'inherit')),
         'refill_proof_policy' => normalize_inventory_proof_policy(input('refill_proof_policy', 'inherit')),
+        'external_qr_tracking_enabled' => input('external_qr_tracking_enabled') === '1' ? 1 : 0,
         'reorder_level' => quantity_value(input('reorder_level')),
         'cost_per_unit' => quantity_value(input('cost_per_unit')),
         'current_quantity' => quantity_value(input('current_quantity')),
@@ -68,6 +69,10 @@ function handle_items_create_submit(): void
 
     if ($resolvedUnit !== '' && !inventory_measurement_matches_unit($payload['measurement_dimension'], $resolvedUnit)) {
         $errors[] = 'The canonical unit does not match the selected measurement type.';
+    }
+
+    if ($payload['external_qr_tracking_enabled'] === 1 && $payload['measurement_dimension'] !== 'count') {
+        $errors[] = 'External wristband code tracking is only available for count-based items.';
     }
 
     if (!storage_exists_for_assignment($storageId)) {
@@ -179,8 +184,8 @@ function handle_items_create_submit(): void
 
     try {
         Database::execute(
-            'INSERT INTO items (name, sku, barcode, category, storage_id, unit, measurement_dimension, usage_proof_policy, refill_proof_policy, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, :sku, :barcode, :category, :storage_id, :unit, :measurement_dimension, :usage_proof_policy, :refill_proof_policy, 0, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
+            'INSERT INTO items (name, sku, barcode, category, storage_id, unit, measurement_dimension, usage_proof_policy, refill_proof_policy, external_qr_tracking_enabled, current_quantity, reorder_level, cost_per_unit, image_path, notes, is_active, created_by, updated_by, created_at, updated_at)
+             VALUES (:name, :sku, :barcode, :category, :storage_id, :unit, :measurement_dimension, :usage_proof_policy, :refill_proof_policy, :external_qr_tracking_enabled, 0, :reorder_level, :cost_per_unit, :image_path, :notes, 1, :created_by, :updated_by, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'sku' => $payload['sku'],
@@ -191,6 +196,7 @@ function handle_items_create_submit(): void
                 'measurement_dimension' => $payload['measurement_dimension'],
                 'usage_proof_policy' => $payload['usage_proof_policy'],
                 'refill_proof_policy' => $payload['refill_proof_policy'],
+                'external_qr_tracking_enabled' => $payload['external_qr_tracking_enabled'],
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
                 'image_path' => null,
@@ -301,6 +307,7 @@ function handle_items_edit_submit(array $params): void
         'measurement_dimension' => normalize_inventory_measurement_dimension(input('measurement_dimension', $item['measurement_dimension'] ?? 'count')),
         'usage_proof_policy' => normalize_inventory_proof_policy(input('usage_proof_policy', $item['usage_proof_policy'] ?? 'inherit')),
         'refill_proof_policy' => normalize_inventory_proof_policy(input('refill_proof_policy', $item['refill_proof_policy'] ?? 'inherit')),
+        'external_qr_tracking_enabled' => input('external_qr_tracking_enabled') === '1' ? 1 : 0,
         'reorder_level' => quantity_value(input('reorder_level')),
         'cost_per_unit' => quantity_value(input('cost_per_unit')),
         'notes' => trim((string) input('notes')),
@@ -333,6 +340,10 @@ function handle_items_edit_submit(array $params): void
 
     if ($resolvedUnit !== '' && !inventory_measurement_matches_unit($payload['measurement_dimension'], $resolvedUnit)) {
         $errors[] = 'The canonical unit does not match the selected measurement type.';
+    }
+
+    if ($payload['external_qr_tracking_enabled'] === 1 && $payload['measurement_dimension'] !== 'count') {
+        $errors[] = 'External wristband code tracking is only available for count-based items.';
     }
 
     $canonicalChanged = $resolvedUnit !== (string) $item['unit']
@@ -394,6 +405,7 @@ function handle_items_edit_submit(array $params): void
                  measurement_dimension = :measurement_dimension,
                  usage_proof_policy = :usage_proof_policy,
                  refill_proof_policy = :refill_proof_policy,
+                 external_qr_tracking_enabled = :external_qr_tracking_enabled,
                  reorder_level = :reorder_level,
                  cost_per_unit = :cost_per_unit,
                  image_path = :image_path,
@@ -411,6 +423,7 @@ function handle_items_edit_submit(array $params): void
                 'measurement_dimension' => $payload['measurement_dimension'],
                 'usage_proof_policy' => $payload['usage_proof_policy'],
                 'refill_proof_policy' => $payload['refill_proof_policy'],
+                'external_qr_tracking_enabled' => $payload['external_qr_tracking_enabled'],
                 'reorder_level' => $payload['reorder_level'],
                 'cost_per_unit' => $payload['cost_per_unit'],
                 'image_path' => $nextImagePath,

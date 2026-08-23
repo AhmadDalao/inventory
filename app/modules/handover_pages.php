@@ -68,6 +68,21 @@ function handle_handovers_create_page(): void
     $sourceStorages = Auth::isStaff()
         ? handover_request_source_storages_for_staff($currentUser, $selectedSourceStorageId)
         : handover_source_storages_for_user($currentUser, $selectedSourceStorageId);
+    $wristbandEnabledStorageIds = [];
+    $canStartWristbandAudit = !Auth::isStaff()
+        && Auth::hasPermission('wristbands.sessions')
+        && wristband_api_enabled();
+
+    if ($canStartWristbandAudit) {
+        $wristbandEnabledStorageIds = array_map(
+            static fn (array $row): int => (int) $row['storage_id'],
+            Database::fetchAll(
+                'SELECT storage_id
+                 FROM wristband_integrations
+                 WHERE enabled = 1'
+            )
+        );
+    }
 
     View::render('handovers/form', [
         'title' => Auth::isStaff() ? 'Request Handover' : 'Create Handover',
@@ -76,6 +91,7 @@ function handle_handovers_create_page(): void
             'destination_storage_id' => old('destination_storage_id', ''),
             'recipient_type' => $selectedRecipientType,
             'handover_purpose' => $selectedPurpose,
+            'wristband_tracking_mode' => old('wristband_tracking_mode', 'manual_only'),
             'issue_condition' => old('issue_condition', 'good'),
             'custody_review_date' => old('custody_review_date', ''),
             'recipient_name' => Auth::isStaff() ? (string) ($currentUser['name'] ?? '') : old('recipient_name', ''),
@@ -90,6 +106,9 @@ function handle_handovers_create_page(): void
         'assignedManager' => $assignedManager,
         'isStaffRequest' => Auth::isStaff(),
         'issueConditionOptions' => handover_issue_condition_options(),
+        'wristbandApiEnabled' => wristband_api_enabled(),
+        'wristbandEnabledStorageIds' => $wristbandEnabledStorageIds,
+        'canStartWristbandAudit' => $canStartWristbandAudit,
         'storageCatalogJson' => json_encode(
             workflow_storage_item_catalog(array_column($sourceStorages, 'id')),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
@@ -142,6 +161,27 @@ function handle_handovers_show(array $params): void
         }
     }
 
+    $wristbandSession = wristband_session_for_handover((int) $handover['id']);
+    $wristbandEvidenceVisible = $wristbandSession !== null
+        && wristband_evidence_visible_to_current_user($handover);
+    $wristbandEvidence = $wristbandEvidenceVisible
+        ? wristband_session_evidence((int) $handover['id'])
+        : null;
+    $wristbandLineUpdates = array_map(
+        static fn (array $line): array => [
+            'line_id' => (int) $line['id'],
+            'used' => (float) $line['quantity_used'],
+        ],
+        $lines
+    );
+    $wristbandReview = $wristbandEvidenceVisible
+        ? wristband_review_snapshot((int) $handover['id'], $wristbandLineUpdates)
+        : null;
+    $canControlWristbandSession = $wristbandSession !== null
+        && $user !== null
+        && Auth::hasPermission('wristbands.sessions')
+        && wristband_user_can_control_session($wristbandSession, (int) $user['id']);
+
     View::render('handovers/show', [
         'title' => $handover['handover_number'],
         'handoverRecord' => $handover,
@@ -156,6 +196,11 @@ function handle_handovers_show(array $params): void
         'pendingCustodyReturn' => $pendingCustodyReturn,
         'canReportCustodyReturn' => $isStaffCustody && handover_custody_can_report_return($handover, $user),
         'canReviewCustodyReturn' => $isStaffCustody && handover_custody_can_review_return($handover, $user),
+        'wristbandSession' => $wristbandSession,
+        'wristbandEvidence' => $wristbandEvidence,
+        'wristbandReview' => $wristbandReview,
+        'wristbandEvidenceVisible' => $wristbandEvidenceVisible,
+        'canControlWristbandSession' => $canControlWristbandSession,
         'sourceStorages' => $sourceStorage ? [$sourceStorage] : [],
         'storageCatalogJson' => json_encode(
             workflow_storage_item_catalog($sourceStorage ? [(int) $sourceStorage['id']] : []),

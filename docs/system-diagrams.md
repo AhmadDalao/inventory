@@ -1,6 +1,6 @@
 # Inventory KONA System Diagrams
 
-Updated: 2026-08-22
+Updated: 2026-08-23
 
 These diagrams describe the current production architecture and business cycles. They are maintained as Mermaid so GitHub and compatible documentation tools can render them without storing another stale image.
 
@@ -277,6 +277,44 @@ flowchart LR
 ```
 
 Custody is for interchangeable inventory such as brooms, uniforms, and cleaning tools. Fixed assets such as serialized laptops, cameras, and radios remain in the Assets module. A custody handover closes only after every confirmed unit is resolved as serviceable, damaged, consumed, lost, or otherwise returned.
+
+## Data Flow Diagram: Wristband API Audit
+
+```mermaid
+flowchart LR
+    IMPORT["Owner imports unique codes\nand maps item/color"]
+    REGISTRY[("Wristband Registry\nAvailable / Used / Void")]
+    HANDOVER["Normal Temporary-Use Handover\nSource to Buffer"]
+    KONA["KONA Check-In API"]
+    CONTROL{"Global + Storage + Session\nAPI Audit enabled?"}
+    EXCEPTIONS[("Exceptions\nPaused / Unknown / Invalid")]
+    EVIDENCE[("Hidden API Evidence\nDistinct accepted check-ins")]
+    STAFF["Staff Receipt, Returns\nand Operational Report"]
+    REVIEW["Owner Final Review\nPhysical vs Staff vs API"]
+    STOCK[("Existing Handover Approval\nOnly stock-posting point")]
+
+    IMPORT --> REGISTRY
+    HANDOVER --> CONTROL
+    KONA --> CONTROL
+    REGISTRY --> CONTROL
+    CONTROL -->|"disabled / paused"| EXCEPTIONS
+    CONTROL -->|"valid active session"| EVIDENCE
+    STAFF --> REVIEW
+    EVIDENCE --> REVIEW
+    HANDOVER --> REVIEW
+    REVIEW --> STOCK
+
+    classDef input fill:#fff,stroke:#b8892d,color:#111;
+    classDef data fill:#fff7df,stroke:#d8ae52,color:#111;
+    classDef control fill:#111,stroke:#111,color:#fff;
+    classDef warning fill:#ffe3dc,stroke:#b9472c,color:#111;
+    class IMPORT,HANDOVER,KONA,STAFF input;
+    class REGISTRY,EVIDENCE,STOCK data;
+    class CONTROL,REVIEW control;
+    class EXCEPTIONS warning;
+```
+
+There is intentionally no direct path from an API event to an inventory movement. Manual handover reconciliation remains available at all times, and existing final approval posts stock once.
 
 ## Use Case Diagram
 

@@ -135,6 +135,9 @@ $router->post('/api/v1/handovers/{id}/custody-returns/{return_id}/approve', stat
 $router->post('/api/v1/handovers/{id}/custody-returns/{return_id}/reject', static function (array $params): void {
     handle_mobile_api_handover_custody_return_reject($params);
 });
+$router->post('/api/v1/integrations/kona/wristband-checkins', static function (): void {
+    handle_wristband_checkin_api();
+});
 
 $router->get('/dashboard', static function (): void {
     handle_dashboard_page();
@@ -368,6 +371,54 @@ $router->post('/scan/movements/batch', static function (): void {
 $router->get('/requests', static function (): void {
     handle_requests_index();
 });
+$router->get('/wristbands', static function (): void {
+    handle_wristband_codes_page();
+});
+$router->get('/wristbands/imports', static function (): void {
+    handle_wristband_imports_page();
+});
+$router->post('/wristbands/imports', static function (): void {
+    handle_wristband_import_submit();
+});
+$router->get('/wristbands/sessions', static function (): void {
+    handle_wristband_sessions_page();
+});
+$router->get('/wristbands/exceptions', static function (): void {
+    handle_wristband_exceptions_page();
+});
+$router->get('/wristbands/integrations', static function (): void {
+    handle_wristband_integrations_page();
+});
+$router->post('/wristbands/codes/{id}/state', static function (array $params): void {
+    handle_wristband_code_state_submit($params);
+});
+$router->post('/wristbands/integrations/global', static function (): void {
+    handle_wristband_global_toggle_submit();
+});
+$router->post('/wristbands/integrations/storage/{storage_id}', static function (array $params): void {
+    handle_wristband_integration_submit($params);
+});
+$router->post('/wristbands/integrations/{id}/rotate', static function (array $params): void {
+    handle_wristband_rotate_key_submit($params);
+});
+$router->post('/wristbands/sessions/{id}/pause', static function (array $params): void {
+    handle_wristband_session_pause_submit($params);
+});
+$router->post('/wristbands/sessions/{id}/resume', static function (array $params): void {
+    handle_wristband_session_resume_submit($params);
+});
+$router->post('/wristbands/sessions/{id}/manual', static function (array $params): void {
+    handle_wristband_session_manual_submit($params);
+});
+$router->post('/wristbands/events/{id}/accept', static function (array $params): void {
+    handle_wristband_event_accept_submit($params);
+});
+$router->post('/wristbands/events/{id}/discard', static function (array $params): void {
+    handle_wristband_event_discard_submit($params);
+});
+$router->post('/wristbands/events/{id}/reverse', static function (array $params): void {
+    handle_wristband_event_reverse_submit($params);
+});
 $router->get('/requests/create', static function (): void {
     handle_requests_create_page();
 });
@@ -478,6 +529,9 @@ $router->post('/handovers/{id}/close', static function (array $params): void {
 });
 $router->post('/handovers/{id}/approve', static function (array $params): void {
     handle_handovers_approve_submit($params);
+});
+$router->post('/handovers/{id}/wristband-session/start', static function (array $params): void {
+    handle_wristband_session_start_submit($params);
 });
 $router->get('/stocktakes', static function (): void {
     handle_stocktakes_index();

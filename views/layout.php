@@ -72,6 +72,9 @@ if (brand_custom_logo_asset() !== null) {
                 <?php if (!Auth::isStaff() && Auth::hasPermission('items.view')): ?>
                     <a class="nav-link <?= active_route('/scan') ?>" href="<?= e(url('/scan')) ?>"><?= ui_icon('scan') ?><span><?= e(site_setting('nav.scan', 'Scan Center')) ?></span></a>
                 <?php endif; ?>
+                <?php if (!Auth::isStaff() && Auth::hasPermission('wristbands.view')): ?>
+                    <a class="nav-link <?= active_route('/wristbands', true) ?>" href="<?= e(url('/wristbands')) ?>"><?= ui_icon('labels') ?><span>Wristband Codes</span></a>
+                <?php endif; ?>
                 <?php if (Auth::hasPermission('requests.view')): ?>
                     <a class="nav-link <?= active_route('/requests', true) ?>" href="<?= e(url('/requests')) ?>"><?= ui_icon('requests') ?><span><?= e(site_setting('nav.requests', 'Requests')) ?></span></a>
                 <?php endif; ?>

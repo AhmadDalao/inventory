@@ -1,0 +1,216 @@
+openapi: 3.1.0
+info:
+  title: Inventory KONA Wristband Check-in API
+  version: 1.0.0
+  summary: External KONA wristband check-ins used as reconciliation evidence.
+  description: |
+    This API records wristband check-ins as audit evidence for an active temporary-use handover.
+    It never creates an inventory movement, changes a storage balance, or replaces manual reconciliation.
+servers:
+  - url: https://inventory.ahmaddalao.com
+paths:
+  /api/v1/integrations/kona/wristband-checkins:
+    post:
+      operationId: recordKonaWristbandCheckin
+      summary: Record one distinct KONA wristband check-in
+      description: |
+        Matches a normalized wristband code to the active API Audit session for the integration storage.
+        When checking is paused or disabled, the request is acknowledged as `integration_paused`; the
+        code remains available and no stock, counter, or handover status is changed.
+      security:
+        - ApiKeyHeader: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WristbandCheckinRequest'
+            examples:
+              checkin:
+                value:
+                  code: AB12CD34EF56GH78
+                  scanned_at: '2026-08-22T19:30:00+03:00'
+                  external_event_id: booking-checkin-94287
+      responses:
+        '200':
+          description: Duplicate request returned idempotently or a previously recorded result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WristbandEventEnvelope'
+        '201':
+          description: Check-in accepted as API Audit evidence. Stock is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WristbandEventEnvelope'
+        '202':
+          description: |
+            Request acknowledged but not applied, including `integration_paused`, unknown-code,
+            inactive-session, item-eligibility, and wrong-handover exceptions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WristbandEventEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: The idempotency key was reused with a different payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '422':
+          description: The JSON payload or wristband code is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '426':
+          description: HTTPS is required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: Integration or source IP rate limit exceeded.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal integration error with no stock mutation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+components:
+  securitySchemes:
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-KONA-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-api-key
+  schemas:
+    WristbandCheckinRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - scanned_at
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 128
+          description: Raw wristband QR value. The server normalizes and hashes it before matching.
+          examples:
+            - AB12CD34EF56GH78
+        scanned_at:
+          type: string
+          format: date-time
+          description: Original KONA check-in time including timezone.
+        external_event_id:
+          type:
+            - string
+            - 'null'
+          maxLength: 190
+          description: Stable source-system idempotency identifier.
+    WristbandEvent:
+      type: object
+      required:
+        - event_id
+        - status
+        - duplicate
+        - code
+      properties:
+        event_id:
+          type: integer
+        status:
+          type: string
+          enum:
+            - accepted
+            - duplicate
+            - paused
+            - unknown_code
+            - inactive_session
+            - item_not_eligible
+            - wrong_handover
+            - discarded
+            - reversed
+        duplicate:
+          type: boolean
+        session:
+          type:
+            - string
+            - 'null'
+        code:
+          type: string
+          description: Masked wristband code; plaintext is not returned.
+        item_id:
+          type:
+            - integer
+            - 'null'
+    ApiMeta:
+      type: object
+      additionalProperties: true
+    ApiError:
+      type:
+        - object
+        - 'null'
+      properties:
+        code:
+          type: string
+          examples:
+            - integration_paused
+        message:
+          type: string
+    WristbandEventEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+        - error
+      properties:
+        data:
+          $ref: '#/components/schemas/WristbandEvent'
+        meta:
+          $ref: '#/components/schemas/ApiMeta'
+        error:
+          type: 'null'
+    ErrorEnvelope:
+      type: object
+      required:
+        - data
+        - meta
+        - error
+      properties:
+        data:
+          type: 'null'
+        meta:
+          $ref: '#/components/schemas/ApiMeta'
+        error:
+          $ref: '#/components/schemas/ApiError'
+  responses:
+    Unauthorized:
+      description: Missing or invalid integration key.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: Source IP is not allowed for this storage integration.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

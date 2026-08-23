@@ -17,6 +17,7 @@ function default_item_payload(?array $sourceItem = null, ?int $defaultStorageId 
         'measurement_dimension' => old('measurement_dimension', normalize_inventory_measurement_dimension($sourceItem['measurement_dimension'] ?? 'count')),
         'usage_proof_policy' => old('usage_proof_policy', normalize_inventory_proof_policy($sourceItem['usage_proof_policy'] ?? 'inherit')),
         'refill_proof_policy' => old('refill_proof_policy', normalize_inventory_proof_policy($sourceItem['refill_proof_policy'] ?? 'inherit')),
+        'external_qr_tracking_enabled' => old('external_qr_tracking_enabled', (string) ((int) ($sourceItem['external_qr_tracking_enabled'] ?? 0))),
         'reorder_level' => old('reorder_level', $sourceItem ? format_quantity((float) $sourceItem['reorder_level']) : '0'),
         'cost_per_unit' => old('cost_per_unit', $sourceItem ? format_quantity((float) $sourceItem['cost_per_unit']) : '0'),
         'current_quantity' => old('current_quantity', '0'),

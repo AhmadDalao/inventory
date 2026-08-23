@@ -188,6 +188,19 @@ $initialScanSource = $barcodeValue !== '' ? 'Barcode preview' : 'SKU fallback pr
                             <small class="item-form-help">Count, volume, mass, length, area, or a custom dimension.</small>
                         </label>
                     </div>
+
+                    <label class="choice-field item-form-choice">
+                        <input
+                            type="checkbox"
+                            name="external_qr_tracking_enabled"
+                            value="1"
+                            <?= checked((string) ($item['external_qr_tracking_enabled'] ?? '0') === '1') ?>
+                        >
+                        <div>
+                            <strong>Allow KONA wristband API audit for this item.</strong>
+                            <span>Imported wristband codes may identify this item. API evidence never deducts stock directly.</span>
+                        </div>
+                    </label>
                 </div>
 
                 <div class="item-form-section">

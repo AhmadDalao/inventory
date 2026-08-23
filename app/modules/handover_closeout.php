@@ -126,7 +126,12 @@ function handle_handovers_close_submit(array $params): void
         }
 
         if ($autoApprove) {
+            $wristbandReview = wristband_review_snapshot((int) $handover['id'], $lineUpdates);
+            if ($wristbandReview !== null) {
+                wristband_store_review_snapshot($wristbandReview, (int) $user['id'], true, 'Direct issuer closeout; stock and API evidence reviewed together.');
+            }
             finalize_handover_inventory($handover, $lineUpdates, (int) $user['id']);
+            wristband_close_session_for_handover((int) $handover['id'], (int) $user['id']);
 
             Database::execute(
                 'UPDATE handovers
@@ -279,6 +284,15 @@ function handle_handovers_approve_submit(array $params): void
         [$lineUpdates, $errors] = build_handover_approval_updates($lines, input('line_returned', []), $usageInput);
     }
 
+    $wristbandReview = wristband_review_snapshot((int) $handover['id'], $lineUpdates);
+    $wristbandVarianceAcknowledged = (string) input('wristband_variance_acknowledged', '0') === '1';
+    $wristbandVarianceNote = trim((string) input('wristband_variance_note'));
+    if ($wristbandReview !== null
+        && (bool) $wristbandReview['requires_acknowledgement']
+        && (!$wristbandVarianceAcknowledged || $wristbandVarianceNote === '')) {
+        $errors[] = 'Acknowledge the wristband API variance or unresolved exceptions and add a review note before approval.';
+    }
+
     if ($errors !== []) {
         if (request_wants_json()) {
             json_response([
@@ -321,7 +335,16 @@ function handle_handovers_approve_submit(array $params): void
         } else {
             save_handover_usage_breakdowns((int) $handover['id'], $lineUpdates, (int) $user['id']);
         }
+        if ($wristbandReview !== null) {
+            wristband_store_review_snapshot(
+                $wristbandReview,
+                (int) $user['id'],
+                $wristbandVarianceAcknowledged,
+                $wristbandVarianceNote
+            );
+        }
         finalize_handover_inventory($handover, $lineUpdates, (int) $user['id']);
+        wristband_close_session_for_handover((int) $handover['id'], (int) $user['id']);
 
         Database::execute(
             'UPDATE handovers

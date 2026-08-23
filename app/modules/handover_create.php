@@ -30,6 +30,11 @@ function handle_handovers_create_submit(): void
     $isStaffCustody = $handoverPurpose === 'staff_custody';
     $recipientType = $isStorageTransfer ? 'storage' : 'staff';
     $usageReportingMode = $handoverPurpose === 'temporary_use' ? 'operational_summary' : 'legacy_per_item';
+    $wristbandTrackingMode = !$isStaffRequest
+        && $handoverPurpose === 'temporary_use'
+        && (string) input('wristband_tracking_mode', 'manual_only') === 'api_audit'
+            ? 'api_audit'
+            : 'manual_only';
     $issueCondition = in_array((string) input('issue_condition', 'good'), array_keys(handover_issue_condition_options()), true)
         ? (string) input('issue_condition', 'good')
         : 'good';
@@ -45,6 +50,7 @@ function handle_handovers_create_submit(): void
         'recipient_user_id' => $isStaffRequest ? (int) ($user['id'] ?? 0) : normalize_entity_id(input('recipient_user_id')),
         'scheduled_for_date' => normalize_workflow_date(trim((string) input('scheduled_for_date'))),
         'notes' => trim((string) input('notes')),
+        'wristband_tracking_mode' => $wristbandTrackingMode,
     ];
 
     flash_old_input([
@@ -59,6 +65,7 @@ function handle_handovers_create_submit(): void
         'recipient_user_id' => (string) ($payload['recipient_user_id'] ?? ''),
         'scheduled_for_date' => $payload['scheduled_for_date'],
         'notes' => $payload['notes'],
+        'wristband_tracking_mode' => $payload['wristband_tracking_mode'],
         'line_items' => array_map(static fn (array $line): array => [
             'item_id' => (string) $line['item_id'],
             'quantity' => format_quantity($line['quantity']),
@@ -199,6 +206,7 @@ function handle_handovers_create_submit(): void
                 issue_condition,
                 custody_review_date,
                 usage_reporting_mode,
+                wristband_tracking_mode,
                 handover_mode,
                 status,
                 scheduled_for_date,
@@ -230,6 +238,7 @@ function handle_handovers_create_submit(): void
                 :issue_condition,
                 :custody_review_date,
                 :usage_reporting_mode,
+                :wristband_tracking_mode,
                 :handover_mode,
                 :status,
                 :scheduled_for_date,
@@ -262,6 +271,7 @@ function handle_handovers_create_submit(): void
                 'issue_condition' => $payload['issue_condition'],
                 'custody_review_date' => $payload['custody_review_date'] !== '' ? $payload['custody_review_date'] : null,
                 'usage_reporting_mode' => $usageReportingMode,
+                'wristband_tracking_mode' => $wristbandTrackingMode,
                 'handover_mode' => $isStaffRequest ? 'request' : 'direct',
                 'status' => $initialStatus,
                 'scheduled_for_date' => $payload['scheduled_for_date'] !== '' ? $payload['scheduled_for_date'] : null,
@@ -332,6 +342,14 @@ function handle_handovers_create_submit(): void
                     'quantity_handed' => (float) $line['quantity'],
                 ];
             }, $lines), (int) $user['id']);
+
+            if ($wristbandTrackingMode === 'api_audit') {
+                wristband_start_session_for_handover(
+                    $handoverId,
+                    (int) $payload['source_storage_id'],
+                    (int) $user['id']
+                );
+            }
         }
 
         $pdo->commit();

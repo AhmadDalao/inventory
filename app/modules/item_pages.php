@@ -209,6 +209,7 @@ function handle_items_edit_page(array $params): void
             'measurement_dimension' => old('measurement_dimension', normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count')),
             'usage_proof_policy' => old('usage_proof_policy', normalize_inventory_proof_policy($item['usage_proof_policy'] ?? 'inherit')),
             'refill_proof_policy' => old('refill_proof_policy', normalize_inventory_proof_policy($item['refill_proof_policy'] ?? 'inherit')),
+            'external_qr_tracking_enabled' => old('external_qr_tracking_enabled', (string) ((int) ($item['external_qr_tracking_enabled'] ?? 0))),
             'reorder_level' => old('reorder_level', format_quantity($item['reorder_level'])),
             'cost_per_unit' => old('cost_per_unit', format_quantity($item['cost_per_unit'])),
             'current_quantity' => format_quantity($item['current_quantity']),

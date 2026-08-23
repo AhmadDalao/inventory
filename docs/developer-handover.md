@@ -262,6 +262,12 @@ When adding frontend behavior:
 | `app/modules/handover_line_edits.php` | Requested handover line-edit submit handler before approval. |
 | `app/modules/handover_receipts.php` | Handover receipt confirmation and shortage confirmation handlers. |
 | `app/modules/handover_closeout.php` | Returned-first closeout submit and owner final approval handlers. |
+| `app/modules/wristband_support.php` | Wristband code normalization/hashing, integration authentication, evidence visibility, and reconciliation helpers. |
+| `app/modules/wristband_registry.php` | CSV/XLSX registry imports, code-to-item mapping, uniqueness, state counts, and registry queries. |
+| `app/modules/wristband_sessions.php` | Temporary-handover API Audit session lifecycle, pause periods, manual fallback, evidence totals, and session guards. |
+| `app/modules/wristband_api.php` | HTTPS check-in endpoint, API-key/IP/rate validation, idempotency, code matching, evidence events, and paused acknowledgements. |
+| `app/modules/wristband_pages.php` | Wristband registry, imports, sessions, exceptions, and integration page handlers. |
+| `app/modules/wristband_actions.php` | Owner/storage-owner actions for integrations, imports, sessions, event resolution, and audited code reversal. |
 | `app/modules/ocr_parser.php` | Purchase OCR text cleanup, Arabic/English parsing helpers, parsed result normalization, confidence flags, and catalog matching. |
 | `app/modules/ocr.php` | OCR extraction, purchase OCR preview handler, browser OCR payload handling, optional OpenAI fallback orchestration, and OCR logs. |
 | `app/modules/purchase_documents.php` | Purchase document type labels, purchase document queries, protected document download/delete handlers, and purchase document persistence/asset registration. |
@@ -422,6 +428,21 @@ Staff-use cycle:
 
 Legacy staff handovers created before the operational-summary release keep `legacy_per_item` and continue using their historical per-item expected/actual reason records. Do not migrate or invent reason allocations for those records.
 
+#### Wristband API Audit
+
+Wristband API Audit extends a normal temporary-use handover with hidden KONA check-in evidence. It is not a stock workflow and must never call inventory movement functions.
+
+1. An owner imports unique codes and permanently maps them to eligible active count-based wristband items.
+2. A storage integration authenticates `/api/v1/integrations/kona/wristband-checkins` with a hashed, rotatable API key and optional IP allowlist.
+3. The issuer may start an API Audit session while creating a temporary-use handover.
+4. Accepted distinct scans mark registry codes Used and increment session evidence only. They do not deduct stock or change handover status.
+5. Global disable, storage disable, session pause, or no active session returns `202 integration_paused`, records an exception, and leaves code/stock/status unchanged.
+6. After resuming, selected paused events can be accepted manually or discarded with an audit reason. Nothing replays automatically.
+7. Staff report receipt, returns, and operational usage normally without seeing hidden evidence before submission.
+8. Owner Final Review compares physical usage, staff reporting, API check-ins, paused periods, exceptions, and variance. Existing handover approval remains the only stock-posting point.
+
+Manual Only is the permanent fallback for a session. Switching modes never cancels or closes the handover. Storage transfers and long-term custody never use Wristband API Audit. See `docs/wristband-api.md` for the operator guide and `docs/openapi/wristband-api-v1.yaml` for the machine-readable integration contract.
+
 Storage-transfer cycle:
 
 1. Source storage owner creates a handover with target `Transfer to Storage Owner`.
@@ -536,6 +557,9 @@ find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/backup_archive.php
+php tests/wristband_api_contract.php
+php tests/wristband_code_performance.php
+php tests/wristband_workflow.php
 git diff --check
 ```
 

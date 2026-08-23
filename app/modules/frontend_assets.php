@@ -12,6 +12,7 @@ function frontend_stylesheets(): array
         'css/domains/inventory.css',
         'css/domains/scan.css',
         'css/domains/handovers.css',
+        'css/domains/wristbands.css',
         'css/domains/purchases-ocr.css',
         'css/domains/reports.css',
         'css/domains/admin.css',

@@ -13,6 +13,7 @@ require_once __DIR__ . '/maintenance/MaintenanceAssetSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceOperationalSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMovementSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMobileSchemas.php';
+require_once __DIR__ . '/maintenance/MaintenanceWristbandSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMeasurementSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceFileWorkflowSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceNotificationSchemas.php';
@@ -33,13 +34,14 @@ final class Maintenance
     use MaintenanceOperationalSchemas;
     use MaintenanceMovementSchemas;
     use MaintenanceMobileSchemas;
+    use MaintenanceWristbandSchemas;
     use MaintenanceMeasurementSchemas;
     use MaintenanceFileWorkflowSchemas;
     use MaintenanceNotificationSchemas;
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-22-measured-inventory-v1';
+    private const SCHEMA_VERSION = '2026-08-22-wristband-api-audit-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -128,6 +130,8 @@ final class Maintenance
 
         self::ensureHandoverSchemas();
 
+        self::ensureWristbandSchemas();
+
         self::ensurePurchaseSchemas();
 
         self::ensureAssetSchemas();
@@ -151,6 +155,7 @@ final class Maintenance
         self::seedEmailLogPermissions();
         self::seedAdminAssetPermissions();
         self::seedHandoverCustodyPermissions();
+        self::seedAdminWristbandPermissions();
         self::seedTeamStoragePermissions();
         self::backfillFileAssets();
         self::markSchemaCurrent();

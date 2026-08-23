@@ -833,6 +833,11 @@ export const initHandoverTargetSwitchers = (root = document) => {
     const destinationSummaryName = form.querySelector('[data-handover-destination-summary-name]');
     const destinationSummaryOwner = form.querySelector('[data-handover-destination-summary-owner]');
     const sourceSelect = form.querySelector('[data-workflow-storage]');
+    const wristbandAuditFields = form.querySelector('[data-wristband-audit-fields]');
+    const wristbandApiOption = form.querySelector('[data-wristband-api-option]');
+    const wristbandApiHelp = form.querySelector('[data-wristband-api-help]');
+    const wristbandApiRadio = form.querySelector('input[name="wristband_tracking_mode"][value="api_audit"]');
+    const wristbandManualRadio = form.querySelector('input[name="wristband_tracking_mode"][value="manual_only"]');
     const lineBuilder = form.querySelector('[data-workflow-line-builder]');
     const formEyebrow = document.querySelector('[data-handover-form-eyebrow]');
     const formTitle = document.querySelector('[data-handover-form-title]');
@@ -926,6 +931,48 @@ export const initHandoverTargetSwitchers = (root = document) => {
       });
     };
 
+    const syncWristbandAudit = (targetType) => {
+      if (!(wristbandAuditFields instanceof HTMLElement)) {
+        return;
+      }
+
+      const isTemporaryUse = targetType === 'temporary_use';
+      setSectionEnabled(wristbandAuditFields, isTemporaryUse);
+
+      let enabledStorageIds = [];
+      try {
+        const parsed = JSON.parse(wristbandAuditFields.dataset.enabledStorages || '[]');
+        enabledStorageIds = Array.isArray(parsed) ? parsed.map(String) : [];
+      } catch (error) {
+        enabledStorageIds = [];
+      }
+
+      const sourceStorageId = sourceSelect instanceof HTMLSelectElement ? sourceSelect.value : '';
+      const sourceIsEnabled = isTemporaryUse && sourceStorageId !== '' && enabledStorageIds.includes(String(sourceStorageId));
+
+      if (wristbandApiRadio instanceof HTMLInputElement) {
+        wristbandApiRadio.disabled = !sourceIsEnabled;
+      }
+
+      if (wristbandApiOption instanceof HTMLElement) {
+        wristbandApiOption.classList.toggle('is-disabled', !sourceIsEnabled);
+      }
+
+      if (wristbandApiHelp) {
+        wristbandApiHelp.textContent = sourceStorageId === ''
+          ? 'Select a linked source storage to use API Audit.'
+          : (sourceIsEnabled
+            ? 'Registered QR check-ins will be recorded as hidden audit evidence.'
+            : 'API Audit is not enabled for this source storage. Manual reconciliation still works normally.');
+      }
+
+      if (!sourceIsEnabled && wristbandApiRadio instanceof HTMLInputElement && wristbandApiRadio.checked) {
+        if (wristbandManualRadio instanceof HTMLInputElement) {
+          wristbandManualRadio.checked = true;
+        }
+      }
+    };
+
     const sync = () => {
       const targetType = radios.find((radio) => radio.checked)?.value || 'temporary_use';
       const isStorage = targetType === 'storage_transfer';
@@ -971,6 +1018,7 @@ export const initHandoverTargetSwitchers = (root = document) => {
 
       syncExpectedUsage(false);
       syncDestinationCopy(isStorage);
+      syncWristbandAudit(targetType);
 
       if (isStorage && sourceSelect instanceof HTMLSelectElement && destinationSelect instanceof HTMLSelectElement && sourceSelect.value !== '' && sourceSelect.value === destinationSelect.value) {
         destinationSelect.setCustomValidity('Destination storage must be different from source storage.');

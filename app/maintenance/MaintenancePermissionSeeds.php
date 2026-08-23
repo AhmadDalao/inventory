@@ -3,6 +3,35 @@ declare(strict_types=1);
 
 trait MaintenancePermissionSeeds
 {
+    private static function seedAdminWristbandPermissions(): void
+    {
+        $settingKey = 'maintenance.seed_admin_wristband_permissions_v1';
+        if (self::maintenanceSettingExists($settingKey)) {
+            return;
+        }
+
+        $permissions = [
+            'wristbands.view',
+            'wristbands.import',
+            'wristbands.manage',
+            'wristbands.sessions',
+            'wristbands.exceptions',
+            'wristbands.evidence',
+        ];
+        $rows = Database::fetchAll('SELECT id FROM users WHERE role = "admin" AND is_active = 1');
+        foreach ($rows as $row) {
+            foreach ($permissions as $permission) {
+                Database::execute(
+                    'INSERT INTO user_permissions (user_id, permission_key, created_by, created_at)
+                     VALUES (:user_id, :permission_key, NULL, NOW())
+                     ON DUPLICATE KEY UPDATE permission_key = VALUES(permission_key)',
+                    ['user_id' => (int) $row['id'], 'permission_key' => $permission]
+                );
+            }
+        }
+        self::setMaintenanceSetting($settingKey, (string) (count($rows) * count($permissions)));
+    }
+
     private static function seedUserPermissionDefaults(): void
     {
         $rows = Database::fetchAll(

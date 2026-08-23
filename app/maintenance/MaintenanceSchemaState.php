@@ -33,7 +33,20 @@ trait MaintenanceSchemaState
             && self::workflowDocumentSchemaIsCurrent()
             && self::assetCategorySchemaIsCurrent()
             && self::reportPresetSchemaIsCurrent()
+            && self::wristbandSchemaIsCurrent()
             && self::mobileSchemaIsCurrent();
+    }
+
+    private static function wristbandSchemaIsCurrent(): bool
+    {
+        return self::columnExists('items', 'external_qr_tracking_enabled')
+            && self::columnExists('handovers', 'wristband_tracking_mode')
+            && self::tableExists('wristband_integrations')
+            && self::tableExists('wristband_imports')
+            && self::tableExists('wristband_codes')
+            && self::tableExists('wristband_sessions')
+            && self::tableExists('wristband_session_periods')
+            && self::tableExists('wristband_events');
     }
 
     private static function mobileSchemaIsCurrent(): bool

@@ -27,6 +27,7 @@ import { init as initOcr } from './js/domains/ocr.js';
 import { init as initManualStock } from './js/domains/manual-stock.js';
 import { init as initScan } from './js/domains/scan.js';
 import { init as initMobileAdmin } from './js/domains/mobile-admin.js';
+import { init as initWristbands } from './js/domains/wristbands.js';
 
 registerInitializer('navigation', initNavigation);
 registerInitializer('dialogs', initDialogs);
@@ -56,6 +57,7 @@ registerInitializer('ocr', initOcr);
 registerInitializer('manual-stock', initManualStock);
 registerInitializer('scan', initScan);
 registerInitializer('mobile-admin', initMobileAdmin);
+registerInitializer('wristbands', initWristbands);
 
 document.addEventListener('DOMContentLoaded', () => {
   initInteractiveUi(document);

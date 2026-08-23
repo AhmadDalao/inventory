@@ -8,6 +8,12 @@ $isStorageTransfer = !$isStaffRequest && $handoverPurpose === 'storage_transfer'
 $isStaffCustody = !$isStaffRequest && $handoverPurpose === 'staff_custody';
 $destinationStorages = is_array($destinationStorages ?? null) ? $destinationStorages : [];
 $issueConditionOptions = is_array($issueConditionOptions ?? null) ? $issueConditionOptions : handover_issue_condition_options();
+$wristbandApiEnabled = !empty($wristbandApiEnabled);
+$wristbandEnabledStorageIds = array_map('intval', is_array($wristbandEnabledStorageIds ?? null) ? $wristbandEnabledStorageIds : []);
+$canStartWristbandAudit = !empty($canStartWristbandAudit);
+$wristbandTrackingMode = in_array((string) ($handoverRecord['wristband_tracking_mode'] ?? 'manual_only'), ['manual_only', 'api_audit'], true)
+    ? (string) ($handoverRecord['wristband_tracking_mode'] ?? 'manual_only')
+    : 'manual_only';
 $usageReasonOptions = is_array($usageReasonOptions ?? null) ? $usageReasonOptions : handover_usage_reason_options();
 $workflowCatalogPreview = json_decode((string) ($storageCatalogJson ?? '{}'), true);
 $workflowCatalogItemsById = [];
@@ -249,6 +255,37 @@ $handoverSubmitLabel = $isStaffRequest
                     </label>
                 </div>
             </div>
+
+            <section
+                class="copy-context-card wristband-audit-choice"
+                data-wristband-audit-fields
+                data-enabled-storages="<?= e(json_encode($wristbandEnabledStorageIds, JSON_UNESCAPED_SLASHES)) ?>"
+                <?= (!$isStorageTransfer && !$isStaffCustody) ? '' : 'hidden' ?>
+            >
+                <div class="wristband-audit-choice-head">
+                    <div>
+                        <strong><?= ui_icon('scan') ?><span>Wristband API Tracking</span></strong>
+                        <p>Manual reconciliation remains the stock authority. API Audit only counts registered QR check-ins as hidden evidence for the owner.</p>
+                    </div>
+                    <a class="text-link" href="<?= e(url('/wristbands/integrations')) ?>">Manage integrations</a>
+                </div>
+                <div class="handover-target-options wristband-mode-options">
+                    <label class="handover-target-option">
+                        <input type="radio" name="wristband_tracking_mode" value="manual_only" <?= $wristbandTrackingMode !== 'api_audit' ? 'checked' : '' ?>>
+                        <span>
+                            <strong>Manual Only</strong>
+                            <small>Use the normal returned quantity and reconciliation workflow.</small>
+                        </span>
+                    </label>
+                    <label class="handover-target-option" data-wristband-api-option>
+                        <input type="radio" name="wristband_tracking_mode" value="api_audit" <?= $wristbandTrackingMode === 'api_audit' ? 'checked' : '' ?> <?= $canStartWristbandAudit ? '' : 'disabled' ?>>
+                        <span>
+                            <strong>Use API Audit</strong>
+                            <small data-wristband-api-help><?= $wristbandApiEnabled ? 'Available when the selected source storage has an enabled integration.' : 'The owner has disabled Wristband API Audit globally.' ?></small>
+                        </span>
+                    </label>
+                </div>
+            </section>
         <?php endif; ?>
 
         <div class="field-row">

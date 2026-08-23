@@ -110,6 +110,14 @@ return [
         'request_status',
         'request_exports',
     ],
+    'wristbands' => [
+        'wristband_support',
+        'wristband_registry',
+        'wristband_sessions',
+        'wristband_api',
+        'wristband_pages',
+        'wristband_actions',
+    ],
     'handovers' => [
         'handover_pages',
         'handover_create',

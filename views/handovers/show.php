@@ -45,6 +45,11 @@ $statusLabel = handover_status_label((string) $handoverRecord['status']);
 $isRequestMode = (string) ($handoverRecord['handover_mode'] ?? 'direct') === 'request';
 $isStorageTransfer = handover_is_storage_transfer($handoverRecord);
 $isStaffCustody = handover_is_staff_custody($handoverRecord);
+$wristbandSession = is_array($wristbandSession ?? null) ? $wristbandSession : null;
+$wristbandEvidence = is_array($wristbandEvidence ?? null) ? $wristbandEvidence : null;
+$wristbandReview = is_array($wristbandReview ?? null) ? $wristbandReview : null;
+$wristbandEvidenceVisible = !empty($wristbandEvidenceVisible);
+$canControlWristbandSession = !empty($canControlWristbandSession);
 $custodyReturns = is_array($custodyReturns ?? null) ? $custodyReturns : [];
 $custodyTotals = is_array($custodyTotals ?? null) ? $custodyTotals : [];
 $custodyLineTotals = is_array($custodyLineTotals ?? null) ? $custodyLineTotals : [];
@@ -752,6 +757,46 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
                 </div>
                 <?php endif; ?>
 
+                <?php if ($wristbandEvidenceVisible && $wristbandReview !== null): ?>
+                    <?php
+                    $wristbandVariance = (float) ($wristbandReview['variance_quantity'] ?? 0);
+                    $wristbandUnresolved = (int) ($wristbandReview['unresolved_count'] ?? 0);
+                    $wristbandNeedsAcknowledgement = !empty($wristbandReview['requires_acknowledgement']);
+                    ?>
+                    <section class="wristband-review-card <?= $wristbandNeedsAcknowledgement ? 'has-warning' : 'is-reconciled' ?>">
+                        <div class="wristband-section-heading">
+                            <div>
+                                <span class="eyebrow">Hidden API evidence</span>
+                                <h4>Wristband Audit Comparison</h4>
+                            </div>
+                            <span class="pill <?= $wristbandNeedsAcknowledgement ? 'pill-warning' : 'pill-active' ?>">
+                                <?= $wristbandNeedsAcknowledgement ? 'Needs acknowledgement' : 'Reconciled' ?>
+                            </span>
+                        </div>
+                        <p class="muted-copy">Staff did not see these API totals before submitting. API evidence never changes stock or replaces the physical handover report.</p>
+
+                        <div class="wristband-review-metrics">
+                            <div><span>Physical Used</span><strong><?= format_quantity($wristbandReview['physical_used_quantity'] ?? 0) ?></strong></div>
+                            <div><span>Distinct API Check-ins</span><strong><?= format_quantity($wristbandReview['api_checkins_quantity'] ?? 0) ?></strong></div>
+                            <div><span>Staff vs API Variance</span><strong class="<?= abs($wristbandVariance) > 0.00001 ? 'danger-copy' : '' ?>"><?= format_quantity($wristbandVariance) ?></strong></div>
+                            <div><span>Unresolved Exceptions</span><strong class="<?= $wristbandUnresolved > 0 ? 'danger-copy' : '' ?>"><?= number_format($wristbandUnresolved) ?></strong></div>
+                        </div>
+
+                        <?php if ($wristbandNeedsAcknowledgement): ?>
+                            <label class="check-field wristband-acknowledgement">
+                                <input type="checkbox" name="wristband_variance_acknowledged" value="1" required>
+                                <span>I reviewed the API difference and unresolved exceptions.</span>
+                            </label>
+                            <label class="field">
+                                <span>API Variance Note</span>
+                                <textarea name="wristband_variance_note" rows="3" placeholder="Explain the mismatch or unresolved events before approval" required></textarea>
+                            </label>
+                        <?php endif; ?>
+
+                        <a class="ghost-button compact-button" href="<?= e(url('/wristbands/exceptions?scope=all')) ?>"><?= ui_icon('audit') ?><span>Open Wristband Exceptions</span></a>
+                    </section>
+                <?php endif; ?>
+
                 <label class="field">
                     <span>Close Notes</span>
                     <textarea name="closed_notes" rows="4" placeholder="Anything worth keeping in the record"><?= e((string) ($handoverRecord['closed_notes'] ?? '')) ?></textarea>
@@ -991,6 +1036,65 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
                     <?= $isStorageTransfer ? 'This storage transfer is already closed.' : 'This handover is already closed.' ?>
                 <?php endif; ?>
             </p>
+        <?php endif; ?>
+
+        <?php if ($wristbandSession !== null && ($wristbandEvidenceVisible || $canControlWristbandSession)): ?>
+            <?php
+            $wristbandSessionStatus = (string) ($wristbandSession['status'] ?? 'manual_only');
+            $wristbandAcceptedCount = (int) ($wristbandEvidence['accepted_count'] ?? 0);
+            $wristbandUnresolvedCount = (int) ($wristbandEvidence['unresolved_count'] ?? 0);
+            $wristbandPeriods = is_array($wristbandEvidence['periods'] ?? null) ? $wristbandEvidence['periods'] : [];
+            ?>
+            <section class="wristband-session-card">
+                <div class="wristband-section-heading">
+                    <div>
+                        <span class="eyebrow">Wristband integration</span>
+                        <h4><?= e((string) ($wristbandSession['session_number'] ?? 'API Audit Session')) ?></h4>
+                    </div>
+                    <span class="pill <?= $wristbandSessionStatus === 'active' ? 'pill-active' : ($wristbandSessionStatus === 'paused' ? 'pill-warning' : 'pill-muted') ?>">
+                        <?= e(ucwords(str_replace('_', ' ', $wristbandSessionStatus))) ?>
+                    </span>
+                </div>
+
+                <div class="wristband-session-summary">
+                    <span><strong><?= number_format($wristbandAcceptedCount) ?></strong> accepted check-ins</span>
+                    <span><strong><?= number_format($wristbandUnresolvedCount) ?></strong> unresolved events</span>
+                    <span><strong><?= number_format(count($wristbandPeriods)) ?></strong> active/paused periods</span>
+                </div>
+                <p class="muted-copy">Pausing or switching to Manual Only never changes stock, closes the handover, or applies queued events automatically.</p>
+
+                <?php if ($canControlWristbandSession && in_array($wristbandSessionStatus, ['active', 'paused'], true)): ?>
+                    <div class="wristband-session-actions">
+                        <?php if ($wristbandSessionStatus === 'active'): ?>
+                            <form method="post" action="<?= e(url('/wristband-sessions/' . $wristbandSession['id'] . '/pause')) ?>" data-live-action-form>
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="return_to" value="/handovers/<?= e((string) $handoverRecord['id']) ?>">
+                                <label class="field">
+                                    <span>Pause Note Optional</span>
+                                    <input type="text" name="reason" placeholder="Why API checking is being paused">
+                                </label>
+                                <button class="ghost-button" type="submit" data-confirm="Pause API checking? Incoming events will be logged but will not count.">Pause API Check</button>
+                            </form>
+                        <?php else: ?>
+                            <form method="post" action="<?= e(url('/wristband-sessions/' . $wristbandSession['id'] . '/resume')) ?>" data-live-action-form>
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="return_to" value="/handovers/<?= e((string) $handoverRecord['id']) ?>">
+                                <button class="primary-button" type="submit">Resume API Check</button>
+                            </form>
+                        <?php endif; ?>
+
+                        <form method="post" action="<?= e(url('/wristband-sessions/' . $wristbandSession['id'] . '/manual')) ?>" data-live-action-form>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="return_to" value="/handovers/<?= e((string) $handoverRecord['id']) ?>">
+                            <label class="field">
+                                <span>Manual Fallback Note</span>
+                                <input type="text" name="reason" placeholder="Optional reason for disabling API checking">
+                            </label>
+                            <button class="ghost-button danger-button" type="submit" data-confirm="Switch this session permanently to Manual Only? The handover will continue normally.">Switch To Manual Only</button>
+                        </form>
+                    </div>
+                <?php endif; ?>
+            </section>
         <?php endif; ?>
 
         <?php if ($canOverrideHandoverStatus): ?>
