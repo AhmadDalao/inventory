@@ -87,6 +87,12 @@ foreach ([$registry, $sessions, $api, $pages] as $source) {
     }
 }
 
+foreach ([':user_id, :user_id', 'last_rotated_by = :user_id, updated_by = :user_id'] as $reusedPlaceholder) {
+    if (strpos($actions, $reusedPlaceholder) !== false) {
+        fail_wristband_contract('Wristband actions must not reuse native PDO named placeholders: ' . $reusedPlaceholder);
+    }
+}
+
 $routes = [
     '/wristbands' => 'handle_wristband_codes_page',
     '/wristbands/imports' => 'handle_wristband_imports_page',

@@ -85,13 +85,15 @@ try {
              last_rotated_by, created_by, updated_by, created_at, updated_at)
          VALUES
             (:storage_id, :name, 1, :api_key_hash, :api_key_prefix, NOW(),
-             :user_id, :user_id, :user_id, NOW(), NOW())',
+             :last_rotated_by, :created_by, :updated_by, NOW(), NOW())',
         [
             'storage_id' => $storageId,
             'name' => 'WBT Integration ' . $suffix,
             'api_key_hash' => (string) $apiKey['hash'],
             'api_key_prefix' => (string) $apiKey['prefix'],
-            'user_id' => $ownerId,
+            'last_rotated_by' => $ownerId,
+            'created_by' => $ownerId,
+            'updated_by' => $ownerId,
         ]
     );
     $integrationId = Database::lastInsertId();

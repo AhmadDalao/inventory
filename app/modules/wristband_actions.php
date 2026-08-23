@@ -130,8 +130,15 @@ function handle_wristband_integration_submit(array $params): void
         Database::execute(
             'INSERT INTO wristband_integrations
              (storage_id, name, enabled, ip_allowlist, created_by, updated_by, created_at, updated_at)
-             VALUES (:storage_id, :name, :enabled, :ip_allowlist, :user_id, :user_id, NOW(), NOW())',
-            ['storage_id' => $storageId, 'name' => $name, 'enabled' => $enabled ? 1 : 0, 'ip_allowlist' => $allowlist !== '' ? $allowlist : null, 'user_id' => $userId]
+             VALUES (:storage_id, :name, :enabled, :ip_allowlist, :created_by, :updated_by, NOW(), NOW())',
+            [
+                'storage_id' => $storageId,
+                'name' => $name,
+                'enabled' => $enabled ? 1 : 0,
+                'ip_allowlist' => $allowlist !== '' ? $allowlist : null,
+                'created_by' => $userId,
+                'updated_by' => $userId,
+            ]
         );
         $integrationId = Database::lastInsertId();
     } else {
@@ -161,9 +168,15 @@ function handle_wristband_rotate_key_submit(array $params): void
     Database::execute(
         'UPDATE wristband_integrations
          SET api_key_hash = :api_key_hash, api_key_prefix = :api_key_prefix,
-             last_rotated_at = NOW(), last_rotated_by = :user_id, updated_by = :user_id, updated_at = NOW()
+             last_rotated_at = NOW(), last_rotated_by = :last_rotated_by, updated_by = :updated_by, updated_at = NOW()
          WHERE id = :id',
-        ['api_key_hash' => $generated['hash'], 'api_key_prefix' => $generated['prefix'], 'user_id' => wristband_action_user_id(), 'id' => $id]
+        [
+            'api_key_hash' => $generated['hash'],
+            'api_key_prefix' => $generated['prefix'],
+            'last_rotated_by' => wristband_action_user_id(),
+            'updated_by' => wristband_action_user_id(),
+            'id' => $id,
+        ]
     );
     $_SESSION['_wristband_api_key'] = (string) $generated['plain'];
     $_SESSION['_wristband_api_key_integration_id'] = $id;
