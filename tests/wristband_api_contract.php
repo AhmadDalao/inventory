@@ -144,6 +144,7 @@ wristband_contract_has_all($support, [
     'wristband_session_evidence',
     'wristband_review_snapshot',
     'wristband_store_review_snapshot',
+    "site_setting_stored_value('wristbands.api_enabled')",
 ], 'Wristband support');
 
 wristband_contract_has_all($registry, [

@@ -24,7 +24,7 @@ function wristband_mask_code(string $code): string
 
 function wristband_api_enabled(): bool
 {
-    return site_setting('wristbands.api_enabled', '0') === '1';
+    return site_setting_stored_value('wristbands.api_enabled') === '1';
 }
 
 function wristband_set_api_enabled(bool $enabled, int $userId): void
