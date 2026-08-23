@@ -265,7 +265,7 @@ function handle_wristband_checkin_api(): void
         }
         $code = Database::fetch(
             'SELECT code.*, item.external_qr_tracking_enabled, item.measurement_dimension,
-                    item.is_active AS item_active, item.deleted_at AS item_deleted_at
+                    item.is_active AS item_active
              FROM wristband_codes code
              INNER JOIN items item ON item.id = code.item_id
              WHERE code.code_hash = :code_hash LIMIT 1 FOR UPDATE',
@@ -291,8 +291,7 @@ function handle_wristband_checkin_api(): void
         if ((string) $code['state'] === 'void'
             || (int) $code['external_qr_tracking_enabled'] !== 1
             || (string) $code['measurement_dimension'] !== 'count'
-            || (int) $code['item_active'] !== 1
-            || $code['item_deleted_at'] !== null) {
+            || (int) $code['item_active'] !== 1) {
             $eventId = wristband_api_insert_event($baseValues + [
                 'code_id' => (int) $code['id'],
                 'item_id' => (int) $code['item_id'],

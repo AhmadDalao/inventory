@@ -226,7 +226,7 @@ function wristband_accept_paused_event(int $eventId, int $userId): void
         }
         $code = Database::fetch(
             'SELECT code.*, item.external_qr_tracking_enabled, item.measurement_dimension,
-                    item.is_active AS item_active, item.deleted_at AS item_deleted_at
+                    item.is_active AS item_active
              FROM wristband_codes code
              INNER JOIN items item ON item.id = code.item_id
              WHERE code.code_hash = :code_hash LIMIT 1 FOR UPDATE',
@@ -236,8 +236,7 @@ function wristband_accept_paused_event(int $eventId, int $userId): void
             || (string) $code['state'] !== 'available'
             || (int) $code['external_qr_tracking_enabled'] !== 1
             || (string) $code['measurement_dimension'] !== 'count'
-            || (int) $code['item_active'] !== 1
-            || $code['item_deleted_at'] !== null) {
+            || (int) $code['item_active'] !== 1) {
             throw new RuntimeException('The wristband code is no longer available.');
         }
         if (!in_array((int) $code['item_id'], wristband_session_item_ids((int) $session['id']), true)) {

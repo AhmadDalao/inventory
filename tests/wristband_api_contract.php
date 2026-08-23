@@ -79,6 +79,14 @@ $handoverForm = wristband_contract_source('views/handovers/form.php');
 $handoverShow = wristband_contract_source('views/handovers/show.php');
 $openApi = wristband_contract_source('docs/openapi/wristband-api-v1.yaml');
 
+foreach ([$registry, $sessions, $api, $pages] as $source) {
+    foreach (['item.deleted_at', 'storage.deleted_at'] as $unsupportedArchiveColumn) {
+        if (strpos($source, $unsupportedArchiveColumn) !== false) {
+            fail_wristband_contract('Wristband modules must use the item/storage is_active archive model: ' . $unsupportedArchiveColumn);
+        }
+    }
+}
+
 $routes = [
     '/wristbands' => 'handle_wristband_codes_page',
     '/wristbands/imports' => 'handle_wristband_imports_page',

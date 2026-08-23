@@ -6,7 +6,7 @@ function wristband_tracking_items(): array
     return Database::fetchAll(
         'SELECT id, name, sku, image_path, unit, current_quantity
          FROM items
-         WHERE deleted_at IS NULL AND is_active = 1
+         WHERE is_active = 1
            AND external_qr_tracking_enabled = 1 AND measurement_dimension = "count"
          ORDER BY name ASC, id ASC'
     );
@@ -70,7 +70,7 @@ function wristband_integration_rows(): array
          LEFT JOIN wristband_sessions session
            ON session.integration_id = integration.id AND session.status IN ("active", "paused")
          LEFT JOIN handovers handover ON handover.id = session.handover_id
-         WHERE storage.deleted_at IS NULL AND storage.is_active = 1
+         WHERE storage.is_active = 1
          ORDER BY storage.name ASC, storage.id ASC'
     );
 }

@@ -37,7 +37,7 @@ try {
         'SELECT id, name FROM users WHERE role = "owner" AND is_active = 1 ORDER BY id ASC LIMIT 1'
     );
     $item = Database::fetch(
-        'SELECT id, name, sku, unit FROM items WHERE deleted_at IS NULL AND is_active = 1 ORDER BY id ASC LIMIT 1'
+        'SELECT id, name, sku, unit FROM items WHERE is_active = 1 ORDER BY id ASC LIMIT 1'
     );
 
     assert_wristband_workflow($owner !== null, 'An active owner account is required.');

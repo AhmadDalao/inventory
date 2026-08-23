@@ -270,7 +270,7 @@ function wristband_import_items_by_sku(): array
     $map = [];
     foreach (Database::fetchAll(
         'SELECT id, sku FROM items
-         WHERE deleted_at IS NULL AND is_active = 1
+         WHERE is_active = 1
            AND external_qr_tracking_enabled = 1 AND measurement_dimension = "count"'
     ) as $item) {
         $sku = strtoupper(trim((string) $item['sku']));
@@ -319,7 +319,7 @@ function wristband_import_codes(string $path, string $filename, string $extensio
     if ($mappingMode === 'selected_item') {
         $eligibleItem = Database::fetch(
             'SELECT id FROM items
-             WHERE id = :id AND deleted_at IS NULL AND is_active = 1
+             WHERE id = :id AND is_active = 1
                AND external_qr_tracking_enabled = 1 AND measurement_dimension = "count"
              LIMIT 1',
             ['id' => $selectedItemId]
