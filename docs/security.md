@@ -1,6 +1,6 @@
 # Security And Incident Guide
 
-Updated: 2026-08-22
+Updated: 2026-08-24
 
 ## Security Boundaries
 
@@ -9,6 +9,15 @@ Updated: 2026-08-22
 - Browser sessions use secure cookies, session regeneration, CSRF validation, CSP, HSTS, clickjacking protection, and permission-checked routes.
 - Uploads are permission checked, size limited, and validated using detected MIME type rather than trusting the filename.
 - Production errors return safe messages and must not reveal SQL, stack traces, tokens, or filesystem paths.
+
+## Browser Persistent Login
+
+- `Keep me logged in` is enabled by default on the web login and lasts 30 days.
+- The browser stores only a random selector/validator cookie. The database stores the selector and a SHA-256 validator hash; passwords and raw validators are never stored.
+- The cookie is `Secure`, `HttpOnly`, and `SameSite=Lax`, and is scoped to the configured application base path.
+- Successful automatic restoration rotates the validator, extends the expiry, and regenerates the PHP session ID.
+- Logout revokes the current persistent token. Password reset/change, account disablement, and the admin `Revoke Saved Logins` action revoke every persistent token for that user.
+- Invalid, expired, or stolen-validator attempts delete the presented cookie and do not create a session.
 
 ## Mobile Sessions
 

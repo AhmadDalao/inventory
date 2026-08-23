@@ -7,6 +7,8 @@ $storageRows = array_map(static function (array $storage): array {
     ];
 }, $storages);
 $storageJson = json_encode($storageRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$canImportWristbands = Auth::hasPermission('wristbands.import');
+$canEnableWristbandTracking = $canImportWristbands && Auth::hasPermission('items.edit');
 ?>
 
 <section class="page-head">
@@ -27,6 +29,11 @@ $storageJson = json_encode($storageRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED
     data-manual-lookup-url="<?= e(url('/scan/lookup')) ?>"
     data-manual-submit-url="<?= e(url('/scan/manual-restock/batch')) ?>"
     data-manual-storages="<?= e((string) $storageJson) ?>"
+    data-wristband-preflight-url="<?= e(url('/wristbands/imports/preflight')) ?>"
+    data-wristband-sample-csv-url="<?= e(url('/wristbands/imports/sample.csv?mapping_mode=selected_item')) ?>"
+    data-wristband-sample-xlsx-url="<?= e(url('/wristbands/imports/sample.xlsx?mapping_mode=selected_item')) ?>"
+    data-can-import-wristbands="<?= $canImportWristbands ? 'true' : 'false' ?>"
+    data-can-enable-wristband-tracking="<?= $canEnableWristbandTracking ? 'true' : 'false' ?>"
 >
     <?= csrf_field() ?>
 

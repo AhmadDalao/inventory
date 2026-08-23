@@ -8,6 +8,11 @@ export const initManualStockAdd = (root = document) => {
 
     const lookupUrl = page.dataset.manualLookupUrl || '';
     const submitUrl = page.dataset.manualSubmitUrl || '';
+    const wristbandPreflightUrl = page.dataset.wristbandPreflightUrl || '';
+    const wristbandSampleCsvUrl = page.dataset.wristbandSampleCsvUrl || '';
+    const wristbandSampleXlsxUrl = page.dataset.wristbandSampleXlsxUrl || '';
+    const canImportWristbands = page.dataset.canImportWristbands === 'true';
+    const canEnableWristbandTracking = page.dataset.canEnableWristbandTracking === 'true';
     const searchInput = page.querySelector('[data-manual-stock-search]');
     const results = page.querySelector('[data-manual-stock-results]');
     const selectedWrap = page.querySelector('[data-manual-stock-selected]');
@@ -37,6 +42,7 @@ export const initManualStockAdd = (root = document) => {
     let selectedItem = null;
     let lookupTimer = null;
     let lookupSequence = 0;
+    let wristbandSequence = 0;
     let draftLines = [];
 
     try {
@@ -297,6 +303,122 @@ export const initManualStockAdd = (root = document) => {
       return totals;
     }, {});
 
+    const wristbandMarkup = (line) => {
+      if (!canImportWristbands || line.item?.wristband_eligible !== true) {
+        return '';
+      }
+
+      const trackingEnabled = line.item?.external_qr_tracking_enabled === true;
+      const trackingControl = trackingEnabled
+        ? '<span class="status-badge success">QR tracking enabled</span>'
+        : (canEnableWristbandTracking
+          ? `<label class="checkbox-field">
+              <input type="checkbox" data-manual-wristband-enable ${line.enable_external_qr_tracking ? 'checked' : ''}>
+              <span>Enable external QR tracking for this item</span>
+            </label>`
+          : '<span class="danger-text">QR tracking is disabled. An item editor must enable it before codes can be attached.</span>');
+      const preflight = line.wristband_preflight || null;
+      let statusClass = '';
+      let statusText = 'Optional. Attach one code per canonical unit being added.';
+
+      if (line.wristband_file && preflight?.state === 'checking') {
+        statusText = `Checking ${line.wristband_file.name}...`;
+      } else if (line.wristband_file && preflight?.state === 'ready') {
+        statusClass = 'is-ready';
+        statusText = `${preflight.valid_count} unique codes match this ${formatNumber(line.base_quantity)} ${line.base_unit} restock.`;
+      } else if (line.wristband_file && preflight?.state === 'error') {
+        statusClass = 'is-error';
+        statusText = preflight.message || 'This code file is not ready.';
+      } else if (line.wristband_file) {
+        statusText = `${line.wristband_file.name} is waiting for validation.`;
+      }
+
+      return `
+        <details class="manual-stock-wristband" ${line.wristband_open ? 'open' : ''} data-manual-wristband-details>
+          <summary>
+            <span>Wristband Codes <small>(Optional)</small></span>
+            <span>${escapeHtml(String(line.item.wristband_registered_codes || 0))} already registered</span>
+          </summary>
+          <div class="manual-stock-wristband-body">
+            <p class="tiny-copy">Use this only when the added stock is a wristband batch. The valid unique code count must exactly match the converted restock quantity.</p>
+            ${trackingControl}
+            <label class="field manual-stock-wristband-file">
+              <span>CSV or XLSX code file</span>
+              <input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-manual-wristband-file>
+              <small>${line.wristband_file ? `Selected: ${escapeHtml(line.wristband_file.name)}` : 'Use a single code column. The proof image remains separate.'}</small>
+            </label>
+            <div class="manual-stock-wristband-actions">
+              ${wristbandSampleCsvUrl ? `<a class="ghost-button compact-button" href="${escapeHtml(wristbandSampleCsvUrl)}">CSV example</a>` : ''}
+              ${wristbandSampleXlsxUrl ? `<a class="ghost-button compact-button" href="${escapeHtml(wristbandSampleXlsxUrl)}">XLSX example</a>` : ''}
+              ${line.wristband_file ? '<button class="ghost-button compact-button danger-link" type="button" data-manual-wristband-clear>Remove code file</button>' : ''}
+            </div>
+            <p class="manual-stock-wristband-status ${statusClass}">${escapeHtml(statusText)}</p>
+          </div>
+        </details>
+      `;
+    };
+
+    const runWristbandPreflight = async (line, index) => {
+      if (!line.wristband_file || !wristbandPreflightUrl) {
+        return;
+      }
+
+      line.wristband_preflight = { state: 'checking', valid_count: 0, message: '' };
+      line.wristband_open = true;
+      renderDraft();
+
+      const formData = new FormData();
+      formData.append('_token', csrfToken(page));
+      formData.append('storage_id', line.storage_id);
+      formData.append('mapping_mode', 'selected_item');
+      formData.append('selected_item_id', line.item_id);
+      formData.append('enable_external_qr_tracking', line.enable_external_qr_tracking ? '1' : '0');
+      formData.append('wristband_file', line.wristband_file);
+
+      try {
+        const response = await fetch(wristbandPreflightUrl, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: formData,
+        });
+        const payload = await response.json();
+        const currentLine = draftLines[index];
+
+        if (currentLine !== line) {
+          return;
+        }
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || 'Wristband code validation failed.');
+        }
+
+        const validCount = Number(payload.stats?.valid || 0);
+        const expectedCount = Number(line.base_quantity || 0);
+        if (!payload.clean) {
+          throw new Error(payload.message || 'Fix the wristband code file before confirming stock.');
+        }
+        if (!Number.isInteger(expectedCount) || validCount !== expectedCount) {
+          throw new Error(`${validCount} valid codes do not match the ${formatNumber(expectedCount)}-unit restock quantity.`);
+        }
+
+        line.wristband_preflight = {
+          state: 'ready',
+          valid_count: validCount,
+          message: payload.message || '',
+        };
+      } catch (error) {
+        line.wristband_preflight = {
+          state: 'error',
+          valid_count: 0,
+          message: error.message || 'Wristband code validation failed.',
+        };
+      }
+
+      renderDraft();
+    };
+
     const renderDraft = () => {
       const lineCount = draftLines.length;
 
@@ -318,7 +440,7 @@ export const initManualStockAdd = (root = document) => {
       }
 
       draftWrap.innerHTML = draftLines.map((line, index) => `
-        <div class="manual-stock-draft-row" data-manual-stock-draft-index="${index}">
+        <div class="manual-stock-draft-row ${canImportWristbands && line.item?.wristband_eligible === true ? 'has-wristband-codes' : ''}" data-manual-stock-draft-index="${index}">
           ${itemImageMarkup(line.item)}
           <span>
             <strong>${escapeHtml(line.item.name)}</strong>
@@ -332,6 +454,7 @@ export const initManualStockAdd = (root = document) => {
             <small>= ${escapeHtml(formatNumber(line.base_quantity))} ${escapeHtml(line.base_unit)}</small>
           </em>
           <button class="ghost-button danger-link" type="button" data-manual-stock-remove>Remove</button>
+          ${wristbandMarkup(line)}
         </div>
       `).join('');
 
@@ -420,6 +543,11 @@ export const initManualStockAdd = (root = document) => {
         requires_refill_proof: selectedItem.requires_refill_proof === true,
         reference_code: referenceInput instanceof HTMLInputElement ? referenceInput.value.trim() : '',
         notes: notesInput instanceof HTMLInputElement ? notesInput.value.trim() : '',
+        wristband_file: null,
+        wristband_file_field: '',
+        wristband_preflight: null,
+        wristband_open: false,
+        enable_external_qr_tracking: selectedItem.external_qr_tracking_enabled === true,
       });
 
       if (quantityInput instanceof HTMLInputElement) {
@@ -449,17 +577,76 @@ export const initManualStockAdd = (root = document) => {
     draftWrap.addEventListener('click', (event) => {
       const target = event.target;
 
-      if (!(target instanceof Element) || !target.closest('[data-manual-stock-remove]')) {
+      if (!(target instanceof Element)) {
         return;
       }
 
       const row = target.closest('[data-manual-stock-draft-index]');
       const index = Number.parseInt(row?.getAttribute('data-manual-stock-draft-index') || '-1', 10);
 
-      if (index >= 0) {
+      if (index >= 0 && target.closest('[data-manual-stock-remove]')) {
         draftLines.splice(index, 1);
         renderDraft();
         setStatus('Draft line removed.');
+      } else if (index >= 0 && target.closest('[data-manual-wristband-clear]')) {
+        draftLines[index].wristband_file = null;
+        draftLines[index].wristband_file_field = '';
+        draftLines[index].wristband_preflight = null;
+        renderDraft();
+        setStatus('Wristband code file removed.');
+      }
+    });
+
+    draftWrap.addEventListener('toggle', (event) => {
+      const details = event.target;
+
+      if (!(details instanceof HTMLDetailsElement) || !details.matches('[data-manual-wristband-details]')) {
+        return;
+      }
+      const row = details.closest('[data-manual-stock-draft-index]');
+      const index = Number.parseInt(row?.getAttribute('data-manual-stock-draft-index') || '-1', 10);
+      if (index >= 0 && draftLines[index]) {
+        draftLines[index].wristband_open = details.open;
+      }
+    }, true);
+
+    draftWrap.addEventListener('change', (event) => {
+      const target = event.target;
+
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+      const row = target.closest('[data-manual-stock-draft-index]');
+      const index = Number.parseInt(row?.getAttribute('data-manual-stock-draft-index') || '-1', 10);
+      const line = index >= 0 ? draftLines[index] : null;
+      if (!line) {
+        return;
+      }
+
+      if (target.matches('[data-manual-wristband-enable]')) {
+        line.enable_external_qr_tracking = target.checked;
+        line.wristband_open = true;
+        if (line.wristband_file) {
+          runWristbandPreflight(line, index);
+        } else {
+          renderDraft();
+        }
+        return;
+      }
+
+      if (target.matches('[data-manual-wristband-file]')) {
+        const file = target.files?.[0] || null;
+        line.wristband_file = file;
+        line.wristband_file_field = file
+          ? `wristband_file_${Date.now()}_${++wristbandSequence}`
+          : '';
+        line.wristband_preflight = null;
+        line.wristband_open = true;
+        if (file) {
+          runWristbandPreflight(line, index);
+        } else {
+          renderDraft();
+        }
       }
     });
 
@@ -482,6 +669,12 @@ export const initManualStockAdd = (root = document) => {
         }
 
         const proofRequired = draftLines.some((line) => line.requires_refill_proof === true);
+        const wristbandNotReady = draftLines.find((line) => line.wristband_file && line.wristband_preflight?.state !== 'ready');
+
+        if (wristbandNotReady) {
+          setStatus(`The wristband code file for ${wristbandNotReady.item.name} must pass validation before confirmation.`, 'danger');
+          return;
+        }
 
         if (proofRequired && (!(proofInput instanceof HTMLInputElement) || !proofInput.files?.[0])) {
           setStatus('A proof image is required for one or more items in this refill.', 'danger');
@@ -501,7 +694,15 @@ export const initManualStockAdd = (root = document) => {
           package_preset_id: line.package_preset_id,
           reference_code: line.reference_code,
           notes: line.notes,
+          wristband_file_field: line.wristband_file_field,
+          enable_external_qr_tracking: line.enable_external_qr_tracking,
         }))));
+
+        draftLines.forEach((line) => {
+          if (line.wristband_file && line.wristband_file_field) {
+            formData.append(line.wristband_file_field, line.wristband_file);
+          }
+        });
 
         if (proofInput instanceof HTMLInputElement && proofInput.files?.[0]) {
           formData.append('proof_image', proofInput.files[0]);

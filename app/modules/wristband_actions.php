@@ -6,60 +6,170 @@ function wristband_action_user_id(): int
     return (int) (Auth::user()['id'] ?? 0);
 }
 
+function wristband_import_request_context(): array
+{
+    $mappingMode = strtolower(trim((string) input('mapping_mode', 'selected_item')));
+    $storageId = max(0, (int) input('storage_id', 0));
+    $selectedItemId = max(0, (int) input('selected_item_id', 0));
+    $enableTracking = (string) input('enable_external_qr_tracking', '0') === '1';
+    $userId = wristband_action_user_id();
+
+    if (!in_array($mappingMode, ['selected_item', 'code_sku'], true)) {
+        throw new RuntimeException('Choose a valid wristband mapping mode.');
+    }
+    if ($storageId <= 0 || !in_array($storageId, user_visible_storage_ids($userId), true)) {
+        throw new RuntimeException('Choose a storage you are allowed to access.');
+    }
+    if ($mappingMode === 'selected_item' && $selectedItemId <= 0) {
+        throw new RuntimeException('Choose the wristband item for this import.');
+    }
+    if ($enableTracking && (!Auth::hasPermission('items.edit') || !Auth::hasPermission('wristbands.import'))) {
+        throw new RuntimeException('You do not have permission to enable external QR tracking.');
+    }
+
+    return [
+        'mapping_mode' => $mappingMode,
+        'storage_id' => $storageId,
+        'selected_item_id' => $selectedItemId,
+        'enable_tracking' => $enableTracking,
+        'user_id' => $userId,
+    ];
+}
+
+function handle_wristband_import_items(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('wristbands.view');
+    $storageId = max(0, (int) ($_GET['storage_id'] ?? 0));
+    if ($storageId <= 0 || !in_array($storageId, user_visible_storage_ids(wristband_action_user_id()), true)) {
+        json_response(['ok' => false, 'message' => 'Choose a storage you are allowed to access.'], 403);
+    }
+
+    $items = array_map(static function (array $item): array {
+        return [
+            'id' => (int) $item['id'],
+            'name' => (string) $item['name'],
+            'sku' => (string) $item['sku'],
+            'unit' => (string) $item['unit'],
+            'image_url' => item_image_url((string) ($item['image_path'] ?? '')),
+            'storage_quantity' => (float) $item['storage_quantity'],
+            'registered_codes' => (int) $item['registered_codes'],
+            'available_codes' => (int) $item['available_codes'],
+            'tracking_enabled' => (int) $item['external_qr_tracking_enabled'] === 1,
+        ];
+    }, wristband_import_candidate_items($storageId));
+
+    json_response(['ok' => true, 'items' => $items]);
+}
+
+function handle_wristband_import_preflight_submit(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('wristbands.import');
+    verify_csrf();
+
+    try {
+        $context = wristband_import_request_context();
+        $file = wristband_import_uploaded_file();
+        $preflight = wristband_import_preflight(
+            (string) $file['path'],
+            (string) $file['extension'],
+            (string) $context['mapping_mode'],
+            (int) $context['selected_item_id'],
+            (int) $context['storage_id'],
+            (bool) $context['enable_tracking']
+        );
+        json_response([
+            'ok' => true,
+            'clean' => !$preflight['has_issues'] && (int) $preflight['stats']['valid'] > 0,
+            'stats' => $preflight['stats'],
+            'preview' => $preflight['preview'],
+            'message' => $preflight['has_issues']
+                ? 'Fix every duplicate, invalid code, unknown SKU, or item conflict before importing.'
+                : sprintf('%d unique codes are ready to import.', (int) $preflight['stats']['valid']),
+        ]);
+    } catch (Throwable $exception) {
+        json_response(['ok' => false, 'message' => $exception->getMessage()], 422);
+    }
+}
+
+function wristband_import_sample_mode(): string
+{
+    $mappingMode = strtolower(trim((string) ($_GET['mapping_mode'] ?? 'selected_item')));
+
+    return in_array($mappingMode, ['selected_item', 'code_sku'], true) ? $mappingMode : 'selected_item';
+}
+
+function handle_wristband_import_sample_csv(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('wristbands.view');
+    $mappingMode = wristband_import_sample_mode();
+    $stream = fopen('php://temp', 'w+b');
+    if ($stream === false) {
+        throw new RuntimeException('Could not create the CSV example.');
+    }
+    fwrite($stream, "\xEF\xBB\xBF");
+    foreach (wristband_import_sample_rows($mappingMode) as $row) {
+        fputcsv($stream, $row);
+    }
+    rewind($stream);
+    $bytes = stream_get_contents($stream);
+    fclose($stream);
+    if (!is_string($bytes)) {
+        throw new RuntimeException('Could not create the CSV example.');
+    }
+    send_download_headers('text/csv; charset=utf-8', 'wristband-import-' . str_replace('_', '-', $mappingMode) . '-example.csv', strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+function handle_wristband_import_sample_xlsx(): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('wristbands.view');
+    $mappingMode = wristband_import_sample_mode();
+    $bytes = wristband_import_sample_xlsx($mappingMode);
+    send_download_headers(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'wristband-import-' . str_replace('_', '-', $mappingMode) . '-example.xlsx',
+        strlen($bytes)
+    );
+    echo $bytes;
+    exit;
+}
+
 function handle_wristband_import_submit(): void
 {
     app_ready_or_redirect();
     Auth::requirePermission('wristbands.import');
     verify_csrf();
-    $file = $_FILES['wristband_file'] ?? null;
-    $mode = (string) input('mapping_mode', 'selected_item');
-    $itemId = max(0, (int) input('selected_item_id', 0));
-    $errors = [];
-    if (!in_array($mode, ['selected_item', 'code_sku'], true)) {
-        $errors[] = 'Choose a valid mapping mode.';
-    }
-    if ($mode === 'selected_item' && $itemId <= 0) {
-        $errors[] = 'Choose the wristband item for this import.';
-    }
-    if (!is_array($file) || (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        $errors[] = 'Choose a CSV or XLSX file.';
-    }
-    $extension = strtolower(pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
-    if (!in_array($extension, ['csv', 'xlsx'], true)) {
-        $errors[] = 'Only CSV and XLSX wristband files are supported.';
-    }
-    if ((int) ($file['size'] ?? 0) > 20 * 1024 * 1024) {
-        $errors[] = 'The import file must be 20 MB or smaller.';
-    }
-    if (is_array($file) && is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
-        $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : false;
-        $mimeType = $finfo ? (string) finfo_file($finfo, (string) $file['tmp_name']) : '';
-        if ($finfo) {
-            finfo_close($finfo);
-        }
-        $allowedMimes = $extension === 'csv'
-            ? ['text/plain', 'text/csv', 'application/csv', 'application/vnd.ms-excel']
-            : ['application/zip', 'application/x-zip-compressed', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-        if ($mimeType !== '' && !in_array($mimeType, $allowedMimes, true)) {
-            $errors[] = 'The uploaded file content does not match its CSV or XLSX extension.';
-        }
-    }
-    if ($errors !== []) {
-        flash_errors($errors);
-        redirect('/wristbands/imports');
-    }
 
     try {
+        $context = wristband_import_request_context();
+        $file = wristband_import_uploaded_file();
+        $preflight = wristband_import_preflight(
+            (string) $file['path'],
+            (string) $file['extension'],
+            (string) $context['mapping_mode'],
+            (int) $context['selected_item_id'],
+            (int) $context['storage_id'],
+            (bool) $context['enable_tracking']
+        );
         $result = wristband_import_codes(
-            (string) $file['tmp_name'],
-            basename((string) $file['name']),
-            $extension,
-            $mode,
-            $itemId,
-            wristband_action_user_id()
+            (string) $file['path'],
+            (string) $file['name'],
+            (string) $file['extension'],
+            (string) $context['mapping_mode'],
+            (int) $context['selected_item_id'],
+            (int) $context['user_id'],
+            (int) $context['storage_id'],
+            (bool) $context['enable_tracking'],
+            $preflight,
+            true
         );
         record_activity('wristband.import.completed', 'wristband_import', (int) $result['import_id'], 'Imported wristband code registry.', $result);
-        flash('success', sprintf('%d codes imported. %d duplicate and %d invalid rows were skipped.', $result['imported'], $result['duplicates'], $result['invalid']));
+        flash('success', sprintf('%d unique wristband codes imported. No rows were skipped.', $result['imported']));
     } catch (Throwable $exception) {
         flash('danger', $exception->getMessage());
     }

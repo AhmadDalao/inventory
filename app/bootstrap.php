@@ -46,3 +46,4 @@ require __DIR__ . '/View.php';
 require __DIR__ . '/Router.php';
 
 Maintenance::boot();
+Auth::restoreFromPersistentCookie();

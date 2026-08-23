@@ -30,6 +30,26 @@ trait MaintenanceMeasurementSchemas
             Database::execute('ALTER TABLE item_package_presets ADD COLUMN scan_code VARCHAR(120) NULL AFTER label');
         }
 
+        if (!self::columnExists('item_package_presets', 'package_type')) {
+            Database::execute('ALTER TABLE item_package_presets ADD COLUMN package_type VARCHAR(40) NULL AFTER label');
+            Database::execute(
+                'UPDATE item_package_presets
+                 SET package_type = CASE LOWER(TRIM(label))
+                    WHEN "individual" THEN "individual"
+                    WHEN "pack" THEN "pack"
+                    WHEN "box" THEN "box"
+                    WHEN "bag" THEN "bag"
+                    WHEN "bottle" THEN "bottle"
+                    WHEN "container" THEN "container"
+                    WHEN "roll" THEN "roll"
+                    WHEN "bundle" THEN "bundle"
+                    WHEN "carton" THEN "carton"
+                    ELSE "other"
+                 END
+                 WHERE package_type IS NULL'
+            );
+        }
+
         if (!self::columnExists('item_package_presets', 'is_active')) {
             Database::execute('ALTER TABLE item_package_presets ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER is_default');
         }
@@ -37,6 +57,7 @@ trait MaintenanceMeasurementSchemas
         Database::execute('ALTER TABLE item_package_presets MODIFY COLUMN pieces_per_unit DECIMAL(18,6) NOT NULL');
         self::ensureIndexExists('item_package_presets', 'idx_item_package_scan_code', 'CREATE INDEX `idx_item_package_scan_code` ON `item_package_presets` (`scan_code`)');
         self::ensureIndexExists('item_package_presets', 'idx_item_package_active', 'CREATE INDEX `idx_item_package_active` ON `item_package_presets` (`item_id`, `is_active`)');
+        self::ensureIndexExists('item_package_presets', 'idx_item_package_type', 'CREATE INDEX `idx_item_package_type` ON `item_package_presets` (`item_id`, `package_type`)');
 
         Database::execute(
             'CREATE TABLE IF NOT EXISTS departments (

@@ -96,6 +96,10 @@ foreach ([':user_id, :user_id', 'last_rotated_by = :user_id, updated_by = :user_
 $routes = [
     '/wristbands' => 'handle_wristband_codes_page',
     '/wristbands/imports' => 'handle_wristband_imports_page',
+    '/wristbands/imports/items' => 'handle_wristband_import_items',
+    '/wristbands/imports/preflight' => 'handle_wristband_import_preflight_submit',
+    '/wristbands/imports/sample.csv' => 'handle_wristband_import_sample_csv',
+    '/wristbands/imports/sample.xlsx' => 'handle_wristband_import_sample_xlsx',
     '/wristbands/sessions' => 'handle_wristband_sessions_page',
     '/wristbands/exceptions' => 'handle_wristband_exceptions_page',
     '/wristbands/integrations' => 'handle_wristband_integrations_page',

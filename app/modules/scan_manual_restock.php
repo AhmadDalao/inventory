@@ -18,6 +18,69 @@ function scan_manual_restock_proof_upload(): ?array
     return $file;
 }
 
+function scan_manual_restock_wristband_upload(array $line, int $lineNumber, array $item, int $storageId, array $measurement): ?array
+{
+    $fileField = trim((string) ($line['wristband_file_field'] ?? ''));
+    if ($fileField === '') {
+        return null;
+    }
+    if (!preg_match('/^wristband_file_[A-Za-z0-9_-]{1,80}$/', $fileField)) {
+        throw new InvalidArgumentException("Line {$lineNumber}: the wristband file reference is invalid.");
+    }
+    if (!Auth::hasPermission('wristbands.import')) {
+        throw new InvalidArgumentException("Line {$lineNumber}: you do not have permission to import wristband codes.");
+    }
+    if (normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count') !== 'count') {
+        throw new InvalidArgumentException("Line {$lineNumber}: wristband codes can only be attached to count-based items.");
+    }
+
+    $baseQuantity = (float) ($measurement['base_quantity'] ?? 0);
+    $roundedQuantity = round($baseQuantity);
+    if ($baseQuantity <= 0 || abs($baseQuantity - $roundedQuantity) > 0.000001) {
+        throw new InvalidArgumentException("Line {$lineNumber}: wristband restock quantity must be a whole number.");
+    }
+
+    $enableTracking = filter_var($line['enable_external_qr_tracking'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $trackingEnabled = (int) ($item['external_qr_tracking_enabled'] ?? 0) === 1;
+    if (!$trackingEnabled && !$enableTracking) {
+        throw new InvalidArgumentException("Line {$lineNumber}: explicitly enable external QR tracking before attaching wristband codes.");
+    }
+    if (!$trackingEnabled && $enableTracking && !Auth::hasPermission('items.edit')) {
+        throw new InvalidArgumentException("Line {$lineNumber}: item edit permission is required to enable external QR tracking.");
+    }
+
+    try {
+        $file = wristband_import_uploaded_file($fileField);
+        $preflight = wristband_import_preflight(
+            (string) $file['path'],
+            (string) $file['extension'],
+            'selected_item',
+            (int) $item['id'],
+            $storageId,
+            $enableTracking
+        );
+    } catch (Throwable $exception) {
+        throw new InvalidArgumentException("Line {$lineNumber}: " . $exception->getMessage());
+    }
+
+    if ((bool) ($preflight['has_issues'] ?? true)) {
+        throw new InvalidArgumentException("Line {$lineNumber}: fix every duplicate, invalid, or conflicting wristband code before confirming stock.");
+    }
+    $validCount = (int) ($preflight['stats']['valid'] ?? 0);
+    if ($validCount !== (int) $roundedQuantity) {
+        throw new InvalidArgumentException(
+            "Line {$lineNumber}: {$validCount} valid wristband codes do not match the " . (int) $roundedQuantity . '-unit restock quantity.'
+        );
+    }
+
+    return [
+        'file' => $file,
+        'preflight' => $preflight,
+        'enable_tracking' => $enableTracking,
+        'valid_count' => $validCount,
+    ];
+}
+
 function scan_manual_restock_validate_line(array $line, int $lineNumber): array
 {
     $userId = (int) (Auth::user()['id'] ?? 0);
@@ -48,6 +111,8 @@ function scan_manual_restock_validate_line(array $line, int $lineNumber): array
         throw new InvalidArgumentException("Line {$lineNumber}: " . $exception->getMessage());
     }
 
+    $wristbandImport = scan_manual_restock_wristband_upload($line, $lineNumber, $item, $storageId, $measurement);
+
     return [
         'item' => $item,
         'item_id' => (int) $item['id'],
@@ -55,6 +120,7 @@ function scan_manual_restock_validate_line(array $line, int $lineNumber): array
         'measurement' => $measurement,
         'reference_code' => $referenceCode !== '' ? $referenceCode : 'SCAN-MANUAL-BATCH',
         'notes' => $notes !== '' ? $notes : 'Manual stock add from Scan Center draft.',
+        'wristband_import' => $wristbandImport,
     ];
 }
 
@@ -247,6 +313,7 @@ function handle_scan_manual_restock_batch_submit(): void
     $ownsTransaction = !$pdo->inTransaction();
     $performedBy = (int) (Auth::user()['id'] ?? 0);
     $movementIds = [];
+    $wristbandImports = [];
     $storedProof = null;
     $usedAt = date('Y-m-d H:i:s');
 
@@ -256,7 +323,7 @@ function handle_scan_manual_restock_batch_submit(): void
         }
 
         foreach ($validatedLines as $line) {
-            $movementIds[] = apply_inventory_movement(
+            $movementId = apply_inventory_movement(
                 $line['item'],
                 'restock',
                 (float) $line['measurement']['base_quantity'],
@@ -270,6 +337,23 @@ function handle_scan_manual_restock_batch_submit(): void
                 null,
                 $line['measurement']
             );
+            $movementIds[] = $movementId;
+
+            if (is_array($line['wristband_import'] ?? null)) {
+                $wristbandFile = $line['wristband_import']['file'];
+                $wristbandImports[] = wristband_import_codes(
+                    (string) $wristbandFile['path'],
+                    (string) $wristbandFile['name'],
+                    (string) $wristbandFile['extension'],
+                    'selected_item',
+                    (int) $line['item_id'],
+                    $performedBy,
+                    (int) $line['storage_id'],
+                    (bool) $line['wristband_import']['enable_tracking'],
+                    $line['wristband_import']['preflight'],
+                    true
+                );
+            }
         }
 
         if ($proofFile !== null) {
@@ -313,5 +397,6 @@ function handle_scan_manual_restock_batch_submit(): void
         'items' => array_values($updatedItems),
         'measurements' => $measurements,
         'proof_stored' => $storedProof !== null,
+        'wristband_imports' => $wristbandImports,
     ]);
 }

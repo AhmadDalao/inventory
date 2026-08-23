@@ -105,7 +105,9 @@ If proof is mandatory in Mobile Access, the batch is rejected before any stock c
 
 Every item owns one canonical stock unit and one compatible measurement dimension. Examples are `roll` for toilet paper, `mL` for liquid soap, `g` for powder, and `mm` or `m` for pipe/material. Balances and negative-stock checks use only that canonical unit.
 
-Admins define reusable package presets on the item. A preset includes a label, conversion multiplier, optional scan code, and active state. Employees may select a preset but cannot submit their own multiplier. For example, `2 x 1 L bottle` is validated by PHP and stored as `2,000 mL`; reports retain both representations.
+Admins define reusable package presets on the item. A preset includes a normalized package type, display label, conversion multiplier, optional scan code, and active state. Supported types are Individual, Pack, Box, Bag, Bottle, Container, Roll, Bundle, Carton, and Other. Only Other accepts a custom label. Employees may select a preset but cannot submit their own multiplier. For example, `2 x 1 L bottle` is validated by PHP and stored as `2,000 mL`; reports retain both representations.
+
+The API returns `package_type` alongside the legacy `label`, `multiplier`, `scan_code`, and `active` fields. Older clients may continue using the label and multiplier. New clients should use the normalized type for consistent presentation while still displaying the server-owned label.
 
 New movement lines may send:
 

@@ -97,7 +97,8 @@ function handle_wristband_imports_page(): void
     View::render('wristbands/imports', [
         'title' => 'Wristband Imports',
         'imports' => wristband_import_history(),
-        'items' => wristband_tracking_items(),
+        'storages' => wristband_import_visible_storages((int) (Auth::user()['id'] ?? 0)),
+        'canEnableTracking' => Auth::hasPermission('wristbands.import') && Auth::hasPermission('items.edit'),
     ]);
 }
 

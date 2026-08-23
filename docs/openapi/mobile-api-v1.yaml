@@ -641,6 +641,10 @@ components:
             required: [id, label, multiplier, active]
             properties:
               id: { type: integer }
+              package_type:
+                type: [string, 'null']
+                enum: [individual, pack, box, bag, bottle, container, roll, bundle, carton, other, null]
+                description: Normalized server-owned package type. Null is accepted for legacy presets.
               label: { type: string, example: Box }
               multiplier: { type: number, exclusiveMinimum: 0, example: 50 }
               scan_code: { type: [string, 'null'], example: SOAP-1L }

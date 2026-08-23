@@ -2,6 +2,7 @@ import { initInteractiveUi, registerInitializer } from './js/core/registry.js';
 import { init as initNavigation } from './js/ui/navigation.js';
 import { init as initDialogs } from './js/ui/dialogs.js';
 import { init as initFormControls } from './js/ui/form-controls.js';
+import { init as initPasswordVisibility } from './js/ui/password-visibility.js';
 import { init as initBarcodes } from './js/ui/barcodes.js';
 import { init as initMedia } from './js/ui/media.js';
 import { init as initSearch } from './js/ui/search.js';
@@ -28,10 +29,12 @@ import { init as initManualStock } from './js/domains/manual-stock.js';
 import { init as initScan } from './js/domains/scan.js';
 import { init as initMobileAdmin } from './js/domains/mobile-admin.js';
 import { init as initWristbands } from './js/domains/wristbands.js';
+import { init as initPackagePresets } from './js/domains/package-presets.js';
 
 registerInitializer('navigation', initNavigation);
 registerInitializer('dialogs', initDialogs);
 registerInitializer('form-controls', initFormControls);
+registerInitializer('password-visibility', initPasswordVisibility);
 registerInitializer('barcodes', initBarcodes);
 registerInitializer('media', initMedia);
 registerInitializer('search', initSearch);
@@ -58,6 +61,7 @@ registerInitializer('manual-stock', initManualStock);
 registerInitializer('scan', initScan);
 registerInitializer('mobile-admin', initMobileAdmin);
 registerInitializer('wristbands', initWristbands);
+registerInitializer('package-presets', initPackagePresets);
 
 document.addEventListener('DOMContentLoaded', () => {
   initInteractiveUi(document);

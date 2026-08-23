@@ -342,6 +342,66 @@
     grid-template-columns: 56px minmax(0, 1fr) auto auto;
 }
 
+.manual-stock-draft-row.has-wristband-codes {
+    align-items: start;
+}
+
+.manual-stock-wristband {
+    grid-column: 1 / -1;
+    border: 1px solid rgba(224, 177, 84, 0.34);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.82);
+    overflow: hidden;
+}
+
+.manual-stock-wristband summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 15px;
+    font-weight: 900;
+}
+
+.manual-stock-wristband summary::-webkit-details-marker {
+    display: none;
+}
+
+.manual-stock-wristband-body {
+    display: grid;
+    gap: 12px;
+    padding: 0 15px 15px;
+}
+
+.manual-stock-wristband-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.manual-stock-wristband-file {
+    border: 1px dashed var(--border-strong, var(--border));
+    border-radius: 16px;
+    padding: 12px;
+    background: var(--surface, #fff);
+}
+
+.manual-stock-wristband-status {
+    margin: 0;
+    font-weight: 750;
+}
+
+.manual-stock-wristband-status.is-ready {
+    color: var(--success, #177245);
+}
+
+.manual-stock-wristband-status.is-error {
+    color: var(--danger, #b13a2f);
+}
+
 .manual-stock-summary {
     border: 1px solid rgba(224, 177, 84, 0.35);
     border-radius: 20px;

@@ -41,7 +41,7 @@ final class Maintenance
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-22-wristband-api-audit-v1';
+    private const SCHEMA_VERSION = '2026-08-23-persistent-login-package-wristband-import-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 

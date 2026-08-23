@@ -178,6 +178,8 @@ $isStorageScoped = $isStorageScoped ?? false;
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="preset_id" value="<?= e((string) $preset['id']) ?>">
                                             <input type="hidden" name="label" value="<?= e($preset['label']) ?>">
+                                            <input type="hidden" name="package_type" value="<?= e($preset['package_type']) ?>">
+                                            <?php if ($preset['package_type'] === 'other'): ?><input type="hidden" name="custom_label" value="<?= e($preset['label']) ?>"><?php endif; ?>
                                             <input type="hidden" name="scan_code" value="<?= e($preset['scan_code']) ?>">
                                             <input type="hidden" name="pieces_per_unit" value="<?= e((string) $preset['pieces_per_unit_raw']) ?>">
                                             <input type="hidden" name="is_default" value="1">
@@ -196,6 +198,8 @@ $isStorageScoped = $isStorageScoped ?? false;
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="preset_id" value="<?= e((string) $preset['id']) ?>">
                                             <input type="hidden" name="label" value="<?= e($preset['label']) ?>">
+                                            <input type="hidden" name="package_type" value="<?= e($preset['package_type']) ?>">
+                                            <?php if ($preset['package_type'] === 'other'): ?><input type="hidden" name="custom_label" value="<?= e($preset['label']) ?>"><?php endif; ?>
                                             <input type="hidden" name="scan_code" value="<?= e($preset['scan_code']) ?>">
                                             <input type="hidden" name="pieces_per_unit" value="<?= e((string) $preset['pieces_per_unit_raw']) ?>">
                                             <input type="hidden" name="is_active" value="1">
@@ -214,14 +218,22 @@ $isStorageScoped = $isStorageScoped ?? false;
             <?php if (Auth::hasPermission('items.edit')): ?>
                 <details class="package-preset-editor">
                     <summary>Add package preset</summary>
-                    <form class="package-preset-form" method="post" action="<?= e(url('/items/' . $item['id'] . '/package-presets')) ?>">
+                    <form class="package-preset-form" method="post" action="<?= e(url('/items/' . $item['id'] . '/package-presets')) ?>" data-package-preset-form>
                         <?= csrf_field() ?>
                         <label class="field">
-                            <span>Package name</span>
-                            <input type="text" name="label" maxlength="60" placeholder="Box, Pack, Bag, Page bundle" required>
+                            <span>Package type</span>
+                            <select name="package_type" data-package-type required>
+                                <?php foreach (item_package_type_options() as $type => $typeLabel): ?>
+                                    <option value="<?= e($type) ?>"><?= e($typeLabel) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label class="field" data-custom-package-label hidden>
+                            <span>Custom package label</span>
+                            <input type="text" name="custom_label" maxlength="60" placeholder="Page bundle, drum, crate">
                         </label>
                         <label class="field">
-                            <span>Contains</span>
+                            <span data-package-contains-label>One Individual contains</span>
                             <input type="number" name="pieces_per_unit" step="0.000001" min="0.000001" placeholder="100" required>
                             <small><?= e($item['unit']) ?> per package.</small>
                         </label>

@@ -45,6 +45,7 @@ trait MaintenanceWristbandSchemas
                 source_sha256 CHAR(64) NOT NULL,
                 mapping_mode ENUM("selected_item", "code_sku") NOT NULL,
                 selected_item_id BIGINT UNSIGNED NULL,
+                storage_id BIGINT UNSIGNED NULL,
                 total_rows INT UNSIGNED NOT NULL DEFAULT 0,
                 imported_rows INT UNSIGNED NOT NULL DEFAULT 0,
                 duplicate_rows INT UNSIGNED NOT NULL DEFAULT 0,
@@ -54,9 +55,20 @@ trait MaintenanceWristbandSchemas
                 created_at DATETIME NOT NULL,
                 UNIQUE KEY uniq_wristband_import_number (import_number),
                 INDEX idx_wristband_import_created (created_at),
+                INDEX idx_wristband_import_storage (storage_id, created_at),
                 CONSTRAINT fk_wristband_import_item FOREIGN KEY (selected_item_id) REFERENCES items(id) ON DELETE SET NULL,
+                CONSTRAINT fk_wristband_import_storage FOREIGN KEY (storage_id) REFERENCES storages(id) ON DELETE SET NULL,
                 CONSTRAINT fk_wristband_import_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        if (!self::columnExists('wristband_imports', 'storage_id')) {
+            Database::execute('ALTER TABLE wristband_imports ADD COLUMN storage_id BIGINT UNSIGNED NULL AFTER selected_item_id');
+        }
+        self::ensureIndexExists(
+            'wristband_imports',
+            'idx_wristband_import_storage',
+            'CREATE INDEX idx_wristband_import_storage ON wristband_imports (storage_id, created_at)'
         );
 
         Database::execute(

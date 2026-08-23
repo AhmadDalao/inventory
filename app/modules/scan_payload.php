@@ -20,6 +20,10 @@ function scan_item_payload(array $item): array
     }, item_storage_balances((int) $item['id'], $storageScope));
 
     $barcode = normalize_item_barcode($item['barcode'] ?? '');
+    $measurementDimension = normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count');
+    $wristbandCounts = function_exists('wristband_item_code_counts')
+        ? wristband_item_code_counts((int) $item['id'])
+        : ['registered' => 0, 'available' => 0, 'used' => 0, 'void' => 0];
 
     return [
         'id' => (int) $item['id'],
@@ -30,7 +34,7 @@ function scan_item_payload(array $item): array
         'category' => (string) ($item['category'] ?? ''),
         'unit' => (string) $item['unit'],
         'canonical_unit' => item_canonical_unit($item),
-        'measurement_dimension' => normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count'),
+        'measurement_dimension' => $measurementDimension,
         'usage_proof_policy' => normalize_inventory_proof_policy($item['usage_proof_policy'] ?? 'inherit'),
         'refill_proof_policy' => normalize_inventory_proof_policy($item['refill_proof_policy'] ?? 'inherit'),
         'requires_usage_proof' => inventory_operation_requires_proof([$item], 'usage'),
@@ -48,6 +52,10 @@ function scan_item_payload(array $item): array
         'package_presets' => item_package_presets((int) $item['id']),
         'balances' => $balances,
         'matched_package_preset_id' => normalize_entity_id($item['matched_package_preset_id'] ?? null),
+        'wristband_eligible' => $measurementDimension === 'count',
+        'external_qr_tracking_enabled' => (int) ($item['external_qr_tracking_enabled'] ?? 0) === 1,
+        'wristband_registered_codes' => $wristbandCounts['registered'],
+        'wristband_available_codes' => $wristbandCounts['available'],
     ];
 }
 

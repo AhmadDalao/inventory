@@ -377,6 +377,18 @@ $router->get('/wristbands', static function (): void {
 $router->get('/wristbands/imports', static function (): void {
     handle_wristband_imports_page();
 });
+$router->get('/wristbands/imports/items', static function (): void {
+    handle_wristband_import_items();
+});
+$router->post('/wristbands/imports/preflight', static function (): void {
+    handle_wristband_import_preflight_submit();
+});
+$router->get('/wristbands/imports/sample.csv', static function (): void {
+    handle_wristband_import_sample_csv();
+});
+$router->get('/wristbands/imports/sample.xlsx', static function (): void {
+    handle_wristband_import_sample_xlsx();
+});
 $router->post('/wristbands/imports', static function (): void {
     handle_wristband_import_submit();
 });
@@ -752,6 +764,9 @@ $router->post('/users/{id}/edit', static function (array $params): void {
 });
 $router->post('/users/{id}/send-reset', static function (array $params): void {
     handle_users_send_reset_submit($params);
+});
+$router->post('/users/{id}/revoke-sessions', static function (array $params): void {
+    handle_users_revoke_persistent_sessions_submit($params);
 });
 $router->post('/users/{id}/status', static function (array $params): void {
     handle_users_status_submit($params);

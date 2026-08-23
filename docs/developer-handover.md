@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-08-22
+Updated: 2026-08-24
 
 ## 1. What This System Is
 
@@ -389,9 +389,17 @@ Critical handover stock split:
 
 ## 5. Major Workflow Cycles
 
+### Browser Authentication
+
+Email/password remains the primary web login. `Keep me logged in` is enabled by default and uses a 30-day random selector/validator token, never a stored password. Only the selector and validator hash are persisted server-side. The cookie is Secure, HttpOnly, SameSite=Lax, rotates after automatic restoration, and the PHP session ID is regenerated.
+
+Logout revokes the presented persistent token. Password reset/change, account disablement, and the admin `Revoke Saved Logins` action revoke every persistent login for that user. Keep these invalidation calls when changing user or authentication handlers; a convenient login that survives account disablement is a security bug, not a feature.
+
 ### Items And Storages
 
 Items can have SKU, barcode, image, unit, reorder level, cost, package presets, and storage assignments. Storages hold item balances. An item can exist in many storages with different quantities.
+
+Package presets use one fixed normalized type: Individual, Pack, Box, Bag, Bottle, Container, Roll, Bundle, Carton, or Other. Predefined types show only the conversion (`One Box contains ...`); Other additionally requires a custom display label. Existing legacy labels remain readable, and API clients may continue using label/conversion while newer clients also consume `package_type`. Employees select presets but never submit a trusted conversion rate.
 
 Zero quantity does not remove an item from a storage. It stays visible so teams know it needs refill.
 
@@ -432,7 +440,7 @@ Legacy staff handovers created before the operational-summary release keep `lega
 
 Wristband API Audit extends a normal temporary-use handover with hidden KONA check-in evidence. It is not a stock workflow and must never call inventory movement functions.
 
-1. An owner imports unique codes and permanently maps them to eligible active count-based wristband items.
+1. An owner selects a storage validation context, searches active count-based items assigned there (including zero-quantity assignments), and imports unique codes permanently mapped to the item. Storage is not part of code identity, so transfers do not break tracking.
 2. A storage integration authenticates `/api/v1/integrations/kona/wristband-checkins` with a hashed, rotatable API key and optional IP allowlist.
 3. The issuer may start an API Audit session while creating a temporary-use handover.
 4. Accepted distinct scans mark registry codes Used and increment session evidence only. They do not deduct stock or change handover status.
@@ -442,6 +450,10 @@ Wristband API Audit extends a normal temporary-use handover with hidden KONA che
 8. Owner Final Review compares physical usage, staff reporting, API check-ins, paused periods, exceptions, and variance. Existing handover approval remains the only stock-posting point.
 
 Manual Only is the permanent fallback for a session. Switching modes never cancels or closes the handover. Storage transfers and long-term custody never use Wristband API Audit. See `docs/wristband-api.md` for the operator guide and `docs/openapi/wristband-api-v1.yaml` for the machine-readable integration contract.
+
+Registry imports support selected-item `code` files and `code,sku` files. The import page provides CSV/XLSX examples and a mandatory preflight separating valid rows, duplicates, invalid codes, unknown SKUs, and conflicts. Import-only actions never change stock.
+
+The web manual-restock workflow may attach one optional code file per eligible wristband line. Valid unique codes must exactly equal the converted whole-unit restock quantity. All batch lines and files are validated before posting; stock movements and strict registry imports then share one outer database transaction. Never split that transaction. A partial restock with missing registry codes would make physical wristbands impossible to reconcile.
 
 Storage-transfer cycle:
 
@@ -557,6 +569,7 @@ find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/backup_archive.php
+php tests/persistent_package_wristband_contract.php
 php tests/wristband_api_contract.php
 php tests/wristband_code_performance.php
 php tests/wristband_workflow.php
@@ -917,6 +930,19 @@ cd mobile && flutter analyze && flutter test
 ```
 
 After production backup and migration, run full regression and stock invariants on the server before enabling pilot users. Release evidence is maintained in `docs/mobile/release-1.3.0.md`.
+
+### Persistent login, package, and wristband import checkpoint
+
+The August 24, 2026 release adds rotating 30-day browser persistent login, fixed normalized package types, storage-scoped searchable wristband imports, downloadable samples/preflight, and optional atomic code import during manual restock. The mobile API addition is backward compatible: old clients keep using preset labels/conversions while updated clients may also consume `package_type`. Wristband spreadsheet import remains web/admin-only.
+
+Verification for this release adds:
+
+```bash
+php tests/persistent_package_wristband_contract.php
+php tests/wristband_api_contract.php
+php tests/measured_inventory.php
+php tests/stock_invariants.php
+```
 
 The August 22, 2026 release backup set is:
 

@@ -93,6 +93,26 @@ trait MaintenancePlatformSchemas
         );
 
         Database::execute(
+            'CREATE TABLE IF NOT EXISTS persistent_login_tokens (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT UNSIGNED NOT NULL,
+                selector CHAR(24) NOT NULL,
+                validator_hash CHAR(64) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                last_used_at DATETIME NULL,
+                created_ip VARCHAR(64) NULL,
+                last_ip VARCHAR(64) NULL,
+                user_agent_hash CHAR(64) NULL,
+                revoked_at DATETIME NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                UNIQUE KEY uniq_persistent_login_selector (selector),
+                INDEX idx_persistent_login_user (user_id, revoked_at, expires_at),
+                CONSTRAINT fk_persistent_login_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+        );
+
+        Database::execute(
             'CREATE TABLE IF NOT EXISTS email_delivery_logs (
                 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 user_id BIGINT UNSIGNED NULL,

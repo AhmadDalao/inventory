@@ -145,6 +145,56 @@
     gap: 18px;
 }
 
+.password-input-wrap {
+    position: relative;
+    display: block;
+}
+
+.password-input-wrap input {
+    width: 100%;
+    padding-right: 76px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: var(--accent-deep);
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.auth-remember-control {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface-soft);
+    cursor: pointer;
+}
+
+.auth-remember-control input {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+}
+
+.auth-remember-control span {
+    display: grid;
+    gap: 3px;
+}
+
+.auth-remember-control small {
+    color: var(--muted);
+}
+
 .searchable-select {
     display: grid;
     gap: 8px;

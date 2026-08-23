@@ -15,9 +15,22 @@
             <input type="email" name="email" value="<?= e((string) old('email')) ?>" autocomplete="email" placeholder="Email" required>
         </label>
 
-        <label class="field">
+        <label class="field password-field">
             <span>Password</span>
-            <input type="password" name="password" autocomplete="current-password" placeholder="Password" required>
+            <span class="password-input-wrap">
+                <input type="password" name="password" autocomplete="current-password" placeholder="Password" required data-password-input>
+                <button class="password-toggle" type="button" aria-label="Show password" aria-pressed="false" data-password-toggle>
+                    <span data-password-toggle-label>Show</span>
+                </button>
+            </span>
+        </label>
+
+        <label class="auth-remember-control">
+            <input type="checkbox" name="remember_me" value="1" <?= old('remember_me', '1') === '1' ? 'checked' : '' ?>>
+            <span>
+                <strong>Keep me logged in</strong>
+                <small>Stay signed in securely for 30 days on this device.</small>
+            </span>
         </label>
 
         <button class="primary-button" type="submit">Sign In</button>

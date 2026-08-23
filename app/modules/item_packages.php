@@ -9,6 +9,38 @@ function normalize_package_preset_label($value): string
     return mb_substr($label, 0, 60);
 }
 
+function item_package_type_options(): array
+{
+    return [
+        'individual' => 'Individual',
+        'pack' => 'Pack',
+        'box' => 'Box',
+        'bag' => 'Bag',
+        'bottle' => 'Bottle',
+        'container' => 'Container',
+        'roll' => 'Roll',
+        'bundle' => 'Bundle',
+        'carton' => 'Carton',
+        'other' => 'Other',
+    ];
+}
+
+function normalize_item_package_type($value, ?string $legacyLabel = null): string
+{
+    $type = strtolower(trim((string) $value));
+    if (isset(item_package_type_options()[$type])) {
+        return $type;
+    }
+
+    $legacy = strtolower(trim((string) $legacyLabel));
+    return isset(item_package_type_options()[$legacy]) ? $legacy : 'other';
+}
+
+function item_package_type_label(string $type): string
+{
+    return item_package_type_options()[$type] ?? 'Other';
+}
+
 function item_package_presets(int $itemId, bool $includeInactive = false): array
 {
     $rows = Database::fetchAll(
@@ -29,6 +61,7 @@ function item_package_presets(int $itemId, bool $includeInactive = false): array
             'id' => (int) $preset['id'],
             'item_id' => (int) $preset['item_id'],
             'label' => (string) $preset['label'],
+            'package_type' => normalize_item_package_type($preset['package_type'] ?? null, (string) $preset['label']),
             'scan_code' => trim((string) ($preset['scan_code'] ?? '')),
             'pieces_per_unit' => format_quantity($preset['pieces_per_unit']),
             'pieces_per_unit_raw' => (float) $preset['pieces_per_unit'],
@@ -101,15 +134,19 @@ function handle_item_package_preset_save_submit(array $params): void
     require_current_user_item_visibility((int) $item['id']);
     $user = Auth::user();
     $presetId = normalize_entity_id(input('preset_id'));
-    $label = normalize_package_preset_label(input('label'));
+    $legacyLabel = normalize_package_preset_label(input('label'));
+    $packageType = normalize_item_package_type(input('package_type'), $legacyLabel);
+    $label = $packageType === 'other'
+        ? normalize_package_preset_label(input('custom_label', $legacyLabel))
+        : item_package_type_label($packageType);
     $scanCode = normalize_item_barcode(input('scan_code'));
     $piecesPerUnit = quantity_value(input('pieces_per_unit'));
     $isDefault = input('is_default') === '1';
     $isActive = input('is_active', '1') === '1';
     $errors = [];
 
-    if ($label === '') {
-        $errors[] = 'Package label is required.';
+    if ($packageType === 'other' && $label === '') {
+        $errors[] = 'Custom package label is required when Other is selected.';
     }
 
     if (!is_numeric_value(input('pieces_per_unit')) || $piecesPerUnit <= 0) {
@@ -183,6 +220,7 @@ function handle_item_package_preset_save_submit(array $params): void
             Database::execute(
                 'UPDATE item_package_presets
                  SET label = :label,
+                     package_type = :package_type,
                      scan_code = :scan_code,
                      pieces_per_unit = :pieces_per_unit,
                      is_default = :is_default,
@@ -193,6 +231,7 @@ function handle_item_package_preset_save_submit(array $params): void
                    AND item_id = :item_id',
                 [
                     'label' => $label,
+                    'package_type' => $packageType,
                     'scan_code' => $scanCode !== '' ? $scanCode : null,
                     'pieces_per_unit' => $piecesPerUnit,
                     'is_default' => $isDefault ? 1 : 0,
@@ -212,6 +251,7 @@ function handle_item_package_preset_save_submit(array $params): void
                 'INSERT INTO item_package_presets (
                     item_id,
                     label,
+                    package_type,
                     scan_code,
                     pieces_per_unit,
                     is_default,
@@ -223,6 +263,7 @@ function handle_item_package_preset_save_submit(array $params): void
                  ) VALUES (
                     :item_id,
                     :label,
+                    :package_type,
                     :scan_code,
                     :pieces_per_unit,
                     :is_default,
@@ -235,6 +276,7 @@ function handle_item_package_preset_save_submit(array $params): void
                 [
                     'item_id' => (int) $item['id'],
                     'label' => $label,
+                    'package_type' => $packageType,
                     'scan_code' => $scanCode !== '' ? $scanCode : null,
                     'pieces_per_unit' => $piecesPerUnit,
                     'is_default' => ($isDefault || (!$hasPresets && $isActive)) ? 1 : 0,

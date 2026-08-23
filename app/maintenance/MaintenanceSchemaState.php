@@ -43,6 +43,7 @@ trait MaintenanceSchemaState
             && self::columnExists('handovers', 'wristband_tracking_mode')
             && self::tableExists('wristband_integrations')
             && self::tableExists('wristband_imports')
+            && self::columnExists('wristband_imports', 'storage_id')
             && self::tableExists('wristband_codes')
             && self::tableExists('wristband_sessions')
             && self::tableExists('wristband_session_periods')
@@ -140,7 +141,8 @@ trait MaintenanceSchemaState
     private static function userSchemaIsCurrent(): bool
     {
         return self::columnExists('users', 'position')
-            && self::columnExists('users', 'manager_user_id');
+            && self::columnExists('users', 'manager_user_id')
+            && self::tableExists('persistent_login_tokens');
     }
 
     private static function itemSchemaIsCurrent(): bool
@@ -153,7 +155,8 @@ trait MaintenanceSchemaState
     {
         return self::tableExists('item_package_presets')
             && self::columnExists('item_package_presets', 'pieces_per_unit')
-            && self::columnExists('item_package_presets', 'is_default');
+            && self::columnExists('item_package_presets', 'is_default')
+            && self::columnExists('item_package_presets', 'package_type');
     }
 
     private static function purchaseSchemaIsCurrent(): bool

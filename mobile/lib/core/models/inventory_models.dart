@@ -54,6 +54,7 @@ class ItemPackagePreset {
     required this.id,
     required this.label,
     required this.piecesPerUnit,
+    this.packageType,
     this.isDefault = false,
     this.scanCode,
     this.isActive = true,
@@ -62,6 +63,7 @@ class ItemPackagePreset {
   final int id;
   final String label;
   final double piecesPerUnit;
+  final String? packageType;
   final bool isDefault;
   final String? scanCode;
   final bool isActive;
@@ -73,6 +75,7 @@ class ItemPackagePreset {
         piecesPerUnit:
             (json['conversion'] as num? ?? json['pieces_per_unit'] as num? ?? 1)
                 .toDouble(),
+        packageType: json['package_type'] as String?,
         isDefault: json['is_default'] == true || json['is_default'] == 1,
         scanCode: json['scan_code'] as String?,
         isActive:

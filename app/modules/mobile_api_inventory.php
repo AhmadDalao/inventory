@@ -5,7 +5,7 @@ function mobile_api_item_payload(array $item, array $allowedStorageIds, ?int $ma
 {
     $balances = [];
     $packagePresets = Database::fetchAll(
-        'SELECT id, label, scan_code, pieces_per_unit, is_default, is_active
+        'SELECT id, label, package_type, scan_code, pieces_per_unit, is_default, is_active
          FROM item_package_presets
          WHERE item_id = :item_id
            AND is_active = 1
@@ -42,6 +42,7 @@ function mobile_api_item_payload(array $item, array $allowedStorageIds, ?int $ma
         'package_presets' => array_map(static fn (array $preset): array => [
             'id' => (int) $preset['id'],
             'label' => (string) $preset['label'],
+            'package_type' => normalize_item_package_type($preset['package_type'] ?? null, (string) $preset['label']),
             'scan_code' => trim((string) ($preset['scan_code'] ?? '')) ?: null,
             'pieces_per_unit' => (float) $preset['pieces_per_unit'],
             'conversion' => (float) $preset['pieces_per_unit'],

@@ -110,6 +110,12 @@
                                             <button type="submit" data-confirm="Send a password reset email to this user?"><?= ui_icon('notification') ?><span>Send Reset</span></button>
                                         </form>
                                     <?php endif; ?>
+                                    <?php if (Auth::isOwner() || $userRow['role'] !== 'owner'): ?>
+                                        <form method="post" action="<?= e(url('/users/' . $userRow['id'] . '/revoke-sessions')) ?>" data-live-action-form>
+                                            <?= csrf_field() ?>
+                                            <button type="submit" data-confirm="Revoke every saved browser login for this user?"><?= ui_icon('logout') ?><span>Revoke Saved Logins</span></button>
+                                        </form>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 <?php if ($userRow['role'] !== 'owner' && Auth::hasPermission('users.disable')): ?>
                                     <form method="post" action="<?= e(url('/users/' . $userRow['id'] . '/status')) ?>" data-live-action-form>

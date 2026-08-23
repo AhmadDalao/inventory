@@ -146,6 +146,8 @@ function handle_reset_password_submit(array $params): void
             ['user_id' => (int) $resetRecord['user_id']]
         );
 
+        Auth::revokePersistentSessionsForUser((int) $resetRecord['user_id']);
+
         if ($pdo->inTransaction()) {
             $pdo->commit();
         }
@@ -173,9 +175,10 @@ function handle_login_submit(): void
 
     $email = strtolower(trim((string) input('email')));
     $password = (string) input('password');
+    $rememberMe = input('remember_me', '1') === '1';
     $ipAddress = auth_request_ip();
 
-    flash_old_input(['email' => $email]);
+    flash_old_input(['email' => $email, 'remember_me' => $rememberMe ? '1' : '0']);
 
     if (login_attempts_are_limited($email, $ipAddress)) {
         record_login_attempt($email, false, 'rate_limited');
@@ -191,6 +194,12 @@ function handle_login_submit(): void
 
     $user = Auth::user();
     record_login_attempt($email, true, null, $user ? (int) $user['id'] : null);
+
+    if ($rememberMe) {
+        Auth::rememberCurrentUser();
+    } else {
+        Auth::forgetPersistentLogin();
+    }
 
     if (function_exists('record_activity')) {
         record_activity('auth.login', 'user', $user ? (int) $user['id'] : null, 'User signed in: ' . ($user['email'] ?? $email), [

@@ -19,6 +19,7 @@ Start here:
 - [Security and incident guide](docs/security.md)
 - [Mobile mockup review](docs/mobile/mockups/README.md)
 - [Mobile v1.3 measured-inventory release evidence](docs/mobile/release-1.3.0.md)
+- [Persistent login, package, and wristband restock release](docs/release-2026-08-24.md)
 - [System data-flow and use-case diagrams](docs/system-diagrams.md)
 - [Developer handover Word report](output/doc/inventory-kona-developer-handover-2026-08-22.docx)
 - [Complete system Word report](output/doc/inventory-kona-complete-system-report-2026-08-22.docx)
@@ -50,6 +51,7 @@ php tests/module_boundaries.php
 php tests/frontend_assets.php
 php tests/mobile_api_contract.php
 php tests/measured_inventory.php
+php tests/persistent_package_wristband_contract.php
 php tests/wristband_api_contract.php
 php tests/wristband_code_performance.php
 php tests/wristband_workflow.php

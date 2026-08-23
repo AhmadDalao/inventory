@@ -21,7 +21,7 @@ The app is organized by feature under `lib/features/` and shared infrastructure 
 
 Offline drafts never post stock. On retry the server rechecks permissions and balances. Every mutation carries a stable `client_operation_id`, so retrying the same draft cannot deduct twice.
 
-Usage and refill carts support decimal canonical units and server-defined package presets. Flutter previews conversions, but PHP recomputes and validates every multiplier before posting. The app keeps the entered measurement for display while balances remain canonical (`2 x 1 L bottle = 2,000 mL`, never two separate stocks).
+Usage and refill carts support decimal canonical units and server-defined package presets. Presets include a normalized type (Individual, Pack, Box, Bag, Bottle, Container, Roll, Bundle, Carton, or Other), a server-owned label, and a conversion. Flutter previews conversions, but PHP recomputes and validates every multiplier before posting. The app keeps the entered measurement for display while balances remain canonical (`2 x 1 L bottle = 2,000 mL`, never two separate stocks). Legacy API payloads without `package_type` remain supported.
 
 The Flutter interface never grants access by itself. Routes, navigation, and action buttons use the current bootstrap permissions/effective capabilities and each handover's server-provided `allowed_actions`. The PHP API rechecks the same action independently, so revoked permissions, storage assignments, mobile grants, and devices fail closed even from stale screens or direct deep links.
 

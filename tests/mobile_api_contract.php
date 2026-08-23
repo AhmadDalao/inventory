@@ -380,7 +380,7 @@ if (strpos($admin, ':created_by, :updated_by') === false
     fail_mobile_contract('Mobile Access save must use unique placeholders with strict PDO prepares.');
 }
 
-if (strpos($inventory, 'package_type') !== false
+if (strpos($inventory, "'package_type' => normalize_item_package_type") === false
     || strpos($inventory, 'item_package_presets WHERE item_id = :item_id AND is_active') !== false
 ) {
     fail_mobile_contract('Mobile item payload must match the item_package_presets schema.');

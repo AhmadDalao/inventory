@@ -171,6 +171,123 @@
 .wristband-import-form,
 .wristband-integration-form { display: grid; gap: 18px; }
 .wristband-import-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.wristband-import-context-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.wristband-item-picker {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+}
+
+.wristband-item-results {
+    display: grid;
+    gap: 8px;
+    max-height: 360px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.wristband-item-result,
+.wristband-selected-item {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    color: var(--text);
+    background: var(--surface-soft);
+    text-align: left;
+}
+
+.wristband-item-result {
+    cursor: pointer;
+    font: inherit;
+}
+
+.wristband-item-result:hover,
+.wristband-item-result:focus-visible {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    outline: 0;
+}
+
+.wristband-item-result img,
+.wristband-selected-item img {
+    width: 56px;
+    height: 56px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+    object-fit: cover;
+}
+
+.wristband-item-result-copy,
+.wristband-selected-item > span {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.wristband-item-result-copy small,
+.wristband-selected-item small { color: var(--muted); }
+
+.wristband-tracking-opt-in,
+.wristband-import-example {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface-soft);
+}
+
+.wristband-tracking-opt-in > span { display: grid; gap: 4px; }
+.wristband-tracking-opt-in small,
+.wristband-import-example p { margin: 4px 0 0; color: var(--muted); }
+
+.wristband-import-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.wristband-preflight {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface-soft);
+}
+
+.wristband-preflight-stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.wristband-preflight-stats > span {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.wristband-preflight-stats small { color: var(--muted); }
+.wristband-preflight-message { margin: 0; }
 .wristband-import-guide { padding: 16px; border-radius: 16px; background: var(--surface-soft); }
 .wristband-import-guide code { display: inline-block; padding: 4px 8px; margin: 0 6px; border-radius: 8px; background: var(--surface); }
 .wristband-import-guide p { margin: 8px 0 0; color: var(--muted); }
@@ -245,6 +362,7 @@
     .wristband-api-contract { align-items: stretch; flex-direction: column; }
     .wristband-key-copy,
     .wristband-api-contract pre { width: 100%; }
+    .wristband-preflight-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 680px) {
@@ -253,7 +371,20 @@
     .wristband-integration-grid,
     .wristband-mapping-options,
     .wristband-import-fields,
+    .wristband-import-context-grid,
+    .wristband-import-actions,
     .wristband-key-copy { grid-template-columns: 1fr; }
+    .wristband-item-result,
+    .wristband-selected-item { grid-template-columns: 48px minmax(0, 1fr); }
+    .wristband-item-result img,
+    .wristband-selected-item img { width: 48px; height: 48px; }
+    .wristband-item-result .status-pill,
+    .wristband-selected-item .compact-button { grid-column: 1 / -1; width: 100%; }
+    .wristband-tracking-opt-in,
+    .wristband-import-example { align-items: stretch; flex-direction: column; }
+    .wristband-import-example .button-row { width: 100%; }
+    .wristband-import-example .button-row > * { flex: 1; }
+    .wristband-preflight-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .wristband-inline-action { grid-template-columns: 1fr; }
     .wristband-integration-card > header,
     .wristband-integration-card > footer { align-items: flex-start; flex-direction: column; }

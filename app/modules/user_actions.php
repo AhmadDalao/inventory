@@ -297,6 +297,7 @@ function handle_users_edit_submit(array $params): void
                     'id' => $userRecord['id'],
                 ]
             );
+            Auth::revokePersistentSessionsForUser((int) $userRecord['id']);
         }
 
         if ($nextRole !== 'owner') {
@@ -365,6 +366,10 @@ function handle_users_status_submit(array $params): void
         ]
     );
 
+    if ($nextStatus === 0) {
+        Auth::revokePersistentSessionsForUser((int) $userRecord['id']);
+    }
+
     if (function_exists('record_activity')) {
         record_activity($nextStatus ? 'user.restored' : 'user.disabled', 'user', (int) $userRecord['id'], ($nextStatus ? 'Restored ' : 'Disabled ') . $userRecord['email']);
     }
@@ -409,5 +414,34 @@ function handle_users_send_reset_submit(array $params): void
         flash('danger', 'Reset link created, but email failed: ' . ($result['error'] ?? 'unknown error'));
     }
 
+    redirect('/users');
+}
+
+function handle_users_revoke_persistent_sessions_submit(array $params): void
+{
+    app_ready_or_redirect();
+    Auth::requirePermission('users.edit');
+    verify_csrf();
+
+    $userRecord = find_user_or_abort((int) $params['id']);
+
+    if (!Auth::isOwner() && (string) $userRecord['role'] === 'owner') {
+        flash('danger', 'Only the owner can revoke saved logins for the owner account.');
+        redirect('/users');
+    }
+
+    Auth::revokePersistentSessionsForUser((int) $userRecord['id']);
+
+    if (function_exists('record_activity')) {
+        record_activity(
+            'user.persistent_sessions_revoked',
+            'user',
+            (int) $userRecord['id'],
+            'Revoked saved browser logins for ' . $userRecord['email'],
+            ['revoked_by' => (int) (Auth::user()['id'] ?? 0)]
+        );
+    }
+
+    flash('success', 'Saved browser logins revoked.');
     redirect('/users');
 }

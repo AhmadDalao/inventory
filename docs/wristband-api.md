@@ -1,6 +1,6 @@
 # KONA Wristband API Audit Guide
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 ## Purpose
 
@@ -38,6 +38,24 @@ Supported imports:
 - Upload `code + SKU`; each SKU must resolve to an active eligible item.
 - CSV and XLSX are supported.
 
+The import page first selects a storage as validation context, then searches eligible items assigned to that storage. Zero-quantity assignments remain selectable because an empty wristband item still needs to be refillable. Codes stay globally mapped to the item, not the storage, so later transfers do not invalidate them. The selected-item summary shows thumbnail, SKU, selected-storage balance, registered-code count, and tracking status.
+
+Tracking-disabled items require an explicit `Enable external QR tracking` choice and the caller must also have item-edit permission. In `code + SKU` mode every resolved item must be active, count-based, and assigned to the selected storage.
+
+Downloadable CSV/XLSX examples are available for both formats:
+
+```csv
+code
+AB12CD34EF56GH78
+```
+
+```csv
+code,sku
+AB12CD34EF56GH78,WB-BLUE
+```
+
+Every upload runs a preflight before confirmation. The preflight separates valid rows, duplicates, malformed codes, unknown SKUs, and item conflicts. Imports never change stock.
+
 Code states:
 
 | State | Meaning |
@@ -47,6 +65,18 @@ Code states:
 | `void` | Disabled by an audited owner/admin action. |
 
 Imports never change item quantities or storage balances. Used codes are never hard-deleted and are hidden from the default Available filter.
+
+### Combined Manual Restock
+
+The web manual-restock page may attach one optional CSV/XLSX code file to an eligible count-based wristband line. This is deliberately separate from the operation proof image.
+
+- Valid unique code count must exactly equal the converted canonical restock quantity.
+- Fractional wristband quantities, duplicates, malformed codes, and mismatched item mappings are rejected.
+- Tracking may be enabled only through the explicit checkbox and requires both item-edit and wristband-import permission.
+- PHP validates every line before posting, then creates the restock movement and imports the registry codes inside one database transaction.
+- If movement posting or any code import fails, both stock and registry changes roll back.
+
+This combined action is the only import path allowed to add stock. Normal registry imports remain quantity-neutral.
 
 ## Modes And Controls
 
