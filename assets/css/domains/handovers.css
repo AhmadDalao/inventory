@@ -867,6 +867,95 @@
     gap: 12px;
 }
 
+.handover-final-reconciliation {
+    display: grid;
+    gap: 18px;
+}
+
+.handover-final-reconciliation-head {
+    align-items: flex-start;
+}
+
+.handover-final-reconciliation-head > div:first-child {
+    display: grid;
+    gap: 4px;
+}
+
+.handover-final-reconciliation-head h3,
+.handover-final-reconciliation-head p {
+    margin: 0;
+}
+
+.handover-final-reconciliation-head > div:first-child > p:last-child {
+    color: var(--muted);
+}
+
+.handover-final-reconciliation-table-wrap {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+}
+
+.handover-final-reconciliation-table {
+    min-width: 680px;
+}
+
+.handover-final-reconciliation-table th,
+.handover-final-reconciliation-table td {
+    vertical-align: middle;
+}
+
+.handover-final-reconciliation-table tbody th {
+    color: var(--ink);
+    font-size: 0.9rem;
+    text-transform: none;
+}
+
+.handover-final-reconciliation-table .is-variance {
+    color: #a43425;
+    font-weight: 900;
+}
+
+.handover-final-reconciliation-unit-row th {
+    background: #f3eadb;
+    color: #7b562c;
+    letter-spacing: 0.08em;
+    text-transform: uppercase !important;
+}
+
+.handover-final-reconciliation-difference-row th,
+.handover-final-reconciliation-difference-row td {
+    background: #1f1f1f;
+    color: #fff !important;
+    font-weight: 900;
+}
+
+.handover-final-reconciliation-audit {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.handover-final-reconciliation-audit > div {
+    display: grid;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #fbf8f2;
+}
+
+.handover-final-reconciliation-audit span,
+.handover-final-reconciliation-audit small {
+    color: var(--muted);
+}
+
+.handover-final-reconciliation-audit span {
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 .danger-copy[hidden] {
     display: none !important;
 }
@@ -899,7 +988,8 @@
 
     .handover-reconciliation-reasons,
     .handover-reconciliation-totals,
-    .handover-reconciliation-approval {
+    .handover-reconciliation-approval,
+    .handover-final-reconciliation-audit {
         grid-template-columns: 1fr;
     }
 }

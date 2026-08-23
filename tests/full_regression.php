@@ -4619,6 +4619,16 @@ assert_true($handoverRequestApproveClose['status'] === 302, 'Requested handover 
 $handoverRequestClosed = find_handover_or_abort($handoverRequestId);
 assert_true((string) $handoverRequestClosed['status'] === 'closed', 'Requested handover should close after owner approval.');
 assert_true(balance_quantity((int) $handoverRequestItems[0]['id'], (int) $handoverRequestSource['id']) === round($initialHandoverRequestItemOneQuantity - 3, 2), 'Requested handover source balance is wrong after close approval.');
+$handoverRequestClosedPage = http_request($baseUrl, $ownerCookie, 'GET', '/handovers/' . $handoverRequestId);
+assert_true($handoverRequestClosedPage['status'] === 200, 'Closed requested handover detail page did not load.');
+$handoverLinesPosition = strpos($handoverRequestClosedPage['body'], 'Handover Lines');
+$handoverFinalReconciliationPosition = strpos($handoverRequestClosedPage['body'], 'data-handover-final-reconciliation');
+assert_true($handoverLinesPosition !== false, 'Closed requested handover is missing Handover Lines.');
+assert_true($handoverFinalReconciliationPosition !== false, 'Closed requested handover is missing its final reconciliation.');
+assert_true($handoverFinalReconciliationPosition > $handoverLinesPosition, 'Closed requested handover final reconciliation must render below Handover Lines.');
+assert_true(strpos($handoverRequestClosedPage['body'], 'Operational Reconciliation') !== false, 'Closed requested handover is missing its operational reconciliation heading.');
+assert_true(strpos($handoverRequestClosedPage['body'], 'Confirmed Received') !== false, 'Closed requested handover is missing confirmed receipt totals.');
+assert_true(strpos($handoverRequestClosedPage['body'], 'Approved by') !== false, 'Closed requested handover is missing final approval attribution.');
 $handoverRequestApprovedReconciliation = handover_reconciliations_for_handover($handoverRequestId)['pcs'] ?? null;
 assert_true(is_array($handoverRequestApprovedReconciliation), 'Approved requested handover reconciliation is missing.');
 assert_true((int) $handoverRequestApprovedReconciliation['approved_by'] === (int) $owner['id'], 'Requested handover reconciliation approver is wrong.');

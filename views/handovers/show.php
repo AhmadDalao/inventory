@@ -1485,3 +1485,7 @@ $storageSourceAdjustmentLabel = $storageAddedFromSourceTotal > 0
         </table>
     </div>
 </section>
+
+<?php if ($handoverStatus === 'closed'): ?>
+    <?php require __DIR__ . '/_final_reconciliation.php'; ?>
+<?php endif; ?>
