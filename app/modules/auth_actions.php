@@ -175,7 +175,7 @@ function handle_login_submit(): void
 
     $email = strtolower(trim((string) input('email')));
     $password = (string) input('password');
-    $rememberMe = input('remember_me', '1') === '1';
+    $rememberMe = input('remember_me', '0') === '1';
     $ipAddress = auth_request_ip();
 
     flash_old_input(['email' => $email, 'remember_me' => $rememberMe ? '1' : '0']);
@@ -205,6 +205,7 @@ function handle_login_submit(): void
         record_activity('auth.login', 'user', $user ? (int) $user['id'] : null, 'User signed in: ' . ($user['email'] ?? $email), [
             'email' => $email,
             'ip_address' => $ipAddress,
+            'persistent_login' => $rememberMe,
         ]);
     }
 

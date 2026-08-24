@@ -52,6 +52,8 @@ release_contract_has_all($auth, [
     "'samesite' => 'Lax'",
     'revokePersistentSessionsForUser',
     'writeRememberCookie($parts[0] . \'.\' . $newValidator',
+    'passwordAuthenticatedThisRequest',
+    'if (!self::$passwordAuthenticatedThisRequest)',
 ], 'Persistent login security');
 release_contract_has_all($platformSchema, [
     'CREATE TABLE IF NOT EXISTS persistent_login_tokens',
@@ -60,14 +62,16 @@ release_contract_has_all($platformSchema, [
 ], 'Persistent login schema');
 release_contract_has_all($bootstrap, ['Auth::restoreFromPersistentCookie()'], 'Persistent login restoration');
 release_contract_has_all($authActions, [
-    "input('remember_me', '1') === '1'",
+    "input('remember_me', '0') === '1'",
     'Auth::rememberCurrentUser()',
     'Auth::forgetPersistentLogin()',
     'Auth::revokePersistentSessionsForUser',
 ], 'Login and password-reset actions');
 release_contract_has_all($loginView, [
     'name="remember_me"',
+    'type="hidden" name="remember_me" value="0"',
     "old('remember_me', '1')",
+    'Your password is required now.',
     'data-password-toggle',
 ], 'Login interface');
 release_contract_has_all($userActions, [

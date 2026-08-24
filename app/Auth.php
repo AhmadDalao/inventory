@@ -7,9 +7,12 @@ final class Auth
     private const REMEMBER_DAYS = 30;
     private static $cachedUser = false;
     private static $cachedPermissions = false;
+    private static bool $passwordAuthenticatedThisRequest = false;
 
     public static function attempt(string $email, string $password): bool
     {
+        self::$passwordAuthenticatedThisRequest = false;
+
         $user = Database::fetch(
             'SELECT * FROM users WHERE email = :email LIMIT 1',
             ['email' => strtolower(trim($email))]
@@ -23,6 +26,7 @@ final class Auth
         $_SESSION['user_id'] = (int) $user['id'];
         self::$cachedUser = $user;
         self::$cachedPermissions = false;
+        self::$passwordAuthenticatedThisRequest = true;
 
         Database::execute(
             'UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = :id',
@@ -70,6 +74,7 @@ final class Auth
         self::revokeCurrentPersistentToken();
         self::$cachedUser = null;
         self::$cachedPermissions = false;
+        self::$passwordAuthenticatedThisRequest = false;
 
         $_SESSION = [];
         session_regenerate_id(true);
@@ -77,6 +82,12 @@ final class Auth
 
     public static function rememberCurrentUser(): void
     {
+        // A trusted-browser token may only be created by the password-login request.
+        if (!self::$passwordAuthenticatedThisRequest) {
+            self::forgetPersistentLogin();
+            return;
+        }
+
         $userId = self::id();
 
         if ($userId === null) {
@@ -180,6 +191,7 @@ final class Auth
             $_SESSION['user_id'] = (int) $token['persistent_user_id'];
             self::$cachedUser = false;
             self::$cachedPermissions = false;
+            self::$passwordAuthenticatedThisRequest = false;
             self::writeRememberCookie($parts[0] . '.' . $newValidator, time() + (self::REMEMBER_DAYS * 86400));
             self::user();
 

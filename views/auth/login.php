@@ -25,11 +25,12 @@
             </span>
         </label>
 
-        <label class="auth-remember-control">
-            <input type="checkbox" name="remember_me" value="1" <?= old('remember_me', '1') === '1' ? 'checked' : '' ?>>
+        <input type="hidden" name="remember_me" value="0">
+        <label class="auth-remember-control" for="remember_me">
+            <input id="remember_me" type="checkbox" name="remember_me" value="1" <?= old('remember_me', '1') === '1' ? 'checked' : '' ?> aria-describedby="remember_me_help">
             <span>
                 <strong>Keep me logged in</strong>
-                <small>Stay signed in securely for 30 days on this device.</small>
+                <small id="remember_me_help">Your password is required now. After this sign-in, this browser can securely remember you for 30 days.</small>
             </span>
         </label>
 
