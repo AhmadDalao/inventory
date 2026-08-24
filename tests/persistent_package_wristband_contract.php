@@ -36,6 +36,7 @@ $bootstrap = release_contract_read('app/bootstrap.php');
 $authActions = release_contract_read('app/modules/auth_actions.php');
 $userActions = release_contract_read('app/modules/user_actions.php');
 $loginView = release_contract_read('views/auth/login.php');
+$konaTheme = release_contract_read('assets/css/themes/kona.css');
 $usersView = release_contract_read('views/users/index.php');
 $routes = release_contract_read('index.php');
 $platformSchema = release_contract_read('app/maintenance/MaintenancePlatformSchemas.php');
@@ -68,12 +69,21 @@ release_contract_has_all($authActions, [
     'Auth::revokePersistentSessionsForUser',
 ], 'Login and password-reset actions');
 release_contract_has_all($loginView, [
+    'class="field-label">Password',
+    'type="password" name="password"',
+    'required data-password-input',
     'name="remember_me"',
     'type="hidden" name="remember_me" value="0"',
     "old('remember_me', '1')",
     'Your password is required now.',
     'data-password-toggle',
 ], 'Login interface');
+release_contract_has_all($konaTheme, [
+    '.theme-clean .auth-card-login .field > .field-label',
+], 'Login theme visibility');
+if (str_contains($konaTheme, '.theme-clean .auth-card-login .field span {')) {
+    release_contract_fail('Login theme must not hide every nested field span.');
+}
 release_contract_has_all($userActions, [
     'handle_users_revoke_persistent_sessions_submit',
     'Auth::revokePersistentSessionsForUser',

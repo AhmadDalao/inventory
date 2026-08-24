@@ -1843,7 +1843,7 @@ body.theme-clean.auth-shell {
     bottom: 0;
 }
 
-.theme-clean .auth-card-login .field span {
+.theme-clean .auth-card-login .field > .field-label {
     position: absolute;
     width: 1px;
     height: 1px;

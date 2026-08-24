@@ -11,12 +11,12 @@
     <form class="stack-form" method="post" action="<?= e(url('/login')) ?>">
         <?= csrf_field() ?>
         <label class="field">
-            <span>Email</span>
+            <span class="field-label">Email</span>
             <input type="email" name="email" value="<?= e((string) old('email')) ?>" autocomplete="email" placeholder="Email" required>
         </label>
 
         <label class="field password-field">
-            <span>Password</span>
+            <span class="field-label">Password</span>
             <span class="password-input-wrap">
                 <input type="password" name="password" autocomplete="current-password" placeholder="Password" required data-password-input>
                 <button class="password-toggle" type="button" aria-label="Show password" aria-pressed="false" data-password-toggle>

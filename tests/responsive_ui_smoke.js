@@ -70,8 +70,13 @@ const login = async (page) => {
     throw new Error(`Login page returned HTTP ${response ? response.status() : 'no response'}`);
   }
 
+  const passwordInput = page.locator('input[name="password"]');
+  if (!(await passwordInput.isVisible())) {
+    throw new Error('Password input is not visible');
+  }
+
   await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
+  await passwordInput.fill(password);
   await Promise.all([
     page.waitForURL(/\/dashboard(?:$|\?)/, { timeout: 20000 }),
     page.click('button[type="submit"]'),
