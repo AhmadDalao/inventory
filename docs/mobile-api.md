@@ -69,6 +69,7 @@ The complete server authorization and Owner-resolution contract is maintained in
 - Refresh checks the global switch, employee access, revocation, account status, and minimum app version again.
 - Refresh-token rotation is single-use. Reuse of an already-rotated refresh token revokes the complete device session and requires a new login.
 - Keep Signed In stores rotating tokens in Android Keystore or iOS Keychain, never the employee password. When disabled, tokens stay in memory only.
+- Initial login requires the password. Enabling Keep Signed In later from Settings calls `POST /me/verify-password`; secure persistence remains disabled unless the current password is verified successfully.
 - Optional biometric unlock protects a persisted cold-start session; password login remains the fallback.
 
 ## Response Contract

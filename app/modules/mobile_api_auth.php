@@ -172,3 +172,39 @@ function handle_mobile_api_logout(): void
         mobile_api_success(['logged_out' => true]);
     });
 }
+
+function handle_mobile_api_verify_password(): void
+{
+    mobile_api_run(function (): void {
+        $session = mobile_api_session();
+        $input = mobile_api_json_input();
+        $password = (string) ($input['password'] ?? '');
+
+        if ($password === '') {
+            throw new MobileApiException(
+                'password_required',
+                'Enter your current password.',
+                422,
+                ['password' => 'Current password is required.']
+            );
+        }
+
+        mobile_api_enforce_rate_limit(
+            'password_verify',
+            (string) $session['user_id'] . ':' . (string) $session['id'] . ':' . auth_request_ip(),
+            8,
+            300
+        );
+
+        $user = Database::fetch(
+            'SELECT id, password_hash, is_active FROM users WHERE id = :id LIMIT 1',
+            ['id' => $session['user_id']]
+        );
+
+        if (!$user || (int) $user['is_active'] !== 1 || !password_verify($password, (string) $user['password_hash'])) {
+            throw new MobileApiException('password_incorrect', 'Password is incorrect.', 403);
+        }
+
+        mobile_api_success(['verified' => true]);
+    });
+}

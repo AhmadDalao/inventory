@@ -56,6 +56,7 @@ $routes = [
     '/api/v1/auth/refresh' => 'handle_mobile_api_refresh',
     '/api/v1/auth/logout' => 'handle_mobile_api_logout',
     '/api/v1/me' => 'handle_mobile_api_me',
+    '/api/v1/me/verify-password' => 'handle_mobile_api_verify_password',
     '/api/v1/bootstrap' => 'handle_mobile_api_bootstrap',
     '/api/v1/sync' => 'handle_mobile_api_sync',
     '/api/v1/operations/mine' => 'handle_mobile_api_operations_mine',
@@ -120,6 +121,12 @@ $measurementSchema = mobile_contract_source('app/maintenance/MaintenanceMeasurem
 $measurements = mobile_contract_source('app/modules/measurements.php');
 $scanMovements = mobile_contract_source('app/modules/scan_movements.php');
 $departments = mobile_contract_source('app/modules/departments.php');
+
+foreach (['password_verify(', "'password_verify'", "'password_incorrect'"] as $passwordVerificationContract) {
+    if (strpos($auth, $passwordVerificationContract) === false) {
+        fail_mobile_contract('Password re-verification contract is missing: ' . $passwordVerificationContract);
+    }
+}
 
 if (strpos($schemaHelpers, 'private static function indexExists(') === false) {
     fail_mobile_contract('Mobile schema upgrades require the shared indexExists helper.');

@@ -869,7 +869,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.0
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.1
 ```
 
 Production-connected builds use:
@@ -878,7 +878,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.0
+  --dart-define=APP_VERSION=1.3.1
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.
@@ -909,6 +909,8 @@ Mobile `1.2.1+6` fixes staff/storage administration and assigned-storage discove
 ### Measured inventory release checkpoint
 
 Mobile `1.3.0+7` adds measured usage and refill carts. The invariant is strict: every item has one canonical unit and compatible dimension; package presets only convert employee input into that canonical quantity. Never trust a client-supplied multiplier.
+
+Mobile `1.3.1+8` closes the session-persistence reauthentication gap. Initial login requires the employee password, and enabling Keep Signed In later must call `POST /api/v1/me/verify-password` before the active rotating session can be copied to secure storage. Never store the password and never replace this endpoint with a client-only confirmation dialog.
 
 - `app/modules/measurements.php` owns conversion, compatibility, department/manager snapshots, proof policy, and movement measurement metadata.
 - `app/modules/scan_movements.php` owns atomic web Scan Center/manual batches.

@@ -42,6 +42,11 @@ class ApiInventoryRepository implements InventoryRepository {
   }
 
   @override
+  Future<void> verifyPassword(String password) async {
+    await _api.post('/me/verify-password', data: {'password': password});
+  }
+
+  @override
   Future<void> logout() async {
     try {
       await _api.post('/auth/logout');

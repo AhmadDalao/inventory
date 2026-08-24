@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../api/api_client.dart';
 import 'inventory_repository.dart';
 import '../models/inventory_models.dart';
 
@@ -131,6 +132,14 @@ class MockInventoryRepository implements InventoryRepository {
     String password, {
     required bool keepSignedIn,
   }) async => _wait();
+
+  @override
+  Future<void> verifyPassword(String password) async {
+    await _wait();
+    if (password != 'mock-password') {
+      throw const ApiFailure('password_incorrect', 'Password is incorrect.');
+    }
+  }
 
   @override
   Future<void> logout() async => _wait();

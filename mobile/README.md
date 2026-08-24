@@ -25,6 +25,8 @@ Usage and refill carts support decimal canonical units and server-defined packag
 
 The Flutter interface never grants access by itself. Routes, navigation, and action buttons use the current bootstrap permissions/effective capabilities and each handover's server-provided `allowed_actions`. The PHP API rechecks the same action independently, so revoked permissions, storage assignments, mobile grants, and devices fail closed even from stale screens or direct deep links.
 
+Initial sign-in always requires the employee password. If an employee later enables **Keep me signed in** from Settings, the app asks for the current password again and the API verifies it under rate limits before any session token is written to secure storage. The password is never saved; only rotating access/refresh tokens are stored in Android Keystore or iOS Keychain.
+
 The Sync Center separates local drafts from confirmed server activity. `GET /operations/mine` is employee-scoped and never exposes another employee's submissions or owner-only request payloads.
 
 ## SDK And Dependencies
@@ -47,7 +49,7 @@ Mock mode uses fixture repositories and never contacts production:
 ```bash
 flutter run -d chrome \
   --dart-define=MOCK_MODE=true \
-  --dart-define=APP_VERSION=1.3.0
+  --dart-define=APP_VERSION=1.3.1
 ```
 
 The reviewed phone/tablet captures are in `../docs/mobile/mockups/`. The approved prototype becomes the production UI; there is no separate throwaway design app.
@@ -58,7 +60,7 @@ The reviewed phone/tablet captures are in `../docs/mobile/mockups/`. The approve
 flutter run -d <device-id> \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.0
+  --dart-define=APP_VERSION=1.3.1
 ```
 
 The server's Mobile API switch is disabled by default. Enable only selected pilot employees from `/mobile-access` after API deployment and live stock checks.
@@ -82,27 +84,27 @@ Build the internal APK:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.0
+  --dart-define=APP_VERSION=1.3.1
 ```
 
 Output: `build/app/outputs/flutter-apk/app-release.apk`.
 
-Current measured-inventory pilot artifact (generated during the release gate):
+Current secure-session pilot artifact (generated during the release gate):
 
-- File: `../output/mobile/inventory-kona-1.3.0+7.apk`
+- File: `../output/mobile/inventory-kona-1.3.1+8.apk`
 - Package: `com.konajeddah.inventory`
-- Version: `1.3.0` (`versionCode 7`)
+- Version: `1.3.1` (`versionCode 8`)
 - Minimum Android: API 24
-- SHA-256: recorded in `../output/mobile/inventory-kona-1.3.0+7.sha256` after the signed build.
-- Checksum file: `../output/mobile/inventory-kona-1.3.0+7.sha256`
-- Release evidence: `../docs/mobile/release-1.3.0.md`
+- SHA-256: recorded in `../output/mobile/inventory-kona-1.3.1+8.sha256` after the signed build.
+- Checksum file: `../output/mobile/inventory-kona-1.3.1+8.sha256`
+- Release evidence: `../docs/mobile/release-1.3.1.md`
 
 Verify it before distribution:
 
 ```bash
-shasum -a 256 ../output/mobile/inventory-kona-1.3.0+7.apk
+shasum -a 256 ../output/mobile/inventory-kona-1.3.1+8.apk
 $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs \
-  ../output/mobile/inventory-kona-1.3.0+7.apk
+  ../output/mobile/inventory-kona-1.3.1+8.apk
 ```
 
 ## iOS
@@ -118,7 +120,7 @@ flutter build web --release --dart-define=MOCK_MODE=true
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.0
+  --dart-define=APP_VERSION=1.3.1
 ```
 
 Physical-device acceptance must cover repeated scans, package conversion, exact/short/excess receipt, usage, transfer, temporary handover, custody return proof, token expiry, offline draft retry, and a stale-balance conflict.

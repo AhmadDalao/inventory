@@ -138,6 +138,7 @@ class _SessionSecurityCardState extends ConsumerState<_SessionSecurityCard> {
   bool _keepSignedIn = false;
   bool _biometric = false;
   bool _biometricAvailable = false;
+  bool _messageIsError = false;
   String? _message;
 
   @override
@@ -164,15 +165,157 @@ class _SessionSecurityCardState extends ConsumerState<_SessionSecurityCard> {
   }
 
   Future<void> _setKeepSignedIn(bool value) async {
-    await ref.read(sessionStoreProvider).setKeepSignedIn(value);
+    if (value) {
+      final verified = await _confirmCurrentPassword();
+      if (!verified || !mounted) return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await ref.read(sessionStoreProvider).setKeepSignedIn(value);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _messageIsError = true;
+        _message = apiErrorMessage(
+          error,
+          fallback: 'Secure session storage could not be updated.',
+        );
+      });
+      return;
+    }
     if (!mounted) return;
     setState(() {
+      _loading = false;
       _keepSignedIn = value;
       if (!value) _biometric = false;
+      _messageIsError = false;
       _message = value
           ? 'Secure token storage enabled.'
           : 'This account will sign out when the app closes.';
     });
+  }
+
+  Future<bool> _confirmCurrentPassword() async {
+    var password = '';
+    var obscurePassword = true;
+    var verifying = false;
+    String? errorMessage;
+
+    final verified = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Confirm your password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Enter your current password before this device can keep your session. Your password is never stored.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                key: const ValueKey('keep-signed-in-password'),
+                autofocus: true,
+                obscureText: obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                onChanged: (value) => password = value,
+                decoration: InputDecoration(
+                  labelText: 'Current password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  errorText: errorMessage,
+                  suffixIcon: IconButton(
+                    tooltip: obscurePassword
+                        ? 'Show password'
+                        : 'Hide password',
+                    onPressed: verifying
+                        ? null
+                        : () => setDialogState(
+                            () => obscurePassword = !obscurePassword,
+                          ),
+                    icon: Icon(
+                      obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                  ),
+                ),
+                onSubmitted: verifying
+                    ? null
+                    : (_) => _verifyDialogPassword(
+                        dialogContext,
+                        setDialogState,
+                        password,
+                        onLoading: (value) => verifying = value,
+                        onError: (value) => errorMessage = value,
+                      ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: verifying
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const ValueKey('confirm-keep-signed-in'),
+              onPressed: verifying
+                  ? null
+                  : () => _verifyDialogPassword(
+                      dialogContext,
+                      setDialogState,
+                      password,
+                      onLoading: (value) => verifying = value,
+                      onError: (value) => errorMessage = value,
+                    ),
+              child: verifying
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Confirm'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return verified == true;
+  }
+
+  Future<void> _verifyDialogPassword(
+    BuildContext dialogContext,
+    StateSetter setDialogState,
+    String password, {
+    required ValueChanged<bool> onLoading,
+    required ValueChanged<String?> onError,
+  }) async {
+    if (password.isEmpty) {
+      setDialogState(() => onError('Enter your current password.'));
+      return;
+    }
+
+    setDialogState(() {
+      onLoading(true);
+      onError(null);
+    });
+    try {
+      await ref.read(inventoryRepositoryProvider).verifyPassword(password);
+      if (dialogContext.mounted) {
+        Navigator.of(dialogContext).pop(true);
+      }
+    } catch (error) {
+      if (!dialogContext.mounted) return;
+      setDialogState(() {
+        onLoading(false);
+        onError(apiErrorMessage(error));
+      });
+    }
   }
 
   Future<void> _setBiometric(bool value) async {
@@ -195,6 +338,7 @@ class _SessionSecurityCardState extends ConsumerState<_SessionSecurityCard> {
     if (!mounted) return;
     setState(() {
       _biometric = value;
+      _messageIsError = false;
       _message = value
           ? 'Biometric unlock enabled.'
           : 'Biometric unlock disabled.';
@@ -227,7 +371,14 @@ class _SessionSecurityCardState extends ConsumerState<_SessionSecurityCard> {
           ),
         ),
         if (_message != null)
-          Text(_message!, style: const TextStyle(color: KonaColors.goldDark)),
+          Text(
+            _message!,
+            style: TextStyle(
+              color: _messageIsError
+                  ? Theme.of(context).colorScheme.error
+                  : KonaColors.goldDark,
+            ),
+          ),
       ],
     ),
   );

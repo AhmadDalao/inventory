@@ -60,6 +60,9 @@ $router->post('/api/v1/auth/logout', static function (): void {
 $router->get('/api/v1/me', static function (): void {
     handle_mobile_api_me();
 });
+$router->post('/api/v1/me/verify-password', static function (): void {
+    handle_mobile_api_verify_password();
+});
 $router->get('/api/v1/bootstrap', static function (): void {
     handle_mobile_api_bootstrap();
 });

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Inventory KONA Mobile API
-  version: 1.3.0
+  version: 1.3.1
   description: |
     Versioned API used by the Inventory KONA Flutter application. The PHP
     service remains authoritative for permissions, balances, movements, and
@@ -79,6 +79,28 @@ paths:
       summary: Current employee, permissions, storages, and device session
       responses:
         '200': { $ref: '#/components/responses/Success' }
+  /me/verify-password:
+    post:
+      tags: [Authentication]
+      summary: Reverify the current password before persisting a device session
+      description: |
+        Required when an already signed-in employee enables Keep me signed in
+        from Settings. The password is verified under rate limits and is never
+        stored by the API or Flutter application.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, format: password, minLength: 1 }
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /bootstrap:
     get:
       tags: [Bootstrap]

@@ -6,6 +6,7 @@ abstract class InventoryRepository {
     String password, {
     required bool keepSignedIn,
   });
+  Future<void> verifyPassword(String password);
   Future<void> logout();
   Future<MobileBootstrap> bootstrap();
   Future<MobileSyncDelta> sync();

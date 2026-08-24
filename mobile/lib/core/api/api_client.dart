@@ -234,6 +234,8 @@ String apiErrorMessage(
         'This device session was revoked for security. Sign in again.',
       'balance_changed' =>
         'The storage quantity changed. Review the latest balance and confirm again.',
+      'password_required' => 'Enter your current password.',
+      'password_incorrect' => 'Password is incorrect.',
       _ => error.message,
     };
   }

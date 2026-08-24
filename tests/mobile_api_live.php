@@ -246,18 +246,24 @@ try {
 
     $password = 'MobileLifecycle!2026';
     Database::execute(
-        'INSERT INTO users (name, email, password_hash, role, position, is_active, assigned_owner_user_id, created_at, updated_at)
-         VALUES (:name, :email, :password_hash, "staff", "Staff", 1, :owner_id, NOW(), NOW())',
+        'INSERT INTO users (
+            name, email, password_hash, role, position, is_active,
+            assigned_owner_user_id, manager_user_id, created_at, updated_at
+         ) VALUES (
+            :name, :email, :password_hash, "staff", "Staff", 1,
+            :owner_id, :manager_user_id, NOW(), NOW()
+         )',
         [
             'name' => $prefix . ' Employee',
             'email' => $test['email'],
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'owner_id' => $ownerId,
+            'manager_user_id' => $ownerId,
         ]
     );
     $test['user_id'] = Database::lastInsertId();
 
-    foreach (['mobile.access', 'items.view', 'movements.view', 'movements.usage', 'movements.restock'] as $permission) {
+    foreach (['mobile.access', 'storages.view', 'items.view', 'movements.view', 'movements.usage', 'movements.restock'] as $permission) {
         Database::execute(
             'INSERT INTO user_permissions (user_id, permission_key, created_by, created_at)
              VALUES (:user_id, :permission, :owner_id, NOW())',
@@ -340,6 +346,21 @@ try {
     $refresh = (string) ($login['data']['refresh_token'] ?? '');
     mobile_live_assert($access !== '' && $refresh !== '', 'Login did not return both tokens.');
     mobile_live_note('Authentication and device registration passed.');
+
+    mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/me/verify-password', ['password' => 'definitely-wrong'], $access),
+        403,
+        'password_incorrect'
+    );
+    $passwordVerification = mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/me/verify-password', ['password' => $password], $access),
+        200
+    );
+    mobile_live_assert(
+        ($passwordVerification['data']['verified'] ?? false) === true,
+        'Current-password verification did not return a verified result.'
+    );
+    mobile_live_note('Authenticated current-password verification passed.');
 
     $bootstrap = mobile_live_expect(mobile_live_http('GET', '/api/v1/bootstrap', null, $access), 200);
     $storageIds = array_map('intval', array_column((array) ($bootstrap['data']['storages'] ?? []), 'id'));

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inventory_kona/app.dart';
 import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/data/mock_inventory_repository.dart';
 import 'package:inventory_kona/core/data/providers.dart';
+import 'package:inventory_kona/core/security/biometric_authenticator.dart';
 import 'package:inventory_kona/features/movements/usage_cart_screen.dart';
+import 'package:inventory_kona/features/settings/settings_screen.dart';
 
 class _DisabledMobileRepository extends MockInventoryRepository {
   @override
@@ -19,6 +22,26 @@ class _DisabledMobileRepository extends MockInventoryRepository {
       'Mobile access is currently disabled.',
     );
   }
+}
+
+class _PasswordCheckingRepository extends MockInventoryRepository {
+  int verificationAttempts = 0;
+
+  @override
+  Future<void> verifyPassword(String password) async {
+    verificationAttempts++;
+    if (password != 'correct-password') {
+      throw const ApiFailure('password_incorrect', 'Password is incorrect.');
+    }
+  }
+}
+
+class _UnavailableBiometricAuthenticator implements BiometricAuthenticator {
+  @override
+  Future<bool> get isAvailable async => false;
+
+  @override
+  Future<bool> authenticate({required String reason}) async => false;
 }
 
 void main() {
@@ -95,5 +118,54 @@ void main() {
     otherChip.onSelected?.call(true);
     await tester.pumpAndSettle();
     expect(find.text('Describe Other'), findsOneWidget);
+  });
+
+  testWidgets('persistent sign-in requires the current password', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final repository = _PasswordCheckingRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inventoryRepositoryProvider.overrideWithValue(repository),
+          biometricAuthenticatorProvider.overrideWithValue(
+            _UnavailableBiometricAuthenticator(),
+          ),
+        ],
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Keep me signed in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keep me signed in'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm your password'), findsOneWidget);
+    expect(repository.verificationAttempts, 0);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('keep-signed-in-password')),
+      'wrong-password',
+    );
+    await tester.tap(find.byKey(const ValueKey('confirm-keep-signed-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Password is incorrect.'), findsOneWidget);
+    expect(repository.verificationAttempts, 1);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('keep-signed-in-password')),
+      'correct-password',
+    );
+    await tester.tap(find.byKey(const ValueKey('confirm-keep-signed-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm your password'), findsNothing);
+    expect(find.text('Secure token storage enabled.'), findsOneWidget);
+    expect(repository.verificationAttempts, 2);
   });
 }

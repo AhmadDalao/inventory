@@ -25,6 +25,7 @@ Updated: 2026-08-24
 - Rotating refresh token lifetime: 30 days.
 - Server stores token hashes, not raw tokens.
 - Keep Signed In stores rotating tokens in Android Keystore or iOS Keychain and never stores passwords.
+- Initial login requires the employee password. Enabling Keep Signed In later requires current-password reverification through a rate-limited authenticated endpoint before tokens may be persisted.
 - Disabling Keep Signed In keeps tokens in memory only.
 - Optional biometric unlock protects a persisted cold-start session. Password login remains available.
 - Reuse of a rotated refresh token is treated as theft/replay and revokes the entire device session.
