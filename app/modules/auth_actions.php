@@ -180,6 +180,12 @@ function handle_login_submit(): void
 
     flash_old_input(['email' => $email, 'remember_me' => $rememberMe ? '1' : '0']);
 
+    if ($email === '' || $password === '') {
+        record_login_attempt($email, false, 'missing_credentials');
+        flash('danger', 'Wrong email or password.');
+        redirect('/login');
+    }
+
     if (login_attempts_are_limited($email, $ipAddress)) {
         record_login_attempt($email, false, 'rate_limited');
         flash('danger', 'Too many failed login attempts. Wait 15 minutes and try again.');

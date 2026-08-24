@@ -37,6 +37,7 @@ $authActions = release_contract_read('app/modules/auth_actions.php');
 $userActions = release_contract_read('app/modules/user_actions.php');
 $loginView = release_contract_read('views/auth/login.php');
 $konaTheme = release_contract_read('assets/css/themes/kona.css');
+$components = release_contract_read('assets/css/components.css');
 $usersView = release_contract_read('views/users/index.php');
 $routes = release_contract_read('index.php');
 $platformSchema = release_contract_read('app/maintenance/MaintenancePlatformSchemas.php');
@@ -63,6 +64,8 @@ release_contract_has_all($platformSchema, [
 ], 'Persistent login schema');
 release_contract_has_all($bootstrap, ['Auth::restoreFromPersistentCookie()'], 'Persistent login restoration');
 release_contract_has_all($authActions, [
+    'if ($email === \'\' || $password === \'\')',
+    "record_login_attempt(\$email, false, 'missing_credentials')",
     "input('remember_me', '0') === '1'",
     'Auth::rememberCurrentUser()',
     'Auth::forgetPersistentLogin()',
@@ -78,6 +81,14 @@ release_contract_has_all($loginView, [
     'Your password is required now.',
     'data-password-toggle',
 ], 'Login interface');
+release_contract_has_all($components, [
+    '.auth-card-login .password-field {',
+    '.auth-card-login .password-input-wrap',
+    'display: grid !important;',
+    'display: block !important;',
+    'visibility: visible !important;',
+    'height: auto !important;',
+], 'Login password field layout');
 release_contract_has_all($konaTheme, [
     '.theme-clean .auth-card-login .field > .field-label',
 ], 'Login theme visibility');

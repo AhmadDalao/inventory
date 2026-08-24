@@ -145,6 +145,26 @@
     gap: 18px;
 }
 
+.auth-card-login .password-field {
+    display: grid !important;
+    visibility: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    min-width: 0;
+}
+
+.auth-card-login .password-input-wrap {
+    display: block !important;
+    visibility: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    min-width: 0;
+}
+
 .password-input-wrap {
     position: relative;
     display: block;
