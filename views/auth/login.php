@@ -15,15 +15,15 @@
             <input type="email" name="email" value="<?= e((string) old('email')) ?>" autocomplete="email" placeholder="Email" required>
         </label>
 
-        <label class="field password-field">
-            <span class="field-label">Password</span>
-            <span class="password-input-wrap">
-                <input type="password" name="password" autocomplete="current-password" placeholder="Password" required data-password-input>
+        <div class="field auth-login-password" data-login-password-field>
+            <label class="field-label" for="login_password">Password</label>
+            <div class="password-input-wrap">
+                <input id="login_password" type="password" name="password" autocomplete="current-password" placeholder="Password" required data-password-input>
                 <button class="password-toggle" type="button" aria-label="Show password" aria-pressed="false" data-password-toggle>
                     <span data-password-toggle-label>Show</span>
                 </button>
-            </span>
-        </label>
+            </div>
+        </div>
 
         <input type="hidden" name="remember_me" value="0">
         <label class="auth-remember-control" for="remember_me">

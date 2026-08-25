@@ -145,7 +145,9 @@
     gap: 18px;
 }
 
-.auth-card-login .password-field {
+.auth-card-login .password-field,
+.auth-card-login .auth-login-password,
+.auth-card-login [data-login-password-field] {
     display: grid !important;
     visibility: visible !important;
     height: auto !important;
@@ -155,7 +157,9 @@
     min-width: 0;
 }
 
-.auth-card-login .password-input-wrap {
+.auth-card-login .password-field .password-input-wrap,
+.auth-card-login .auth-login-password .password-input-wrap,
+.auth-card-login [data-login-password-field] .password-input-wrap {
     display: block !important;
     visibility: visible !important;
     height: auto !important;
