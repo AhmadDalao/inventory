@@ -1,6 +1,8 @@
 import '../models/inventory_models.dart';
 
 abstract class InventoryRepository {
+  String? get bootstrapAccessFingerprint;
+
   Future<void> login(
     String email,
     String password, {
@@ -42,6 +44,7 @@ abstract class InventoryRepository {
   Future<OperationReceipt> confirmReceipt(
     int handoverId,
     Map<int, double> quantities, {
+    String? notes,
     String? clientOperationId,
   });
   Future<OperationReceipt> confirmReceiptReview(

@@ -25,17 +25,26 @@ class MobileRealtimeSync with WidgetsBindingObserver {
   onChanged;
   final Future<void> Function() onRevoked;
   Timer? _timer;
+  StreamSubscription<void>? _sessionClearedSubscription;
   bool _running = false;
   String? _accessFingerprint;
 
   void start() {
     if (AppConfig.mockMode) return;
     WidgetsBinding.instance.addObserver(this);
+    _sessionClearedSubscription ??= session.sessionCleared.listen((_) {
+      unawaited(onRevoked());
+    });
     _resume();
   }
 
   void dispose() {
     _timer?.cancel();
+    final sessionClearedSubscription = _sessionClearedSubscription;
+    _sessionClearedSubscription = null;
+    if (sessionClearedSubscription != null) {
+      unawaited(sessionClearedSubscription.cancel());
+    }
     WidgetsBinding.instance.removeObserver(this);
   }
 
@@ -64,6 +73,12 @@ class MobileRealtimeSync with WidgetsBindingObserver {
 
     _running = true;
     try {
+      final bootstrapFingerprint = repository.bootstrapAccessFingerprint;
+      if (bootstrapFingerprint?.isNotEmpty == true) {
+        // The baseline must represent the data currently shown by bootstrap,
+        // even if bootstrap and the first sync request completed out of order.
+        _accessFingerprint = bootstrapFingerprint;
+      }
       final deltas = <MobileSyncDelta>[];
       var changed = false;
       var fullResync = false;
@@ -96,7 +111,6 @@ class MobileRealtimeSync with WidgetsBindingObserver {
         'refresh_reuse_detected',
       }.contains(error.code)) {
         await session.clear();
-        await onRevoked();
       }
     } catch (_) {
       // A transient poll failure must never interrupt active field work.

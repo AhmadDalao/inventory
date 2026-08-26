@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
+import '../../core/widgets/item_match_picker.dart';
 import '../../core/widgets/item_widgets.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/numeric_input.dart';
 import '../../core/widgets/status_widgets.dart';
 
 class CreateHandoverScreen extends ConsumerStatefulWidget {
@@ -54,13 +57,36 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
   }
 
   Future<void> _scan() async {
-    if (_sourceStorageId == null) return;
-    final code = await context.push<String>('/scanner/item');
-    if (code == null) return;
-    final items = await ref
-        .read(inventoryRepositoryProvider)
-        .searchItems(code, storageId: _sourceStorageId);
-    if (items.isNotEmpty) _addItem(items.first);
+    if (_sourceStorageId == null) {
+      _message('Select a source storage before scanning.');
+      return;
+    }
+    try {
+      final code = await context.push<String>('/scanner/item');
+      if (code == null || !mounted) return;
+      final items = await ref
+          .read(inventoryRepositoryProvider)
+          .searchItems(code, storageId: _sourceStorageId);
+      if (!mounted) return;
+      if (items.isEmpty) {
+        _message('No assigned item or package matched that code.');
+        return;
+      }
+      final selected = await chooseInventoryMatch(
+        context,
+        items,
+        scannedCode: code,
+      );
+      if (selected != null && mounted) _addItem(selected);
+    } catch (error) {
+      if (mounted) _message(apiErrorMessage(error));
+    }
+  }
+
+  void _message(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _addItem(InventoryItem item) {
@@ -133,7 +159,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
             lines: _lines,
           );
       ref.invalidate(handoversProvider);
-      ref.invalidate(bootstrapProvider);
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -448,6 +474,7 @@ class _HandoverLineEditor extends StatelessWidget {
             Expanded(
               child: TextFormField(
                 initialValue: _number(line.quantity),
+                onTap: selectAllNumericTextOnTap,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),

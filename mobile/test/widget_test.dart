@@ -7,7 +7,10 @@ import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/data/mock_inventory_repository.dart';
 import 'package:inventory_kona/core/data/providers.dart';
 import 'package:inventory_kona/core/security/biometric_authenticator.dart';
+import 'package:inventory_kona/core/widgets/numeric_input.dart';
 import 'package:inventory_kona/features/movements/usage_cart_screen.dart';
+import 'package:inventory_kona/features/handovers/handover_receipt_screen.dart';
+import 'package:inventory_kona/features/scanner/scan_hub_screen.dart';
 import 'package:inventory_kona/features/settings/settings_screen.dart';
 
 class _DisabledMobileRepository extends MockInventoryRepository {
@@ -45,16 +48,48 @@ class _UnavailableBiometricAuthenticator implements BiometricAuthenticator {
 }
 
 void main() {
-  testWidgets('KONA mock login renders', (tester) async {
+  testWidgets('tapping a prefilled numeric field selects its whole value', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: '0');
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TextField(
+            key: const ValueKey('prefilled-quantity'),
+            controller: controller,
+            keyboardType: TextInputType.number,
+            onTap: selectAllNumericTextOnTap,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('prefilled-quantity')));
+    await tester.pump();
+
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 1),
+    );
+  });
+
+  testWidgets('KONA production login renders without demo data', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(const ProviderScope(child: InventoryKonaApp()));
     await tester.pumpAndSettle();
 
     expect(find.text('Inventory access'), findsOneWidget);
-    expect(find.text('Mock mode · no production data'), findsOneWidget);
+    expect(find.text('Mock mode · no production data'), findsNothing);
     expect(find.text('Sign in'), findsOneWidget);
   });
 
   testWidgets('login shows a short actionable API error', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -118,6 +153,72 @@ void main() {
     otherChip.onSelected?.call(true);
     await tester.pumpAndSettle();
     expect(find.text('Describe Other'), findsOneWidget);
+  });
+
+  testWidgets('quick scan exposes direct usage and refill actions', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inventoryRepositoryProvider.overrideWithValue(
+            MockInventoryRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: ScanHubScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('quick-scan-use')), findsOneWidget);
+    expect(find.byKey(const ValueKey('quick-scan-refill')), findsOneWidget);
+    expect(find.text('Use from storage'), findsOneWidget);
+    expect(find.text('Refill storage'), findsOneWidget);
+  });
+
+  for (final width in [390.0, 430.0, 768.0]) {
+    testWidgets('quick scan fits a ${width.toInt()}px viewport', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(Size(width, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            inventoryRepositoryProvider.overrideWithValue(
+              MockInventoryRepository(),
+            ),
+          ],
+          child: const MaterialApp(home: ScanHubScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('quick-scan-use')), findsOneWidget);
+      expect(find.byKey(const ValueKey('quick-scan-refill')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('handover recipient can record receipt notes', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inventoryRepositoryProvider.overrideWithValue(
+            MockInventoryRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: HandoverReceiptScreen(handoverId: 101)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Receipt notes (optional)'), findsOneWidget);
+    expect(
+      find.textContaining('Mention shortages, extra items'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('persistent sign-in requires the current password', (

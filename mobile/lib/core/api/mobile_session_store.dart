@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class MobileSessionStore {
@@ -14,6 +16,10 @@ class MobileSessionStore {
 
   String? _memoryAccessToken;
   String? _memoryRefreshToken;
+  final StreamController<void> _sessionClearedController =
+      StreamController<void>.broadcast();
+
+  Stream<void> get sessionCleared => _sessionClearedController.stream;
 
   Future<String?> get accessToken async {
     if (_memoryAccessToken?.isNotEmpty ?? false) return _memoryAccessToken;
@@ -103,7 +109,12 @@ class MobileSessionStore {
       _storage.write(key: _keepSignedInKey, value: false.toString()),
       _storage.write(key: _biometricKey, value: false.toString()),
     ]);
+    if (!_sessionClearedController.isClosed) {
+      _sessionClearedController.add(null);
+    }
   }
+
+  Future<void> dispose() => _sessionClearedController.close();
 
   Future<bool> _readBool(String key) async =>
       (await _storage.read(key: key)) == true.toString();

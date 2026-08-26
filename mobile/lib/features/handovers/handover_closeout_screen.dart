@@ -9,6 +9,7 @@ import '../../core/logic/handover_reconciliation.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/numeric_input.dart';
 import '../../core/widgets/status_widgets.dart';
 
 const _reasonKeys = [
@@ -181,10 +182,10 @@ class _HandoverCloseoutScreenState
                   notes: _notes.text.trim(),
                   proofPath: _proof?.path,
                 );
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!mounted) return;
       ref.invalidate(handoverDetailProvider(widget.handoverId));
       ref.invalidate(handoversProvider);
-      ref.invalidate(bootstrapProvider);
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -195,7 +196,11 @@ class _HandoverCloseoutScreenState
           ),
         ),
       );
-      context.go('/handovers/${widget.handoverId}');
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go('/handovers/${widget.handoverId}');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -425,6 +430,7 @@ class _ReturnLine extends StatelessWidget {
         const SizedBox(height: 11),
         TextField(
           controller: controller,
+          onTap: selectAllNumericTextOnTap,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => onChanged(),
           decoration: InputDecoration(
@@ -486,6 +492,7 @@ class _ReconciliationEditor extends StatelessWidget {
             for (final reason in _reasonKeys)
               TextField(
                 controller: reasonControllers[reason],
+                onTap: selectAllNumericTextOnTap,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),

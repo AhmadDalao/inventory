@@ -128,8 +128,17 @@ class KonaTheme {
       ),
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: KonaColors.soft,
+        selectedColor: const Color(0xFFFFE7A3),
         side: BorderSide.none,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        labelStyle: const TextStyle(
+          color: KonaColors.ink,
+          fontWeight: FontWeight.w700,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          color: KonaColors.ink,
+          fontWeight: FontWeight.w700,
+        ),
+        checkmarkColor: KonaColors.ink,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
       dividerTheme: const DividerThemeData(

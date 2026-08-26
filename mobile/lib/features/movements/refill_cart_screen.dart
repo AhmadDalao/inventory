@@ -7,8 +7,10 @@ import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
+import '../../core/widgets/item_match_picker.dart';
 import '../../core/widgets/item_widgets.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/numeric_input.dart';
 import '../../core/widgets/status_widgets.dart';
 import 'measured_cart_support.dart';
 
@@ -74,6 +76,10 @@ class _RefillCartScreenState extends ConsumerState<RefillCartScreen> {
   }
 
   Future<void> _scan() async {
+    if (_storageId == null) {
+      _message('Select a destination storage before scanning.');
+      return;
+    }
     try {
       final code = await context.push<String>('/scanner/item');
       if (code == null || !mounted) return;
@@ -85,7 +91,12 @@ class _RefillCartScreenState extends ConsumerState<RefillCartScreen> {
         _message('No assigned item or package matched that code.');
         return;
       }
-      _addItem(matches.first);
+      final selected = await chooseInventoryMatch(
+        context,
+        matches,
+        scannedCode: code,
+      );
+      if (selected != null && mounted) _addItem(selected);
     } catch (error) {
       if (mounted) _message(apiErrorMessage(error));
     }
@@ -173,7 +184,8 @@ class _RefillCartScreenState extends ConsumerState<RefillCartScreen> {
             proofPath: _proof?.path,
           );
       if (!mounted) return;
-      ref.invalidate(bootstrapProvider);
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!mounted) return;
       ref.invalidate(mobileOperationsProvider);
       await showDialog<void>(
         context: context,
@@ -446,60 +458,72 @@ class _RefillLineEditor extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: ValueKey(
-                      'refill-${line.item.id}-${selected.key}-${choices.length}',
-                    ),
-                    initialValue: selected.key,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit / package',
-                    ),
-                    items: choices
-                        .map(
-                          (choice) => DropdownMenuItem(
-                            value: choice.key,
-                            child: Text(
-                              '${choice.label} · ×${measuredNumber(choice.multiplier)}',
-                            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final packageField = DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    'refill-${line.item.id}-${selected.key}-${choices.length}',
+                  ),
+                  initialValue: selected.key,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit / package',
+                  ),
+                  items: choices
+                      .map(
+                        (choice) => DropdownMenuItem(
+                          value: choice.key,
+                          child: Text(
+                            '${choice.label} · ×${measuredNumber(choice.multiplier)}',
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      final choice = choices.firstWhere(
-                        (candidate) => candidate.key == value,
-                        orElse: () => choices.first,
-                      );
-                      onChanged(
-                        line.copyWith(
-                          packageLabel: choice.label,
-                          packageMultiplier: choice.multiplier,
-                          packagePresetId: choice.presetId,
-                          clearPackagePreset: choice.presetId == null,
                         ),
-                      );
-                    },
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    final choice = choices.firstWhere(
+                      (candidate) => candidate.key == value,
+                      orElse: () => choices.first,
+                    );
+                    onChanged(
+                      line.copyWith(
+                        packageLabel: choice.label,
+                        packageMultiplier: choice.multiplier,
+                        packagePresetId: choice.presetId,
+                        clearPackagePreset: choice.presetId == null,
+                      ),
+                    );
+                  },
+                );
+                final quantityField = TextFormField(
+                  initialValue: measuredNumber(line.quantity),
+                  onTap: selectAllNumericTextOnTap,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextFormField(
-                    initialValue: measuredNumber(line.quantity),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Quantity to add',
-                    ),
-                    onChanged: (value) => onChanged(
-                      line.copyWith(quantity: double.tryParse(value) ?? 0),
-                    ),
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity to add',
                   ),
-                ),
-              ],
+                  onChanged: (value) => onChanged(
+                    line.copyWith(quantity: double.tryParse(value) ?? 0),
+                  ),
+                );
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    children: [
+                      packageField,
+                      const SizedBox(height: 9),
+                      quantityField,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: packageField),
+                    const SizedBox(width: 9),
+                    Expanded(child: quantityField),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 9),
             Wrap(

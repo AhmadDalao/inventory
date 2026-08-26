@@ -14,6 +14,7 @@ import '../../features/inventory/quantity_check_screen.dart';
 import '../../features/movements/scan_in_screen.dart';
 import '../../features/movements/refill_cart_screen.dart';
 import '../../features/movements/usage_cart_screen.dart';
+import '../../features/scanner/scan_hub_screen.dart';
 import '../../features/scanner/scan_out_screen.dart';
 import '../../features/scanner/scanner_screen.dart';
 import '../../features/settings/settings_screen.dart';
@@ -69,6 +70,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
               (access) => access.canViewItems,
               'Quantity checks require item access and an assigned storage.',
+            ),
+          ),
+          GoRoute(
+            path: '/scan',
+            builder: (_, _) => _guarded(
+              const ScanHubScreen(),
+              (access) =>
+                  access.canUseStock ||
+                  access.canRestock ||
+                  access.canScanIn ||
+                  access.canCreateAnyHandover,
+              'No scan actions are enabled for your account.',
             ),
           ),
           GoRoute(

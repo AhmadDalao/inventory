@@ -44,47 +44,63 @@ class KonaPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
+                            LayoutBuilder(
+                              builder: (context, headerConstraints) {
+                                final titleBlock = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      eyebrow.toUpperCase(),
+                                      style: const TextStyle(
+                                        color: KonaColors.goldDark,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 1.1,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      title,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.headlineMedium,
+                                    ),
+                                    if (description != null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        description!,
+                                        style: const TextStyle(
+                                          color: KonaColors.muted,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                );
+
+                                if (trailing != null &&
+                                    headerConstraints.maxWidth < 520) {
+                                  return Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        eyebrow.toUpperCase(),
-                                        style: const TextStyle(
-                                          color: KonaColors.goldDark,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 1.1,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        title,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.headlineMedium,
-                                      ),
-                                      if (description != null) ...[
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          description!,
-                                          style: const TextStyle(
-                                            color: KonaColors.muted,
-                                          ),
-                                        ),
-                                      ],
+                                      titleBlock,
+                                      const SizedBox(height: 10),
+                                      trailing!,
                                     ],
-                                  ),
-                                ),
-                                if (trailing != null) ...[
-                                  const SizedBox(width: 12),
-                                  trailing!,
-                                ],
-                              ],
+                                  );
+                                }
+
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: titleBlock),
+                                    if (trailing != null) ...[
+                                      const SizedBox(width: 12),
+                                      trailing!,
+                                    ],
+                                  ],
+                                );
+                              },
                             ),
                             const SizedBox(height: 22),
                             ..._withSpacing(children),

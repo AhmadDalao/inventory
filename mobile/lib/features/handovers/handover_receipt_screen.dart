@@ -7,6 +7,7 @@ import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/numeric_input.dart';
 import '../../core/widgets/status_widgets.dart';
 
 class HandoverReceiptScreen extends ConsumerStatefulWidget {
@@ -83,15 +84,23 @@ class _HandoverReceiptScreenState extends ConsumerState<HandoverReceiptScreen> {
                 )
           : await ref
                 .read(inventoryRepositoryProvider)
-                .confirmReceipt(widget.handoverId, quantities);
+                .confirmReceipt(
+                  widget.handoverId,
+                  quantities,
+                  notes: _notes.text.trim(),
+                );
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!mounted) return;
       ref.invalidate(handoverDetailProvider(widget.handoverId));
       ref.invalidate(handoversProvider);
-      ref.invalidate(bootstrapProvider);
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(receipt.message ?? 'Receipt submitted.')),
       );
-      context.go('/handovers/${widget.handoverId}');
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go('/handovers/${widget.handoverId}');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -164,16 +173,19 @@ class _HandoverReceiptScreenState extends ConsumerState<HandoverReceiptScreen> {
                       ),
                     ),
                   ),
-                  if (widget.issuerReview) ...[
-                    TextField(
-                      controller: _notes,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Review notes (optional)',
-                        prefixIcon: Icon(Icons.notes_outlined),
-                      ),
+                  TextField(
+                    controller: _notes,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: widget.issuerReview
+                          ? 'Review notes (optional)'
+                          : 'Receipt notes (optional)',
+                      hintText: widget.issuerReview
+                          ? 'Record why the confirmed quantity changed.'
+                          : 'Mention shortages, extra items, damage, or anything unusual.',
+                      prefixIcon: const Icon(Icons.notes_outlined),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -253,6 +265,7 @@ class _ReceiptLine extends StatelessWidget {
           width: 112,
           child: TextField(
             controller: controller,
+            onTap: selectAllNumericTextOnTap,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'Received',

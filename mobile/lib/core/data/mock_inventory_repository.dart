@@ -5,6 +5,9 @@ import 'inventory_repository.dart';
 import '../models/inventory_models.dart';
 
 class MockInventoryRepository implements InventoryRepository {
+  @override
+  String? get bootstrapAccessFingerprint => 'mock-access';
+
   final _storages = const [
     StorageLocation(id: 1, name: 'KONA Main', isDefault: true),
     StorageLocation(id: 2, name: 'KONA Office'),
@@ -123,6 +126,10 @@ class MockInventoryRepository implements InventoryRepository {
     ),
   ];
 
+  final Map<int, Map<int, double>> _receivedQuantities = {};
+  final Map<int, Map<int, double>> _returnedQuantities = {};
+  final Map<int, Map<String, Map<String, double>>> _reconciliations = {};
+
   Future<void> _wait() =>
       Future<void>.delayed(const Duration(milliseconds: 350));
 
@@ -160,6 +167,8 @@ class MockInventoryRepository implements InventoryRepository {
         'custody',
       },
       permissions: const {
+        'mobile.access',
+        'storages.view',
         'items.view',
         'movements.usage',
         'movements.restock',
@@ -313,33 +322,187 @@ class MockInventoryRepository implements InventoryRepository {
   @override
   Future<HandoverDetail> handover(int id) async {
     await _wait();
+    return _handoverDetail(id);
+  }
+
+  HandoverDetail _handoverDetail(int id) {
     final task = _tasks.firstWhere((entry) => entry.id == id);
     final matching = _items.take(task.itemCount).toList();
+    final issuedQuantities = _distributedMockQuantities(task, matching);
+    final received = _receivedQuantities[id] ?? const <int, double>{};
+    final returned = _returnedQuantities[id] ?? const <int, double>{};
+    final storedReconciliations =
+        _reconciliations[id] ?? const <String, Map<String, double>>{};
+    final lines = <HandoverLine>[
+      for (var index = 0; index < matching.length; index++)
+        _mockHandoverLine(
+          handoverId: id,
+          item: matching[index],
+          issued: issuedQuantities[index],
+          task: task,
+          received: received,
+          returned: returned,
+          index: index,
+        ),
+    ];
     return HandoverDetail(
       task: task,
       recipientName: 'Alaa',
       issuerName: 'Ahmad Dalao',
       scheduledForDate: '2026-08-10',
       reviewDate: task.purpose == 'staff_custody' ? '2026-10-10' : null,
-      lines: [
-        for (var index = 0; index < matching.length; index++)
-          HandoverLine(
-            id: id * 10 + index,
-            itemId: matching[index].id,
-            name: matching[index].name,
-            sku: matching[index].sku,
-            barcode: matching[index].barcode,
-            unit: matching[index].unit,
-            imageUrl: matching[index].imageUrl,
-            quantityIssued: task.quantity / matching.length,
-            quantityReceived: task.status == 'awaiting_receipt'
-                ? 0
-                : task.quantity / matching.length,
-            quantityUsed: 0,
-            quantityReturned: 0,
-            quantityHeld: task.quantity / matching.length,
+      lines: lines,
+      reconciliations: [
+        for (final entry in storedReconciliations.entries)
+          HandoverReconciliation(
+            unit: entry.key,
+            reasons: Map.unmodifiable(entry.value),
+            returnedTotal: lines
+                .where((line) => line.unit == entry.key)
+                .fold<double>(0, (sum, line) => sum + line.quantityReturned),
+            difference: _reconciliationDifference(
+              lines.where((line) => line.unit == entry.key),
+              entry.value,
+            ),
           ),
       ],
+    );
+  }
+
+  HandoverLine _mockHandoverLine({
+    required int handoverId,
+    required InventoryItem item,
+    required double issued,
+    required MobileTask task,
+    required Map<int, double> received,
+    required Map<int, double> returned,
+    required int index,
+  }) {
+    final lineId = handoverId * 10 + index;
+    final receivedQuantity =
+        received[lineId] ??
+        (task.status == 'awaiting_receipt' || task.status == 'requested'
+            ? 0
+            : issued);
+    final returnedQuantity = returned[lineId] ?? 0;
+    final usedQuantity = returned.containsKey(lineId)
+        ? (receivedQuantity - returnedQuantity)
+              .clamp(0, receivedQuantity)
+              .toDouble()
+        : 0.0;
+    final heldQuantity = task.purpose == 'staff_custody'
+        ? (receivedQuantity - returnedQuantity)
+              .clamp(0, receivedQuantity)
+              .toDouble()
+        : 0.0;
+    return HandoverLine(
+      id: lineId,
+      itemId: item.id,
+      name: item.name,
+      sku: item.sku,
+      barcode: item.barcode,
+      unit: item.unit,
+      imageUrl: item.imageUrl,
+      quantityIssued: issued,
+      quantityReceived: receivedQuantity,
+      quantityUsed: usedQuantity,
+      quantityReturned: returnedQuantity,
+      quantityHeld: heldQuantity,
+    );
+  }
+
+  double _reconciliationDifference(
+    Iterable<HandoverLine> lines,
+    Map<String, double> reasons,
+  ) {
+    final physicalUsed = lines.fold<double>(
+      0,
+      (sum, line) => sum + line.quantityUsed,
+    );
+    final online = reasons['online'] ?? 0;
+    final noShow = reasons['no_show'] ?? reasons['noshow'] ?? 0;
+    final operationalUsed =
+        reasons.entries.fold<double>(0, (sum, entry) {
+          if (entry.key == 'online' ||
+              entry.key == 'no_show' ||
+              entry.key == 'noshow') {
+            return sum;
+          }
+          return sum + entry.value;
+        }) +
+        online -
+        noShow;
+    return physicalUsed - operationalUsed;
+  }
+
+  void _replaceTask(
+    int id, {
+    required String status,
+    required Set<String> allowedActions,
+    bool? requiresAction,
+  }) {
+    final index = _tasks.indexWhere((entry) => entry.id == id);
+    final task = _tasks[index];
+    _tasks[index] = MobileTask(
+      id: task.id,
+      reference: task.reference,
+      title: task.title,
+      status: status,
+      purpose: task.purpose,
+      itemCount: task.itemCount,
+      quantity: task.quantity,
+      source: task.source,
+      destination: task.destination,
+      allowedActions: allowedActions,
+      requiresAction: requiresAction ?? allowedActions.isNotEmpty,
+    );
+  }
+
+  ({String status, Set<String> actions}) _postReceiptState(MobileTask task) =>
+      switch (task.purpose) {
+        'storage_transfer' => (status: 'closed', actions: const <String>{}),
+        'staff_custody' => (
+          status: 'delivered',
+          actions: const {'return_custody'},
+        ),
+        _ => (status: 'delivered', actions: const {'report_closeout'}),
+      };
+
+  bool _receiptMatchesIssued(
+    HandoverDetail detail,
+    Map<int, double> quantities,
+  ) => detail.lines.every(
+    (line) =>
+        ((quantities[line.id] ?? 0) - line.quantityIssued).abs() < 0.000001,
+  );
+
+  List<double> _distributedMockQuantities(
+    MobileTask task,
+    List<InventoryItem> items,
+  ) {
+    if (items.isEmpty) return const [];
+
+    final wholeNumberUnits = items.every(
+      (item) => const {
+        'pcs',
+        'piece',
+        'pieces',
+        'pair',
+        'pairs',
+        'roll',
+        'rolls',
+      }.contains(item.unit.toLowerCase()),
+    );
+    if (!wholeNumberUnits || task.quantity != task.quantity.roundToDouble()) {
+      return List<double>.filled(items.length, task.quantity / items.length);
+    }
+
+    final total = task.quantity.toInt();
+    final base = total ~/ items.length;
+    final remainder = total.remainder(items.length);
+    return List<double>.generate(
+      items.length,
+      (index) => (base + (index < remainder ? 1 : 0)).toDouble(),
     );
   }
 
@@ -375,6 +538,7 @@ class MockInventoryRepository implements InventoryRepository {
       permissions: {},
       capabilities: {},
       storageIds: {},
+      accessFingerprint: 'mock-access',
     );
   }
 
@@ -405,22 +569,70 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
-    return OperationReceipt(
-      reference: 'HDO-MOCK-${DateTime.now().millisecondsSinceEpoch}',
-      status: 'requested',
+    final id =
+        _tasks.fold<int>(0, (max, task) => task.id > max ? task.id : max) + 1;
+    final source = _storageName(sourceStorageId);
+    final destination = destinationStorageId == null
+        ? null
+        : _storageName(destinationStorageId);
+    final reference = 'HDO-MOCK-$id';
+    _tasks.insert(
+      0,
+      MobileTask(
+        id: id,
+        reference: reference,
+        title: purpose == 'storage_transfer'
+            ? 'Storage transfer request'
+            : purpose == 'staff_custody'
+            ? 'Long-term custody request'
+            : 'Temporary handover request',
+        status: 'requested',
+        purpose: purpose,
+        itemCount: lines.length,
+        quantity: lines.fold<double>(0, (sum, line) => sum + line.baseQuantity),
+        source: source,
+        destination: destination,
+        allowedActions: const {'approve_request', 'reject_request'},
+        requiresAction: true,
+      ),
     );
+    return OperationReceipt(reference: reference, status: 'requested');
+  }
+
+  String? _storageName(int storageId) {
+    for (final storage in _storages) {
+      if (storage.id == storageId) return storage.name;
+    }
+    return null;
   }
 
   @override
   Future<OperationReceipt> confirmReceipt(
     int handoverId,
     Map<int, double> quantities, {
+    String? notes,
     String? clientOperationId,
   }) async {
     await _wait();
+    final detail = _handoverDetail(handoverId);
+    _receivedQuantities[handoverId] = Map<int, double>.from(quantities);
+    if (!_receiptMatchesIssued(detail, quantities)) {
+      _replaceTask(
+        handoverId,
+        status: 'receipt_review',
+        allowedActions: const {'review_receipt'},
+      );
+      return OperationReceipt(
+        reference: detail.task.reference,
+        status: 'receipt_review',
+        message: 'Receipt difference submitted for issuer review.',
+      );
+    }
+    final next = _postReceiptState(detail.task);
+    _replaceTask(handoverId, status: next.status, allowedActions: next.actions);
     return OperationReceipt(
-      reference: 'HDO-MOCK-$handoverId',
-      status: 'delivered',
+      reference: detail.task.reference,
+      status: next.status,
       message: 'Receipt quantities submitted.',
     );
   }
@@ -433,9 +645,13 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
+    final detail = _handoverDetail(handoverId);
+    _receivedQuantities[handoverId] = Map<int, double>.from(quantities);
+    final next = _postReceiptState(detail.task);
+    _replaceTask(handoverId, status: next.status, allowedActions: next.actions);
     return OperationReceipt(
-      reference: 'HDO-MOCK-$handoverId',
-      status: 'delivered',
+      reference: detail.task.reference,
+      status: next.status,
       message: 'Receipt difference approved.',
     );
   }
@@ -451,8 +667,19 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
+    final detail = _handoverDetail(handoverId);
+    _returnedQuantities[handoverId] = Map<int, double>.from(returnedQuantities);
+    _reconciliations[handoverId] = {
+      for (final entry in reconciliations.entries)
+        entry.key: Map<String, double>.from(entry.value),
+    };
+    _replaceTask(
+      handoverId,
+      status: 'pending_approval',
+      allowedActions: const {'approve_closeout'},
+    );
     return OperationReceipt(
-      reference: 'HDO-MOCK-$handoverId',
+      reference: detail.task.reference,
       status: 'pending_approval',
       message: 'Closeout submitted for issuer approval.',
     );
@@ -470,8 +697,20 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
+    final detail = _handoverDetail(handoverId);
+    _returnedQuantities[handoverId] = Map<int, double>.from(returnedQuantities);
+    _reconciliations[handoverId] = {
+      for (final entry in reconciliations.entries)
+        entry.key: Map<String, double>.from(entry.value),
+    };
+    _replaceTask(
+      handoverId,
+      status: 'closed',
+      allowedActions: const {},
+      requiresAction: false,
+    );
     return OperationReceipt(
-      reference: 'HDO-MOCK-$handoverId',
+      reference: detail.task.reference,
       status: 'closed',
       message: 'Final stock approved.',
     );
@@ -485,8 +724,23 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
+    final task = _tasks.firstWhere((entry) => entry.id == handoverId);
+    if (approve) {
+      _replaceTask(
+        handoverId,
+        status: 'awaiting_receipt',
+        allowedActions: const {'confirm_receipt'},
+      );
+    } else {
+      _replaceTask(
+        handoverId,
+        status: 'rejected',
+        allowedActions: const {},
+        requiresAction: false,
+      );
+    }
     return OperationReceipt(
-      reference: 'HDO-MOCK-$handoverId',
+      reference: task.reference,
       status: approve ? 'awaiting_receipt' : 'rejected',
     );
   }
@@ -498,10 +752,14 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
-    return OperationReceipt(
-      reference: 'HDO-MOCK-$handoverId',
+    final task = _tasks.firstWhere((entry) => entry.id == handoverId);
+    _replaceTask(
+      handoverId,
       status: 'cancelled',
+      allowedActions: const {},
+      requiresAction: false,
     );
+    return OperationReceipt(reference: task.reference, status: 'cancelled');
   }
 
   @override
@@ -513,8 +771,58 @@ class MockInventoryRepository implements InventoryRepository {
     String? clientOperationId,
   }) async {
     await _wait();
+    final task = _tasks.firstWhere((entry) => entry.id == handoverId);
+    final detail = _handoverDetail(handoverId);
+    if (lines.isEmpty ||
+        lines.fold<double>(0, (sum, line) => sum + line.total) <= 0.009) {
+      throw ArgumentError(
+        'Enter at least one serviceable, damaged, consumed, or lost quantity.',
+      );
+    }
+    for (final line in lines) {
+      final handoverLine = detail.lines.firstWhere(
+        (entry) => entry.id == line.handoverLineId,
+        orElse: () => throw ArgumentError(
+          'A submitted line does not belong to this handover.',
+        ),
+      );
+      if ([
+        line.serviceable,
+        line.damaged,
+        line.consumed,
+        line.lost,
+      ].any((value) => value < 0)) {
+        throw ArgumentError(
+          '${handoverLine.name}: quantities cannot be negative.',
+        );
+      }
+      if (line.total > handoverLine.quantityHeld + 0.009) {
+        throw ArgumentError(
+          '${handoverLine.name}: return outcomes exceed the quantity still held.',
+        );
+      }
+      if (line.damaged > 0 &&
+          !damageProofPaths.containsKey(line.handoverLineId)) {
+        throw ArgumentError(
+          '${handoverLine.name}: add a proof image for damaged stock.',
+        );
+      }
+      if (line.lost > 0 &&
+          (line.notes?.trim().isEmpty ?? true) &&
+          (notes?.trim().isEmpty ?? true)) {
+        throw ArgumentError(
+          '${handoverLine.name}: explain the lost or missing quantity.',
+        );
+      }
+    }
+    _replaceTask(
+      handoverId,
+      status: 'pending_approval',
+      allowedActions: const {},
+      requiresAction: false,
+    );
     return OperationReceipt(
-      reference: 'CTR-MOCK-$handoverId',
+      reference: task.reference,
       status: 'pending_approval',
       message: 'Custody return submitted.',
     );

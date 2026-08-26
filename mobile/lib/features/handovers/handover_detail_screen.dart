@@ -40,7 +40,6 @@ class HandoverDetailScreen extends ConsumerWidget {
             onChanged: () {
               ref.invalidate(handoverDetailProvider(handoverId));
               ref.invalidate(handoversProvider);
-              ref.invalidate(bootstrapProvider);
             },
           ),
           KonaSectionCard(
@@ -252,7 +251,8 @@ class _NextActionCard extends ConsumerWidget {
     if (task.can('confirm_receipt')) {
       actions.add(
         ElevatedButton.icon(
-          onPressed: () => context.push('/handovers/${task.id}/receipt'),
+          onPressed: () =>
+              _openWorkflow(context, '/handovers/${task.id}/receipt'),
           icon: const Icon(Icons.inventory_2_outlined),
           label: const Text('Confirm actual receipt'),
         ),
@@ -262,7 +262,7 @@ class _NextActionCard extends ConsumerWidget {
       actions.add(
         ElevatedButton.icon(
           onPressed: () =>
-              context.push('/handovers/${task.id}/receipt?review=1'),
+              _openWorkflow(context, '/handovers/${task.id}/receipt?review=1'),
           icon: const Icon(Icons.fact_check_outlined),
           label: const Text('Review receipt difference'),
         ),
@@ -271,7 +271,8 @@ class _NextActionCard extends ConsumerWidget {
     if (task.can('report_closeout')) {
       actions.add(
         ElevatedButton.icon(
-          onPressed: () => context.push('/handovers/${task.id}/closeout'),
+          onPressed: () =>
+              _openWorkflow(context, '/handovers/${task.id}/closeout'),
           icon: const Icon(Icons.assignment_return_outlined),
           label: const Text('Report return and usage'),
         ),
@@ -280,8 +281,10 @@ class _NextActionCard extends ConsumerWidget {
     if (task.can('approve_closeout')) {
       actions.add(
         ElevatedButton.icon(
-          onPressed: () =>
-              context.push('/handovers/${task.id}/closeout?approval=1'),
+          onPressed: () => _openWorkflow(
+            context,
+            '/handovers/${task.id}/closeout?approval=1',
+          ),
           icon: const Icon(Icons.verified_outlined),
           label: const Text('Final issuer review'),
         ),
@@ -290,7 +293,8 @@ class _NextActionCard extends ConsumerWidget {
     if (task.can('return_custody')) {
       actions.add(
         ElevatedButton.icon(
-          onPressed: () => context.push('/handovers/${task.id}/custody-return'),
+          onPressed: () =>
+              _openWorkflow(context, '/handovers/${task.id}/custody-return'),
           icon: const Icon(Icons.assignment_return_outlined),
           label: const Text('Return custody items'),
         ),
@@ -329,6 +333,11 @@ class _NextActionCard extends ConsumerWidget {
     );
   }
 
+  Future<void> _openWorkflow(BuildContext context, String location) async {
+    final changed = await context.push<bool>(location);
+    if (changed == true) onChanged();
+  }
+
   Future<void> _decide(
     BuildContext context,
     WidgetRef ref,
@@ -337,6 +346,7 @@ class _NextActionCard extends ConsumerWidget {
     final receipt = await ref
         .read(inventoryRepositoryProvider)
         .decideRequest(detail.task.id, approve: approve);
+    await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -370,6 +380,7 @@ class _NextActionCard extends ConsumerWidget {
     final receipt = await ref
         .read(inventoryRepositoryProvider)
         .cancelHandover(detail.task.id, notes: 'Cancelled from mobile app');
+    await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
     if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,

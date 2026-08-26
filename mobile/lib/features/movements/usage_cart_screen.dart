@@ -7,8 +7,10 @@ import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
+import '../../core/widgets/item_match_picker.dart';
 import '../../core/widgets/item_widgets.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/numeric_input.dart';
 import '../../core/widgets/status_widgets.dart';
 import 'measured_cart_support.dart';
 
@@ -82,6 +84,10 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
   }
 
   Future<void> _scan() async {
+    if (_storageId == null) {
+      _message('Select a source storage before scanning.');
+      return;
+    }
     try {
       final code = await context.push<String>('/scanner/item');
       if (code == null || !mounted) return;
@@ -93,7 +99,12 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
         _message('No assigned item matched that code.');
         return;
       }
-      _addItem(matches.first);
+      final selected = await chooseInventoryMatch(
+        context,
+        matches,
+        scannedCode: code,
+      );
+      if (selected != null && mounted) _addItem(selected);
     } catch (error) {
       if (mounted) _message(apiErrorMessage(error));
     }
@@ -183,7 +194,8 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
             proofPath: _proof?.path,
           );
       if (!mounted) return;
-      ref.invalidate(bootstrapProvider);
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!mounted) return;
       ref.invalidate(mobileOperationsProvider);
       await showDialog<void>(
         context: context,
@@ -514,58 +526,70 @@ class _CartLineEditor extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: ValueKey(
-                      '${line.item.id}-${selectedPackage.key}-${packages.length}',
-                    ),
-                    initialValue: selectedPackage.key,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Unit / package',
-                    ),
-                    items: packages
-                        .map(
-                          (choice) => DropdownMenuItem(
-                            value: choice.key,
-                            child: Text(
-                              '${choice.label} · ×${_format(choice.multiplier)}',
-                            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final packageField = DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    '${line.item.id}-${selectedPackage.key}-${packages.length}',
+                  ),
+                  initialValue: selectedPackage.key,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit / package',
+                  ),
+                  items: packages
+                      .map(
+                        (choice) => DropdownMenuItem(
+                          value: choice.key,
+                          child: Text(
+                            '${choice.label} · ×${_format(choice.multiplier)}',
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      final choice = packages.firstWhere(
-                        (entry) => entry.key == value,
-                        orElse: () => packages.first,
-                      );
-                      onChanged(
-                        line.copyWith(
-                          packageLabel: choice.label,
-                          packageMultiplier: choice.multiplier,
-                          packagePresetId: choice.presetId,
-                          clearPackagePreset: choice.presetId == null,
                         ),
-                      );
-                    },
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    final choice = packages.firstWhere(
+                      (entry) => entry.key == value,
+                      orElse: () => packages.first,
+                    );
+                    onChanged(
+                      line.copyWith(
+                        packageLabel: choice.label,
+                        packageMultiplier: choice.multiplier,
+                        packagePresetId: choice.presetId,
+                        clearPackagePreset: choice.presetId == null,
+                      ),
+                    );
+                  },
+                );
+                final quantityField = TextFormField(
+                  initialValue: _format(line.quantity),
+                  onTap: selectAllNumericTextOnTap,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: TextFormField(
-                    initialValue: _format(line.quantity),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Quantity'),
-                    onChanged: (value) => onChanged(
-                      line.copyWith(quantity: double.tryParse(value) ?? 0),
-                    ),
+                  decoration: const InputDecoration(labelText: 'Quantity'),
+                  onChanged: (value) => onChanged(
+                    line.copyWith(quantity: double.tryParse(value) ?? 0),
                   ),
-                ),
-              ],
+                );
+                if (constraints.maxWidth < 520) {
+                  return Column(
+                    children: [
+                      packageField,
+                      const SizedBox(height: 9),
+                      quantityField,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: packageField),
+                    const SizedBox(width: 9),
+                    Expanded(child: quantityField),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(

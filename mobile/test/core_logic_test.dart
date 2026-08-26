@@ -1,11 +1,263 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inventory_kona/core/data/mock_inventory_repository.dart';
 import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/logic/handover_reconciliation.dart';
 import 'package:inventory_kona/core/logic/scan_debouncer.dart';
 import 'package:inventory_kona/core/models/inventory_models.dart';
 import 'package:inventory_kona/features/movements/measured_cart_support.dart';
+import 'package:inventory_kona/features/sync/draft_replay.dart';
 
 void main() {
+  group('offline draft replay', () {
+    final bootstrap = MobileBootstrap(
+      userName: 'Employee',
+      storages: const [
+        StorageLocation(id: 10, name: 'KONA'),
+        StorageLocation(id: 11, name: 'Office'),
+      ],
+      items: const [
+        InventoryItem(
+          id: 15,
+          name: 'Soap',
+          sku: 'SOAP',
+          unit: 'mL',
+          quantity: 5000,
+          storageId: 10,
+          storageName: 'KONA',
+          packagePresets: [
+            ItemPackagePreset(id: 7, label: '1 L bottle', piecesPerUnit: 1000),
+          ],
+        ),
+        InventoryItem(
+          id: 15,
+          name: 'Soap',
+          sku: 'SOAP',
+          unit: 'mL',
+          quantity: 2000,
+          storageId: 11,
+          storageName: 'Office',
+        ),
+      ],
+      tasks: const [],
+      capabilities: const {},
+    );
+
+    test('binds a draft item to its source storage balance', () {
+      final lines = resolveDraftCartLines(
+        {
+          'lines': [
+            {
+              'item_id': 15,
+              'input_quantity': 2,
+              'package_preset_id': 7,
+              'package_multiplier': 99,
+              'expected_balance': 4800,
+            },
+          ],
+        },
+        bootstrap,
+        sourceStorageId: 10,
+      );
+
+      expect(lines.single.item.storageId, 10);
+      expect(lines.single.item.quantity, 5000);
+      expect(lines.single.packageMultiplier, 1000);
+      expect(lines.single.baseQuantity, 2000);
+      expect(lines.single.expectedBalance, 4800);
+    });
+
+    test('blocks replay when storage access was revoked', () {
+      expect(
+        () => resolveDraftCartLines(
+          {
+            'lines': [
+              {'item_id': 15, 'quantity': 1},
+            ],
+          },
+          bootstrap,
+          sourceStorageId: 99,
+        ),
+        throwsA(isA<DraftReplayException>()),
+      );
+    });
+
+    test('blocks replay when a package preset was removed', () {
+      expect(
+        () => resolveDraftCartLines(
+          {
+            'lines': [
+              {'item_id': 15, 'quantity': 1, 'package_preset_id': 999},
+            ],
+          },
+          bootstrap,
+          sourceStorageId: 10,
+        ),
+        throwsA(isA<DraftReplayException>()),
+      );
+    });
+  });
+
+  test(
+    'mock count handover uses whole quantities that match its total',
+    () async {
+      final repository = MockInventoryRepository();
+      final handover = await repository.handover(101);
+
+      expect(
+        handover.lines.fold<double>(
+          0,
+          (sum, line) => sum + line.quantityIssued,
+        ),
+        handover.task.quantity,
+      );
+      expect(
+        handover.lines.every(
+          (line) => line.quantityIssued == line.quantityIssued.roundToDouble(),
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  group('mock handover lifecycle', () {
+    test('exact temporary-use receipt advances to usage reporting', () async {
+      final repository = MockInventoryRepository();
+      final before = await repository.handover(101);
+      final quantities = {
+        for (final line in before.lines) line.id: line.quantityIssued,
+      };
+
+      final receipt = await repository.confirmReceipt(101, quantities);
+      final after = await repository.handover(101);
+
+      expect(receipt.status, 'delivered');
+      expect(after.task.status, 'delivered');
+      expect(after.task.can('report_closeout'), isTrue);
+      expect(
+        after.lines.map((line) => line.quantityReceived),
+        before.lines.map((line) => line.quantityIssued),
+      );
+    });
+
+    test('receipt difference waits for issuer review', () async {
+      final repository = MockInventoryRepository();
+      final before = await repository.handover(101);
+      final quantities = {
+        for (final line in before.lines) line.id: line.quantityIssued,
+      };
+      quantities[before.lines.first.id] = before.lines.first.quantityIssued - 1;
+
+      final receipt = await repository.confirmReceipt(101, quantities);
+      final after = await repository.handover(101);
+
+      expect(receipt.status, 'receipt_review');
+      expect(after.task.status, 'receipt_review');
+      expect(after.task.can('review_receipt'), isTrue);
+      expect(
+        after.lines.first.quantityReceived,
+        before.lines.first.quantityIssued - 1,
+      );
+    });
+
+    test('exact storage transfer closes after destination receipt', () async {
+      final repository = MockInventoryRepository();
+      final before = await repository.handover(102);
+      final quantities = {
+        for (final line in before.lines) line.id: line.quantityIssued,
+      };
+
+      final receipt = await repository.confirmReceipt(102, quantities);
+      final after = await repository.handover(102);
+
+      expect(receipt.status, 'closed');
+      expect(after.task.status, 'closed');
+      expect(after.task.allowedActions, isEmpty);
+    });
+
+    test('temporary-use closeout advances through owner approval', () async {
+      final repository = MockInventoryRepository();
+      final before = await repository.handover(101);
+      await repository.confirmReceipt(101, {
+        for (final line in before.lines) line.id: line.quantityIssued,
+      });
+      final delivered = await repository.handover(101);
+      final returned = {
+        for (final line in delivered.lines) line.id: line.quantityReceived - 1,
+      };
+      const reconciliation = {
+        'pcs': {'online': 3.0},
+      };
+
+      final submitted = await repository.submitCloseout(
+        handoverId: 101,
+        returnedQuantities: returned,
+        reconciliations: reconciliation,
+      );
+      final pending = await repository.handover(101);
+
+      expect(submitted.status, 'pending_approval');
+      expect(pending.task.can('approve_closeout'), isTrue);
+      expect(
+        pending.lines.fold<double>(0, (sum, line) => sum + line.quantityUsed),
+        3,
+      );
+
+      final approved = await repository.approveCloseout(
+        handoverId: 101,
+        returnedQuantities: returned,
+        reconciliations: reconciliation,
+      );
+      final closed = await repository.handover(101);
+
+      expect(approved.status, 'closed');
+      expect(closed.task.status, 'closed');
+      expect(closed.task.allowedActions, isEmpty);
+    });
+
+    test('custody return rejects an empty submission', () async {
+      final repository = MockInventoryRepository();
+
+      await expectLater(
+        repository.submitCustodyReturn(handoverId: 103, lines: const []),
+        throwsArgumentError,
+      );
+    });
+
+    test('custody damage requires proof and valid totals', () async {
+      final repository = MockInventoryRepository();
+      final detail = await repository.handover(103);
+      final line = detail.lines.first;
+      final damaged = CustodyReturnLine(handoverLineId: line.id, damaged: 1);
+
+      await expectLater(
+        repository.submitCustodyReturn(handoverId: 103, lines: [damaged]),
+        throwsArgumentError,
+      );
+
+      final receipt = await repository.submitCustodyReturn(
+        handoverId: 103,
+        lines: [damaged],
+        damageProofPaths: {line.id: '/tmp/damage.jpg'},
+      );
+
+      expect(receipt.status, 'pending_approval');
+    });
+
+    test('custody lost quantity requires an explanation', () async {
+      final repository = MockInventoryRepository();
+      final detail = await repository.handover(103);
+      final line = detail.lines.first;
+
+      await expectLater(
+        repository.submitCustodyReturn(
+          handoverId: 103,
+          lines: [CustodyReturnLine(handoverLineId: line.id, lost: 1)],
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('handover reconciliation', () {
     test('returned-first physical usage is calculated safely', () {
       expect(
@@ -287,7 +539,12 @@ void main() {
       ],
       tasks: [],
       capabilities: {'usage'},
-      permissions: {'items.view', 'movements.usage'},
+      permissions: {
+        'mobile.access',
+        'storages.view',
+        'items.view',
+        'movements.usage',
+      },
     );
     const delta = MobileSyncDelta(
       nextCursor: 91,
@@ -307,7 +564,12 @@ void main() {
       ],
       deletedItemIds: {},
       tasks: [],
-      permissions: {'items.view', 'movements.usage'},
+      permissions: {
+        'mobile.access',
+        'storages.view',
+        'items.view',
+        'movements.usage',
+      },
       capabilities: {'usage'},
       storageIds: {10},
     );
@@ -317,6 +579,153 @@ void main() {
     expect(updated.items.single.quantity, 94);
     expect(updated.defaultStorage?.id, 10);
     expect(updated.canUseStock, isTrue);
+  });
+
+  test('an empty realtime storage scope removes cached inventory access', () {
+    const original = MobileBootstrap(
+      userName: 'Alaa',
+      storages: [StorageLocation(id: 10, name: 'KONA')],
+      items: [
+        InventoryItem(
+          id: 15,
+          name: 'Blue',
+          sku: 'WB-BLUE',
+          unit: 'pcs',
+          quantity: 100,
+          storageId: 10,
+          storageName: 'KONA',
+        ),
+      ],
+      tasks: [],
+      capabilities: {'usage'},
+      permissions: {
+        'mobile.access',
+        'storages.view',
+        'items.view',
+        'movements.usage',
+      },
+    );
+    const revoked = MobileSyncDelta(
+      nextCursor: 92,
+      latestCursor: 92,
+      hasMore: false,
+      fullResyncRequired: false,
+      items: [],
+      deletedItemIds: {},
+      tasks: [],
+      permissions: {},
+      capabilities: {},
+      storageIds: {},
+    );
+
+    final updated = original.mergeSyncDelta(revoked);
+
+    expect(updated.storages, isEmpty);
+    expect(updated.items, isEmpty);
+    expect(updated.canViewItems, isFalse);
+  });
+
+  test('mutation balance updates replace only matching cached balances', () {
+    const original = MobileBootstrap(
+      userName: 'Alaa',
+      storages: [StorageLocation(id: 10, name: 'KONA', isDefault: true)],
+      items: [
+        InventoryItem(
+          id: 15,
+          name: 'Blue',
+          sku: 'WB-BLUE',
+          unit: 'pcs',
+          quantity: 100,
+          storageId: 10,
+          storageName: 'KONA',
+        ),
+        InventoryItem(
+          id: 16,
+          name: 'Red',
+          sku: 'WB-RED',
+          unit: 'pcs',
+          quantity: 80,
+          storageId: 10,
+          storageName: 'KONA',
+        ),
+      ],
+      tasks: [],
+      capabilities: {'usage'},
+      permissions: {'mobile.access', 'items.view', 'movements.usage'},
+    );
+    const update = AuthoritativeBalanceUpdate(
+      itemId: 15,
+      storageId: 10,
+      storageBalance: 94,
+      itemName: 'Blue',
+      sku: 'WB-BLUE',
+      unit: 'pcs',
+      active: true,
+    );
+
+    expect(original.canApplyBalanceUpdates(const [update]), isTrue);
+
+    final updated = original.applyBalanceUpdates(const [update]);
+
+    expect(updated.items.singleWhere((item) => item.id == 15).quantity, 94);
+    expect(updated.items.singleWhere((item) => item.id == 16).quantity, 80);
+  });
+
+  test('mutation balance updates require a reload for unknown active rows', () {
+    const original = MobileBootstrap(
+      userName: 'Alaa',
+      storages: [StorageLocation(id: 10, name: 'KONA', isDefault: true)],
+      items: [],
+      tasks: [],
+      capabilities: {'restock'},
+      permissions: {'mobile.access', 'items.view', 'movements.restock'},
+    );
+    final update = AuthoritativeBalanceUpdate.fromJson(const {
+      'item_id': 15,
+      'storage_id': 10,
+      'storage_balance': 12.5,
+      'item_name': 'Soap',
+      'sku': 'SOAP-1L',
+      'unit': 'ml',
+      'active': true,
+    });
+
+    expect(update.storageBalance, 12.5);
+    expect(original.canApplyBalanceUpdates([update]), isFalse);
+  });
+
+  test('inactive mutation balance updates remove cached inventory rows', () {
+    const original = MobileBootstrap(
+      userName: 'Alaa',
+      storages: [StorageLocation(id: 10, name: 'KONA', isDefault: true)],
+      items: [
+        InventoryItem(
+          id: 15,
+          name: 'Blue',
+          sku: 'WB-BLUE',
+          unit: 'pcs',
+          quantity: 100,
+          storageId: 10,
+          storageName: 'KONA',
+        ),
+      ],
+      tasks: [],
+      capabilities: {'usage'},
+      permissions: {'mobile.access', 'items.view', 'movements.usage'},
+    );
+    const update = AuthoritativeBalanceUpdate(
+      itemId: 15,
+      storageId: 10,
+      storageBalance: 0,
+      itemName: 'Blue',
+      sku: 'WB-BLUE',
+      unit: 'pcs',
+      active: false,
+    );
+
+    final updated = original.applyBalanceUpdates(const [update]);
+
+    expect(updated.items, isEmpty);
   });
 
   test('balance conflicts expose authoritative server details safely', () {

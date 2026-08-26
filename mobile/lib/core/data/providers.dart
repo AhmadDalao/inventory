@@ -14,7 +14,9 @@ import 'draft_store.dart';
 import 'local/app_database.dart';
 
 final sessionStoreProvider = Provider<MobileSessionStore>((ref) {
-  return MobileSessionStore(const FlutterSecureStorage());
+  final store = MobileSessionStore(const FlutterSecureStorage());
+  ref.onDispose(store.dispose);
+  return store;
 });
 
 final biometricAuthenticatorProvider = Provider<BiometricAuthenticator>((ref) {
@@ -58,6 +60,17 @@ class BootstrapController extends AsyncNotifier<MobileBootstrap> {
       current = current!.mergeSyncDelta(delta);
     }
     state = AsyncData(current!);
+  }
+
+  Future<void> applyOperationReceipt(OperationReceipt receipt) async {
+    if (receipt.balanceUpdates.isEmpty) return;
+    final current = state.valueOrNull;
+    if (current == null ||
+        !current.canApplyBalanceUpdates(receipt.balanceUpdates)) {
+      await reload();
+      return;
+    }
+    state = AsyncData(current.applyBalanceUpdates(receipt.balanceUpdates));
   }
 }
 

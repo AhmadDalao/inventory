@@ -565,7 +565,11 @@ class MobileBootstrap {
 
   bool hasCapability(String capability) => capabilities.contains(capability);
 
-  bool get canViewItems => hasPermission('items.view') && storages.isNotEmpty;
+  bool get canViewItems =>
+      hasPermission('mobile.access') &&
+      hasPermission('storages.view') &&
+      hasPermission('items.view') &&
+      storages.isNotEmpty;
 
   bool get canUseStock =>
       canViewItems &&
@@ -677,14 +681,12 @@ class MobileBootstrap {
     final mergedItems = <String, InventoryItem>{
       for (final item in items)
         if (!delta.deletedItemIds.contains(item.id) &&
-            (allowedStorageIds.isEmpty ||
-                allowedStorageIds.contains(item.storageId)))
+            allowedStorageIds.contains(item.storageId))
           '${item.id}:${item.storageId}': item,
     };
     for (final item in delta.items) {
       if (!delta.deletedItemIds.contains(item.id) &&
-          (allowedStorageIds.isEmpty ||
-              allowedStorageIds.contains(item.storageId))) {
+          allowedStorageIds.contains(item.storageId)) {
         mergedItems['${item.id}:${item.storageId}'] = item;
       }
     }
@@ -697,17 +699,39 @@ class MobileBootstrap {
       });
     return copyWith(
       storages: storages
-          .where(
-            (storage) =>
-                allowedStorageIds.isEmpty ||
-                allowedStorageIds.contains(storage.id),
-          )
+          .where((storage) => allowedStorageIds.contains(storage.id))
           .toList(),
       items: nextItems,
       tasks: delta.tasksChanged ? delta.tasks : tasks,
       capabilities: delta.capabilities,
       permissions: delta.permissions,
     );
+  }
+
+  bool canApplyBalanceUpdates(List<AuthoritativeBalanceUpdate> updates) {
+    final cachedKeys = {
+      for (final item in items) '${item.id}:${item.storageId}',
+    };
+    return updates
+        .where((update) => update.active)
+        .every((update) => cachedKeys.contains(update.cacheKey));
+  }
+
+  MobileBootstrap applyBalanceUpdates(
+    List<AuthoritativeBalanceUpdate> updates,
+  ) {
+    if (updates.isEmpty) return this;
+    final byKey = {for (final update in updates) update.cacheKey: update};
+    final nextItems = <InventoryItem>[];
+    for (final item in items) {
+      final update = byKey['${item.id}:${item.storageId}'];
+      if (update == null) {
+        nextItems.add(item);
+      } else if (update.active) {
+        nextItems.add(item.copyWith(quantity: update.storageBalance));
+      }
+    }
+    return copyWith(items: nextItems);
   }
 }
 
@@ -800,11 +824,48 @@ class OperationReceipt {
     required this.reference,
     required this.status,
     this.message,
+    this.balanceUpdates = const [],
+    this.syncCursor = 0,
   });
 
   final String reference;
   final String status;
   final String? message;
+  final List<AuthoritativeBalanceUpdate> balanceUpdates;
+  final int syncCursor;
+}
+
+class AuthoritativeBalanceUpdate {
+  const AuthoritativeBalanceUpdate({
+    required this.itemId,
+    required this.storageId,
+    required this.storageBalance,
+    required this.itemName,
+    required this.sku,
+    required this.unit,
+    required this.active,
+  });
+
+  final int itemId;
+  final int storageId;
+  final double storageBalance;
+  final String itemName;
+  final String sku;
+  final String unit;
+  final bool active;
+
+  String get cacheKey => '$itemId:$storageId';
+
+  factory AuthoritativeBalanceUpdate.fromJson(Map<String, dynamic> json) =>
+      AuthoritativeBalanceUpdate(
+        itemId: (json['item_id'] as num? ?? 0).toInt(),
+        storageId: (json['storage_id'] as num? ?? 0).toInt(),
+        storageBalance: (json['storage_balance'] as num? ?? 0).toDouble(),
+        itemName: json['item_name'] as String? ?? '',
+        sku: json['sku'] as String? ?? '',
+        unit: json['unit'] as String? ?? 'pcs',
+        active: json['active'] == true || json['active'] == 1,
+      );
 }
 
 class CustodyReturnLine {

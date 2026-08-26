@@ -26,18 +26,18 @@ class HomeScreen extends ConsumerWidget {
       error: (error, _) =>
           Scaffold(body: Center(child: Text(apiErrorMessage(error)))),
       data: (data) {
+        final hasQuickScan =
+            data.canUseStock ||
+            data.canRestock ||
+            data.canScanIn ||
+            data.canCreateAnyHandover;
         final quickActions = <_ActionSpec>[
-          if (data.hasScanOutAction)
+          if (hasQuickScan)
             _ActionSpec(
-              icon: Icons.qr_code_scanner,
-              label: 'Scan out',
-              onTap: () => context.go('/scan-out'),
-            ),
-          if (data.canScanIn || data.canRestock)
-            _ActionSpec(
-              icon: Icons.move_to_inbox_outlined,
-              label: 'Scan in',
-              onTap: () => context.push('/scan-in'),
+              icon: Icons.qr_code_scanner_rounded,
+              label: 'Quick scan',
+              onTap: () => context.go('/scan'),
+              emphasized: true,
             ),
           if (data.canViewItems)
             _ActionSpec(
@@ -214,11 +214,14 @@ class HomeScreen extends ConsumerWidget {
                           children: [
                             for (final action in quickActions)
                               SizedBox(
-                                width: width,
+                                width: action.emphasized
+                                    ? constraints.maxWidth
+                                    : width,
                                 child: _Action(
                                   icon: action.icon,
                                   label: action.label,
                                   onTap: action.onTap,
+                                  emphasized: action.emphasized,
                                 ),
                               ),
                           ],
@@ -437,25 +440,38 @@ class _Metric extends StatelessWidget {
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.icon, required this.label, required this.onTap});
+  const _Action({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.emphasized = false,
+  });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool emphasized;
 
   @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: onTap,
-    style: OutlinedButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
-    ),
-    child: Column(
+  Widget build(BuildContext context) {
+    final child = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon),
-        const SizedBox(height: 7),
+        const SizedBox(width: 9),
         Text(label, textAlign: TextAlign.center),
       ],
-    ),
-  );
+    );
+    if (emphasized) {
+      return ElevatedButton(onPressed: onTap, child: child);
+    }
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+      ),
+      child: child,
+    );
+  }
 }
 
 class _ActionSpec {
@@ -463,9 +479,11 @@ class _ActionSpec {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.emphasized = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool emphasized;
 }

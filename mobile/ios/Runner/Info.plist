@@ -18,6 +18,8 @@
 	<string>Inventory KONA</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Scan inventory barcodes and handover references.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Unlock your saved Inventory KONA session securely.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Attach proof images to inventory operations.</string>
 	<key>CFBundlePackageType</key>

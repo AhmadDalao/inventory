@@ -36,7 +36,12 @@ void main() {
 
     test('assigned storage is required for stock actions', () {
       final bootstrap = access(
-        permissions: const {'items.view', 'movements.usage'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'movements.usage',
+        },
         capabilities: const {'usage'},
         storages: const [],
       );
@@ -47,11 +52,21 @@ void main() {
 
     test('usage requires permission, capability, and assigned storage', () {
       final allowed = access(
-        permissions: const {'items.view', 'movements.usage'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'movements.usage',
+        },
         capabilities: const {'usage'},
       );
       final deniedByCapability = access(
-        permissions: const {'items.view', 'movements.usage'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'movements.usage',
+        },
       );
 
       expect(allowed.canUseStock, isTrue);
@@ -60,11 +75,21 @@ void main() {
 
     test('direct restock also obeys its global setting', () {
       final enabled = access(
-        permissions: const {'items.view', 'movements.restock'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'movements.restock',
+        },
         capabilities: const {'restock'},
       );
       final disabled = access(
-        permissions: const {'items.view', 'movements.restock'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'movements.restock',
+        },
         capabilities: const {'restock'},
         settings: const {'manual_restock_enabled': false},
       );
@@ -75,7 +100,12 @@ void main() {
 
     test('handover purposes use separate permission intersections', () {
       final requestOnly = access(
-        permissions: const {'items.view', 'handovers.request'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'handovers.request',
+        },
         capabilities: const {'handover', 'transfer', 'custody'},
       );
 
@@ -84,13 +114,32 @@ void main() {
       expect(requestOnly.canCreateHandoverPurpose('staff_custody'), isFalse);
 
       final issuer = access(
-        permissions: const {'items.view', 'handovers.create'},
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'handovers.create',
+        },
         capabilities: const {'handover', 'transfer', 'custody'},
       );
 
       expect(issuer.canCreateHandoverPurpose('temporary_use'), isTrue);
       expect(issuer.canCreateHandoverPurpose('storage_transfer'), isTrue);
       expect(issuer.canCreateHandoverPurpose('staff_custody'), isTrue);
+    });
+
+    test('mobile and storage-view permissions are both required', () {
+      final missingMobileAccess = access(
+        permissions: const {'storages.view', 'items.view', 'movements.usage'},
+        capabilities: const {'usage'},
+      );
+      final missingStorageView = access(
+        permissions: const {'mobile.access', 'items.view', 'movements.usage'},
+        capabilities: const {'usage'},
+      );
+
+      expect(missingMobileAccess.canViewItems, isFalse);
+      expect(missingStorageView.canViewItems, isFalse);
     });
 
     test('handover screens trust only server-provided record actions', () {

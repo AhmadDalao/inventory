@@ -8,6 +8,7 @@ import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
+import '../../core/widgets/numeric_input.dart';
 import '../../core/widgets/status_widgets.dart';
 
 class CustodyReturnScreen extends ConsumerStatefulWidget {
@@ -55,6 +56,38 @@ class _CustodyReturnScreenState extends ConsumerState<CustodyReturnScreen> {
   double _value(int lineId, String key) =>
       double.tryParse(_controllers[lineId]?[key]?.text ?? '') ?? 0;
 
+  String? _validationError(HandoverDetail detail) {
+    var submittedTotal = 0.0;
+
+    for (final line in detail.lines) {
+      final serviceable = _value(line.id, 'serviceable');
+      final damaged = _value(line.id, 'damaged');
+      final consumed = _value(line.id, 'consumed');
+      final lost = _value(line.id, 'lost');
+      final lineTotal = serviceable + damaged + consumed + lost;
+      final lineNotes = _controllers[line.id]?['notes']?.text.trim() ?? '';
+
+      if ([serviceable, damaged, consumed, lost].any((value) => value < 0)) {
+        return '${line.name}: quantities cannot be negative.';
+      }
+      if (lineTotal > line.quantityHeld + 0.009) {
+        return '${line.name}: return outcomes exceed the quantity still held.';
+      }
+      if (damaged > 0 && !_proofs.containsKey(line.id)) {
+        return '${line.name}: add a proof image for damaged stock.';
+      }
+      if (lost > 0 && lineNotes.isEmpty && _notes.text.trim().isEmpty) {
+        return '${line.name}: explain the lost or missing quantity.';
+      }
+      submittedTotal += lineTotal;
+    }
+
+    if (submittedTotal <= 0.009) {
+      return 'Enter at least one serviceable, damaged, consumed, or lost quantity.';
+    }
+    return null;
+  }
+
   Future<void> _submit(HandoverDetail detail) async {
     if (!detail.task.can('return_custody')) {
       ref.invalidate(handoverDetailProvider(widget.handoverId));
@@ -66,6 +99,13 @@ class _CustodyReturnScreenState extends ConsumerState<CustodyReturnScreen> {
           ),
         );
       }
+      return;
+    }
+    final validationError = _validationError(detail);
+    if (validationError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
     final lines = [
@@ -91,9 +131,10 @@ class _CustodyReturnScreenState extends ConsumerState<CustodyReturnScreen> {
               for (final entry in _proofs.entries) entry.key: entry.value.path,
             },
           );
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!mounted) return;
       ref.invalidate(handoverDetailProvider(widget.handoverId));
       ref.invalidate(handoversProvider);
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -101,7 +142,11 @@ class _CustodyReturnScreenState extends ConsumerState<CustodyReturnScreen> {
           ),
         ),
       );
-      context.go('/handovers/${widget.handoverId}');
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go('/handovers/${widget.handoverId}');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -252,6 +297,7 @@ class _CustodyLineCard extends StatelessWidget {
 
   Widget _quantity(String label, TextEditingController controller) => TextField(
     controller: controller,
+    onTap: selectAllNumericTextOnTap,
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
     decoration: InputDecoration(labelText: label),
   );

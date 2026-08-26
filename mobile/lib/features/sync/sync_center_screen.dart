@@ -8,6 +8,7 @@ import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
 import '../../core/widgets/kona_page.dart';
 import '../../core/widgets/status_widgets.dart';
+import 'draft_replay.dart';
 
 class SyncCenterScreen extends ConsumerStatefulWidget {
   const SyncCenterScreen({super.key});
@@ -26,9 +27,17 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
       final payload = await store.payload(draft.id);
       if (payload == null) throw StateError('Draft data is missing.');
       final bootstrap = await ref.read(inventoryRepositoryProvider).bootstrap();
-      final lines = _cartLines(payload, bootstrap.items);
+      final sourceStorageId = draft.type == 'handover'
+          ? (payload['source_storage_id'] as num?)?.toInt() ?? 0
+          : (payload['storage_id'] as num?)?.toInt() ?? 0;
+      final lines = resolveDraftCartLines(
+        payload,
+        bootstrap,
+        sourceStorageId: sourceStorageId,
+      );
+      late final OperationReceipt receipt;
       if (draft.type == 'usage') {
-        await ref
+        receipt = await ref
             .read(inventoryRepositoryProvider)
             .submitUsage(
               storageId: (payload['storage_id'] as num).toInt(),
@@ -45,7 +54,7 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
               clientOperationId: draft.id,
             );
       } else if (draft.type == 'restock') {
-        await ref
+        receipt = await ref
             .read(inventoryRepositoryProvider)
             .submitRestock(
               storageId: (payload['storage_id'] as num).toInt(),
@@ -56,7 +65,7 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
               clientOperationId: draft.id,
             );
       } else if (draft.type == 'handover') {
-        await ref
+        receipt = await ref
             .read(inventoryRepositoryProvider)
             .createHandover(
               purpose: payload['purpose'] as String? ?? 'temporary_use',
@@ -75,12 +84,14 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
         'completed',
         message: 'Accepted by the server.',
       );
-      ref.invalidate(bootstrapProvider);
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
       ref.invalidate(handoversProvider);
       ref.invalidate(mobileOperationsProvider);
     } on ApiFailure catch (error) {
       final state = error.code == 'balance_changed' ? 'conflict' : 'failed';
       await store.updateState(draft.id, state, message: error.message);
+    } on DraftReplayException catch (error) {
+      await store.updateState(draft.id, 'conflict', message: error.message);
     } catch (error) {
       await store.updateState(
         draft.id,
@@ -90,31 +101,6 @@ class _SyncCenterScreenState extends ConsumerState<SyncCenterScreen> {
     } finally {
       if (mounted) setState(() => _activeId = null);
     }
-  }
-
-  List<CartLine> _cartLines(
-    Map<String, dynamic> payload,
-    List<InventoryItem> items,
-  ) {
-    final rawLines = (payload['lines'] as List?) ?? const [];
-    return rawLines.whereType<Map>().map((raw) {
-      final line = Map<String, dynamic>.from(raw);
-      final itemId = (line['item_id'] as num).toInt();
-      final item = items.firstWhere((candidate) => candidate.id == itemId);
-      return CartLine(
-        item: item,
-        quantity:
-            (line['input_quantity'] as num? ?? line['quantity'] as num? ?? 0)
-                .toDouble(),
-        packageLabel: line['package_label'] as String? ?? item.canonicalUnit,
-        packageMultiplier: (line['package_multiplier'] as num? ?? 1).toDouble(),
-        packagePresetId: (line['package_preset_id'] as num?)?.toInt(),
-        expectedBalance:
-            (line['expected_balance'] as num?)?.toDouble() ?? item.quantity,
-        reasonCode: line['reason'] as String?,
-        customReason: line['custom_reason'] as String?,
-      );
-    }).toList();
   }
 
   Future<void> _refresh() async {

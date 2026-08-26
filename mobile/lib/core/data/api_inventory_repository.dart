@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../api/api_client.dart';
@@ -13,6 +14,10 @@ class ApiInventoryRepository implements InventoryRepository {
   final MobileSessionStore _sessionStore;
   final Uuid _uuid = const Uuid();
   int _syncCursor = 0;
+  String? _accessFingerprint;
+
+  @override
+  String? get bootstrapAccessFingerprint => _accessFingerprint;
 
   @override
   Future<void> login(
@@ -20,6 +25,8 @@ class ApiInventoryRepository implements InventoryRepository {
     String password, {
     required bool keepSignedIn,
   }) async {
+    _syncCursor = 0;
+    _accessFingerprint = null;
     final deviceId = await _sessionStore.deviceId ?? _uuid.v4();
     final data = await _api.post(
       '/auth/login',
@@ -51,6 +58,8 @@ class ApiInventoryRepository implements InventoryRepository {
     try {
       await _api.post('/auth/logout');
     } finally {
+      _syncCursor = 0;
+      _accessFingerprint = null;
       await _sessionStore.clear();
     }
   }
@@ -60,6 +69,7 @@ class ApiInventoryRepository implements InventoryRepository {
     final envelope = await _api.getEnvelope('/bootstrap');
     final data = envelope.data;
     _syncCursor = (envelope.meta['sync_cursor'] as num? ?? 0).toInt();
+    _accessFingerprint = envelope.meta['access_fingerprint'] as String?;
     final user = data['user'] as Map<String, dynamic>? ?? const {};
     final storages = ((data['storages'] as List?) ?? const [])
         .cast<Map<String, dynamic>>()
@@ -285,6 +295,7 @@ class ApiInventoryRepository implements InventoryRepository {
   Future<OperationReceipt> confirmReceipt(
     int handoverId,
     Map<int, double> quantities, {
+    String? notes,
     String? clientOperationId,
   }) async {
     final data = await _api.post(
@@ -295,6 +306,7 @@ class ApiInventoryRepository implements InventoryRepository {
           for (final entry in quantities.entries)
             entry.key.toString(): entry.value,
         },
+        'receipt_notes': notes,
       },
     );
     return _receipt(data);
@@ -462,10 +474,10 @@ class ApiInventoryRepository implements InventoryRepository {
 
   String get _platform {
     // The API only needs the native platform family, not Flutter as a framework name.
-    return const String.fromEnvironment(
-      'MOBILE_PLATFORM',
-      defaultValue: 'android',
-    );
+    const configured = String.fromEnvironment('MOBILE_PLATFORM');
+    if (configured.isNotEmpty) return configured;
+
+    return defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
   }
 
   List<Map<String, dynamic>> _reconciliationRows(
@@ -492,5 +504,15 @@ class ApiInventoryRepository implements InventoryRepository {
         '',
     status: data['status'] as String? ?? 'completed',
     message: data['message'] as String?,
+    balanceUpdates: ((data['balance_updates'] as List?) ?? const [])
+        .whereType<Map>()
+        .map(
+          (entry) => AuthoritativeBalanceUpdate.fromJson(
+            Map<String, dynamic>.from(entry),
+          ),
+        )
+        .where((update) => update.itemId > 0 && update.storageId > 0)
+        .toList(),
+    syncCursor: (data['sync_cursor'] as num? ?? 0).toInt(),
   );
 }
