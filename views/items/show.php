@@ -14,6 +14,7 @@ $activePackagePresets = array_values(array_filter(
     static fn (array $preset): bool => (int) ($preset['is_active'] ?? 1) === 1
 ));
 $usageReasons = $usageReasons ?? mobile_usage_reason_catalog(true);
+$usageReasonCatalogs = $usageReasonCatalogs ?? usage_reason_catalogs(true);
 $departmentOptions = $departmentOptions ?? [];
 $canonicalUnit = item_canonical_unit($item);
 $measurementDimension = normalize_inventory_measurement_dimension($item['measurement_dimension'] ?? 'count');
@@ -322,6 +323,7 @@ $isStorageScoped = $isStorageScoped ?? false;
                 data-measurement-dimension="<?= e($measurementDimension) ?>"
                 data-usage-proof-required="<?= $usageProofRequired ? '1' : '0' ?>"
                 data-refill-proof-required="<?= $refillProofRequired ? '1' : '0' ?>"
+                data-usage-reason-catalogs="<?= e((string) json_encode($usageReasonCatalogs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
             >
                 <?= csrf_field() ?>
                 <div class="movement-feedback" data-movement-feedback hidden></div>
@@ -341,7 +343,7 @@ $isStorageScoped = $isStorageScoped ?? false;
                         <select name="source_storage_id" data-source-storage>
                             <option value="">Select location</option>
                             <?php foreach ($storages as $storage): ?>
-                                <option value="<?= e((string) $storage['id']) ?>">
+                                <option value="<?= e((string) $storage['id']) ?>" data-usage-profile="<?= e(normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband'))) ?>">
                                     <?= e(storage_type_label($storage['storage_type'])) ?> · <?= e($storage['name']) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -353,7 +355,7 @@ $isStorageScoped = $isStorageScoped ?? false;
                         <select name="destination_storage_id" data-destination-storage>
                             <option value="">Select location</option>
                             <?php foreach ($storages as $storage): ?>
-                                <option value="<?= e((string) $storage['id']) ?>">
+                                <option value="<?= e((string) $storage['id']) ?>" data-usage-profile="<?= e(normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband'))) ?>">
                                     <?= e(storage_type_label($storage['storage_type'])) ?> · <?= e($storage['name']) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -396,6 +398,7 @@ $isStorageScoped = $isStorageScoped ?? false;
                     <label class="field">
                         <span>Usage Reason</span>
                         <select name="usage_reason" data-usage-reason>
+                            <option value="">Pick reason</option>
                             <?php foreach ($usageReasons as $reason): ?>
                                 <option value="<?= e((string) $reason['code']) ?>" data-requires-custom="<?= !empty($reason['requires_custom_text']) ? '1' : '0' ?>">
                                     <?= e((string) $reason['label']) ?>

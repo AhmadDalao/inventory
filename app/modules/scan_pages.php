@@ -18,6 +18,7 @@ function handle_scan_index(): void
         'canManualRestock' => $canManualRestock,
         'scanMovementTypeOptions' => $scanMovementTypeOptions,
         'usageReasons' => mobile_usage_reason_catalog(true),
+        'usageReasonCatalogs' => usage_reason_catalogs(true),
         'departmentOptions' => Auth::hasPermission('movements.override_department')
             ? department_options()
             : [],

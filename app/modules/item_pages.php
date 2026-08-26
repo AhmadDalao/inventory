@@ -163,6 +163,7 @@ function handle_items_show(array $params): void
         'isStorageScoped' => $isStorageScoped,
         'packagePresets' => $packagePresets,
         'usageReasons' => mobile_usage_reason_catalog(true),
+        'usageReasonCatalogs' => usage_reason_catalogs(true),
         'departmentOptions' => Auth::hasPermission('movements.override_department') ? department_options() : [],
         'purchaseHistory' => Auth::hasPermission('purchases.view') && function_exists('purchase_history_for_item')
             ? purchase_history_for_item((int) $item['id'])

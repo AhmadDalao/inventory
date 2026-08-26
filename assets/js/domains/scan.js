@@ -56,6 +56,7 @@ export const initScanCenter = (root = document) => {
     let storages = [];
     let movementTypes = [];
     let usageReasons = [];
+    let usageReasonCatalogs = {};
     let departments = [];
     let currentItems = [];
     let manualItems = [];
@@ -90,6 +91,12 @@ export const initScanCenter = (root = document) => {
       usageReasons = JSON.parse(scanner.dataset.scanUsageReasons || '[]');
     } catch (error) {
       usageReasons = [];
+    }
+
+    try {
+      usageReasonCatalogs = JSON.parse(scanner.dataset.scanUsageReasonCatalogs || '{}');
+    } catch (error) {
+      usageReasonCatalogs = {};
     }
 
     try {
@@ -337,14 +344,23 @@ export const initScanCenter = (root = document) => {
     };
 
     const storageOptions = (selectedStorageId = '') => storages.map((storage) => (
-      `<option value="${escapeHtml(storage.id)}"${String(storage.id) === String(selectedStorageId) ? ' selected' : ''}>${escapeHtml(storage.type)} · ${escapeHtml(storage.name)}</option>`
+      `<option value="${escapeHtml(storage.id)}" data-usage-profile="${escapeHtml(storage.usage_profile || 'wristband')}"${String(storage.id) === String(selectedStorageId) ? ' selected' : ''}>${escapeHtml(storage.type)} · ${escapeHtml(storage.name)}</option>`
     )).join('');
 
     const movementTypeOptionsMarkup = () => movementTypes.map((type) => (
       `<option value="${escapeHtml(type.value)}">${escapeHtml(type.label)}</option>`
     )).join('');
 
-    const usageReasonOptionsMarkup = () => usageReasons.map((reason) => (
+    const storageUsageProfile = (storageId = '') => (
+      storages.find((storage) => String(storage.id) === String(storageId))?.usage_profile || 'wristband'
+    );
+
+    const usageReasonsForStorage = (storageId = '') => {
+      const catalog = usageReasonCatalogs[storageUsageProfile(storageId)];
+      return Array.isArray(catalog) && catalog.length > 0 ? catalog : usageReasons;
+    };
+
+    const usageReasonOptionsMarkup = (storageId = '') => usageReasonsForStorage(storageId).map((reason) => (
       `<option value="${escapeHtml(reason.code)}" data-requires-custom="${reason.requires_custom_text ? '1' : '0'}">${escapeHtml(reason.label)}</option>`
     )).join('');
 
@@ -352,7 +368,26 @@ export const initScanCenter = (root = document) => {
       `<option value="${escapeHtml(department.id)}">${escapeHtml(department.name)}</option>`
     )).join('');
 
-    const usageReasonDefinition = (code) => usageReasons.find((reason) => String(reason.code) === String(code)) || null;
+    const usageReasonDefinition = (code, storageId = '') => (
+      usageReasonsForStorage(storageId).find((reason) => String(reason.code) === String(code)) || null
+    );
+
+    const syncUsageReasonSelect = (select, storageId = '') => {
+      if (!(select instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const profile = storageUsageProfile(storageId);
+      if (select.dataset.usageProfile === profile) {
+        return;
+      }
+
+      const currentValue = select.value;
+      const reasons = usageReasonsForStorage(storageId);
+      select.innerHTML = `<option value="">Pick reason</option>${usageReasonOptionsMarkup(storageId)}`;
+      select.value = reasons.some((reason) => String(reason.code) === String(currentValue)) ? currentValue : '';
+      select.dataset.usageProfile = profile;
+    };
 
     const movementStorageLabel = (type) => (type === 'restock' ? 'To Location' : 'From Location');
 
@@ -491,6 +526,7 @@ export const initScanCenter = (root = document) => {
       }
 
       const movementType = movementForm.querySelector('[name="scan_movement_type"]')?.value || 'usage';
+      const storageId = movementForm.querySelector('[name="scan_storage_id"]')?.value || '';
       const storageLabel = movementForm.querySelector('[data-scan-storage-label]');
       const reasonField = movementForm.querySelector('[data-scan-reason-field]');
       const reasonSelect = movementForm.querySelector('[name="usage_reason"]');
@@ -501,8 +537,9 @@ export const initScanCenter = (root = document) => {
       const proofHint = movementForm.querySelector('[data-scan-proof-hint]');
       const tracksProof = movementType === 'usage' || movementType === 'restock';
       const requiresProof = itemRequiresProof(item, movementType);
+      syncUsageReasonSelect(reasonSelect, storageId);
       const needsCustom = movementType === 'usage'
-        && usageReasonDefinition(reasonSelect instanceof HTMLSelectElement ? reasonSelect.value : '')?.requires_custom_text === true;
+        && usageReasonDefinition(reasonSelect instanceof HTMLSelectElement ? reasonSelect.value : '', storageId)?.requires_custom_text === true;
 
       if (storageLabel) {
         storageLabel.textContent = movementStorageLabel(movementType);
@@ -540,8 +577,10 @@ export const initScanCenter = (root = document) => {
       const entries = Array.from(batchItems.values());
       const isUsage = movementType === 'usage';
       const tracksProof = isUsage || movementType === 'restock';
+      const storageId = selectedBatchStorageId();
+      syncUsageReasonSelect(batchReason, storageId);
       const needsCustom = isUsage
-        && usageReasonDefinition(batchReason instanceof HTMLSelectElement ? batchReason.value : '')?.requires_custom_text === true;
+        && usageReasonDefinition(batchReason instanceof HTMLSelectElement ? batchReason.value : '', storageId)?.requires_custom_text === true;
       const requiresProof = entries.some((entry) => itemRequiresProof(entry.item, movementType));
 
       if (batchStorageLabel) {
@@ -803,7 +842,7 @@ export const initScanCenter = (root = document) => {
               </label>
               <label class="field">
                 <span data-scan-storage-label>${movementStorageLabel(movementTypes[0]?.value || 'usage')}</span>
-                <select name="scan_storage_id" required>
+                <select name="scan_storage_id" data-scan-storage required>
                   <option value="">Pick location</option>
                   ${storageOptions(defaultStorage?.storage_id || '')}
                 </select>
@@ -813,7 +852,7 @@ export const initScanCenter = (root = document) => {
                 <span>Usage reason</span>
                 <select name="usage_reason">
                   <option value="">Pick reason</option>
-                  ${usageReasonOptionsMarkup()}
+                  ${usageReasonOptionsMarkup(defaultStorage?.storage_id || '')}
                 </select>
               </label>
               <label class="field scan-context-field" data-scan-custom-reason-field hidden>
@@ -1224,7 +1263,7 @@ export const initScanCenter = (root = document) => {
         return;
       }
 
-      if (selectedItem && (target.matches('[data-scan-movement-type]') || target.matches('[name="usage_reason"]'))) {
+      if (selectedItem && (target.matches('[data-scan-movement-type]') || target.matches('[name="usage_reason"]') || target.matches('[data-scan-storage]'))) {
         const movementForm = target.closest('[data-scan-movement-form]');
 
         if (movementForm instanceof HTMLElement) {
@@ -1369,6 +1408,10 @@ export const initScanCenter = (root = document) => {
 
     if (batchReason instanceof HTMLSelectElement) {
       batchReason.addEventListener('change', syncBatchContext);
+    }
+
+    if (batchStorage instanceof HTMLSelectElement) {
+      batchStorage.addEventListener('change', syncBatchContext);
     }
 
     if (batchClear instanceof HTMLButtonElement) {

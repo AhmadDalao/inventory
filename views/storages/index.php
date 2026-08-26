@@ -37,6 +37,15 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             </select>
         </label>
 
+        <label class="field">
+            <span>Usage Profile</span>
+            <select name="usage_profile">
+                <option value="">All profiles</option>
+                <option value="wristband" <?= selected('wristband', (string) ($filters['usage_profile'] ?? '')) ?>>Wristband / Guest Check-in</option>
+                <option value="general" <?= selected('general', (string) ($filters['usage_profile'] ?? '')) ?>>General Operations</option>
+            </select>
+        </label>
+
             <label class="field">
                 <span>Status</span>
                 <select name="status">
@@ -117,7 +126,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
 
             <label class="table-search">
                 <span class="sr-only">Search storages</span>
-                <input type="search" data-table-search placeholder="Search location name, type, notes, or status">
+                <input type="search" data-table-search placeholder="Search location name, type, usage profile, notes, or status">
             </label>
         </div>
 
@@ -135,6 +144,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             <tr>
                 <th>Name</th>
                 <th>Type</th>
+                <th>Usage Profile</th>
                 <th>Assigned Items</th>
                 <th>Remaining</th>
                 <th>Value</th>
@@ -148,7 +158,7 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
             <tbody>
             <?php if ($storages === []): ?>
                 <tr>
-                    <td colspan="10" class="empty-cell">No storages found.</td>
+                    <td colspan="11" class="empty-cell">No storages found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($storages as $storage): ?>
@@ -160,6 +170,12 @@ $storageFilterUrl = static function (string $status) use ($filters): string {
                         </a>
                     </td>
                     <td data-label="Type"><?= e(storage_type_label($storage['storage_type'])) ?></td>
+                    <td data-label="Usage Profile">
+                        <?php $usageProfile = normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband')); ?>
+                        <span class="pill <?= $usageProfile === 'wristband' ? 'pill-pending' : 'pill-muted' ?>">
+                            <?= e(storage_usage_profile_label($usageProfile)) ?>
+                        </span>
+                    </td>
                     <td data-label="Assigned Items">
                         <?= number_format((int) $storage['assigned_item_count']) ?>
                         <div class="tiny-copy">With stock <?= number_format((int) $storage['stocked_item_count']) ?></div>

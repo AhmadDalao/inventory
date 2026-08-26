@@ -23,7 +23,7 @@
 
         <details class="settings-accordion" open>
             <summary>
-                <span><strong>Usage Reasons</strong><small>Codes stay permanent. You can rename, reorder, or hide reasons from the app.</small></span>
+                <span><strong>Wristband Usage Reasons</strong><small>Used only by storages marked Wristband / Guest Check-in.</small></span>
                 <span class="table-count-badge"><?= number_format(count($usageReasons)) ?></span>
             </summary>
             <div class="settings-accordion-body">
@@ -39,6 +39,33 @@
                                     <?php if ($reason['requires_custom_text']): ?><small>Employees must describe this reason.</small><?php endif; ?>
                                 </td>
                                 <td><input type="number" name="usage_reason_sort_orders[<?= e($reason['code']) ?>]" value="<?= (int) $reason['sort_order'] ?>" min="1" max="999" inputmode="numeric"></td>
+                                <td><code><?= e($reason['code']) ?></code></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+
+        <details class="settings-accordion" open>
+            <summary>
+                <span><strong>General Operations Reasons</strong><small>Used by cleaning, maintenance, operations, and other regular storages.</small></span>
+                <span class="table-count-badge"><?= number_format(count($generalUsageReasons)) ?></span>
+            </summary>
+            <div class="settings-accordion-body">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>Active</th><th>App label</th><th>Order</th><th>Permanent code</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($generalUsageReasons as $reason): ?>
+                            <tr>
+                                <td><input type="checkbox" name="general_usage_reason_active[<?= e($reason['code']) ?>]" value="1" <?= $reason['active'] ? 'checked' : '' ?> aria-label="Enable <?= e($reason['label']) ?>"></td>
+                                <td>
+                                    <input type="text" name="general_usage_reason_labels[<?= e($reason['code']) ?>]" value="<?= e($reason['label']) ?>" maxlength="60">
+                                    <?php if ($reason['requires_custom_text']): ?><small>Employees must describe this reason.</small><?php endif; ?>
+                                </td>
+                                <td><input type="number" name="general_usage_reason_sort_orders[<?= e($reason['code']) ?>]" value="<?= (int) $reason['sort_order'] ?>" min="1" max="999" inputmode="numeric"></td>
                                 <td><code><?= e($reason['code']) ?></code></td>
                             </tr>
                         <?php endforeach; ?>

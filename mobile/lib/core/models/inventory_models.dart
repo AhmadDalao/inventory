@@ -3,6 +3,7 @@ class StorageLocation {
     required this.id,
     required this.name,
     this.type = 'storage',
+    this.usageProfile = 'wristband',
     this.isDefault = false,
     this.accessRole = 'member',
   });
@@ -10,22 +11,27 @@ class StorageLocation {
   final int id;
   final String name;
   final String type;
+  final String usageProfile;
   final bool isDefault;
   final String accessRole;
 
   bool get isOwner => accessRole == 'owner';
+  bool get usesWristbandReasons => usageProfile == 'wristband';
 
-  factory StorageLocation.fromJson(Map<String, dynamic> json) =>
-      StorageLocation(
-        id: (json['id'] as num).toInt(),
-        name: json['name'] as String? ?? 'Storage',
-        type:
-            json['type'] as String? ??
-            json['storage_type'] as String? ??
-            'storage',
-        isDefault: json['is_default'] == true || json['is_default'] == 1,
-        accessRole: json['access_role'] as String? ?? 'member',
-      );
+  factory StorageLocation.fromJson(
+    Map<String, dynamic> json,
+  ) => StorageLocation(
+    id: (json['id'] as num).toInt(),
+    name: json['name'] as String? ?? 'Storage',
+    type:
+        json['type'] as String? ?? json['storage_type'] as String? ?? 'storage',
+    usageProfile:
+        (json['usage_profile'] as String?)?.trim().toLowerCase() == 'general'
+        ? 'general'
+        : 'wristband',
+    isDefault: json['is_default'] == true || json['is_default'] == 1,
+    accessRole: json['access_role'] as String? ?? 'member',
+  );
 }
 
 class MobileManager {
@@ -133,6 +139,25 @@ class UsageReason {
       code: 'other',
       label: 'Other',
       sortOrder: 9,
+      requiresCustomText: true,
+    ),
+  ];
+
+  static const generalDefaults = <UsageReason>[
+    UsageReason(code: 'cleaning', label: 'Cleaning', sortOrder: 1),
+    UsageReason(code: 'operations', label: 'Operations', sortOrder: 2),
+    UsageReason(code: 'maintenance', label: 'Maintenance', sortOrder: 3),
+    UsageReason(code: 'event', label: 'Event', sortOrder: 4),
+    UsageReason(code: 'damage', label: 'Damage', sortOrder: 5),
+    UsageReason(
+      code: 'department_supplies',
+      label: 'Department Supplies',
+      sortOrder: 6,
+    ),
+    UsageReason(
+      code: 'other',
+      label: 'Other',
+      sortOrder: 7,
       requiresCustomText: true,
     ),
   ];
@@ -632,7 +657,41 @@ class MobileBootstrap {
   }
 
   List<UsageReason> get usageReasons {
-    final raw = settings['usage_reasons'];
+    return usageReasonCatalogs['wristband'] ?? UsageReason.defaults;
+  }
+
+  Map<String, List<UsageReason>> get usageReasonCatalogs {
+    final rawCatalogs = settings['usage_reason_catalogs'];
+    final catalogs = <String, List<UsageReason>>{};
+    if (rawCatalogs is Map) {
+      for (final entry in rawCatalogs.entries) {
+        final profile = entry.key.toString().trim().toLowerCase();
+        if (profile != 'wristband' && profile != 'general') continue;
+        final reasons = _parseUsageReasons(entry.value);
+        if (reasons.isNotEmpty) catalogs[profile] = reasons;
+      }
+    }
+
+    catalogs.putIfAbsent('wristband', () {
+      final legacy = _parseUsageReasons(settings['usage_reasons']);
+      return legacy.isEmpty ? UsageReason.defaults : legacy;
+    });
+    catalogs.putIfAbsent('general', () => UsageReason.generalDefaults);
+    return catalogs;
+  }
+
+  List<UsageReason> usageReasonsForStorage(int? storageId) {
+    var profile = 'wristband';
+    for (final storage in storages) {
+      if (storage.id == storageId) {
+        profile = storage.usageProfile;
+        break;
+      }
+    }
+    return usageReasonCatalogs[profile] ?? usageReasonCatalogs['wristband']!;
+  }
+
+  static List<UsageReason> _parseUsageReasons(Object? raw) {
     final reasons = raw is List
         ? raw
               .whereType<Map>()
@@ -643,7 +702,6 @@ class MobileBootstrap {
               .where((reason) => reason.active && reason.code.isNotEmpty)
               .toList()
         : <UsageReason>[];
-    if (reasons.isEmpty) return UsageReason.defaults;
     reasons.sort((left, right) {
       final order = left.sortOrder.compareTo(right.sortOrder);
       return order != 0 ? order : left.label.compareTo(right.label);

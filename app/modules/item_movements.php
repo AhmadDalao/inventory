@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Item detail movement submit handler. All quantities are converted to the item's
 // canonical unit before the shared stock service is called.
 
-function item_movement_usage_reason(array $payload): array
+function item_movement_usage_reason(array $payload, ?int $storageId = null): array
 {
     $reasonCode = trim((string) ($payload['usage_reason'] ?? $payload['reason'] ?? ''));
     if ($reasonCode === '') {
@@ -13,7 +13,10 @@ function item_movement_usage_reason(array $payload): array
     }
 
     $reasonCode = mobile_usage_reason_normalize_code($reasonCode);
-    $definition = mobile_usage_reason_definition($reasonCode, true);
+    $profile = $storageId !== null
+        ? storage_usage_profile_for_id($storageId)
+        : 'wristband';
+    $definition = usage_reason_definition_for_profile($profile, $reasonCode, true);
     if ($definition === null) {
         throw new InvalidArgumentException('Pick an active usage reason.');
     }
@@ -125,7 +128,7 @@ function handle_item_movement_submit(array $params): void
 
     if ($movementType === 'usage' && is_array($measurement)) {
         try {
-            $reason = item_movement_usage_reason($_POST);
+            $reason = item_movement_usage_reason($_POST, $sourceStorageId);
             $measurement['reason_code'] = $reason['code'];
             $measurement['custom_reason'] = $reason['custom_reason'];
         } catch (InvalidArgumentException $exception) {

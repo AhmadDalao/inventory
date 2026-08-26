@@ -4,6 +4,7 @@ $storageRows = array_map(static function (array $storage): array {
         'id' => (int) $storage['id'],
         'name' => (string) $storage['name'],
         'type' => storage_type_label((string) $storage['storage_type']),
+        'usage_profile' => normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband')),
     ];
 }, $storages);
 $storageJson = json_encode($storageRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -20,8 +21,10 @@ foreach ($scanMovementTypeOptions as $type => $label) {
 
 $scanMovementTypeJson = json_encode($scanMovementTypeRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 $usageReasons = $usageReasons ?? [];
+$usageReasonCatalogs = $usageReasonCatalogs ?? usage_reason_catalogs(true);
 $departmentOptions = $departmentOptions ?? [];
 $usageReasonJson = json_encode(array_values($usageReasons), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$usageReasonCatalogsJson = json_encode($usageReasonCatalogs, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 $departmentJson = json_encode(array_map(static fn (array $department): array => [
     'id' => (int) $department['id'],
     'name' => (string) $department['name'],
@@ -54,6 +57,7 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
     data-can-create-movement="<?= $canCreateMovement ? '1' : '0' ?>"
     data-scan-movement-types="<?= e((string) $scanMovementTypeJson) ?>"
     data-scan-usage-reasons="<?= e((string) $usageReasonJson) ?>"
+    data-scan-usage-reason-catalogs="<?= e((string) $usageReasonCatalogsJson) ?>"
     data-scan-departments="<?= e((string) $departmentJson) ?>"
 >
     <?= csrf_field() ?>
@@ -121,7 +125,7 @@ $firstScanMovementType = array_key_first($scanMovementTypeOptions);
                     <select data-scan-batch-storage required>
                         <option value="">Pick location</option>
                         <?php foreach ($storages as $storage): ?>
-                            <option value="<?= e((string) $storage['id']) ?>"><?= e(storage_type_label((string) $storage['storage_type'])) ?> · <?= e((string) $storage['name']) ?></option>
+                            <option value="<?= e((string) $storage['id']) ?>" data-usage-profile="<?= e(normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband'))) ?>"><?= e(storage_type_label((string) $storage['storage_type'])) ?> · <?= e((string) $storage['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>

@@ -111,7 +111,7 @@ function report_summary_usage_reason_groups(array $filters): array
 
         $reasonCode = mobile_usage_reason_normalize_code((string) ($row['reason_code'] ?? 'unspecified'));
         $groups[$itemId][] = [
-            'label' => handover_usage_reason_label($reasonCode, (string) ($row['reason_custom'] ?? '')),
+            'label' => inventory_usage_reason_label($reasonCode, (string) ($row['reason_custom'] ?? '')),
             'quantity' => (float) ($row['quantity'] ?? 0),
             'unit' => (string) ($row['unit'] ?: 'pcs'),
             'notes' => trim((string) ($row['notes'] ?? '')),
@@ -194,7 +194,7 @@ function report_summary_usage_reason_groups_by_day(array $filters): array
 
         $reasonCode = mobile_usage_reason_normalize_code((string) ($row['reason_code'] ?? 'unspecified'));
         $groups[$usageDate . ':' . $itemId . ':' . $handoverId][] = [
-            'label' => handover_usage_reason_label($reasonCode, (string) ($row['reason_custom'] ?? '')),
+            'label' => inventory_usage_reason_label($reasonCode, (string) ($row['reason_custom'] ?? '')),
             'quantity' => (float) ($row['quantity'] ?? 0),
             'unit' => (string) ($row['unit'] ?: 'pcs'),
             'notes' => trim((string) ($row['notes'] ?? '')),

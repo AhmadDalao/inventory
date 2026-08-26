@@ -118,6 +118,7 @@ function handle_storages_edit_page(array $params): void
             'id' => $storage['id'],
             'name' => old('name', $storage['name']),
             'storage_type' => old('storage_type', $storage['storage_type']),
+            'usage_profile' => old('usage_profile', normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband'))),
             'notes' => old('notes', $storage['notes']),
             'owner_user_id' => old('owner_user_id', (string) ($storage['owner_user_id'] ?? '')),
             'copy_storage_id' => '',

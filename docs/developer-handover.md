@@ -134,6 +134,7 @@ When adding frontend behavior:
 | `app/modules/item_movements.php` | Item detail movement submit handler for usage, restock, adjustment, and transfer. |
 | `app/modules/inventory.php` | Compatibility shim for older direct includes. New code should use `item_support.php` and `items.php`. |
 | `app/modules/storage_support.php` | Compatibility loader for storage/location helpers. New storage logic belongs in the focused storage modules below. |
+| `app/modules/storage_profiles.php` | Storage usage-profile normalization, labels, descriptions, and profile lookup. |
 | `app/modules/storage_filters.php` | Storage list filters and shared storage SQL where clauses. |
 | `app/modules/storage_ownership.php` | Global-owner checks, multi-owner/member storage assignments, assigned/default storage scope, co-owner management authority, and storage selector helpers. |
 | `app/modules/team_access.php` | Staff-to-manager reporting lines, cycle prevention, direct-report scope, workflow observer routing, and deduplicated manager/storage-owner/global-owner notifications. |
@@ -823,7 +824,7 @@ The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inv
 
 - `app/modules/mobile_api_support.php`: JSON envelope, errors, rate limits, token/session validation, idempotency, and operation ledger.
 - `app/modules/mobile_api_auth.php`: login, rotating refresh, logout, device registration, and revocation checks.
-- `app/modules/mobile_usage_reasons.php`: immutable reason codes, owner-controlled labels/order/active state, legacy-code normalization, and Other-description validation.
+- `app/modules/mobile_usage_reasons.php`: storage-profile reason catalogs, immutable reason codes, owner-controlled labels/order/active state, legacy-code normalization, and Other-description validation.
 - `app/modules/mobile_api_inventory.php`: bootstrap, sync cursors/tombstones, assigned storages, item lookup, and balances.
 - `app/modules/team_access.php`: direct-manager identity and manager/owner observer notification routing shared by web and mobile workflows.
 - `app/modules/storage_ownership.php`: assigned-storage visibility plus member/co-owner access roles returned to mobile clients.
@@ -856,7 +857,9 @@ The API contract is `docs/openapi/mobile-api-v1.yaml`; human notes are in `docs/
 - Offline mode caches reads and stores drafts only. Stock never posts offline.
 - A stale draft receives `409 balance_changed` and must be reconfirmed against the latest server quantity.
 - Batch stock operations are transactional. A failed line rolls back the whole operation.
-- Usage reason codes are server-owned. Flutter reads `settings.usage_reasons` from bootstrap and must never introduce a private hard-coded list.
+- Every storage has a `usage_profile`: `wristband` or `general`. Existing storages migrated to `wristband` to preserve behavior; newly created storages default to `general` unless changed explicitly.
+- Usage reason codes are server-owned. Flutter reads `settings.usage_reason_catalogs`, selects the catalog for the active storage profile, and must never introduce a private hard-coded list. `settings.usage_reasons` remains a temporary wristband fallback for older APKs.
+- The API validates the reason against the source storage profile on every usage mutation. Hiding an option in Flutter is convenience; the PHP check is the security and reporting boundary.
 - `Other` requires `custom_reason`; proof requirements are checked before the transaction posts any line.
 - Item package conversion multipliers come from each item's API payload. The client must not guess bag, box, or package sizes.
 - Financial and supplier fields stay out of mobile payloads unless separately authorized.
@@ -869,7 +872,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.1
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.3
 ```
 
 Production-connected builds use:
@@ -878,7 +881,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.1
+  --dart-define=APP_VERSION=1.3.3
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.

@@ -58,12 +58,50 @@ export const initMovementForm = (root = document) => {
     let costPerUnit = parseNumber(summary.dataset.costPerUnit);
     let currentUnit = movementForm.dataset.baseUnit || summary.dataset.unit || 'pcs';
     let locationBalances = {};
+    let usageReasonCatalogs = {};
 
     try {
       locationBalances = JSON.parse(summary.dataset.balanceMap || '{}');
     } catch (error) {
       locationBalances = {};
     }
+
+    try {
+      usageReasonCatalogs = JSON.parse(movementForm.dataset.usageReasonCatalogs || '{}');
+    } catch (error) {
+      usageReasonCatalogs = {};
+    }
+
+    const selectedUsageProfile = () => (
+      sourceStorage?.selectedOptions[0]?.dataset.usageProfile || 'wristband'
+    );
+
+    const activeUsageReasons = () => {
+      const reasons = usageReasonCatalogs[selectedUsageProfile()];
+      return Array.isArray(reasons) ? reasons : [];
+    };
+
+    const syncUsageReasons = () => {
+      if (!(usageReason instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const profile = selectedUsageProfile();
+      if (usageReason.dataset.usageProfile === profile) {
+        return;
+      }
+
+      const previous = usageReason.value;
+      const reasons = activeUsageReasons();
+      usageReason.replaceChildren(new Option('Pick reason', ''));
+      reasons.forEach((reason) => {
+        const option = new Option(String(reason.label || reason.code), String(reason.code || ''));
+        option.dataset.requiresCustom = reason.requires_custom_text ? '1' : '0';
+        usageReason.add(option);
+      });
+      usageReason.value = reasons.some((reason) => String(reason.code) === previous) ? previous : '';
+      usageReason.dataset.usageProfile = profile;
+    };
 
     const showFeedback = (message, type) => {
       feedback.hidden = false;
@@ -104,6 +142,8 @@ export const initMovementForm = (root = document) => {
       const proofRequired = type === 'usage'
         ? movementForm.dataset.usageProofRequired === '1'
         : type === 'restock' && movementForm.dataset.refillProofRequired === '1';
+
+      syncUsageReasons();
 
       if (sourceField) {
         sourceField.hidden = !needsSource;
@@ -274,7 +314,11 @@ export const initMovementForm = (root = document) => {
       syncCustomReason();
       syncMovementState();
     });
-    sourceStorage?.addEventListener('change', syncMovementState);
+    sourceStorage?.addEventListener('change', () => {
+      syncUsageReasons();
+      syncCustomReason();
+      syncMovementState();
+    });
     destinationStorage?.addEventListener('change', syncMovementState);
 
     syncMovementLayout();

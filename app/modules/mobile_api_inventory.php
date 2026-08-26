@@ -119,7 +119,7 @@ function handle_mobile_api_bootstrap(): void
         $ids = mobile_api_inventory_scope_ids($session, $permissions);
         $storageAccessRoles = mobile_api_storage_access_roles($session, $ids);
         $storages = $ids === [] ? [] : Database::fetchAll(
-            'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default
+            'SELECT storage.id, storage.name, storage.storage_type, storage.usage_profile, assignment.is_default
              FROM storages storage LEFT JOIN user_storage_assignments assignment ON assignment.storage_id = storage.id AND assignment.user_id = ?
              WHERE storage.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') AND storage.is_active = 1 ORDER BY assignment.is_default DESC, storage.name ASC',
             array_merge([(int) $session['user_id']], $ids)
@@ -128,6 +128,7 @@ function handle_mobile_api_bootstrap(): void
             $storageId = (int) $storage['id'];
             $storage['id'] = $storageId;
             $storage['type'] = (string) ($storage['storage_type'] ?? 'storage');
+            $storage['usage_profile'] = normalize_storage_usage_profile($storage['usage_profile'] ?? 'wristband');
             $storage['is_default'] = (int) ($storage['is_default'] ?? 0);
             $storage['access_role'] = $storageAccessRoles[$storageId] ?? 'member';
 
@@ -183,6 +184,7 @@ function handle_mobile_api_bootstrap(): void
                 'department_required' => site_setting('departments.require_assignment', '0') === '1',
                 'min_supported_version' => site_setting('mobile.min_supported_version', '1.0.0'),
                 'usage_reasons' => mobile_usage_reason_catalog(true),
+                'usage_reason_catalogs' => usage_reason_catalogs(true),
             ],
             'server_time' => date(DATE_ATOM),
         ], [
@@ -198,6 +200,17 @@ function mobile_api_access_fingerprint(array $session, array $permissions, array
     sort($storageIds);
     sort($capabilities);
     $storageAccessRoles = mobile_api_storage_access_roles($session, $storageIds);
+    $storageUsageProfiles = [];
+    if ($storageIds !== []) {
+        $profileRows = Database::fetchAll(
+            'SELECT id, usage_profile FROM storages WHERE id IN (' . implode(',', array_fill(0, count($storageIds), '?')) . ')',
+            $storageIds
+        );
+        foreach ($profileRows as $profileRow) {
+            $storageUsageProfiles[(int) $profileRow['id']] = normalize_storage_usage_profile($profileRow['usage_profile'] ?? 'wristband');
+        }
+        ksort($storageUsageProfiles);
+    }
     return hash('sha256', json_encode([
         'user_id' => (int) $session['user_id'],
         'manager_user_id' => manager_user_id_for((int) $session['user_id']),
@@ -205,12 +218,15 @@ function mobile_api_access_fingerprint(array $session, array $permissions, array
         'permissions' => array_values($permissions),
         'storage_ids' => array_values($storageIds),
         'storage_access_roles' => $storageAccessRoles,
+        'storage_usage_profiles' => $storageUsageProfiles,
         'capabilities' => array_values($capabilities),
         'mobile_enabled' => site_setting('mobile.enabled', '0'),
         'minimum_version' => site_setting('mobile.min_supported_version', '1.0.0'),
         'department_required' => site_setting('departments.require_assignment', '0'),
         'usage_proof_default' => site_setting('proof.usage_default', 'optional'),
         'refill_proof_default' => site_setting('proof.refill_default', 'optional'),
+        'wristband_usage_reasons' => site_setting_stored_value('mobile.usage_reasons'),
+        'general_usage_reasons' => site_setting_stored_value('mobile.general_usage_reasons'),
     ], JSON_UNESCAPED_SLASHES));
 }
 
@@ -417,13 +433,13 @@ function handle_mobile_api_storages(): void
             mobile_api_success([]);
         }
         $rows = Database::fetchAll(
-            'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default,
+            'SELECT storage.id, storage.name, storage.storage_type, storage.usage_profile, assignment.is_default,
                     COUNT(balance.item_id) AS item_count, COALESCE(SUM(balance.quantity), 0) AS total_units
              FROM storages storage
              LEFT JOIN user_storage_assignments assignment ON assignment.storage_id = storage.id AND assignment.user_id = ?
              LEFT JOIN item_storage_balances balance ON balance.storage_id = storage.id
              WHERE storage.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') AND storage.is_active = 1
-             GROUP BY storage.id, storage.name, storage.storage_type, assignment.is_default ORDER BY assignment.is_default DESC, storage.name ASC',
+             GROUP BY storage.id, storage.name, storage.storage_type, storage.usage_profile, assignment.is_default ORDER BY assignment.is_default DESC, storage.name ASC',
             array_merge([(int) $session['user_id']], $ids)
         );
         $accessRoles = mobile_api_storage_access_roles($session, $ids);
@@ -431,6 +447,7 @@ function handle_mobile_api_storages(): void
             $storageId = (int) $row['id'];
             $row['id'] = $storageId;
             $row['type'] = (string) ($row['storage_type'] ?? 'storage');
+            $row['usage_profile'] = normalize_storage_usage_profile($row['usage_profile'] ?? 'wristband');
             $row['is_default'] = (int) ($row['is_default'] ?? 0);
             $row['access_role'] = $accessRoles[$storageId] ?? 'member';
 

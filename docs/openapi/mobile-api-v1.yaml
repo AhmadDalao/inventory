@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Inventory KONA Mobile API
-  version: 1.3.1
+  version: 1.3.3
   description: |
     Versioned API used by the Inventory KONA Flutter application. The PHP
     service remains authoritative for permissions, balances, movements, and
@@ -569,7 +569,18 @@ components:
           properties:
             usage_reasons:
               type: array
+              description: Legacy wristband catalog retained for older clients.
               items: { $ref: '#/components/schemas/UsageReason' }
+            usage_reason_catalogs:
+              type: object
+              required: [wristband, general]
+              properties:
+                wristband:
+                  type: array
+                  items: { $ref: '#/components/schemas/UsageReason' }
+                general:
+                  type: array
+                  items: { $ref: '#/components/schemas/UsageReason' }
             require_usage_proof: { type: boolean }
             require_refill_proof: { type: boolean }
             department_required: { type: boolean }
@@ -627,6 +638,10 @@ components:
         id: { type: integer }
         name: { type: string }
         storage_type: { type: string }
+        usage_profile:
+          type: string
+          enum: [wristband, general]
+          description: Selects the server-owned usage-reason catalog for this storage.
         is_default: { type: boolean }
     Item:
       type: object
@@ -678,7 +693,7 @@ components:
       properties:
         code:
           type: string
-          enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+          enum: [online, walkin, event, damage, sport, school, complimentary, no_show, cleaning, operations, maintenance, department_supplies, other]
         label: { type: string, example: School }
         active: { type: boolean }
         sort_order: { type: integer, minimum: 1 }
@@ -713,7 +728,7 @@ components:
           description: Storage balance shown to the employee when the line entered the review cart.
         reason:
           type: string
-          enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+          enum: [online, walkin, event, damage, sport, school, complimentary, no_show, cleaning, operations, maintenance, department_supplies, other]
         custom_reason:
           type: [string, 'null']
           maxLength: 160
@@ -737,7 +752,7 @@ components:
             expected_balance: { type: number, minimum: 0 }
             reason:
               type: string
-              enum: [online, walkin, event, damage, sport, school, complimentary, no_show, other]
+              enum: [online, walkin, event, damage, sport, school, complimentary, no_show, cleaning, operations, maintenance, department_supplies, other]
             custom_reason:
               type: [string, 'null']
               maxLength: 160

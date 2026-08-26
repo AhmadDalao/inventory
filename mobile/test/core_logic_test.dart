@@ -8,6 +8,70 @@ import 'package:inventory_kona/features/movements/measured_cart_support.dart';
 import 'package:inventory_kona/features/sync/draft_replay.dart';
 
 void main() {
+  group('storage usage profiles', () {
+    final bootstrap = MobileBootstrap(
+      userName: 'Employee',
+      storages: const [
+        StorageLocation(id: 10, name: 'Wristbands', usageProfile: 'wristband'),
+        StorageLocation(id: 11, name: 'Cleaning', usageProfile: 'general'),
+      ],
+      items: const [],
+      tasks: const [],
+      capabilities: const {},
+      settings: const {
+        'usage_reason_catalogs': {
+          'wristband': [
+            {
+              'code': 'online',
+              'label': 'Online',
+              'active': true,
+              'sort_order': 1,
+            },
+          ],
+          'general': [
+            {
+              'code': 'cleaning',
+              'label': 'Cleaning',
+              'active': true,
+              'sort_order': 1,
+            },
+          ],
+        },
+      },
+    );
+
+    test('uses wristband reasons for wristband storage', () {
+      expect(
+        bootstrap.usageReasonsForStorage(10).map((reason) => reason.code),
+        contains('online'),
+      );
+      expect(
+        bootstrap.usageReasonsForStorage(10).map((reason) => reason.code),
+        isNot(contains('cleaning')),
+      );
+    });
+
+    test('uses operational reasons for general storage', () {
+      expect(
+        bootstrap.usageReasonsForStorage(11).map((reason) => reason.code),
+        contains('cleaning'),
+      );
+      expect(
+        bootstrap.usageReasonsForStorage(11).map((reason) => reason.code),
+        isNot(contains('online')),
+      );
+    });
+
+    test('old storage payloads retain wristband compatibility', () {
+      final storage = StorageLocation.fromJson(const {
+        'id': 12,
+        'name': 'Legacy',
+      });
+
+      expect(storage.usageProfile, 'wristband');
+    });
+  });
+
   group('offline draft replay', () {
     final bootstrap = MobileBootstrap(
       userName: 'Employee',

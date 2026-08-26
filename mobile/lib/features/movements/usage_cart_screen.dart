@@ -41,7 +41,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
   void _configure(MobileBootstrap data) {
     _storageId ??= data.defaultStorage?.id;
     if (_catalogInitialized) return;
-    final reasons = data.usageReasons;
+    final reasons = data.usageReasonsForStorage(_storageId);
     if (!reasons.any((reason) => reason.code == _defaultReason)) {
       _defaultReason = reasons.first.code;
     }
@@ -80,6 +80,11 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     setState(() {
       _storageId = value;
       _lines.clear();
+      final data = ref.read(bootstrapProvider).valueOrNull;
+      final reasons =
+          data?.usageReasonsForStorage(value) ?? UsageReason.defaults;
+      _defaultReason = reasons.first.code;
+      _defaultCustomReason.clear();
     });
   }
 
@@ -143,7 +148,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       return 'A proof image is required before this usage can be submitted.';
     }
 
-    final reasons = data.usageReasons;
+    final reasons = data.usageReasonsForStorage(_storageId);
     final defaultDefinition = _reason(reasons, _defaultReason);
     if (defaultDefinition == null) return 'Pick an active usage reason.';
     if (defaultDefinition.requiresCustomText &&
@@ -279,8 +284,16 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
   Widget build(BuildContext context) {
     final data = ref.watch(bootstrapProvider).valueOrNull;
     if (data != null) _configure(data);
-    final reasons = data?.usageReasons ?? UsageReason.defaults;
+    final reasons =
+        data?.usageReasonsForStorage(_storageId) ?? UsageReason.defaults;
     final defaultDefinition = _reason(reasons, _defaultReason);
+    StorageLocation? selectedStorage;
+    for (final storage in data?.storages ?? const <StorageLocation>[]) {
+      if (storage.id == _storageId) {
+        selectedStorage = storage;
+        break;
+      }
+    }
     final total = _lines.fold<double>(
       0,
       (sum, line) => sum + line.baseQuantity,
@@ -331,7 +344,10 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
               .map(
                 (storage) => DropdownMenuItem(
                   value: storage.id,
-                  child: Text(storage.name),
+                  child: Text(
+                    '${storage.name} · '
+                    '${storage.usesWristbandReasons ? 'Wristband' : 'General'}',
+                  ),
                 ),
               )
               .toList(),
@@ -381,9 +397,10 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                 title: 'Default usage reason',
               ),
               const SizedBox(height: 6),
-              const Text(
-                'This reason applies to every item unless you override it inside an item row.',
-                style: TextStyle(color: KonaColors.muted),
+              Text(
+                '${selectedStorage?.usesWristbandReasons == false ? 'General operations' : 'Wristband / guest check-in'} reasons are configured by the owner. '
+                'The selected reason applies to every item unless you override it.',
+                style: const TextStyle(color: KonaColors.muted),
               ),
               const SizedBox(height: 13),
               Wrap(

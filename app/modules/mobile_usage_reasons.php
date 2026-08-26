@@ -20,6 +20,33 @@ function mobile_usage_reason_defaults(): array
     ];
 }
 
+function general_usage_reason_defaults(): array
+{
+    return [
+        ['code' => 'cleaning', 'label' => 'Cleaning', 'active' => true, 'sort_order' => 1, 'requires_custom_text' => false],
+        ['code' => 'operations', 'label' => 'Operations', 'active' => true, 'sort_order' => 2, 'requires_custom_text' => false],
+        ['code' => 'maintenance', 'label' => 'Maintenance', 'active' => true, 'sort_order' => 3, 'requires_custom_text' => false],
+        ['code' => 'event', 'label' => 'Event', 'active' => true, 'sort_order' => 4, 'requires_custom_text' => false],
+        ['code' => 'damage', 'label' => 'Damage', 'active' => true, 'sort_order' => 5, 'requires_custom_text' => false],
+        ['code' => 'department_supplies', 'label' => 'Department Supplies', 'active' => true, 'sort_order' => 6, 'requires_custom_text' => false],
+        ['code' => 'other', 'label' => 'Other', 'active' => true, 'sort_order' => 7, 'requires_custom_text' => true],
+    ];
+}
+
+function usage_reason_defaults_for_profile(string $profile): array
+{
+    return normalize_storage_usage_profile($profile) === 'wristband'
+        ? mobile_usage_reason_defaults()
+        : general_usage_reason_defaults();
+}
+
+function usage_reason_setting_key(string $profile): string
+{
+    return normalize_storage_usage_profile($profile) === 'wristband'
+        ? 'mobile.usage_reasons'
+        : 'mobile.general_usage_reasons';
+}
+
 function mobile_usage_reason_normalize_code(string $code): string
 {
     $normalized = strtolower(trim($code));
@@ -39,9 +66,15 @@ function mobile_usage_reason_normalize_code(string $code): string
 
 function mobile_usage_reason_catalog(bool $activeOnly = false): array
 {
-    $defaults = mobile_usage_reason_defaults();
+    return usage_reason_catalog_for_profile('wristband', $activeOnly);
+}
+
+function usage_reason_catalog_for_profile(string $profile, bool $activeOnly = false): array
+{
+    $profile = normalize_storage_usage_profile($profile);
+    $defaults = usage_reason_defaults_for_profile($profile);
     // Mobile Access stores this managed catalog outside Website Control's fixed schema.
-    $stored = json_decode((string) site_setting_stored_value('mobile.usage_reasons'), true);
+    $stored = json_decode((string) site_setting_stored_value(usage_reason_setting_key($profile)), true);
     $storedByCode = [];
 
     if (is_array($stored)) {
@@ -87,15 +120,45 @@ function mobile_usage_reason_catalog(bool $activeOnly = false): array
     return $catalog;
 }
 
+function usage_reason_catalogs(bool $activeOnly = false): array
+{
+    return [
+        'wristband' => usage_reason_catalog_for_profile('wristband', $activeOnly),
+        'general' => usage_reason_catalog_for_profile('general', $activeOnly),
+    ];
+}
+
+function all_usage_reason_catalog(bool $activeOnly = true): array
+{
+    $combined = [];
+    foreach (usage_reason_catalogs($activeOnly) as $catalog) {
+        foreach ($catalog as $reason) {
+            $combined[(string) $reason['code']] ??= $reason;
+        }
+    }
+
+    return array_values($combined);
+}
+
 function mobile_usage_reason_codes(bool $activeOnly = true): array
 {
     return array_column(mobile_usage_reason_catalog($activeOnly), 'code');
 }
 
+function usage_reason_codes_for_profile(string $profile, bool $activeOnly = true): array
+{
+    return array_column(usage_reason_catalog_for_profile($profile, $activeOnly), 'code');
+}
+
 function mobile_usage_reason_definition(string $code, bool $activeOnly = true): ?array
 {
+    return usage_reason_definition_for_profile('wristband', $code, $activeOnly);
+}
+
+function usage_reason_definition_for_profile(string $profile, string $code, bool $activeOnly = true): ?array
+{
     $normalized = mobile_usage_reason_normalize_code($code);
-    foreach (mobile_usage_reason_catalog($activeOnly) as $reason) {
+    foreach (usage_reason_catalog_for_profile($profile, $activeOnly) as $reason) {
         if ($reason['code'] === $normalized) {
             return $reason;
         }
@@ -109,8 +172,16 @@ function mobile_usage_reason_definition(string $code, bool $activeOnly = true): 
  */
 function mobile_usage_reason_input(string $code, ?string $customReason, string $field = 'reason'): array
 {
+    return usage_reason_input_for_profile('wristband', $code, $customReason, $field);
+}
+
+/**
+ * @return array{code: string, custom_reason: ?string}
+ */
+function usage_reason_input_for_profile(string $profile, string $code, ?string $customReason, string $field = 'reason'): array
+{
     $normalized = mobile_usage_reason_normalize_code($code);
-    $definition = mobile_usage_reason_definition($normalized, true);
+    $definition = usage_reason_definition_for_profile($profile, $normalized, true);
     if ($definition === null) {
         throw new MobileApiException(
             'validation_failed',
@@ -134,4 +205,33 @@ function mobile_usage_reason_input(string $code, ?string $customReason, string $
         'code' => $normalized,
         'custom_reason' => $normalized === 'other' ? substr($custom, 0, 160) : null,
     ];
+}
+
+/**
+ * @return array{code: string, custom_reason: ?string}
+ */
+function usage_reason_input_for_storage(int $storageId, string $code, ?string $customReason, string $field = 'reason'): array
+{
+    return usage_reason_input_for_profile(
+        storage_usage_profile_for_id($storageId),
+        $code,
+        $customReason,
+        $field
+    );
+}
+
+function inventory_usage_reason_label(string $code, ?string $customReason = null): string
+{
+    $normalized = mobile_usage_reason_normalize_code($code);
+    if ($normalized === 'other' && trim((string) $customReason) !== '') {
+        return trim((string) $customReason);
+    }
+
+    foreach (all_usage_reason_catalog(false) as $reason) {
+        if ((string) $reason['code'] === $normalized) {
+            return (string) $reason['label'];
+        }
+    }
+
+    return ucwords(str_replace('_', ' ', $normalized));
 }

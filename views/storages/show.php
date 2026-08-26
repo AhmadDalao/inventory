@@ -1,5 +1,6 @@
 <?php
 $storageTypeLabel = storage_type_label($storage['storage_type']);
+$usageProfile = normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'wristband'));
 $assignmentRows = $assignmentRows ?? [];
 $storageOwners = array_values(array_filter(
     $assignmentRows,
@@ -98,6 +99,10 @@ $ownerNames = array_values(array_unique(array_filter(array_map(
             <div>
                 <dt>Type</dt>
                 <dd><?= e($storageTypeLabel) ?></dd>
+            </div>
+            <div>
+                <dt>Usage Reporting</dt>
+                <dd><strong><?= e(storage_usage_profile_label($usageProfile)) ?></strong><br><span class="tiny-copy"><?= e(storage_usage_profile_description($usageProfile)) ?></span></dd>
             </div>
             <div>
                 <dt>Contained Items</dt>

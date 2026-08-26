@@ -5,11 +5,13 @@ function storage_filters(): array
 {
     $status = (string) query('status', 'all');
     $type = (string) query('type', '');
+    $usageProfile = (string) query('usage_profile', '');
 
     return [
         'search' => trim((string) query('search', '')),
         'status' => in_array($status, ['active', 'archived', 'all'], true) ? $status : 'all',
         'type' => in_array($type, ['warehouse', 'storage'], true) ? $type : '',
+        'usage_profile' => in_array($usageProfile, storage_usage_profile_values(), true) ? $usageProfile : '',
         'storage_id' => ctype_digit((string) query('storage_id', '')) ? (int) query('storage_id') : null,
     ];
 }
@@ -45,6 +47,11 @@ function build_storage_where(array $filters, string $alias = 's'): array
     if ($filters['type'] !== '') {
         $conditions[] = "{$alias}.storage_type = :storage_type";
         $params['storage_type'] = $filters['type'];
+    }
+
+    if (($filters['usage_profile'] ?? '') !== '') {
+        $conditions[] = "{$alias}.usage_profile = :usage_profile";
+        $params['usage_profile'] = normalize_storage_usage_profile((string) $filters['usage_profile']);
     }
 
     if (($filters['storage_id'] ?? null) !== null) {

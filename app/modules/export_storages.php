@@ -21,6 +21,7 @@ function handle_export_storages(): void
         $storageColumns = [
             $storage['name'],
             $storageLabel,
+            storage_usage_profile_label((string) ($storage['usage_profile'] ?? 'wristband')),
             $storageStatus,
             (int) $storage['assigned_item_count'],
             format_quantity($storage['total_quantity']),
@@ -69,12 +70,13 @@ function handle_export_storages(): void
             ]);
         }
 
-        $rows[] = array_fill(0, 26, '');
+        $rows[] = array_fill(0, 27, '');
     }
 
     export_csv('storage-export-' . date('Ymd-His') . '.csv', [
         'Storage Name',
         'Storage Type',
+        'Storage Usage Profile',
         'Storage Status',
         'Assigned Items',
         'Remaining Quantity',
@@ -109,6 +111,7 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
     $headers = [
         'Storage Name',
         'Storage Type',
+        'Storage Usage Profile',
         'Storage Status',
         'Assigned Items',
         'Remaining Quantity',
@@ -169,6 +172,7 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
         $rowValues = [
             (string) ($row['storage_name'] ?? ''),
             (string) ($row['storage_type'] ?? ''),
+            (string) ($row['storage_usage_profile'] ?? ''),
             (string) ($row['storage_status'] ?? ''),
             (string) ($row['assigned_items'] ?? ''),
             (string) ($row['storage_quantity'] ?? ''),
@@ -182,7 +186,7 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
         ];
 
         if ($includeImages) {
-            $rowValues[] = workflow_xlsx_has_image_at($images, $excelRow, 12) ? '' : ((string) ($row['row_type'] ?? '') === 'Item' ? 'No image' : '');
+            $rowValues[] = workflow_xlsx_has_image_at($images, $excelRow, 13) ? '' : ((string) ($row['row_type'] ?? '') === 'Item' ? 'No image' : '');
         }
 
         $rowValues = array_merge($rowValues, [
@@ -193,7 +197,7 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
         ]);
 
         if ($includeBarcodeImages) {
-            $barcodeCol = $includeImages ? 17 : 16;
+            $barcodeCol = $includeImages ? 18 : 17;
             $rowValues[] = workflow_xlsx_has_image_at($images, $excelRow, $barcodeCol) ? '' : ((string) ($row['scan_code'] ?? '') !== '' ? 'Barcode image unavailable' : '');
         }
 
@@ -234,6 +238,7 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
     $columnWidths = [
         24,
         16,
+        24,
         16,
         14,
         18,
@@ -317,6 +322,7 @@ function storage_export_xlsx_payload(array $storages): string
         $storageBase = [
             'storage_name' => (string) $storage['name'],
             'storage_type' => $storageLabel,
+            'storage_usage_profile' => storage_usage_profile_label((string) ($storage['usage_profile'] ?? 'wristband')),
             'storage_status' => $storageStatus,
             'assigned_items' => (string) (int) $storage['assigned_item_count'],
             'storage_quantity' => format_quantity($storage['total_quantity']),
@@ -340,7 +346,7 @@ function storage_export_xlsx_payload(array $storages): string
 
                 if ($image !== null) {
                     $image['row'] = $excelRow;
-                    $image['col'] = 12;
+                    $image['col'] = 13;
                     $image['name'] = 'Storage Item Thumbnail ' . $excelRow;
                     $images[] = $image;
                 }
@@ -351,7 +357,7 @@ function storage_export_xlsx_payload(array $storages): string
 
                 if ($barcodeImage !== null) {
                     $barcodeImage['row'] = $excelRow;
-                    $barcodeImage['col'] = $includeImages ? 17 : 16;
+                    $barcodeImage['col'] = $includeImages ? 18 : 17;
                     $barcodeImage['name'] = 'Storage Item Barcode ' . $excelRow;
                     $images[] = $barcodeImage;
                 }

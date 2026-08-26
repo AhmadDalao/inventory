@@ -11,6 +11,7 @@ trait MaintenanceInventorySchemas
                 name VARCHAR(160) NOT NULL,
                 system_key VARCHAR(80) NULL,
                 storage_type ENUM("warehouse", "storage") NOT NULL DEFAULT "storage",
+                usage_profile VARCHAR(24) NOT NULL DEFAULT "general",
                 notes TEXT NULL,
                 is_system TINYINT(1) NOT NULL DEFAULT 0,
                 is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -43,6 +44,21 @@ trait MaintenanceInventorySchemas
 
         if ($storageTypeColumnExists === 0) {
             Database::execute('ALTER TABLE storages ADD COLUMN storage_type ENUM("warehouse", "storage") NOT NULL DEFAULT "storage" AFTER name');
+        }
+
+        $storageUsageProfileColumnExists = (int) Database::scalar(
+            'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :table_name AND column_name = :column_name',
+            [
+                'table_name' => 'storages',
+                'column_name' => 'usage_profile',
+            ]
+        );
+
+        if ($storageUsageProfileColumnExists === 0) {
+            // Existing locations retain the wristband reporting behavior. New locations default to general operations.
+            Database::execute('ALTER TABLE storages ADD COLUMN usage_profile VARCHAR(24) NULL AFTER storage_type');
+            Database::execute('UPDATE storages SET usage_profile = "wristband" WHERE usage_profile IS NULL OR usage_profile = ""');
+            Database::execute('ALTER TABLE storages MODIFY usage_profile VARCHAR(24) NOT NULL DEFAULT "general"');
         }
 
         $storageSystemKeyColumnExists = (int) Database::scalar(

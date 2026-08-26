@@ -60,6 +60,7 @@ function all_storages_for_select(?int $selectedId = null, bool $includeSystem = 
         'SELECT storages.id,
                 storages.name,
                 storages.storage_type,
+                storages.usage_profile,
                 storages.is_active,
                 storages.owner_user_id,
                 owner_user.name AS owner_name

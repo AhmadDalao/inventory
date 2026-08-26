@@ -86,7 +86,8 @@ function mobile_api_post_movement(string $type): void
         mobile_api_validate_movement_proof($proofFile, [$item], [$type]);
 
         $reasonInput = $type === 'usage'
-            ? mobile_usage_reason_input(
+            ? usage_reason_input_for_storage(
+                $storageId,
                 (string) ($payload['reason'] ?? ''),
                 isset($payload['custom_reason']) ? (string) $payload['custom_reason'] : null
             )
@@ -246,7 +247,8 @@ function handle_mobile_api_batch(): void
             $item = mobile_api_find_item((int) ($line['item_id'] ?? 0), [$storageId]);
             $measurement = mobile_api_measurement_from_line($item, $line, 'lines.' . $index . '.');
             $reasonInput = $type === 'usage'
-                ? mobile_usage_reason_input(
+                ? usage_reason_input_for_storage(
+                    $storageId,
                     (string) ($line['reason'] ?? ''),
                     isset($line['custom_reason']) ? (string) $line['custom_reason'] : null,
                     'lines.' . $index . '.reason'

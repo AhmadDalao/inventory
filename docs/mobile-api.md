@@ -98,7 +98,9 @@ The Flutter Home screen lists every assigned storage under **My storages**, incl
 
 The app builds an empty review cart; it never inserts demo stock. Submission uses `POST /movements/batch`. Usage requires an active server-configured reason. The owner controls reason labels, display order, and active state from `/mobile-access`; reason codes stay immutable for reporting integrity. The default catalog is Online, Walk-in, Event, Damage, Sport, School, Complimentary, No Show, and Other. `Other` requires a description.
 
-The bootstrap payload returns `settings.usage_reasons`. The app may apply one cart-wide default reason and a different override on individual lines. Package conversions come from each item's `package_presets`, not from client-side assumptions. Legacy `noshow` input normalizes to `no_show` without rewriting historical records.
+Each storage returns a `usage_profile` of `wristband` or `general`. The bootstrap payload returns both catalogs in `settings.usage_reason_catalogs`; Flutter selects the catalog that matches the active source storage. The legacy `settings.usage_reasons` field remains the wristband catalog for older APKs during rollout. Wristband storages use Online, Walk-in, Event, Damage, Sport, School, Complimentary, No Show, and Other. General storages use Cleaning, Operations, Maintenance, Event, Damage, Department Supplies, and Other. The server validates the submitted reason against the source storage profile, so a stale or modified client cannot mix the catalogs.
+
+The app may apply one cart-wide default reason and a different override on individual lines. Package conversions come from each item's `package_presets`, not from client-side assumptions. Legacy `noshow` input normalizes to `no_show` without rewriting historical records.
 
 If proof is mandatory in Mobile Access, the batch is rejected before any stock changes unless a proof image is attached. Direct restock requires both the owner setting and per-employee enablement.
 

@@ -107,6 +107,7 @@ foreach ($routes as $route => $handler) {
 $support = mobile_contract_source('app/modules/mobile_api_support.php');
 $auth = mobile_contract_source('app/modules/mobile_api_auth.php');
 $usageReasons = mobile_contract_source('app/modules/mobile_usage_reasons.php');
+$storageSupport = mobile_contract_source('app/modules/storage_profiles.php');
 $admin = mobile_contract_source('app/modules/mobile_admin.php');
 $inventory = mobile_contract_source('app/modules/mobile_api_inventory.php');
 $inventoryEvents = mobile_contract_source('app/modules/inventory_events.php');
@@ -121,6 +122,7 @@ $schema = mobile_contract_source('app/maintenance/MaintenanceMobileSchemas.php')
 $schemaState = mobile_contract_source('app/maintenance/MaintenanceSchemaState.php');
 $schemaHelpers = mobile_contract_source('app/maintenance/MaintenanceSchemaHelpers.php');
 $measurementSchema = mobile_contract_source('app/maintenance/MaintenanceMeasurementSchemas.php');
+$inventorySchema = mobile_contract_source('app/maintenance/MaintenanceInventorySchemas.php');
 $measurements = mobile_contract_source('app/modules/measurements.php');
 $scanMovements = mobile_contract_source('app/modules/scan_movements.php');
 $departments = mobile_contract_source('app/modules/departments.php');
@@ -295,8 +297,24 @@ foreach (['school', 'requires_custom_text', 'mobile.usage_reasons', 'no_show', '
     }
 }
 
+foreach (['general_usage_reason_defaults', 'mobile.general_usage_reasons', 'usage_reason_input_for_storage'] as $marker) {
+    if (strpos($usageReasons, $marker) === false) {
+        fail_mobile_contract('Storage-profile usage reasons are missing marker: ' . $marker);
+    }
+}
+
+foreach (['usage_profile', 'storage_usage_profile_for_id'] as $marker) {
+    if (strpos($inventory . $inventorySchema . $storageSupport, $marker) === false) {
+        fail_mobile_contract('Storage usage profile contract is missing marker: ' . $marker);
+    }
+}
+
 if (strpos($inventory, "'usage_reasons' => mobile_usage_reason_catalog(true)") === false) {
     fail_mobile_contract('Bootstrap must return the active server-owned usage reason catalog.');
+}
+
+if (strpos($inventory, "'usage_reason_catalogs' => usage_reason_catalogs(true)") === false) {
+    fail_mobile_contract('Bootstrap must return profile-aware usage reason catalogs.');
 }
 
 if (substr_count($movements, 'custom_reason, notes') < 2

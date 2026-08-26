@@ -48,6 +48,15 @@ $canAssignUsers = (bool) ($canAssignUsers ?? false);
         </label>
 
         <label class="field">
+            <span>Usage Reporting</span>
+            <select name="usage_profile" required>
+                <option value="general" <?= selected('general', normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'general'))) ?>>General Operations</option>
+                <option value="wristband" <?= selected('wristband', normalize_storage_usage_profile((string) ($storage['usage_profile'] ?? 'general'))) ?>>Wristband / Guest Check-in</option>
+            </select>
+            <small>Wristband locations report Online, Walk-in, Complimentary, No Show, and similar guest activity. General locations report Cleaning, Operations, Maintenance, Department Supplies, and Other. Item units and package conversions still control whether staff enter pcs, L, kg, boxes, or another configured measure.</small>
+        </label>
+
+        <label class="field">
             <span>Primary Storage Owner</span>
             <select name="owner_user_id" required <?= $canAssignUsers ? '' : 'disabled' ?>>
                 <option value="">Select owner</option>

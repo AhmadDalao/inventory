@@ -9,9 +9,14 @@ class MockInventoryRepository implements InventoryRepository {
   String? get bootstrapAccessFingerprint => 'mock-access';
 
   final _storages = const [
-    StorageLocation(id: 1, name: 'KONA Main', isDefault: true),
-    StorageLocation(id: 2, name: 'KONA Office'),
-    StorageLocation(id: 3, name: 'Event Store'),
+    StorageLocation(
+      id: 1,
+      name: 'KONA Main',
+      isDefault: true,
+      usageProfile: 'wristband',
+    ),
+    StorageLocation(id: 2, name: 'KONA Office', usageProfile: 'general'),
+    StorageLocation(id: 3, name: 'Event Store', usageProfile: 'wristband'),
   ];
 
   late final List<InventoryItem> _items = [
@@ -254,6 +259,124 @@ class MockInventoryRepository implements InventoryRepository {
             'requires_custom_text': true,
           },
         ],
+        'usage_reason_catalogs': {
+          'wristband': [
+            {
+              'code': 'online',
+              'label': 'Online',
+              'active': true,
+              'sort_order': 1,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'walkin',
+              'label': 'Walk-in',
+              'active': true,
+              'sort_order': 2,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'event',
+              'label': 'Event',
+              'active': true,
+              'sort_order': 3,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'damage',
+              'label': 'Damage',
+              'active': true,
+              'sort_order': 4,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'sport',
+              'label': 'Sport',
+              'active': true,
+              'sort_order': 5,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'school',
+              'label': 'School',
+              'active': true,
+              'sort_order': 6,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'complimentary',
+              'label': 'Complimentary',
+              'active': true,
+              'sort_order': 7,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'no_show',
+              'label': 'No Show',
+              'active': true,
+              'sort_order': 8,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'other',
+              'label': 'Other',
+              'active': true,
+              'sort_order': 9,
+              'requires_custom_text': true,
+            },
+          ],
+          'general': [
+            {
+              'code': 'cleaning',
+              'label': 'Cleaning',
+              'active': true,
+              'sort_order': 1,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'operations',
+              'label': 'Operations',
+              'active': true,
+              'sort_order': 2,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'maintenance',
+              'label': 'Maintenance',
+              'active': true,
+              'sort_order': 3,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'event',
+              'label': 'Event',
+              'active': true,
+              'sort_order': 4,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'damage',
+              'label': 'Damage',
+              'active': true,
+              'sort_order': 5,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'department_supplies',
+              'label': 'Department Supplies',
+              'active': true,
+              'sort_order': 6,
+              'requires_custom_text': false,
+            },
+            {
+              'code': 'other',
+              'label': 'Other',
+              'active': true,
+              'sort_order': 7,
+              'requires_custom_text': true,
+            },
+          ],
+        },
       },
     );
   }

@@ -14,6 +14,7 @@ function handle_storages_create_submit(): void
     $payload = [
         'name' => trim((string) input('name')),
         'storage_type' => (string) input('storage_type', 'storage'),
+        'usage_profile' => normalize_storage_usage_profile((string) input('usage_profile', 'general')),
         'notes' => trim((string) input('notes')),
         'owner_user_id' => normalize_entity_id(input('owner_user_id')),
         'owner_user_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('owner_user_ids', []))))),
@@ -39,6 +40,10 @@ function handle_storages_create_submit(): void
 
     if (!in_array($payload['storage_type'], ['warehouse', 'storage'], true)) {
         $errors[] = 'Pick a valid location type.';
+    }
+
+    if (!in_array((string) input('usage_profile', 'general'), storage_usage_profile_values(), true)) {
+        $errors[] = 'Pick a valid usage reporting profile.';
     }
 
     if (!in_array($payload['copy_contents_mode'], ['empty', 'item_setup', 'current_stock'], true)) {
@@ -97,11 +102,12 @@ function handle_storages_create_submit(): void
 
     try {
         Database::execute(
-            'INSERT INTO storages (name, storage_type, notes, owner_user_id, is_active, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, :storage_type, :notes, :owner_user_id, 1, :created_by, :updated_by, NOW(), NOW())',
+            'INSERT INTO storages (name, storage_type, usage_profile, notes, owner_user_id, is_active, created_by, updated_by, created_at, updated_at)
+             VALUES (:name, :storage_type, :usage_profile, :notes, :owner_user_id, 1, :created_by, :updated_by, NOW(), NOW())',
             [
                 'name' => $payload['name'],
                 'storage_type' => $payload['storage_type'],
+                'usage_profile' => $payload['usage_profile'],
                 'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
                 'owner_user_id' => (int) $payload['owner_user_id'],
                 'created_by' => $user['id'],
@@ -163,6 +169,7 @@ function handle_storages_edit_submit(array $params): void
     $payload = [
         'name' => trim((string) input('name')),
         'storage_type' => (string) input('storage_type', 'storage'),
+        'usage_profile' => normalize_storage_usage_profile((string) input('usage_profile', (string) ($storage['usage_profile'] ?? 'wristband'))),
         'notes' => trim((string) input('notes')),
         'owner_user_id' => normalize_entity_id(input('owner_user_id')),
         'owner_user_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('owner_user_ids', []))))),
@@ -185,6 +192,10 @@ function handle_storages_edit_submit(array $params): void
 
     if (!in_array($payload['storage_type'], ['warehouse', 'storage'], true)) {
         $errors[] = 'Pick a valid location type.';
+    }
+
+    if (!in_array((string) input('usage_profile', (string) ($storage['usage_profile'] ?? 'wristband')), storage_usage_profile_values(), true)) {
+        $errors[] = 'Pick a valid usage reporting profile.';
     }
 
     $ownerRecord = null;
@@ -241,6 +252,7 @@ function handle_storages_edit_submit(array $params): void
             'UPDATE storages
              SET name = :name,
                  storage_type = :storage_type,
+                 usage_profile = :usage_profile,
                  notes = :notes,
                  owner_user_id = :owner_user_id,
                  updated_by = :updated_by,
@@ -249,6 +261,7 @@ function handle_storages_edit_submit(array $params): void
             [
                 'name' => $payload['name'],
                 'storage_type' => $payload['storage_type'],
+                'usage_profile' => $payload['usage_profile'],
                 'notes' => $payload['notes'] !== '' ? $payload['notes'] : null,
                 'owner_user_id' => (int) $payload['owner_user_id'],
                 'updated_by' => $user['id'],

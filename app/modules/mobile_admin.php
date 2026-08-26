@@ -194,7 +194,29 @@ function handle_mobile_admin_page(): void
         'devices' => mobile_admin_devices(),
         'operations' => mobile_admin_operations(),
         'usageReasons' => mobile_usage_reason_catalog(false),
+        'generalUsageReasons' => usage_reason_catalog_for_profile('general', false),
     ]);
+}
+
+function mobile_admin_usage_reason_payload(array $defaults, string $prefix = ''): array
+{
+    $labels = (array) input($prefix . 'usage_reason_labels', []);
+    $sortOrders = (array) input($prefix . 'usage_reason_sort_orders', []);
+    $activeReasons = (array) input($prefix . 'usage_reason_active', []);
+    $reasons = [];
+
+    foreach ($defaults as $default) {
+        $code = (string) $default['code'];
+        $label = trim((string) ($labels[$code] ?? $default['label']));
+        $reasons[] = [
+            'code' => $code,
+            'label' => substr($label !== '' ? $label : (string) $default['label'], 0, 60),
+            'active' => array_key_exists($code, $activeReasons),
+            'sort_order' => max(1, min(999, (int) ($sortOrders[$code] ?? $default['sort_order']))),
+        ];
+    }
+
+    return $reasons;
 }
 
 function handle_mobile_admin_settings_submit(): void
@@ -203,22 +225,14 @@ function handle_mobile_admin_settings_submit(): void
     Auth::requireOwner();
     verify_csrf();
 
-    $reasonLabels = (array) input('usage_reason_labels', []);
-    $reasonSortOrders = (array) input('usage_reason_sort_orders', []);
-    $reasonActive = (array) input('usage_reason_active', []);
-    $usageReasons = [];
-    foreach (mobile_usage_reason_defaults() as $default) {
-        $code = (string) $default['code'];
-        $label = trim((string) ($reasonLabels[$code] ?? $default['label']));
-        $usageReasons[] = [
-            'code' => $code,
-            'label' => substr($label !== '' ? $label : (string) $default['label'], 0, 60),
-            'active' => array_key_exists($code, $reasonActive),
-            'sort_order' => max(1, min(999, (int) ($reasonSortOrders[$code] ?? $default['sort_order']))),
-        ];
-    }
+    $usageReasons = mobile_admin_usage_reason_payload(mobile_usage_reason_defaults());
+    $generalUsageReasons = mobile_admin_usage_reason_payload(general_usage_reason_defaults(), 'general_');
     if (!array_filter($usageReasons, static fn (array $reason): bool => (bool) $reason['active'])) {
-        flash('danger', 'Keep at least one mobile usage reason active.');
+        flash('danger', 'Keep at least one wristband usage reason active.');
+        redirect('/mobile-access');
+    }
+    if (!array_filter($generalUsageReasons, static fn (array $reason): bool => (bool) $reason['active'])) {
+        flash('danger', 'Keep at least one general operations reason active.');
         redirect('/mobile-access');
     }
 
@@ -229,6 +243,7 @@ function handle_mobile_admin_settings_submit(): void
         'mobile.require_usage_proof' => input('require_usage_proof') === '1' ? '1' : '0',
         'mobile.min_supported_version' => substr(trim((string) input('min_supported_version', '1.0.0')), 0, 40) ?: '1.0.0',
         'mobile.usage_reasons' => json_encode($usageReasons, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'mobile.general_usage_reasons' => json_encode($generalUsageReasons, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
     ];
     foreach ($settings as $key => $value) {
         Database::execute(

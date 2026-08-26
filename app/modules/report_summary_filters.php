@@ -195,7 +195,7 @@ function report_summary_selector_data(array $filters): array
         'departments' => $people['departments'],
         'employees' => $people['employees'],
         'managers' => $people['managers'],
-        'usageReasons' => mobile_usage_reason_catalog(true),
+        'usageReasons' => all_usage_reason_catalog(true),
         'units' => $units,
         'packagePresets' => $packagePresets,
     ];

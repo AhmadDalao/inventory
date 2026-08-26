@@ -34,7 +34,7 @@ function scan_movement_batch_validate_line(
             'usage_reason' => $line['usage_reason'] ?? $line['reason'] ?? $batchPayload['usage_reason'] ?? $batchPayload['reason'] ?? '',
             'custom_reason' => $line['custom_reason'] ?? $batchPayload['custom_reason'] ?? '',
         ];
-        $reason = item_movement_usage_reason($reasonPayload);
+        $reason = item_movement_usage_reason($reasonPayload, $storageId);
         if ($reason['code'] === null) {
             throw new InvalidArgumentException("Line {$lineNumber}: pick a usage reason.");
         }
