@@ -54,6 +54,18 @@ function purchase_record_for_regression(int $purchaseId): array
     return $purchase;
 }
 
+function stocktake_record_for_regression(int $stocktakeId): array
+{
+    $stocktake = Database::fetch(
+        'SELECT * FROM stocktakes WHERE id = :id LIMIT 1',
+        ['id' => $stocktakeId]
+    );
+
+    assert_true(is_array($stocktake), 'Stocktake record #' . $stocktakeId . ' is missing.');
+
+    return $stocktake;
+}
+
 function csv_header_cells(string $bytes): array
 {
     $firstLine = strtok(ltrim($bytes, "\xEF\xBB\xBF"), "\r\n");
@@ -3390,7 +3402,7 @@ $stocktakeCreate = http_request($baseUrl, $adminCookie, 'POST', '/stocktakes/cre
 ]);
 assert_true($stocktakeCreate['status'] === 302, 'Stocktake create did not redirect.');
 $stocktakeId = first_redirect_id($stocktakeCreate['location'], '/stocktakes');
-$stocktake = find_stocktake_or_abort($stocktakeId);
+$stocktake = stocktake_record_for_regression($stocktakeId);
 assert_true((string) $stocktake['status'] === 'draft', 'Stocktake should start as draft.');
 $stocktakeLines = stocktake_lines($stocktakeId);
 assert_true(count($stocktakeLines) > 0, 'Stocktake should create count lines.');
@@ -3410,7 +3422,7 @@ foreach ($stocktakeLines as $line) {
 
 $stocktakeCount = http_request($baseUrl, $adminCookie, 'POST', '/stocktakes/' . $stocktakeId . '/count', $countedPayload);
 assert_true($stocktakeCount['status'] === 302, 'Stocktake count submit did not redirect.');
-$stocktakeAfterCount = find_stocktake_or_abort($stocktakeId);
+$stocktakeAfterCount = stocktake_record_for_regression($stocktakeId);
 assert_true((string) $stocktakeAfterCount['status'] === 'pending_approval', 'Stocktake should wait for approval after count submit.');
 
 note('Checking smart 404 handling and missing-record redirects.');
@@ -3430,7 +3442,7 @@ $stocktakeApprove = http_request($baseUrl, $ownerCookie, 'POST', '/stocktakes/' 
     '_token' => extract_csrf($stocktakeApprovePage['body'], 'stocktake approval'),
 ]);
 assert_true($stocktakeApprove['status'] === 302, 'Stocktake approval did not redirect.');
-$stocktakeApproved = find_stocktake_or_abort($stocktakeId);
+$stocktakeApproved = stocktake_record_for_regression($stocktakeId);
 assert_true((string) $stocktakeApproved['status'] === 'approved', 'Stocktake did not become approved.');
 assert_true(balance_quantity((int) $stocktakeItem['id'], (int) $stocktakeStorage['id']) === round($stocktakeBalanceBefore - 2, 2), 'Stocktake approval did not adjust the storage balance.');
 $stocktakeOpen = http_request($baseUrl, $ownerCookie, 'GET', '/open/' . rawurlencode((string) $stocktakeApproved['stocktake_number']));
