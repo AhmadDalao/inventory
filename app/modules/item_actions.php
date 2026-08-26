@@ -29,14 +29,32 @@ function handle_items_status_submit(array $params): void
         redirect('/items?status=archived');
     }
 
-    Database::execute(
-        'UPDATE items SET is_active = :is_active, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
-        [
-            'is_active' => $nextStatus,
-            'updated_by' => $user['id'],
-            'id' => $item['id'],
-        ]
-    );
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+
+    try {
+        Database::execute(
+            'UPDATE items SET is_active = :is_active, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
+            [
+                'is_active' => $nextStatus,
+                'updated_by' => $user['id'],
+                'id' => $item['id'],
+            ]
+        );
+        inventory_record_item_change_events_for_assignments(
+            $nextStatus === 1 ? 'item.recovered' : 'item.archived',
+            (int) $item['id'],
+            (int) $user['id'],
+            ['is_active' => $nextStatus]
+        );
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        flash('danger', $exception->getMessage());
+        redirect('/items/' . $item['id']);
+    }
 
     flash('success', $nextStatus ? 'Item recovered.' : 'Item archived.');
     redirect($nextStatus ? '/items' : '/items?status=archived');
@@ -71,6 +89,9 @@ function handle_item_location_remove_submit(array $params): void
         redirect(starts_with($returnTo, '/') ? $returnTo : $fallbackPath);
     }
 
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+
     try {
         if (round((float) $balance['quantity'], 2) > 0) {
             apply_inventory_movement(
@@ -95,7 +116,21 @@ function handle_item_location_remove_submit(array $params): void
         );
 
         sync_item_inventory_snapshot((int) $item['id'], (int) $user['id']);
+        inventory_record_item_change_event(
+            'item.unassigned',
+            (int) $item['id'],
+            $storageId,
+            (int) $user['id'],
+            [
+                'storage_name' => (string) $balance['name'],
+                'quantity_removed' => inventory_quantity((float) $balance['quantity']),
+            ]
+        );
+        $pdo->commit();
     } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         flash('danger', $exception->getMessage());
         redirect(starts_with($returnTo, '/') ? $returnTo : $fallbackPath);
     }

@@ -96,12 +96,43 @@ function file_asset_relative_path(string $directory, string $storedFilename): st
 function file_asset_absolute_path(array $asset): string
 {
     $archivePath = trim((string) ($asset['archive_path'] ?? ''));
+    $archiveAbsolutePath = file_asset_safe_absolute_path($archivePath);
 
-    if ($archivePath !== '' && is_file(base_path($archivePath))) {
-        return base_path($archivePath);
+    if ($archiveAbsolutePath !== null && is_file($archiveAbsolutePath)) {
+        return $archiveAbsolutePath;
     }
 
-    return base_path((string) ($asset['relative_path'] ?? ''));
+    return file_asset_safe_absolute_path((string) ($asset['relative_path'] ?? '')) ?? base_path();
+}
+
+function file_asset_safe_absolute_path(string $relativePath): ?string
+{
+    $relativePath = str_replace('\\', '/', trim($relativePath));
+
+    if ($relativePath === ''
+        || str_contains($relativePath, "\0")
+        || str_starts_with($relativePath, '/')
+        || preg_match('/^[A-Za-z]:\//', $relativePath) === 1
+    ) {
+        return null;
+    }
+
+    $segments = array_values(array_filter(explode('/', $relativePath), static fn (string $segment): bool => $segment !== ''));
+
+    if ($segments === [] || in_array('..', $segments, true)) {
+        return null;
+    }
+
+    $base = rtrim((string) (realpath(base_path()) ?: base_path()), DIRECTORY_SEPARATOR);
+    $candidate = $base . DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $segments);
+    $resolved = realpath($candidate);
+    $checked = $resolved !== false ? $resolved : $candidate;
+
+    if ($checked !== $base && !str_starts_with($checked, $base . DIRECTORY_SEPARATOR)) {
+        return null;
+    }
+
+    return $candidate;
 }
 
 function file_asset_exists(array $asset): bool
@@ -179,9 +210,9 @@ function file_asset_archive_copy(string $sourceRelativePath): ?string
         return null;
     }
 
-    $sourcePath = base_path($sourceRelativePath);
+    $sourcePath = file_asset_safe_absolute_path($sourceRelativePath);
 
-    if (!is_file($sourcePath)) {
+    if ($sourcePath === null || !is_file($sourcePath)) {
         return null;
     }
 

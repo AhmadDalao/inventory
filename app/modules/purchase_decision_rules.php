@@ -3,6 +3,25 @@ declare(strict_types=1);
 
 // Domain module: purchase approval and final-receipt guard rules.
 
+function purchase_draft_management_block_reason(array $purchase, ?array $user = null): ?string
+{
+    $user = $user ?? Auth::user();
+
+    if ((string) ($purchase['status'] ?? '') !== 'draft') {
+        return 'Only draft purchases can be edited or submitted.';
+    }
+
+    if (Auth::isOwner()) {
+        return null;
+    }
+
+    if ((int) ($purchase['requester_user_id'] ?? 0) !== (int) ($user['id'] ?? 0)) {
+        return 'Only the purchase creator or owner can manage this draft.';
+    }
+
+    return null;
+}
+
 function purchase_decision_block_reason(array $purchase, ?array $user = null): ?string
 {
     $user = $user ?? Auth::user();

@@ -43,6 +43,12 @@ function selected_dashboard_storage(?int $storageId): ?array
         return null;
     }
 
+    $currentUserId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($currentUserId <= 0 || !user_can_view_storage($currentUserId, $storageId)) {
+        return null;
+    }
+
     $storage = Database::fetch(
         'SELECT id, name, storage_type
          FROM storages
@@ -58,29 +64,17 @@ function selected_dashboard_storage(?int $storageId): ?array
 
 function dashboard_movement_scope(array $filters, string $movementAlias = 'm', string $itemAlias = 'i'): array
 {
-    $conditions = ["{$itemAlias}.is_active = 1"];
-    $params = [];
+    [$where, $params] = build_movement_where([
+        'item_id' => null,
+        'storage_id' => $filters['storage_id'] ?? null,
+        'movement_type' => '',
+        'date_from' => $filters['date_from'] ?? '',
+        'date_to' => $filters['date_to'] ?? '',
+    ], $movementAlias, $itemAlias);
 
-    if (!empty($filters['storage_id'])) {
-        $conditions[] = "({$movementAlias}.source_storage_id = :dashboard_source_storage_id OR {$movementAlias}.destination_storage_id = :dashboard_destination_storage_id)";
-        $params['dashboard_source_storage_id'] = (int) $filters['storage_id'];
-        $params['dashboard_destination_storage_id'] = (int) $filters['storage_id'];
-    }
+    $where .= ($where === '' ? 'WHERE ' : ' AND ') . "{$itemAlias}.is_active = 1";
 
-    if (($filters['date_from'] ?? '') !== '') {
-        $conditions[] = "{$movementAlias}.used_at >= :dashboard_date_from";
-        $params['dashboard_date_from'] = $filters['date_from'] . ' 00:00:00';
-    }
-
-    if (($filters['date_to'] ?? '') !== '') {
-        $conditions[] = "{$movementAlias}.used_at <= :dashboard_date_to";
-        $params['dashboard_date_to'] = $filters['date_to'] . ' 23:59:59';
-    }
-
-    return [
-        'WHERE ' . implode(' AND ', $conditions),
-        $params,
-    ];
+    return [$where, $params];
 }
 
 function dashboard_filter_labels(array $filters, ?array $selectedStorage): array

@@ -8,12 +8,8 @@ function handle_export_daily_summary_xlsx(): void
     app_ready_or_redirect();
     Auth::requirePermission('movements.export');
 
-    if (!report_xlsx_thumbnail_export_enabled()) {
-        abort(403, 'Report Excel thumbnail export is disabled in Website Control.');
-    }
-
     $filters = report_summary_filters();
-    $summary = report_summary_data($filters);
+    $summary = report_summary_data($filters, true);
     $scope = (string) query('report_scope', '');
     $mode = 'summary';
 
@@ -39,6 +35,6 @@ function handle_export_daily_summary_xlsx(): void
             . '.xlsx';
         export_xlsx($filename, daily_summary_xlsx_payload($summary, $filters, $mode));
     } catch (Throwable $exception) {
-        abort(500, 'Could not export report thumbnails. ' . $exception->getMessage());
+        abort(500, 'Could not export report. ' . $exception->getMessage());
     }
 }

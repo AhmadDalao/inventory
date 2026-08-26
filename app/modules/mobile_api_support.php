@@ -209,10 +209,11 @@ function mobile_api_require_capability(array $session, string $capability): void
         throw new MobileApiException('invalid_capability', 'Unknown mobile capability.', 500);
     }
     $access = mobile_api_require_employee_access($session);
+    $permissions = mobile_api_permissions((int) $session['user_id']);
     $effective = mobile_api_effective_capabilities(
         $access,
-        mobile_api_permissions((int) $session['user_id']),
-        mobile_api_storage_ids($session)
+        $permissions,
+        mobile_api_inventory_scope_ids($session, $permissions)
     );
     if (!in_array($capability, $effective, true)) {
         throw new MobileApiException('mobile_capability_denied', 'This mobile action is not enabled for your account.', 403);
@@ -281,7 +282,12 @@ function mobile_api_effective_capabilities(
     array $permissions,
     array $storageIds
 ): array {
-    if ($storageIds === [] || !in_array('items.view', $permissions, true)) {
+    if (
+        $storageIds === []
+        || !in_array('mobile.access', $permissions, true)
+        || !in_array('storages.view', $permissions, true)
+        || !in_array('items.view', $permissions, true)
+    ) {
         return [];
     }
 
@@ -332,7 +338,14 @@ function mobile_api_storage_ids(array $session): array
         return array_map('intval', array_column(Database::fetchAll('SELECT id FROM storages WHERE is_active = 1 AND is_system = 0'), 'id'));
     }
     return array_map('intval', array_column(Database::fetchAll(
-        'SELECT storage_id FROM user_storage_assignments WHERE user_id = :user_id ORDER BY is_default DESC, id ASC',
+        'SELECT assignment.storage_id
+         FROM user_storage_assignments assignment
+         INNER JOIN storages storage
+            ON storage.id = assignment.storage_id
+           AND storage.is_active = 1
+           AND storage.is_system = 0
+         WHERE assignment.user_id = :user_id
+         ORDER BY assignment.is_default DESC, assignment.id ASC',
         ['user_id' => $session['user_id']]
     ), 'storage_id'));
 }
@@ -420,7 +433,8 @@ function mobile_api_storage_access_roles(array $session, ?array $storageIds = nu
 
 function mobile_api_require_storage(array $session, int $storageId): void
 {
-    if ($storageId <= 0 || !in_array($storageId, mobile_api_storage_ids($session), true)) {
+    $permissions = mobile_api_permissions((int) $session['user_id']);
+    if ($storageId <= 0 || !in_array($storageId, mobile_api_inventory_scope_ids($session, $permissions), true)) {
         throw new MobileApiException('storage_forbidden', 'This storage is not assigned to you.', 403);
     }
 }
@@ -468,6 +482,52 @@ function mobile_api_random_token(): string
     return rtrim(strtr(base64_encode(random_bytes(48)), '+/', '-_'), '=');
 }
 
+function mobile_api_existing_operation_result(array $session, string $operationId): ?array
+{
+    $existing = Database::fetch(
+        'SELECT user_id, status, response_json, error_code, error_message
+         FROM mobile_operations
+         WHERE client_operation_id = :operation_id
+         LIMIT 1',
+        ['operation_id' => $operationId]
+    );
+    if (!$existing) {
+        return null;
+    }
+    if ((int) $existing['user_id'] !== (int) $session['user_id']) {
+        throw new MobileApiException('operation_id_conflict', 'That operation ID belongs to another user.', 409);
+    }
+    if ((string) $existing['status'] === 'succeeded') {
+        $decoded = json_decode((string) $existing['response_json'], true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    throw new MobileApiException(
+        (string) ($existing['error_code'] ?: 'operation_in_progress'),
+        (string) ($existing['error_message'] ?: 'This operation is already being processed.'),
+        409,
+        [],
+        true
+    );
+}
+
+function mobile_api_is_duplicate_operation_exception(Throwable $exception): bool
+{
+    if (!$exception instanceof PDOException) {
+        return false;
+    }
+
+    $sqlState = (string) $exception->getCode();
+    $driverCode = (int) ($exception->errorInfo[1] ?? 0);
+    $message = strtolower($exception->getMessage());
+
+    return ($sqlState === '23000' || $sqlState === '23505')
+        && ($driverCode === 1062
+            || str_contains($message, 'uniq_mobile_client_operation')
+            || str_contains($message, 'duplicate'));
+}
+
 function mobile_api_operation(array $session, string $type, array $payload, callable $callback): array
 {
     mobile_api_enforce_mutation_rate_limit($session);
@@ -475,15 +535,9 @@ function mobile_api_operation(array $session, string $type, array $payload, call
     if ($operationId === '' || strlen($operationId) > 80) {
         throw new MobileApiException('invalid_operation_id', 'A valid client_operation_id is required.', 422, ['client_operation_id' => ['Required.']]);
     }
-    $existing = Database::fetch('SELECT * FROM mobile_operations WHERE client_operation_id = :id LIMIT 1', ['id' => $operationId]);
-    if ($existing) {
-        if ((int) $existing['user_id'] !== (int) $session['user_id']) {
-            throw new MobileApiException('operation_id_conflict', 'That operation ID belongs to another user.', 409);
-        }
-        if ($existing['status'] === 'succeeded') {
-            return json_decode((string) $existing['response_json'], true) ?: [];
-        }
-        throw new MobileApiException((string) ($existing['error_code'] ?: 'operation_in_progress'), (string) ($existing['error_message'] ?: 'This operation is already being processed.'), 409, [], true);
+    $existingResult = mobile_api_existing_operation_result($session, $operationId);
+    if ($existingResult !== null) {
+        return $existingResult;
     }
 
     $pdo = Database::connection();
@@ -551,6 +605,13 @@ function mobile_api_operation(array $session, string $type, array $payload, call
             $pdo->rollBack();
         }
 
+        if (mobile_api_is_duplicate_operation_exception($exception)) {
+            $existingResult = mobile_api_existing_operation_result($session, $operationId);
+            if ($existingResult !== null) {
+                return $existingResult;
+            }
+        }
+
         $conflict = $exception instanceof MobileApiException
             ? $exception->statusCode === 409
             : str_contains(strtolower($exception->getMessage()), 'balance')
@@ -602,7 +663,8 @@ function mobile_api_operation(array $session, string $type, array $payload, call
 
 function mobile_api_authoritative_balance_updates(array $session, int $afterCursor): array
 {
-    $storageIds = mobile_api_storage_ids($session);
+    $permissions = mobile_api_permissions((int) $session['user_id']);
+    $storageIds = mobile_api_inventory_scope_ids($session, $permissions);
     if ($storageIds === []) {
         return [];
     }

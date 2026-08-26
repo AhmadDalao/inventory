@@ -11,6 +11,29 @@ function build_report_summary_where(array $filters, string $alias = 'm'): array
         'summary_date_from' => $filters['date_from'] . ' 00:00:00',
         'summary_date_to' => $filters['date_to'] . ' 23:59:59',
     ];
+    $storageScope = current_user_item_storage_scope();
+
+    if ($storageScope !== null) {
+        $storageScopeSql = item_storage_scope_sql($storageScope);
+        $conditions[] = $storageScope === []
+            ? '1 = 0'
+            : "(
+                {$alias}.source_storage_id IN ({$storageScopeSql})
+                OR {$alias}.destination_storage_id IN ({$storageScopeSql})
+                OR (
+                    {$alias}.context_type = 'handover'
+                    AND EXISTS (
+                        SELECT 1
+                        FROM handovers summary_visible_handover
+                        WHERE summary_visible_handover.id = {$alias}.context_id
+                          AND (
+                              summary_visible_handover.source_storage_id IN ({$storageScopeSql})
+                              OR summary_visible_handover.destination_storage_id IN ({$storageScopeSql})
+                          )
+                    )
+                )
+            )";
+    }
 
     if (!empty($filters['storage_id'])) {
         $conditions[] = "(
@@ -53,26 +76,46 @@ function build_report_summary_where(array $filters, string $alias = 'm'): array
 
     if (!empty($filters['department_id'])) {
         $conditions[] = "(
-            EXISTS (
-                SELECT 1
-                FROM inventory_movement_measurement_details summary_department_snapshot
-                WHERE summary_department_snapshot.movement_id = {$alias}.id
-                  AND summary_department_snapshot.department_id = :summary_snapshot_department_id
-            )
-            OR (
-                NOT EXISTS (
-                    SELECT 1
-                    FROM inventory_movement_measurement_details summary_department_missing
-                    WHERE summary_department_missing.movement_id = {$alias}.id
-                )
+            (
+                {$alias}.context_type = 'handover'
                 AND EXISTS (
                     SELECT 1
-                    FROM users summary_department_user
-                    WHERE summary_department_user.id = {$alias}.performed_by
-                      AND summary_department_user.department_id = :summary_current_department_id
+                    FROM handovers summary_department_handover
+                    LEFT JOIN users summary_department_recipient
+                        ON summary_department_recipient.id = summary_department_handover.recipient_user_id
+                    WHERE summary_department_handover.id = {$alias}.context_id
+                      AND COALESCE(
+                            summary_department_handover.recipient_department_id,
+                            summary_department_recipient.department_id
+                      ) = :summary_handover_department_id
+                )
+            )
+            OR (
+                COALESCE({$alias}.context_type, '') <> 'handover'
+                AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM inventory_movement_measurement_details summary_department_snapshot
+                        WHERE summary_department_snapshot.movement_id = {$alias}.id
+                          AND summary_department_snapshot.department_id = :summary_snapshot_department_id
+                    )
+                    OR (
+                        NOT EXISTS (
+                            SELECT 1
+                            FROM inventory_movement_measurement_details summary_department_missing
+                            WHERE summary_department_missing.movement_id = {$alias}.id
+                        )
+                        AND EXISTS (
+                            SELECT 1
+                            FROM users summary_department_user
+                            WHERE summary_department_user.id = {$alias}.performed_by
+                              AND summary_department_user.department_id = :summary_current_department_id
+                        )
+                    )
                 )
             )
         )";
+        $params['summary_handover_department_id'] = (int) $filters['department_id'];
         $params['summary_snapshot_department_id'] = (int) $filters['department_id'];
         $params['summary_current_department_id'] = (int) $filters['department_id'];
     }
@@ -99,31 +142,38 @@ function build_report_summary_where(array $filters, string $alias = 'm'): array
 
     if (!empty($filters['manager_id'])) {
         $conditions[] = "(
-            EXISTS (
-                SELECT 1
-                FROM inventory_movement_measurement_details summary_manager_snapshot
-                WHERE summary_manager_snapshot.movement_id = {$alias}.id
-                  AND summary_manager_snapshot.manager_user_id = :summary_snapshot_manager_id
-            )
-            OR EXISTS (
-                SELECT 1
-                FROM handovers summary_manager_handover
-                LEFT JOIN users summary_manager_recipient ON summary_manager_recipient.id = summary_manager_handover.recipient_user_id
-                WHERE summary_manager_handover.id = {$alias}.context_id
-                  AND {$alias}.context_type = 'handover'
-                  AND COALESCE(summary_manager_handover.manager_user_id, summary_manager_recipient.manager_user_id) = :summary_handover_manager_id
-            )
-            OR (
-                NOT EXISTS (
-                    SELECT 1
-                    FROM inventory_movement_measurement_details summary_manager_missing
-                    WHERE summary_manager_missing.movement_id = {$alias}.id
-                )
+            (
+                {$alias}.context_type = 'handover'
                 AND EXISTS (
                     SELECT 1
-                    FROM users summary_manager_user
-                    WHERE summary_manager_user.id = {$alias}.performed_by
-                      AND summary_manager_user.manager_user_id = :summary_current_manager_id
+                    FROM handovers summary_manager_handover
+                    LEFT JOIN users summary_manager_recipient ON summary_manager_recipient.id = summary_manager_handover.recipient_user_id
+                    WHERE summary_manager_handover.id = {$alias}.context_id
+                      AND COALESCE(summary_manager_handover.manager_user_id, summary_manager_recipient.manager_user_id) = :summary_handover_manager_id
+                )
+            )
+            OR (
+                COALESCE({$alias}.context_type, '') <> 'handover'
+                AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM inventory_movement_measurement_details summary_manager_snapshot
+                        WHERE summary_manager_snapshot.movement_id = {$alias}.id
+                          AND summary_manager_snapshot.manager_user_id = :summary_snapshot_manager_id
+                    )
+                    OR (
+                        NOT EXISTS (
+                            SELECT 1
+                            FROM inventory_movement_measurement_details summary_manager_missing
+                            WHERE summary_manager_missing.movement_id = {$alias}.id
+                        )
+                        AND EXISTS (
+                            SELECT 1
+                            FROM users summary_manager_user
+                            WHERE summary_manager_user.id = {$alias}.performed_by
+                              AND summary_manager_user.manager_user_id = :summary_current_manager_id
+                        )
+                    )
                 )
             )
         )";

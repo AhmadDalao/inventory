@@ -122,7 +122,7 @@ function handle_storages_create_submit(): void
             if ($payload['copy_contents_mode'] === 'current_stock') {
                 clone_storage_inventory_to_location($copySource, $storageId, $payload['name'], (int) $user['id']);
             } elseif ($payload['copy_contents_mode'] === 'item_setup') {
-                clone_storage_item_setup_to_location($copySource, $storageId);
+                clone_storage_item_setup_to_location($copySource, $storageId, (int) $user['id']);
             }
         }
 

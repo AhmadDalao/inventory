@@ -109,6 +109,41 @@ function mobile_api_handover_line_payload(array $line): array
     ];
 }
 
+function mobile_api_handover_action_storage_id(array $handover, string $action): int
+{
+    if ($action === 'confirm_receipt' && handover_is_storage_transfer($handover)) {
+        return (int) ($handover['destination_storage_id'] ?? 0);
+    }
+
+    return (int) ($handover['source_storage_id'] ?? 0);
+}
+
+/**
+ * Check action scope without throwing so historical handovers remain visible
+ * after an employee loses storage access. Mutation handlers perform the same
+ * check again with mobile_api_require_storage().
+ */
+function mobile_api_handover_action_has_storage_scope(
+    array $session,
+    array $handover,
+    string $action,
+    array $permissions
+): bool {
+    if (mobile_api_handover_is_owner($session)) {
+        return true;
+    }
+
+    if (array_diff(['mobile.access', 'storages.view', 'items.view'], $permissions) !== []) {
+        return false;
+    }
+    if ((string) ($session['role'] ?? '') === 'staff' && manager_user_for((int) $session['user_id']) === null) {
+        return false;
+    }
+
+    $storageId = mobile_api_handover_action_storage_id($handover, $action);
+    return $storageId > 0 && in_array($storageId, mobile_api_storage_ids($session), true);
+}
+
 function mobile_api_handover_allowed_actions(array $session, array $handover): array
 {
     $permissions = mobile_api_permissions((int) $session['user_id']);
@@ -154,7 +189,11 @@ function mobile_api_handover_allowed_actions(array $session, array $handover): a
         && $isRecipient
     ) {
         $access = mobile_api_employee_access($userId, (string) ($session['role'] ?? ''));
-        $effective = mobile_api_effective_capabilities($access, $permissions, mobile_api_storage_ids($session));
+        $effective = mobile_api_effective_capabilities(
+            $access,
+            $permissions,
+            mobile_api_inventory_scope_ids($session, $permissions)
+        );
         if (in_array('custody', $effective, true)) {
             $actions[] = 'return_custody';
         }
@@ -166,11 +205,31 @@ function mobile_api_handover_allowed_actions(array $session, array $handover): a
         $actions[] = 'cancel';
     }
 
-    return array_values(array_unique($actions));
+    $actions = array_values(array_unique($actions));
+    if (!$isOwner) {
+        $actions = array_values(array_filter(
+            $actions,
+            static fn (string $action): bool => mobile_api_handover_action_has_storage_scope(
+                $session,
+                $handover,
+                $action,
+                $permissions
+            )
+        ));
+    }
+
+    return $actions;
 }
 
 function mobile_api_require_handover_action(array $session, array $handover, string $action): void
 {
+    if (!mobile_api_handover_is_owner($session)) {
+        mobile_api_require_storage(
+            $session,
+            mobile_api_handover_action_storage_id($handover, $action)
+        );
+    }
+
     if (!in_array($action, mobile_api_handover_allowed_actions($session, $handover), true)) {
         throw new MobileApiException(
             'handover_action_denied',
@@ -479,15 +538,20 @@ function handle_mobile_api_handover_create(): void
             }
             $number = next_workflow_number('HDO', 'handovers', 'handover_number');
             $status = $isRequest ? 'requested' : 'awaiting_receipt';
+            $recipientDepartment = $purpose === 'storage_transfer'
+                ? ['department_id' => null, 'department_name' => null]
+                : user_department_snapshot_for_history((int) $recipient['id']);
             Database::execute(
                 'INSERT INTO handovers (
                     handover_number, source_storage_id, destination_storage_id, approver_user_id, manager_user_id,
+                    recipient_department_id, recipient_department_name,
                     recipient_name, recipient_user_id, recipient_type, handover_purpose,
                     issue_condition, custody_review_date, usage_reporting_mode, handover_mode,
                     status, scheduled_for_date, notes, requested_at, issued_at,
                     created_by, updated_by, created_at, updated_at
                  ) VALUES (
-                    :number, :source, :destination, :approver, :manager_user_id, :recipient_name, :recipient_user,
+                    :number, :source, :destination, :approver, :manager_user_id,
+                    :recipient_department_id, :recipient_department_name, :recipient_name, :recipient_user,
                     :recipient_type, :purpose, :issue_condition, :review_date, :usage_mode,
                     :handover_mode, :status, :scheduled, :notes, :requested_at, NOW(),
                     :created_by, :updated_by, NOW(), NOW()
@@ -498,6 +562,8 @@ function handle_mobile_api_handover_create(): void
                     'destination' => $destinationStorageId > 0 ? $destinationStorageId : null,
                     'approver' => storage_owner_user_id((int) $sourceStorage['id']),
                     'manager_user_id' => $purpose === 'storage_transfer' ? null : manager_user_id_for((int) $recipient['id']),
+                    'recipient_department_id' => $recipientDepartment['department_id'],
+                    'recipient_department_name' => $recipientDepartment['department_name'],
                     'recipient_name' => $recipientName,
                     'recipient_user' => (int) $recipient['id'],
                     'recipient_type' => $purpose === 'storage_transfer' ? 'storage' : 'staff',
@@ -1135,6 +1201,9 @@ function handle_mobile_api_handover_custody_return_approve(array $params): void
         if (!handover_is_staff_custody($handover) || !mobile_api_handover_is_source_issuer($session, $handover)) {
             throw new MobileApiException('custody_review_forbidden', 'Only the source issuer may approve this custody return.', 403);
         }
+        if (!mobile_api_handover_is_owner($session)) {
+            mobile_api_require_storage($session, (int) $handover['source_storage_id']);
+        }
         $custodyReturn = mobile_api_custody_return_fetch((int) $handover['id'], (int) $params['return_id']);
         if ((string) $custodyReturn['status'] !== 'submitted') {
             throw new MobileApiException('custody_return_not_reviewable', 'This custody return is no longer waiting for approval.', 409);
@@ -1218,6 +1287,9 @@ function handle_mobile_api_handover_custody_return_reject(array $params): void
         $handover = mobile_api_handover_fetch((int) $params['id']);
         if (!handover_is_staff_custody($handover) || !mobile_api_handover_is_source_issuer($session, $handover)) {
             throw new MobileApiException('custody_review_forbidden', 'Only the source issuer may reject this custody return.', 403);
+        }
+        if (!mobile_api_handover_is_owner($session)) {
+            mobile_api_require_storage($session, (int) $handover['source_storage_id']);
         }
         $custodyReturn = mobile_api_custody_return_fetch((int) $handover['id'], (int) $params['return_id']);
         if ((string) $custodyReturn['status'] !== 'submitted') {

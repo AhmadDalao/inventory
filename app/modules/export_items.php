@@ -89,14 +89,15 @@ function handle_export_items(): void
 
 function item_export_xlsx_sheet_xml(array $items, array $images, array $imageSize): string
 {
+    $includeImages = item_xlsx_thumbnail_export_enabled();
     $includeBarcodeImages = excel_export_barcode_images_enabled();
-    $headers = [
-        'Image',
+    $headers = $includeImages ? ['Image'] : [];
+    $headers = array_merge($headers, [
         'Name',
         'SKU',
         'Barcode Value',
         'Scan Code',
-    ];
+    ]);
 
     if ($includeBarcodeImages) {
         $headers[] = 'Barcode Image';
@@ -132,16 +133,22 @@ function item_export_xlsx_sheet_xml(array $items, array $images, array $imageSiz
 
     foreach ($items as $item) {
         $scanCode = item_scan_code($item);
-        $rowValues = [
-            workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : 'No image',
+        $rowValues = [];
+
+        if ($includeImages) {
+            $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : 'No image';
+        }
+
+        $rowValues = array_merge($rowValues, [
             (string) $item['name'],
             (string) $item['sku'],
             normalize_item_barcode($item['barcode'] ?? '') !== '' ? normalize_item_barcode($item['barcode'] ?? '') : 'Not set',
             $scanCode,
-        ];
+        ]);
 
         if ($includeBarcodeImages) {
-            $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, 5) ? '' : ($scanCode !== '' ? 'Barcode image unavailable' : 'No scan code');
+            $barcodeCol = $includeImages ? 5 : 4;
+            $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, $barcodeCol) ? '' : ($scanCode !== '' ? 'Barcode image unavailable' : 'No scan code');
         }
 
         $rowValues = array_merge($rowValues, [
@@ -167,13 +174,13 @@ function item_export_xlsx_sheet_xml(array $items, array $images, array $imageSiz
         $rowNumber++;
     }
 
-    $columnWidths = [
-        $imageColumnWidth,
+    $columnWidths = $includeImages ? [$imageColumnWidth] : [];
+    $columnWidths = array_merge($columnWidths, [
         26,
         18,
         18,
         22,
-    ];
+    ]);
 
     if ($includeBarcodeImages) {
         $columnWidths[] = 32;
@@ -223,19 +230,21 @@ function item_export_xlsx_payload(array $items): string
 
     $images = [];
     $imageSize = item_xlsx_thumbnail_export_size();
+    $includeImages = item_xlsx_thumbnail_export_enabled();
     $includeBarcodeImages = excel_export_barcode_images_enabled();
 
     foreach ($items as $index => $item) {
-        $image = workflow_xlsx_image_asset($item['image_path'] ?? null, $imageSize);
         $rowNumber = 2 + $index;
 
-        if ($image === null) {
-            $image = null;
-        } else {
-            $image['row'] = $rowNumber;
-            $image['col'] = 0;
-            $image['name'] = 'Item Thumbnail ' . ($index + 1);
-            $images[] = $image;
+        if ($includeImages) {
+            $image = workflow_xlsx_image_asset($item['image_path'] ?? null, $imageSize);
+
+            if ($image !== null) {
+                $image['row'] = $rowNumber;
+                $image['col'] = 0;
+                $image['name'] = 'Item Thumbnail ' . ($index + 1);
+                $images[] = $image;
+            }
         }
 
         if ($includeBarcodeImages) {
@@ -244,7 +253,7 @@ function item_export_xlsx_payload(array $items): string
 
             if ($barcodeImage !== null) {
                 $barcodeImage['row'] = $rowNumber;
-                $barcodeImage['col'] = 5;
+                $barcodeImage['col'] = $includeImages ? 5 : 4;
                 $barcodeImage['name'] = 'Item Barcode ' . ($index + 1);
                 $images[] = $barcodeImage;
             }
@@ -299,13 +308,9 @@ function handle_export_items_xlsx(): void
     app_ready_or_redirect();
     Auth::requirePermission('items.export');
 
-    if (!item_xlsx_thumbnail_export_enabled()) {
-        abort(403, 'Item Excel thumbnail export is disabled in Website Control.');
-    }
-
     try {
         export_xlsx('items-export-' . date('Ymd-His') . '.xlsx', item_export_xlsx_payload(item_export_rows(item_filters())));
     } catch (Throwable $exception) {
-        abort(500, 'Could not export item thumbnails. ' . $exception->getMessage());
+        abort(500, 'Could not export items. ' . $exception->getMessage());
     }
 }

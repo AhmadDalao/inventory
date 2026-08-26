@@ -22,8 +22,18 @@ function storage_exists_for_assignment(?int $storageId): bool
     ) > 0;
 }
 
-function assign_item_to_storage(int $itemId, int $storageId): void
+function assign_item_to_storage(int $itemId, int $storageId): bool
 {
+    $alreadyAssigned = (int) Database::scalar(
+        'SELECT COUNT(*)
+         FROM item_storage_balances
+         WHERE item_id = :item_id AND storage_id = :storage_id',
+        [
+            'item_id' => $itemId,
+            'storage_id' => $storageId,
+        ]
+    ) > 0;
+
     Database::execute(
         'INSERT INTO item_storage_balances (item_id, storage_id, quantity, created_at, updated_at)
          VALUES (:item_id, :storage_id, 0, NOW(), NOW())
@@ -33,6 +43,8 @@ function assign_item_to_storage(int $itemId, int $storageId): void
             'storage_id' => $storageId,
         ]
     );
+
+    return !$alreadyAssigned;
 }
 
 function item_has_storage_balance(int $itemId, int $storageId): bool

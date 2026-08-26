@@ -73,6 +73,23 @@ function dashboard_stock_unit_totals(?int $storageId = null): array
         );
     }
 
+    $storageScope = current_user_item_storage_scope();
+    if ($storageScope !== null) {
+        if ($storageScope === []) {
+            return [];
+        }
+
+        return Database::fetchAll(
+            "SELECT {$unitExpression} AS unit, COALESCE(SUM(balances.quantity), 0) AS quantity
+             FROM item_storage_balances balances
+             INNER JOIN items i ON i.id = balances.item_id
+             WHERE balances.storage_id IN (" . item_storage_scope_sql($storageScope) . ")
+               AND i.is_active = 1
+             GROUP BY {$unitExpression}
+             ORDER BY unit ASC"
+        );
+    }
+
     return Database::fetchAll(
         "SELECT {$unitExpression} AS unit, COALESCE(SUM(i.current_quantity), 0) AS quantity
          FROM items i
@@ -186,6 +203,94 @@ function dashboard_summary_metrics(?array $selectedStorage, string $movementWher
         ];
     }
 
+    $storageScope = current_user_item_storage_scope();
+    if ($storageScope !== null) {
+        if ($storageScope === []) {
+            return [
+                'items_total' => 0,
+                'storages_total' => 0,
+                'warehouses_total' => 0,
+                'units_total' => 0.0,
+                'stock_totals' => [],
+                'low_stock' => 0,
+                'inventory_value' => 0.0,
+                'used_last_30' => 0.0,
+                'used_totals' => [],
+                'assets_total' => 0,
+                'assets_assigned' => 0,
+                'assets_maintenance' => 0,
+                'assets_value' => 0.0,
+            ];
+        }
+
+        $scopeSql = item_storage_scope_sql($storageScope);
+        $assetStorageCondition = 'storage_id IN (' . $scopeSql . ')';
+
+        return [
+            'items_total' => (int) Database::scalar(
+                'SELECT COUNT(DISTINCT balances.item_id)
+                 FROM item_storage_balances balances
+                 INNER JOIN items i ON i.id = balances.item_id
+                 WHERE balances.storage_id IN (' . $scopeSql . ')
+                   AND i.is_active = 1'
+            ),
+            'storages_total' => (int) Database::scalar(
+                'SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0 AND id IN (' . $scopeSql . ')'
+            ),
+            'warehouses_total' => (int) Database::scalar(
+                'SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0 AND storage_type = "warehouse" AND id IN (' . $scopeSql . ')'
+            ),
+            'units_total' => (float) Database::scalar(
+                'SELECT COALESCE(SUM(balances.quantity), 0)
+                 FROM item_storage_balances balances
+                 INNER JOIN items i ON i.id = balances.item_id
+                 WHERE balances.storage_id IN (' . $scopeSql . ')
+                   AND i.is_active = 1'
+            ),
+            'stock_totals' => dashboard_stock_unit_totals(),
+            'low_stock' => (int) Database::scalar(
+                'SELECT COUNT(*)
+                 FROM (
+                     SELECT i.id
+                     FROM items i
+                     INNER JOIN item_storage_balances balances ON balances.item_id = i.id
+                     WHERE i.is_active = 1
+                       AND balances.storage_id IN (' . $scopeSql . ')
+                     GROUP BY i.id, i.reorder_level
+                     HAVING SUM(balances.quantity) <= i.reorder_level
+                 ) visible_low_stock'
+            ),
+            'inventory_value' => (float) Database::scalar(
+                'SELECT COALESCE(SUM(balances.quantity * i.cost_per_unit), 0)
+                 FROM item_storage_balances balances
+                 INNER JOIN items i ON i.id = balances.item_id
+                 WHERE balances.storage_id IN (' . $scopeSql . ')
+                   AND i.is_active = 1'
+            ),
+            'used_last_30' => (float) Database::scalar(
+                "SELECT COALESCE(SUM(m.movement_quantity), 0)
+                 FROM inventory_movements m
+                 INNER JOIN items i ON i.id = m.item_id
+                 {$movementWhere}
+                   AND m.movement_type = 'usage'",
+                $movementParams
+            ),
+            'used_totals' => dashboard_movement_unit_totals($movementWhere, $movementParams, 'usage'),
+            'assets_total' => $assetDashboardEnabled ? (int) Database::scalar(
+                'SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND ' . $assetStorageCondition
+            ) : 0,
+            'assets_assigned' => $assetDashboardEnabled ? (int) Database::scalar(
+                "SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND {$assetStorageCondition} AND status IN ('assigned', 'pending_receipt', 'return_requested')"
+            ) : 0,
+            'assets_maintenance' => $assetDashboardEnabled ? (int) Database::scalar(
+                "SELECT COUNT(*) FROM company_assets WHERE is_active = 1 AND {$assetStorageCondition} AND status IN ('maintenance', 'damaged', 'lost')"
+            ) : 0,
+            'assets_value' => $assetDashboardEnabled ? (float) Database::scalar(
+                'SELECT COALESCE(SUM(purchase_cost), 0) FROM company_assets WHERE is_active = 1 AND ' . $assetStorageCondition
+            ) : 0.0,
+        ];
+    }
+
     return [
         'items_total' => (int) Database::scalar('SELECT COUNT(*) FROM items WHERE is_active = 1'),
         'storages_total' => (int) Database::scalar('SELECT COUNT(*) FROM storages WHERE is_active = 1 AND is_system = 0'),
@@ -241,6 +346,11 @@ function dashboard_recent_activity(array $filters, string $movementWhere, array 
 
 function dashboard_top_usage(string $movementWhere, array $movementParams): array
 {
+    $storageScope = current_user_item_storage_scope();
+    $locationScope = $storageScope === null
+        ? ''
+        : ($storageScope === [] ? ' AND 1 = 0' : ' AND balances.storage_id IN (' . item_storage_scope_sql($storageScope) . ')');
+
     return Database::fetchAll(
         "SELECT i.id,
                 i.name,
@@ -250,6 +360,7 @@ function dashboard_top_usage(string $movementWhere, array $movementParams): arra
                     SELECT COUNT(*)
                     FROM item_storage_balances balances
                     WHERE balances.item_id = i.id
+                    {$locationScope}
                 ) AS location_count
          FROM inventory_movements m
          INNER JOIN items i ON i.id = m.item_id
@@ -281,6 +392,33 @@ function dashboard_low_stock_items(?array $selectedStorage): array
              ORDER BY balances.quantity ASC, i.name ASC
              LIMIT 8',
             ['storage_id' => (int) $selectedStorage['id']]
+        );
+    }
+
+    $storageScope = current_user_item_storage_scope();
+    if ($storageScope !== null) {
+        if ($storageScope === []) {
+            return [];
+        }
+
+        $scopeSql = item_storage_scope_sql($storageScope);
+
+        return Database::fetchAll(
+            'SELECT i.id,
+                    i.name,
+                    i.sku,
+                    i.unit,
+                    SUM(balances.quantity) AS current_quantity,
+                    i.reorder_level,
+                    COUNT(DISTINCT balances.storage_id) AS location_count
+             FROM items i
+             INNER JOIN item_storage_balances balances ON balances.item_id = i.id
+             WHERE i.is_active = 1
+               AND balances.storage_id IN (' . $scopeSql . ')
+             GROUP BY i.id, i.name, i.sku, i.unit, i.reorder_level
+             HAVING SUM(balances.quantity) <= i.reorder_level
+             ORDER BY current_quantity ASC, i.name ASC
+             LIMIT 8'
         );
     }
 

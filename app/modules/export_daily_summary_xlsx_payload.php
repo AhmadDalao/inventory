@@ -18,8 +18,9 @@ function daily_summary_xlsx_payload(array $summary, array $filters, string $mode
     }
     $images = [];
     $imageSize = item_xlsx_thumbnail_export_size();
+    $includeImages = report_xlsx_thumbnail_export_enabled();
 
-    if ($mode !== 'operational_usage') {
+    if ($includeImages && $mode !== 'operational_usage') {
         foreach ($rows as $index => $row) {
             $image = workflow_xlsx_image_asset($row['image_path'] ?? null, $imageSize);
 
@@ -65,11 +66,11 @@ function daily_summary_xlsx_payload(array $summary, array $filters, string $mode
     $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
     $zip->addFromString('xl/styles.xml', workflow_xlsx_styles_xml());
     if ($mode === 'usage_by_day') {
-        $sheetXml = daily_usage_xlsx_sheet_xml($rows, $images, $imageSize);
+        $sheetXml = daily_usage_xlsx_sheet_xml($rows, $images, $imageSize, $includeImages);
     } elseif ($mode === 'operational_usage') {
         $sheetXml = daily_operational_usage_xlsx_sheet_xml($rows);
     } else {
-        $sheetXml = daily_summary_xlsx_sheet_xml($rows, $images, $imageSize);
+        $sheetXml = daily_summary_xlsx_sheet_xml($rows, $images, $imageSize, $includeImages);
     }
 
     $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);

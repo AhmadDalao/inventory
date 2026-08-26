@@ -120,6 +120,8 @@ function handle_purchase_document_download(array $params): void
         abort(404, 'Purchase document not found.');
     }
 
+    find_purchase_or_abort((int) $document['purchase_id']);
+
     $path = purchase_document_path((string) $document['stored_filename']);
 
     if (!is_file($path)) {
@@ -156,8 +158,11 @@ function handle_purchase_document_delete_submit(array $params): void
         abort(404, 'Purchase document not found.');
     }
 
-    if ((string) $document['status'] !== 'draft') {
-        flash('danger', 'Only draft purchase documents can be deleted.');
+    $purchase = find_purchase_or_abort((int) $document['purchase_id']);
+    $blocked = purchase_draft_management_block_reason($purchase);
+
+    if ($blocked !== null) {
+        flash('danger', $blocked);
         redirect('/purchases/' . $document['purchase_id']);
     }
 

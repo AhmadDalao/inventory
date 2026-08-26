@@ -43,6 +43,67 @@ function inventory_latest_event_cursor(): int
     return (int) (Database::scalar('SELECT COALESCE(MAX(id), 0) FROM inventory_change_events') ?: 0);
 }
 
+function inventory_record_item_change_event(
+    string $eventType,
+    int $itemId,
+    ?int $storageId,
+    ?int $performedBy,
+    array $payload = []
+): int {
+    return inventory_record_change_event(
+        $eventType,
+        $itemId,
+        $storageId,
+        'item',
+        $itemId,
+        null,
+        $performedBy,
+        $payload
+    );
+}
+
+/**
+ * Metadata changes must be scoped to every assigned storage so clients with
+ * different storage access receive the same authoritative item payload.
+ *
+ * @return int[] Event IDs
+ */
+function inventory_record_item_change_events_for_assignments(
+    string $eventType,
+    int $itemId,
+    ?int $performedBy,
+    array $payload = []
+): array {
+    $rows = Database::fetchAll(
+        'SELECT storage_id
+         FROM item_storage_balances
+         WHERE item_id = :item_id
+         ORDER BY storage_id ASC',
+        ['item_id' => $itemId]
+    );
+    $storageIds = array_values(array_unique(array_map(
+        static fn (array $row): int => (int) $row['storage_id'],
+        $rows
+    )));
+
+    if ($storageIds === []) {
+        return [inventory_record_item_change_event($eventType, $itemId, null, $performedBy, $payload)];
+    }
+
+    $eventIds = [];
+    foreach ($storageIds as $storageId) {
+        $eventIds[] = inventory_record_item_change_event(
+            $eventType,
+            $itemId,
+            $storageId,
+            $performedBy,
+            $payload
+        );
+    }
+
+    return $eventIds;
+}
+
 function inventory_oldest_event_cursor(): int
 {
     return (int) (Database::scalar('SELECT COALESCE(MIN(id), 0) FROM inventory_change_events') ?: 0);

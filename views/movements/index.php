@@ -14,6 +14,16 @@ $isLocationScoped = !empty($filters['storage_id']);
 <section class="filter-panel">
     <form class="filter-grid movement-filter-grid" method="get" action="<?= e(url('/movements')) ?>" data-live-filter-form>
         <label class="field">
+            <span>Search</span>
+            <input
+                type="search"
+                name="search"
+                value="<?= e((string) ($filters['search'] ?? '')) ?>"
+                placeholder="Item, SKU, barcode, reference, user, or notes"
+            >
+        </label>
+
+        <label class="field">
             <span>Item</span>
             <select
                 name="item_id"

@@ -579,6 +579,7 @@ function handle_handover_custody_replacement_create(array $params): void
 
     $user = Auth::user() ?? [];
     $handoverNumber = next_workflow_number('HDO', 'handovers', 'handover_number');
+    $recipientDepartment = user_department_snapshot_for_history((int) $handover['recipient_user_id']);
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
@@ -586,12 +587,14 @@ function handle_handover_custody_replacement_create(array $params): void
         Database::execute(
             'INSERT INTO handovers (
                 handover_number, source_storage_id, destination_storage_id, approver_user_id, manager_user_id,
+                recipient_department_id, recipient_department_name,
                 recipient_name, recipient_user_id, recipient_type, handover_purpose,
                 issue_condition, custody_review_date, usage_reporting_mode, handover_mode,
                 status, scheduled_for_date, notes, requested_at, issued_at,
                 created_by, updated_by, created_at, updated_at
              ) VALUES (
                 :handover_number, :source_storage_id, NULL, :approver_user_id, :manager_user_id,
+                :recipient_department_id, :recipient_department_name,
                 :recipient_name, :recipient_user_id, "staff", "staff_custody",
                 :issue_condition, :custody_review_date, "legacy_per_item", "request",
                 "requested", :scheduled_for_date, :notes, NOW(), NOW(),
@@ -602,6 +605,8 @@ function handle_handover_custody_replacement_create(array $params): void
                 'source_storage_id' => (int) $handover['source_storage_id'],
                 'approver_user_id' => (int) (storage_owner_user_id((int) $handover['source_storage_id']) ?? $handover['approver_user_id'] ?? 0),
                 'manager_user_id' => manager_user_id_for((int) $handover['recipient_user_id']),
+                'recipient_department_id' => $recipientDepartment['department_id'],
+                'recipient_department_name' => $recipientDepartment['department_name'],
                 'recipient_name' => (string) $handover['recipient_name'],
                 'recipient_user_id' => (int) $handover['recipient_user_id'],
                 'issue_condition' => (string) ($handover['issue_condition'] ?? 'good'),

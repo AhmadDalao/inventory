@@ -25,15 +25,39 @@ function asset_filters(): array
     ];
 }
 
+function asset_visibility_condition(string $alias = 'a'): array
+{
+    $userId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($userId <= 0) {
+        return ['0 = 1', []];
+    }
+
+    // Staff custody is personal: storage assignment must not expose other assets.
+    if (Auth::isStaff()) {
+        return ["{$alias}.assigned_user_id = :asset_visible_user_id", ['asset_visible_user_id' => $userId]];
+    }
+
+    if (user_can_view_all_storages($userId)) {
+        return ['1 = 1', []];
+    }
+
+    $conditions = ["{$alias}.assigned_user_id = :asset_visible_user_id"];
+    $params = ['asset_visible_user_id' => $userId];
+    $storageIds = user_visible_storage_ids($userId);
+
+    if ($storageIds !== []) {
+        $conditions[] = "{$alias}.storage_id IN (" . implode(',', array_map('intval', $storageIds)) . ')';
+    }
+
+    return ['(' . implode(' OR ', $conditions) . ')', $params];
+}
+
 function build_asset_where(array $filters, string $alias = 'a'): array
 {
-    $conditions = ['1 = 1'];
-    $params = [];
-
-    if (Auth::isStaff()) {
-        $conditions[] = "{$alias}.assigned_user_id = :asset_scope_user_id";
-        $params['asset_scope_user_id'] = (int) (Auth::user()['id'] ?? 0);
-    }
+    [$visibilitySql, $visibilityParams] = asset_visibility_condition($alias);
+    $conditions = [$visibilitySql];
+    $params = $visibilityParams;
 
     $search = trim((string) ($filters['search'] ?? ''));
 

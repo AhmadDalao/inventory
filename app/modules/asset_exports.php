@@ -366,10 +366,6 @@ function handle_export_assets_xlsx(): void
     app_ready_or_redirect();
     Auth::requirePermission('assets.export');
 
-    if (!asset_xlsx_thumbnail_export_enabled()) {
-        abort(403, 'Asset Excel thumbnail export is disabled in Website Control.');
-    }
-
     try {
         export_xlsx('assets-export-' . date('Ymd-His') . '.xlsx', asset_export_xlsx_payload(asset_export_rows(asset_filters())));
     } catch (Throwable $exception) {

@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 // Daily summary XLSX worksheet XML rendering.
 
-function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSize): string
+function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSize, bool $includeImages = true): string
 {
-    $headers = [
-        'Image',
+    $headers = $includeImages ? ['Image'] : [];
+    $headers = array_merge($headers, [
         'Section',
         'From Date',
         'To Date',
@@ -39,7 +39,7 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
         'Manager',
         'Approver',
         'Proof Files',
-    ];
+    ]);
 
     $imageWidth = max(40, min(500, (int) ($imageSize['width'] ?? 120)));
     $imageHeight = max(40, min(400, (int) ($imageSize['height'] ?? 90)));
@@ -56,8 +56,14 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
     $rowNumber = 2;
 
     foreach ($rows as $row) {
-        $rowValues = [
-            workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : ((string) ($row['image_path'] ?? '') !== '' ? 'Image unavailable' : ''),
+        $rowValues = [];
+        $hasEmbeddedImage = $includeImages && workflow_xlsx_has_image_at($images, $rowNumber, 0);
+
+        if ($includeImages) {
+            $rowValues[] = $hasEmbeddedImage ? '' : ((string) ($row['image_path'] ?? '') !== '' ? 'Image unavailable' : '');
+        }
+
+        $rowValues = array_merge($rowValues, [
             (string) $row['section'],
             (string) $row['date_from'],
             (string) $row['date_to'],
@@ -90,19 +96,20 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
             (string) $row['manager'],
             (string) $row['approver'],
             (string) $row['proof_files'],
-        ];
+        ]);
         $cells = '';
 
         foreach ($rowValues as $index => $value) {
             $cells .= workflow_xlsx_cell(workflow_xlsx_column($index + 1) . $rowNumber, $value, 3);
         }
 
-        $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $imageRowHeight . '" customHeight="1">' . $cells . '</row>';
+        $rowHeight = $hasEmbeddedImage ? $imageRowHeight : 38;
+        $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $rowHeight . '" customHeight="1">' . $cells . '</row>';
         $rowNumber++;
     }
 
-    $columnWidths = [
-        $imageColumnWidth,
+    $columnWidths = $includeImages ? [$imageColumnWidth] : [];
+    $columnWidths = array_merge($columnWidths, [
         18,
         14,
         14,
@@ -135,7 +142,7 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
         22,
         22,
         34,
-    ];
+    ]);
     $columnXml = '';
 
     foreach ($columnWidths as $index => $width) {
@@ -145,10 +152,14 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
 
     $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
     $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
-    $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
+    $lastRow = max(1, $rowNumber - 1);
+    $lastColumn = workflow_xlsx_column(count($headers));
+    $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
     $xml .= '<cols>' . $columnXml . '</cols>';
     $xml .= '<sheetData>' . implode('', $sheetRows) . '</sheetData>';
+    $xml .= '<autoFilter ref="A1:' . $lastColumn . $lastRow . '"/>';
     $xml .= '<pageMargins left="0.35" right="0.35" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>';
+    $xml .= '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
 
     if ($images) {
         $xml .= '<drawing r:id="rId1"/>';
@@ -159,10 +170,10 @@ function daily_summary_xlsx_sheet_xml(array $rows, array $images, array $imageSi
     return $xml;
 }
 
-function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize): string
+function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize, bool $includeImages = true): string
 {
-    $headers = [
-        'Image',
+    $headers = $includeImages ? ['Image'] : [];
+    $headers = array_merge($headers, [
         'Usage Date',
         'Usage Time',
         'Item',
@@ -182,7 +193,7 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
         'Department',
         'Manager',
         'Proof Files',
-    ];
+    ]);
     $imageWidth = max(40, min(500, (int) ($imageSize['width'] ?? 120)));
     $imageHeight = max(40, min(400, (int) ($imageSize['height'] ?? 90)));
     $imageColumnWidth = max(14, min(58, (int) ceil(($imageWidth / 7) + 6)));
@@ -197,8 +208,14 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
     $rowNumber = 2;
 
     foreach ($rows as $row) {
-        $values = [
-            workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : ((string) ($row['image_path'] ?? '') !== '' ? 'Image unavailable' : ''),
+        $values = [];
+        $hasEmbeddedImage = $includeImages && workflow_xlsx_has_image_at($images, $rowNumber, 0);
+
+        if ($includeImages) {
+            $values[] = $hasEmbeddedImage ? '' : ((string) ($row['image_path'] ?? '') !== '' ? 'Image unavailable' : '');
+        }
+
+        $values = array_merge($values, [
             (string) $row['usage_date'],
             (string) $row['usage_time'],
             (string) $row['item'],
@@ -218,18 +235,20 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
             (string) $row['department'],
             (string) $row['manager'],
             (string) $row['proof_files'],
-        ];
+        ]);
         $cells = '';
 
         foreach ($values as $index => $value) {
             $cells .= workflow_xlsx_cell(workflow_xlsx_column($index + 1) . $rowNumber, $value, 3);
         }
 
-        $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $imageRowHeight . '" customHeight="1">' . $cells . '</row>';
+        $rowHeight = $hasEmbeddedImage ? $imageRowHeight : 38;
+        $sheetRows[] = '<row r="' . $rowNumber . '" ht="' . $rowHeight . '" customHeight="1">' . $cells . '</row>';
         $rowNumber++;
     }
 
-    $columnWidths = [$imageColumnWidth, 14, 14, 24, 20, 10, 14, 42, 34, 22, 22, 24, 28, 28, 24, 16, 12, 22, 22, 34];
+    $columnWidths = $includeImages ? [$imageColumnWidth] : [];
+    $columnWidths = array_merge($columnWidths, [14, 14, 24, 20, 10, 14, 42, 34, 22, 22, 24, 28, 28, 24, 16, 12, 22, 22, 34]);
     $columnXml = '';
 
     foreach ($columnWidths as $index => $width) {
@@ -243,7 +262,8 @@ function daily_usage_xlsx_sheet_xml(array $rows, array $images, array $imageSize
     $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
     $xml .= '<cols>' . $columnXml . '</cols>';
     $xml .= '<sheetData>' . implode('', $sheetRows) . '</sheetData>';
-    $xml .= '<autoFilter ref="A1:T' . $lastRow . '"/>';
+    $lastColumn = workflow_xlsx_column(count($headers));
+    $xml .= '<autoFilter ref="A1:' . $lastColumn . $lastRow . '"/>';
     $xml .= '<pageMargins left="0.25" right="0.25" top="0.4" bottom="0.4" header="0.2" footer="0.2"/>';
     $xml .= '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>';
 

@@ -48,7 +48,8 @@ function handle_export_handovers(): void
     if (trim((string) query('status', '')) === '') {
         $filters['status'] = 'all';
     }
-    $handovers = handover_summary_rows($filters);
+    // Exports must include the complete filtered result, not only the 250-row UI window.
+    $handovers = handover_summary_rows($filters, null);
     $rows = [];
 
     foreach ($handovers as $handover) {

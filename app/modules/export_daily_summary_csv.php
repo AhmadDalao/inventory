@@ -23,7 +23,7 @@ function handle_export_daily_summary(): void
     Auth::requirePermission('movements.export');
 
     $filters = report_summary_filters();
-    $summary = report_summary_data($filters);
+    $summary = report_summary_data($filters, true);
 
     if ((string) query('report_scope', '') === 'operational_usage') {
         $rows = [];

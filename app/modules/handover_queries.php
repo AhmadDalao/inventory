@@ -240,9 +240,10 @@ function handover_lines(int $handoverId): array
     return hydrate_handover_lines_expected_usage_breakdowns(hydrate_handover_lines_usage_breakdowns($lines));
 }
 
-function handover_summary_rows(array $filters): array
+function handover_summary_rows(array $filters, ?int $limit = 250): array
 {
     [$where, $params] = build_handover_where($filters);
+    $limitSql = $limit === null ? '' : "\n         LIMIT " . max(1, $limit);
 
     return Database::fetchAll(
         "SELECT h.*,
@@ -269,8 +270,7 @@ function handover_summary_rows(array $filters): array
              GROUP BY handover_id
          ) line_totals ON line_totals.handover_id = h.id
          {$where}
-         ORDER BY h.issued_at DESC, h.id DESC
-         LIMIT 250",
+         ORDER BY h.issued_at DESC, h.id DESC{$limitSql}",
         $params
     );
 }

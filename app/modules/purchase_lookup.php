@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 function find_purchase_or_abort(int $purchaseId): array
 {
+    [$visibilitySql, $visibilityParams] = purchase_visibility_condition('p');
     $purchase = Database::fetch(
         'SELECT p.*,
                 supplier.name AS supplier_name,
@@ -32,8 +33,9 @@ function find_purchase_or_abort(int $purchaseId): array
          LEFT JOIN users approved_user ON approved_user.id = p.approved_by
          LEFT JOIN users completed_user ON completed_user.id = p.completed_by
          WHERE p.id = :id
+           AND ' . $visibilitySql . '
          LIMIT 1',
-        ['id' => $purchaseId]
+        ['id' => $purchaseId] + $visibilityParams
     );
 
     if (!$purchase) {

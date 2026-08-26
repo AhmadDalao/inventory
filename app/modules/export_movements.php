@@ -84,15 +84,16 @@ function handle_export_movements(): void
 
 function movement_export_xlsx_sheet_xml(array $movements, array $images, array $imageSize): string
 {
+    $includeImages = movement_xlsx_thumbnail_export_enabled();
     $includeBarcodeImages = excel_export_barcode_images_enabled();
-    $headers = [
-        'Image',
+    $headers = $includeImages ? ['Image'] : [];
+    $headers = array_merge($headers, [
         'Used At',
         'Item',
         'SKU',
         'Barcode Value',
         'Scan Code',
-    ];
+    ]);
 
     if ($includeBarcodeImages) {
         $headers[] = 'Barcode Image';
@@ -131,17 +132,23 @@ function movement_export_xlsx_sheet_xml(array $movements, array $images, array $
 
     foreach ($movements as $movement) {
         $scanCode = item_scan_code($movement);
-        $rowValues = [
-            workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : 'No image',
+        $rowValues = [];
+
+        if ($includeImages) {
+            $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, 0) ? '' : 'No image';
+        }
+
+        $rowValues = array_merge($rowValues, [
             (string) $movement['used_at'],
             (string) $movement['item_name'],
             (string) $movement['sku'],
             normalize_item_barcode($movement['barcode'] ?? '') !== '' ? normalize_item_barcode($movement['barcode'] ?? '') : 'Not set',
             $scanCode,
-        ];
+        ]);
 
         if ($includeBarcodeImages) {
-            $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, 6) ? '' : ($scanCode !== '' ? 'Barcode image unavailable' : 'No scan code');
+            $barcodeCol = $includeImages ? 6 : 5;
+            $rowValues[] = workflow_xlsx_has_image_at($images, $rowNumber, $barcodeCol) ? '' : ($scanCode !== '' ? 'Barcode image unavailable' : 'No scan code');
         }
 
         $movementQuantity = $movement['movement_quantity'] !== null && $movement['movement_quantity'] !== ''
@@ -175,14 +182,14 @@ function movement_export_xlsx_sheet_xml(array $movements, array $images, array $
         $rowNumber++;
     }
 
-    $columnWidths = [
-        $imageColumnWidth,
+    $columnWidths = $includeImages ? [$imageColumnWidth] : [];
+    $columnWidths = array_merge($columnWidths, [
         20,
         24,
         18,
         18,
         22,
-    ];
+    ]);
 
     if ($includeBarcodeImages) {
         $columnWidths[] = 32;
@@ -236,17 +243,20 @@ function movement_export_xlsx_payload(array $movements): string
 
     $images = [];
     $imageSize = item_xlsx_thumbnail_export_size();
+    $includeImages = movement_xlsx_thumbnail_export_enabled();
     $includeBarcodeImages = excel_export_barcode_images_enabled();
 
     foreach ($movements as $index => $movement) {
         $rowNumber = 2 + $index;
-        $image = workflow_xlsx_image_asset($movement['image_path'] ?? null, $imageSize);
+        if ($includeImages) {
+            $image = workflow_xlsx_image_asset($movement['image_path'] ?? null, $imageSize);
 
-        if ($image !== null) {
-            $image['row'] = $rowNumber;
-            $image['col'] = 0;
-            $image['name'] = 'Movement Item Thumbnail ' . ($index + 1);
-            $images[] = $image;
+            if ($image !== null) {
+                $image['row'] = $rowNumber;
+                $image['col'] = 0;
+                $image['name'] = 'Movement Item Thumbnail ' . ($index + 1);
+                $images[] = $image;
+            }
         }
 
         if ($includeBarcodeImages) {
@@ -255,7 +265,7 @@ function movement_export_xlsx_payload(array $movements): string
 
             if ($barcodeImage !== null) {
                 $barcodeImage['row'] = $rowNumber;
-                $barcodeImage['col'] = 6;
+                $barcodeImage['col'] = $includeImages ? 6 : 5;
                 $barcodeImage['name'] = 'Movement Item Barcode ' . ($index + 1);
                 $images[] = $barcodeImage;
             }
@@ -310,13 +320,9 @@ function handle_export_movements_xlsx(): void
     app_ready_or_redirect();
     Auth::requirePermission('movements.export');
 
-    if (!movement_xlsx_thumbnail_export_enabled()) {
-        abort(403, 'Movement Excel thumbnail export is disabled in Website Control.');
-    }
-
     try {
         export_xlsx('movement-export-' . date('Ymd-His') . '.xlsx', movement_export_xlsx_payload(movement_export_rows(movement_filters())));
     } catch (Throwable $exception) {
-        abort(500, 'Could not export movement thumbnails. ' . $exception->getMessage());
+        abort(500, 'Could not export movements. ' . $exception->getMessage());
     }
 }

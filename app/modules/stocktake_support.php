@@ -64,6 +64,7 @@ function stocktake_summary_rows(array $filters): array
 
 function find_stocktake_or_abort(int $stocktakeId): array
 {
+    [$visibilitySql, $visibilityParams] = stocktake_visibility_condition('s');
     $stocktake = Database::fetch(
         'SELECT s.*,
                 storage.name AS storage_name,
@@ -75,8 +76,9 @@ function find_stocktake_or_abort(int $stocktakeId): array
          LEFT JOIN users creator ON creator.id = s.created_by
          LEFT JOIN users approver ON approver.id = s.approved_by
          WHERE s.id = :id
+           AND ' . $visibilitySql . '
          LIMIT 1',
-        ['id' => $stocktakeId]
+        ['id' => $stocktakeId] + $visibilityParams
     );
 
     if (!$stocktake) {
@@ -84,6 +86,41 @@ function find_stocktake_or_abort(int $stocktakeId): array
     }
 
     return $stocktake;
+}
+
+function find_stocktake_for_update(int $stocktakeId): ?array
+{
+    return Database::fetch(
+        'SELECT s.*,
+                storage.name AS storage_name,
+                storage.storage_type,
+                creator.name AS creator_name,
+                approver.name AS approver_name
+         FROM stocktakes s
+         INNER JOIN storages storage ON storage.id = s.storage_id
+         LEFT JOIN users creator ON creator.id = s.created_by
+         LEFT JOIN users approver ON approver.id = s.approved_by
+         WHERE s.id = :id
+         LIMIT 1
+         FOR UPDATE',
+        ['id' => $stocktakeId]
+    );
+}
+
+function stocktake_storage_quantity_for_update(int $itemId, int $storageId): float
+{
+    $itemLock = Database::fetch(
+        'SELECT id FROM items WHERE id = :id LIMIT 1 FOR UPDATE',
+        ['id' => $itemId]
+    );
+
+    if ($itemLock === null) {
+        throw new RuntimeException('A counted item no longer exists. Approval was not posted.');
+    }
+
+    $balances = current_item_balance_map_for_update($itemId);
+
+    return inventory_quantity((float) ($balances[$storageId] ?? 0));
 }
 
 function stocktake_lines(int $stocktakeId): array

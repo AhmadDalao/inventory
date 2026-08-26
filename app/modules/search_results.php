@@ -13,27 +13,24 @@ function global_search_results(string $query): array
         array_unshift($results, workflow_reference_global_result($directTarget));
     }
 
+    // Staff use assigned items through requests, handovers, and mobile flows;
+    // the catalog/detail surface is intentionally reserved for non-staff users.
     if (!Auth::isStaff() && Auth::hasPermission('items.view')) {
+        $itemFilters = [
+            'search' => $query,
+            'status' => 'active',
+            'storage_id' => null,
+        ];
+        [$itemWhere, $itemParams] = build_item_where($itemFilters, 'i');
+        $itemQuantitySelect = item_filtered_storage_quantity_select($itemFilters, $itemParams, 'global_item_storage_id');
         $rows = Database::fetchAll(
-            'SELECT i.id, i.name, i.sku, i.barcode, i.category, i.unit, i.current_quantity
+            'SELECT i.id, i.name, i.sku, i.barcode, i.category, i.unit, i.current_quantity,
+                    ' . $itemQuantitySelect . '
              FROM items i
-             WHERE i.is_active = 1
-               AND (
-                   i.name LIKE ?
-                   OR i.sku LIKE ?
-                   OR COALESCE(i.barcode, "") LIKE ?
-                   OR COALESCE(i.category, "") LIKE ?
-                   OR EXISTS (
-                       SELECT 1
-                       FROM item_storage_balances balance
-                       INNER JOIN storages storage ON storage.id = balance.storage_id
-                       WHERE balance.item_id = i.id
-                         AND storage.name LIKE ?
-                   )
-               )
+             ' . $itemWhere . '
              ORDER BY i.name ASC
              LIMIT 5',
-            array_fill(0, 5, $like)
+            $itemParams
         );
 
         foreach ($rows as $row) {
@@ -41,7 +38,7 @@ function global_search_results(string $query): array
             $results[] = global_search_result(
                 'Items',
                 (string) $row['name'],
-                trim((string) $row['sku'] . ' · Scan: ' . $scanCode . ' · ' . format_quantity($row['current_quantity']) . ' ' . $row['unit']),
+                trim((string) $row['sku'] . ' · Scan: ' . $scanCode . ' · ' . format_quantity(item_display_quantity($row)) . ' ' . $row['unit']),
                 url('/items/' . $row['id']),
                 'items',
                 $row['category'] ? (string) $row['category'] : 'Item'
@@ -80,12 +77,18 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('storages.view')) {
+    if (Auth::hasPermission('storages.view')) {
+        $searchUserId = (int) (Auth::user()['id'] ?? 0);
+        $visibleStorageIds = user_visible_storage_ids($searchUserId);
+        $storageVisibility = user_can_view_all_storages($searchUserId)
+            ? '1 = 1'
+            : ($visibleStorageIds === [] ? '1 = 0' : 'id IN (' . implode(', ', array_map('intval', $visibleStorageIds)) . ')');
         $rows = Database::fetchAll(
             'SELECT id, name, storage_type, notes
              FROM storages
              WHERE is_active = 1
                AND is_system = 0
+               AND ' . $storageVisibility . '
                AND (name LIKE ? OR storage_type LIKE ? OR COALESCE(notes, "") LIKE ?)
              ORDER BY name ASC
              LIMIT 5',
@@ -97,7 +100,29 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('movements.view')) {
+    if (Auth::hasPermission('movements.view')) {
+        [$movementWhere, $movementParams] = build_movement_where([
+            'item_id' => null,
+            'storage_id' => null,
+            'movement_type' => '',
+            'date_from' => '',
+            'date_to' => '',
+        ], 'movement', 'item');
+        $movementSearch = '(
+            item.name LIKE :global_movement_item_name
+            OR item.sku LIKE :global_movement_item_sku
+            OR movement.movement_type LIKE :global_movement_type
+            OR COALESCE(movement.reference_code, "") LIKE :global_movement_reference
+            OR COALESCE(movement.notes, "") LIKE :global_movement_notes
+            OR COALESCE(source_storage.name, "") LIKE :global_movement_source
+            OR COALESCE(destination_storage.name, "") LIKE :global_movement_destination
+        )';
+        $movementWhere = $movementWhere === ''
+            ? 'WHERE ' . $movementSearch
+            : $movementWhere . ' AND ' . $movementSearch;
+        foreach (['item_name', 'item_sku', 'type', 'reference', 'notes', 'source', 'destination'] as $movementSearchKey) {
+            $movementParams['global_movement_' . $movementSearchKey] = $like;
+        }
         $rows = Database::fetchAll(
             'SELECT movement.id, movement.movement_type, movement.reference_code, movement.used_at, item.name AS item_name, item.sku,
                     source_storage.name AS source_name, destination_storage.name AS destination_name
@@ -105,16 +130,10 @@ function global_search_results(string $query): array
              INNER JOIN items item ON item.id = movement.item_id
              LEFT JOIN storages source_storage ON source_storage.id = movement.source_storage_id
              LEFT JOIN storages destination_storage ON destination_storage.id = movement.destination_storage_id
-             WHERE item.name LIKE ?
-                OR item.sku LIKE ?
-                OR movement.movement_type LIKE ?
-                OR COALESCE(movement.reference_code, "") LIKE ?
-                OR COALESCE(movement.notes, "") LIKE ?
-                OR COALESCE(source_storage.name, "") LIKE ?
-                OR COALESCE(destination_storage.name, "") LIKE ?
+             ' . $movementWhere . '
              ORDER BY movement.used_at DESC, movement.id DESC
              LIMIT 4',
-            array_fill(0, 7, $like)
+            $movementParams
         );
 
         foreach ($rows as $row) {
@@ -182,25 +201,24 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('purchases.view')) {
+    if (Auth::hasPermission('purchases.view')) {
+        [$purchaseWhere, $purchaseParams] = build_purchase_where([
+            'search' => $query,
+            'status' => 'all',
+            'storage_id' => null,
+            'supplier_id' => null,
+            'date_from' => '',
+            'date_to' => '',
+        ], 'p');
         $rows = Database::fetchAll(
             'SELECT p.id, p.purchase_number, p.status, supplier.name AS supplier_name, storage.name AS storage_name
              FROM purchases p
              INNER JOIN suppliers supplier ON supplier.id = p.supplier_id
              INNER JOIN storages storage ON storage.id = p.destination_storage_id
-             WHERE p.purchase_number LIKE ?
-                OR p.status LIKE ?
-                OR supplier.name LIKE ?
-                OR storage.name LIKE ?
-                OR EXISTS (
-                    SELECT 1
-                    FROM purchase_lines line
-                    WHERE line.purchase_id = p.id
-                      AND (line.item_name LIKE ? OR line.item_sku LIKE ?)
-                )
+             ' . $purchaseWhere . '
              ORDER BY p.created_at DESC, p.id DESC
              LIMIT 5',
-            array_fill(0, 6, $like)
+            $purchaseParams
         );
 
         foreach ($rows as $row) {
@@ -208,7 +226,7 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('suppliers.view')) {
+    if (Auth::hasPermission('suppliers.view')) {
         $rows = Database::fetchAll(
             'SELECT id, name, supplier_type, supplier_type_other, phone, email, tax_number, commercial_registration, national_address, authorized_person
              FROM suppliers
@@ -236,38 +254,36 @@ function global_search_results(string $query): array
     }
 
     if (file_library_can_access(Auth::user())) {
-        $rows = Database::fetchAll(
-            'SELECT id, display_name, original_filename, file_group, source_type
-             FROM file_assets
-             WHERE deleted_at IS NULL
-               AND (display_name LIKE ? OR original_filename LIKE ? OR stored_filename LIKE ? OR source_type LIKE ? OR file_group LIKE ?)
-             ORDER BY created_at DESC, id DESC
-             LIMIT 4',
-            array_fill(0, 5, $like)
-        );
+        $rows = file_asset_rows([
+            'search' => $query,
+            'group' => 'all',
+            'status' => 'active',
+            'date_from' => '',
+            'date_to' => '',
+        ], 4);
 
         foreach ($rows as $row) {
             $results[] = global_search_result('Files', (string) $row['display_name'], (string) $row['original_filename'], url('/files?search=' . rawurlencode((string) $row['original_filename'])), 'files', file_asset_group_label((string) $row['file_group']));
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('stocktakes.view')) {
+    if (Auth::hasPermission('stocktakes.view')) {
+        [$stocktakeWhere, $stocktakeParams] = build_stocktake_where([
+            'search' => $query,
+            'status' => 'all',
+            'storage_id' => null,
+            'date_from' => '',
+            'date_to' => '',
+        ], 'stocktake');
         $rows = Database::fetchAll(
             'SELECT stocktake.id, stocktake.stocktake_number, stocktake.status, storage.name AS storage_name
              FROM stocktakes stocktake
              INNER JOIN storages storage ON storage.id = stocktake.storage_id
-             WHERE stocktake.stocktake_number LIKE ?
-                OR stocktake.status LIKE ?
-                OR storage.name LIKE ?
-                OR EXISTS (
-                    SELECT 1
-                    FROM stocktake_lines line
-                    WHERE line.stocktake_id = stocktake.id
-                      AND (line.item_name LIKE ? OR line.item_sku LIKE ?)
-                )
+             LEFT JOIN users creator ON creator.id = stocktake.created_by
+             ' . $stocktakeWhere . '
              ORDER BY stocktake.created_at DESC, stocktake.id DESC
              LIMIT 4',
-            array_fill(0, 5, $like)
+            $stocktakeParams
         );
 
         foreach ($rows as $row) {
@@ -275,7 +291,11 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('reorder.view')) {
+    if (Auth::hasPermission('reorder.view')) {
+        $reorderStorageScope = current_user_item_storage_scope();
+        $reorderVisibility = $reorderStorageScope === null
+            ? '1 = 1'
+            : ($reorderStorageScope === [] ? '1 = 0' : 'balance.storage_id IN (' . item_storage_scope_sql($reorderStorageScope) . ')');
         $rows = Database::fetchAll(
             'SELECT item.name AS item_name, item.sku, storage.name AS storage_name, balance.quantity, item.reorder_level
              FROM item_storage_balances balance
@@ -284,6 +304,7 @@ function global_search_results(string $query): array
              WHERE item.is_active = 1
                AND storage.is_active = 1
                AND storage.is_system = 0
+               AND ' . $reorderVisibility . '
                AND item.reorder_level > 0
                AND balance.quantity <= item.reorder_level
                AND (item.name LIKE ? OR item.sku LIKE ? OR storage.name LIKE ?)
@@ -297,7 +318,7 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('users.view')) {
+    if (Auth::hasPermission('users.view')) {
         $rows = Database::fetchAll(
             'SELECT id, name, email, role, position, is_active
              FROM users
@@ -312,7 +333,7 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('audit.view')) {
+    if (Auth::hasPermission('audit.view')) {
         $rows = Database::fetchAll(
             'SELECT activity.id, activity.action, activity.summary, activity.entity_type, activity.created_at, user.name AS user_name
              FROM activity_logs activity
@@ -328,7 +349,7 @@ function global_search_results(string $query): array
         }
     }
 
-    if (!Auth::isStaff() && Auth::hasPermission('email_logs.view')) {
+    if (Auth::hasPermission('email_logs.view')) {
         $rows = Database::fetchAll(
             'SELECT log.id, log.email_type, log.recipient_email, log.subject, log.status, log.error_message, log.created_at
              FROM email_delivery_logs log

@@ -3,10 +3,63 @@ declare(strict_types=1);
 
 // Shared workflow filter builders used by module list pages and exports.
 
+function purchase_visibility_condition(string $alias = 'p'): array
+{
+    $userId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($userId <= 0) {
+        return ['0 = 1', []];
+    }
+
+    if (user_can_view_all_storages($userId)) {
+        return ['1 = 1', []];
+    }
+
+    $conditions = [
+        "{$alias}.requester_user_id = :purchase_visible_user_id",
+        "{$alias}.approver_user_id = :purchase_visible_approver_id",
+        "{$alias}.receiver_user_id = :purchase_visible_receiver_id",
+    ];
+    $params = [
+        'purchase_visible_user_id' => $userId,
+        'purchase_visible_approver_id' => $userId,
+        'purchase_visible_receiver_id' => $userId,
+    ];
+    $storageIds = user_visible_storage_ids($userId);
+
+    if ($storageIds !== []) {
+        $conditions[] = "{$alias}.destination_storage_id IN (" . implode(', ', array_map('intval', $storageIds)) . ')';
+    }
+
+    return ['(' . implode(' OR ', $conditions) . ')', $params];
+}
+
+function stocktake_visibility_condition(string $alias = 's'): array
+{
+    $userId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($userId <= 0) {
+        return ['0 = 1', []];
+    }
+
+    if (user_can_view_all_storages($userId)) {
+        return ['1 = 1', []];
+    }
+
+    $storageIds = user_visible_storage_ids($userId);
+
+    if ($storageIds === []) {
+        return ['0 = 1', []];
+    }
+
+    return ["{$alias}.storage_id IN (" . implode(', ', array_map('intval', $storageIds)) . ')', []];
+}
+
 function build_purchase_where(array $filters, string $alias = 'p'): array
 {
-    $conditions = ['1 = 1'];
-    $params = [];
+    [$visibilitySql, $visibilityParams] = purchase_visibility_condition($alias);
+    $conditions = [$visibilitySql];
+    $params = $visibilityParams;
 
     if (($filters['status'] ?? 'all') !== 'all') {
         $conditions[] = "{$alias}.status = :purchase_status";
@@ -34,19 +87,130 @@ function build_purchase_where(array $filters, string $alias = 'p'): array
     }
 
     if (($filters['search'] ?? '') !== '') {
-        $conditions[] = "({$alias}.purchase_number LIKE :purchase_search_number OR supplier.name LIKE :purchase_search_supplier OR storage.name LIKE :purchase_search_storage)";
+        $conditions[] = "(
+            {$alias}.purchase_number LIKE :purchase_search_number
+            OR {$alias}.status LIKE :purchase_search_status
+            OR supplier.name LIKE :purchase_search_supplier
+            OR storage.name LIKE :purchase_search_storage
+            OR EXISTS (
+                SELECT 1
+                FROM purchase_lines purchase_search_line
+                WHERE purchase_search_line.purchase_id = {$alias}.id
+                  AND (
+                    purchase_search_line.item_name LIKE :purchase_search_item_name
+                    OR purchase_search_line.item_sku LIKE :purchase_search_item_sku
+                  )
+            )
+        )";
         $params['purchase_search_number'] = '%' . $filters['search'] . '%';
+        $params['purchase_search_status'] = '%' . $filters['search'] . '%';
         $params['purchase_search_supplier'] = '%' . $filters['search'] . '%';
         $params['purchase_search_storage'] = '%' . $filters['search'] . '%';
+        $params['purchase_search_item_name'] = '%' . $filters['search'] . '%';
+        $params['purchase_search_item_sku'] = '%' . $filters['search'] . '%';
     }
 
     return ['WHERE ' . implode(' AND ', $conditions), $params];
 }
 
+function file_asset_visibility_condition(string $alias = 'assets'): array
+{
+    $userId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($userId <= 0) {
+        return ['0 = 1', []];
+    }
+
+    if (user_can_view_all_storages($userId)) {
+        return ['1 = 1', []];
+    }
+
+    $storageIds = user_visible_storage_ids($userId);
+    $storageList = $storageIds === []
+        ? 'NULL'
+        : implode(', ', array_map('intval', $storageIds));
+    $conditions = [
+        "{$alias}.uploaded_by = {$userId}",
+        "(
+            ({$alias}.context_type = 'item' OR {$alias}.source_type = 'item_image')
+            AND EXISTS (
+                SELECT 1
+                FROM item_storage_balances file_item_balance
+                WHERE file_item_balance.item_id = COALESCE({$alias}.context_id, {$alias}.source_id)
+                  AND file_item_balance.storage_id IN ({$storageList})
+            )
+        )",
+        "(
+            ({$alias}.context_type = 'asset' OR {$alias}.source_type IN ('asset_image', 'asset_file'))
+            AND EXISTS (
+                SELECT 1
+                FROM company_assets file_company_asset
+                WHERE file_company_asset.id = COALESCE({$alias}.context_id, {$alias}.source_id)
+                  AND (
+                    file_company_asset.assigned_user_id = {$userId}
+                    OR file_company_asset.storage_id IN ({$storageList})
+                  )
+            )
+        )",
+        "(
+            {$alias}.context_type = 'purchase'
+            AND EXISTS (
+                SELECT 1
+                FROM purchases file_purchase
+                WHERE file_purchase.id = {$alias}.context_id
+                  AND (
+                    file_purchase.requester_user_id = {$userId}
+                    OR file_purchase.approver_user_id = {$userId}
+                    OR file_purchase.receiver_user_id = {$userId}
+                    OR file_purchase.destination_storage_id IN ({$storageList})
+                  )
+            )
+        )",
+        "(
+            {$alias}.context_type = 'handover'
+            AND EXISTS (
+                SELECT 1
+                FROM handovers file_handover
+                WHERE file_handover.id = {$alias}.context_id
+                  AND (
+                    file_handover.created_by = {$userId}
+                    OR file_handover.recipient_user_id = {$userId}
+                    OR file_handover.approver_user_id = {$userId}
+                    OR file_handover.manager_user_id = {$userId}
+                    OR file_handover.source_storage_id IN ({$storageList})
+                    OR file_handover.destination_storage_id IN ({$storageList})
+                  )
+            )
+        )",
+        "(
+            {$alias}.context_type = 'request'
+            AND EXISTS (
+                SELECT 1
+                FROM item_requests file_request
+                WHERE file_request.id = {$alias}.context_id
+                  AND (
+                    file_request.requester_user_id = {$userId}
+                    OR file_request.manager_user_id = {$userId}
+                    OR file_request.approver_user_id = {$userId}
+                    OR file_request.source_storage_id IN ({$storageList})
+                    OR file_request.destination_storage_id IN ({$storageList})
+                  )
+            )
+        )",
+        "(
+            {$alias}.context_type = 'storage'
+            AND {$alias}.context_id IN ({$storageList})
+        )",
+    ];
+
+    return ['(' . implode(' OR ', $conditions) . ')', []];
+}
+
 function build_file_asset_where(array $filters): array
 {
-    $conditions = [];
-    $params = [];
+    [$visibilitySql, $visibilityParams] = file_asset_visibility_condition('assets');
+    $conditions = [$visibilitySql];
+    $params = $visibilityParams;
 
     if (($filters['status'] ?? 'active') === 'active') {
         $conditions[] = 'assets.deleted_at IS NULL';
@@ -115,8 +279,9 @@ function build_file_asset_where(array $filters): array
 
 function build_stocktake_where(array $filters, string $alias = 's'): array
 {
-    $conditions = [];
-    $params = [];
+    [$visibilitySql, $visibilityParams] = stocktake_visibility_condition($alias);
+    $conditions = [$visibilitySql];
+    $params = $visibilityParams;
 
     if (($filters['status'] ?? 'open') === 'open') {
         $conditions[] = "{$alias}.status IN ('draft', 'pending_approval')";

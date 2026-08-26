@@ -41,9 +41,27 @@ function dashboard_usage_trend(array $filters, int $days = 7): array
     $storageCondition = '';
 
     if ($storageId !== null) {
-        $storageCondition = ' AND (m.source_storage_id = :trend_source_storage_id OR m.destination_storage_id = :trend_destination_storage_id)';
+        $storageCondition = " AND (
+            m.source_storage_id = :trend_source_storage_id
+            OR m.destination_storage_id = :trend_destination_storage_id
+            OR (
+                m.context_type = 'handover'
+                AND EXISTS (
+                    SELECT 1 FROM handovers trend_handover
+                    WHERE trend_handover.id = m.context_id
+                      AND (trend_handover.source_storage_id = :trend_handover_source_storage_id OR trend_handover.destination_storage_id = :trend_handover_destination_storage_id)
+                )
+            )
+        )";
         $params['trend_source_storage_id'] = $storageId;
         $params['trend_destination_storage_id'] = $storageId;
+        $params['trend_handover_source_storage_id'] = $storageId;
+        $params['trend_handover_destination_storage_id'] = $storageId;
+    } else {
+        $storageScope = current_user_item_storage_scope();
+        if ($storageScope !== null) {
+            $storageCondition = ' AND ' . movement_storage_visibility_sql('m', $storageScope, 'trend_visible_handover');
+        }
     }
 
     $rows = Database::fetchAll(
@@ -96,6 +114,13 @@ function dashboard_storage_value_breakdown(array $filters, int $limit = 6): arra
         $params['storage_id'] = (int) $filters['storage_id'];
     }
 
+    $storageScope = current_user_item_storage_scope();
+    if ($storageScope !== null) {
+        $where .= $storageScope === []
+            ? ' AND 1 = 0'
+            : ' AND s.id IN (' . item_storage_scope_sql($storageScope) . ')';
+    }
+
     return Database::fetchAll(
         sprintf(
             "SELECT s.id,
@@ -126,6 +151,8 @@ function workflow_dashboard_snapshot(?int $storageId = null): array
     $purchaseStorageClause = '';
     [$requestScopeSql, $requestScopeParams] = visible_request_scope('r');
     [$handoverScopeSql, $handoverScopeParams] = visible_handover_scope('h');
+    [$purchaseScopeSql, $purchaseScopeParams] = purchase_visibility_condition('p');
+    $purchaseParams = $purchaseScopeParams;
 
     if ($storageId !== null) {
         $requestStorageClause = ' AND (r.source_storage_id = :workflow_source_storage_id OR r.destination_storage_id = :workflow_destination_storage_id)';
@@ -201,19 +228,19 @@ function workflow_dashboard_snapshot(?int $storageId = null): array
         'open_purchases' => $purchaseViewEnabled ? (int) Database::scalar(
             "SELECT COUNT(*)
              FROM purchases p
-             WHERE p.status IN ('pending_approval', 'approved', 'receipt_review'){$purchaseStorageClause}",
+             WHERE p.status IN ('pending_approval', 'approved', 'receipt_review') AND {$purchaseScopeSql}{$purchaseStorageClause}",
             $purchaseParams
         ) : 0,
         'pending_purchase_approvals' => $purchaseViewEnabled ? (int) Database::scalar(
             "SELECT COUNT(*)
              FROM purchases p
-             WHERE p.status = 'pending_approval'{$purchaseStorageClause}",
+             WHERE p.status = 'pending_approval' AND {$purchaseScopeSql}{$purchaseStorageClause}",
             $purchaseParams
         ) : 0,
         'pending_purchase_receiving' => $purchaseViewEnabled ? (int) Database::scalar(
             "SELECT COUNT(*)
              FROM purchases p
-             WHERE p.status IN ('approved', 'receipt_review'){$purchaseStorageClause}",
+             WHERE p.status IN ('approved', 'receipt_review') AND {$purchaseScopeSql}{$purchaseStorageClause}",
             $purchaseParams
         ) : 0,
         'recent_purchases' => $purchaseViewEnabled ? Database::fetchAll(
@@ -235,7 +262,7 @@ function workflow_dashboard_snapshot(?int $storageId = null): array
                  FROM purchase_lines
                  GROUP BY purchase_id
              ) line_totals ON line_totals.purchase_id = p.id
-             WHERE p.status IN ('pending_approval', 'approved', 'receipt_review', 'completed'){$purchaseStorageClause}
+             WHERE p.status IN ('pending_approval', 'approved', 'receipt_review', 'completed') AND {$purchaseScopeSql}{$purchaseStorageClause}
              ORDER BY p.created_at DESC, p.id DESC
              LIMIT 5",
             $purchaseParams
@@ -247,7 +274,7 @@ function workflow_dashboard_snapshot(?int $storageId = null): array
              FROM purchases p
              INNER JOIN storages storage ON storage.id = p.destination_storage_id
              INNER JOIN purchase_lines pl ON pl.purchase_id = p.id
-             WHERE p.status = 'completed'{$purchaseStorageClause}
+             WHERE p.status = 'completed' AND {$purchaseScopeSql}{$purchaseStorageClause}
              GROUP BY storage.id, storage.name
              ORDER BY total_value DESC
              LIMIT 6",
@@ -261,6 +288,8 @@ function operational_dashboard_snapshot(?int $storageId = null): array
     $stocktakeStorageClause = '';
     $stocktakeAliasStorageClause = '';
     $stocktakeParams = [];
+    [$stocktakeScopeSql, $stocktakeScopeParams] = stocktake_visibility_condition('stocktake');
+    $stocktakeParams = $stocktakeScopeParams;
     $reorderFilters = [
         'search' => '',
         'storage_id' => $storageId,
@@ -278,14 +307,14 @@ function operational_dashboard_snapshot(?int $storageId = null): array
     return [
         'open_stocktakes' => Auth::hasPermission('stocktakes.view') ? (int) Database::scalar(
             "SELECT COUNT(*)
-             FROM stocktakes
-             WHERE status IN ('draft', 'pending_approval'){$stocktakeStorageClause}",
+             FROM stocktakes stocktake
+             WHERE stocktake.status IN ('draft', 'pending_approval') AND {$stocktakeScopeSql}{$stocktakeAliasStorageClause}",
             $stocktakeParams
         ) : 0,
         'pending_stocktake_approvals' => Auth::hasPermission('stocktakes.view') ? (int) Database::scalar(
             "SELECT COUNT(*)
-             FROM stocktakes
-             WHERE status = 'pending_approval'{$stocktakeStorageClause}",
+             FROM stocktakes stocktake
+             WHERE stocktake.status = 'pending_approval' AND {$stocktakeScopeSql}{$stocktakeAliasStorageClause}",
             $stocktakeParams
         ) : 0,
         'reorder_lines' => count($reorderRows),
@@ -304,7 +333,7 @@ function operational_dashboard_snapshot(?int $storageId = null): array
                  FROM stocktake_lines
                  GROUP BY stocktake_id
              ) line_totals ON line_totals.stocktake_id = stocktake.id
-             WHERE stocktake.status IN ('draft', 'pending_approval'){$stocktakeAliasStorageClause}
+             WHERE stocktake.status IN ('draft', 'pending_approval') AND {$stocktakeScopeSql}{$stocktakeAliasStorageClause}
              ORDER BY stocktake.created_at DESC, stocktake.id DESC
              LIMIT 5",
             $stocktakeParams

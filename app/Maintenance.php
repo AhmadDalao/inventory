@@ -41,7 +41,7 @@ final class Maintenance
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-23-persistent-login-package-wristband-import-v1';
+    private const SCHEMA_VERSION = '2026-08-25-handover-recipient-department-snapshot-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 

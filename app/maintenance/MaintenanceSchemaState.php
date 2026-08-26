@@ -130,6 +130,8 @@ trait MaintenanceSchemaState
             && self::columnExists('handover_expected_usage_breakdowns', 'reason_custom')
             && self::columnExists('handover_expected_usage_breakdowns', 'quantity')
             && self::columnExists('handovers', 'usage_reporting_mode')
+            && self::columnExists('handovers', 'recipient_department_id')
+            && self::columnExists('handovers', 'recipient_department_name')
             && self::tableExists('handover_reconciliations')
             && self::columnExists('handover_reconciliations', 'unit')
             && self::columnExists('handover_reconciliations', 'difference_total')

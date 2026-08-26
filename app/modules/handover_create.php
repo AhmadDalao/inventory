@@ -188,6 +188,9 @@ function handle_handovers_create_submit(): void
     $managerUserId = !$isStorageTransfer && $payload['recipient_user_id']
         ? manager_user_id_for((int) $payload['recipient_user_id'])
         : null;
+    $recipientDepartment = !$isStorageTransfer && $payload['recipient_user_id']
+        ? user_department_snapshot_for_history((int) $payload['recipient_user_id'])
+        : ['department_id' => null, 'department_name' => null];
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
@@ -199,6 +202,8 @@ function handle_handovers_create_submit(): void
                 destination_storage_id,
                 approver_user_id,
                 manager_user_id,
+                recipient_department_id,
+                recipient_department_name,
                 recipient_name,
                 recipient_user_id,
                 recipient_type,
@@ -231,6 +236,8 @@ function handle_handovers_create_submit(): void
                 :destination_storage_id,
                 :approver_user_id,
                 :manager_user_id,
+                :recipient_department_id,
+                :recipient_department_name,
                 :recipient_name,
                 :recipient_user_id,
                 :recipient_type,
@@ -264,6 +271,8 @@ function handle_handovers_create_submit(): void
                 'destination_storage_id' => $payload['destination_storage_id'] !== null ? (int) $payload['destination_storage_id'] : null,
                 'approver_user_id' => storage_owner_user_id((int) $payload['source_storage_id']),
                 'manager_user_id' => $managerUserId,
+                'recipient_department_id' => $recipientDepartment['department_id'],
+                'recipient_department_name' => $recipientDepartment['department_name'],
                 'recipient_name' => $payload['recipient_name'],
                 'recipient_user_id' => $payload['recipient_user_id'],
                 'recipient_type' => $payload['recipient_type'],

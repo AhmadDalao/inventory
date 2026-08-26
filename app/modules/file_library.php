@@ -70,7 +70,7 @@ function file_asset_select_sql(): string
                 OR (assets.source_type = "item_image" AND item.id = assets.source_id)
             LEFT JOIN company_assets company_asset
                 ON (assets.context_type = "asset" AND company_asset.id = assets.context_id)
-                OR (assets.source_type = "asset_image" AND company_asset.id = assets.source_id)
+                OR (assets.source_type IN ("asset_image", "asset_file") AND company_asset.id = assets.source_id)
             LEFT JOIN purchases purchase
                 ON assets.context_type = "purchase"
                AND purchase.id = assets.context_id
@@ -103,13 +103,16 @@ function file_asset_rows(array $filters, int $limit = 500): array
 
 function file_asset_counts(): array
 {
+    [$visibilitySql, $visibilityParams] = file_asset_visibility_condition('assets');
     $rows = Database::fetchAll(
         'SELECT file_group,
                 COUNT(*) AS file_count,
                 COALESCE(SUM(file_size), 0) AS total_size
-         FROM file_assets
-         WHERE deleted_at IS NULL
-         GROUP BY file_group'
+         FROM file_assets assets
+         WHERE assets.deleted_at IS NULL
+           AND ' . $visibilitySql . '
+         GROUP BY file_group',
+        $visibilityParams
     );
 
     $counts = [
@@ -131,11 +134,13 @@ function file_asset_counts(): array
 
 function file_asset_find_or_abort(int $id): array
 {
+    [$visibilitySql, $visibilityParams] = file_asset_visibility_condition('assets');
     $asset = Database::fetch(
         file_asset_select_sql() . '
          WHERE assets.id = :id
+           AND ' . $visibilitySql . '
          LIMIT 1',
-        ['id' => $id]
+        ['id' => $id] + $visibilityParams
     );
 
     if (!$asset) {

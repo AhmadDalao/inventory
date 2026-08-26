@@ -45,6 +45,46 @@ function valid_department_assignment_id(mixed $value, ?int $fallbackId = null): 
     return $department === null ? null : (int) $department['id'];
 }
 
+/**
+ * Capture the employee department used for immutable workflow reporting.
+ * This intentionally does not enforce the current department requirement.
+ *
+ * @return array{department_id: ?int, department_name: ?string}
+ */
+function user_department_snapshot_for_history(int $userId): array
+{
+    if ($userId <= 0) {
+        return ['department_id' => null, 'department_name' => null];
+    }
+
+    $row = Database::fetch(
+        'SELECT user.department_id, department.name AS department_name
+         FROM users user
+         LEFT JOIN departments department ON department.id = user.department_id
+         WHERE user.id = :user_id
+         LIMIT 1',
+        ['user_id' => $userId]
+    ) ?? [];
+
+    $departmentId = normalize_entity_id($row['department_id'] ?? null) ?? unassigned_department_id();
+    if ($departmentId === null) {
+        return ['department_id' => null, 'department_name' => null];
+    }
+
+    $departmentName = trim((string) ($row['department_name'] ?? ''));
+    if ($departmentName === '') {
+        $departmentName = trim((string) (Database::scalar(
+            'SELECT name FROM departments WHERE id = :department_id LIMIT 1',
+            ['department_id' => $departmentId]
+        ) ?: 'Unassigned'));
+    }
+
+    return [
+        'department_id' => $departmentId,
+        'department_name' => $departmentName !== '' ? $departmentName : 'Unassigned',
+    ];
+}
+
 function normalize_department_code(mixed $value, string $name = ''): string
 {
     $code = strtoupper(trim((string) $value));

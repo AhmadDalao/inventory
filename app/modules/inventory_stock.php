@@ -41,7 +41,44 @@ function quantity_delta_for_type(string $type, float $quantity): float
         case 'transfer':
             return 0.0;
         default:
-            return 0.0;
+            throw new InvalidArgumentException('Unsupported inventory movement type.');
+    }
+}
+
+function validate_inventory_movement_request(
+    array $item,
+    string $type,
+    float $quantity,
+    ?int $sourceStorageId,
+    ?int $destinationStorageId,
+    int $performedBy
+): void {
+    if (!in_array($type, ['restock', 'usage', 'adjustment', 'transfer'], true)) {
+        throw new InvalidArgumentException('Unsupported inventory movement type.');
+    }
+    if ((int) ($item['id'] ?? 0) <= 0) {
+        throw new InvalidArgumentException('An inventory item is required.');
+    }
+    if ($performedBy <= 0) {
+        throw new InvalidArgumentException('A valid user is required to record this movement.');
+    }
+    if (!is_finite($quantity) || abs($quantity) <= inventory_quantity_tolerance()) {
+        throw new InvalidArgumentException('Movement quantity must be greater than zero.');
+    }
+
+    if ($type === 'restock' && ($destinationStorageId ?? 0) <= 0) {
+        throw new InvalidArgumentException('A destination storage is required for restock.');
+    }
+    if (in_array($type, ['usage', 'adjustment'], true) && ($sourceStorageId ?? 0) <= 0) {
+        throw new InvalidArgumentException('A source storage is required for this movement.');
+    }
+    if ($type === 'transfer') {
+        if (($sourceStorageId ?? 0) <= 0 || ($destinationStorageId ?? 0) <= 0) {
+            throw new InvalidArgumentException('Source and destination storages are required for transfer.');
+        }
+        if ($sourceStorageId === $destinationStorageId) {
+            throw new InvalidArgumentException('Source and destination storages must be different.');
+        }
     }
 }
 
@@ -99,6 +136,15 @@ function apply_inventory_movement(
     ?array $measurement = null,
     ?int $overrideDepartmentId = null
 ): int {
+    validate_inventory_movement_request(
+        $item,
+        $type,
+        $quantity,
+        $sourceStorageId,
+        $destinationStorageId,
+        $performedBy
+    );
+
     $pdo = Database::connection();
     $ownsTransaction = !$pdo->inTransaction();
 
@@ -327,11 +373,24 @@ function clone_storage_inventory_to_location(array $sourceStorage, int $destinat
     }
 }
 
-function clone_storage_item_setup_to_location(array $sourceStorage, int $destinationStorageId): void
+function clone_storage_item_setup_to_location(array $sourceStorage, int $destinationStorageId, int $performedBy): void
 {
     $items = storage_items((int) $sourceStorage['id']);
 
     foreach ($items as $item) {
-        assign_item_to_storage((int) $item['id'], $destinationStorageId);
+        $assigned = assign_item_to_storage((int) $item['id'], $destinationStorageId);
+        if ($assigned) {
+            inventory_record_item_change_event(
+                'item.assigned',
+                (int) $item['id'],
+                $destinationStorageId,
+                $performedBy,
+                [
+                    'quantity' => 0,
+                    'source_storage_id' => (int) $sourceStorage['id'],
+                    'assignment_source' => 'storage_copy',
+                ]
+            );
+        }
     }
 }

@@ -17,7 +17,13 @@ function handle_stocktakes_create_submit(): void
         'notes' => $notes,
     ]);
 
-    if ($storageId === null || !storage_exists_for_assignment($storageId)) {
+    $currentUserId = (int) (Auth::user()['id'] ?? 0);
+
+    if (
+        $storageId === null
+        || !storage_exists_for_assignment($storageId)
+        || !user_can_view_storage($currentUserId, $storageId)
+    ) {
         flash('danger', 'Pick a valid active storage.');
         redirect('/stocktakes/create');
     }
@@ -163,35 +169,60 @@ function handle_stocktakes_count_submit(array $params): void
         redirect('/stocktakes/' . $stocktake['id']);
     }
 
-    foreach ($updates as $update) {
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+
+    try {
+        $lockedStocktake = find_stocktake_for_update((int) $stocktake['id']);
+
+        if ($lockedStocktake === null || (string) $lockedStocktake['status'] !== 'draft') {
+            throw new RuntimeException('Only draft stocktakes can be counted.');
+        }
+
+        foreach ($updates as $update) {
+            Database::execute(
+                'UPDATE stocktake_lines
+                 SET counted_quantity = :counted_quantity,
+                     variance_quantity = :variance_quantity,
+                     notes = :notes,
+                     updated_at = NOW()
+                 WHERE id = :id
+                   AND stocktake_id = :stocktake_id',
+                [
+                    'counted_quantity' => $update['counted'],
+                    'variance_quantity' => $update['variance'],
+                    'notes' => $update['notes'] !== '' ? $update['notes'] : null,
+                    'id' => $update['line_id'],
+                    'stocktake_id' => (int) $lockedStocktake['id'],
+                ]
+            );
+        }
+
         Database::execute(
-            'UPDATE stocktake_lines
-             SET counted_quantity = :counted_quantity,
-                 variance_quantity = :variance_quantity,
-                 notes = :notes,
+            'UPDATE stocktakes
+             SET status = "pending_approval",
+                 counted_at = NOW(),
+                 updated_by = :updated_by,
                  updated_at = NOW()
              WHERE id = :id',
             [
-                'counted_quantity' => $update['counted'],
-                'variance_quantity' => $update['variance'],
-                'notes' => $update['notes'] !== '' ? $update['notes'] : null,
-                'id' => $update['line_id'],
+                'updated_by' => (int) ($user['id'] ?? 0),
+                'id' => $lockedStocktake['id'],
             ]
         );
-    }
 
-    Database::execute(
-        'UPDATE stocktakes
-         SET status = "pending_approval",
-             counted_at = NOW(),
-             updated_by = :updated_by,
-             updated_at = NOW()
-         WHERE id = :id',
-        [
-            'updated_by' => (int) ($user['id'] ?? 0),
-            'id' => $stocktake['id'],
-        ]
-    );
+        $pdo->commit();
+        $stocktake = $lockedStocktake;
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        flash('danger', $exception instanceof RuntimeException
+            ? $exception->getMessage()
+            : 'The stocktake count could not be submitted. Try again.');
+        redirect('/stocktakes/' . $stocktake['id']);
+    }
 
     record_activity('stocktake.counted', 'stocktake', (int) $stocktake['id'], 'Submitted counted quantities for ' . $stocktake['stocktake_number']);
     create_notifications_for_permission(
@@ -218,27 +249,31 @@ function handle_stocktakes_approve_submit(array $params): void
     $stocktake = find_stocktake_or_abort((int) $params['id']);
     $user = Auth::user();
 
-    if ((string) $stocktake['status'] !== 'pending_approval') {
-        flash('danger', 'Only stocktakes waiting for approval can be approved.');
-        redirect('/stocktakes/' . $stocktake['id']);
-    }
-
-    if (!Auth::isOwner() && (int) $stocktake['created_by'] === (int) ($user['id'] ?? 0)) {
-        flash('danger', 'You cannot approve your own stocktake.');
-        redirect('/stocktakes/' . $stocktake['id']);
-    }
-
-    $lines = stocktake_lines((int) $stocktake['id']);
     $pdo = Database::connection();
     $pdo->beginTransaction();
 
     try {
+        $lockedStocktake = find_stocktake_for_update((int) $stocktake['id']);
+
+        if ($lockedStocktake === null || (string) $lockedStocktake['status'] !== 'pending_approval') {
+            throw new RuntimeException('Only stocktakes waiting for approval can be approved.');
+        }
+
+        if (!Auth::isOwner() && (int) $lockedStocktake['created_by'] === (int) ($user['id'] ?? 0)) {
+            throw new RuntimeException('You cannot approve your own stocktake.');
+        }
+
+        $lines = stocktake_lines((int) $lockedStocktake['id']);
+
         foreach ($lines as $line) {
             if ($line['counted_quantity'] === null) {
                 throw new RuntimeException('Every stocktake line must be counted before approval.');
             }
 
-            $currentQuantity = round((float) ($line['current_quantity'] ?? 0), 2);
+            $currentQuantity = stocktake_storage_quantity_for_update(
+                (int) $line['item_id'],
+                (int) $lockedStocktake['storage_id']
+            );
             $countedQuantity = round((float) $line['counted_quantity'], 2);
             $approvalDelta = round($countedQuantity - $currentQuantity, 2);
 
@@ -251,14 +286,14 @@ function handle_stocktakes_approve_submit(array $params): void
                 $item,
                 'adjustment',
                 $approvalDelta,
-                (int) $stocktake['storage_id'],
+                (int) $lockedStocktake['storage_id'],
                 null,
                 date('Y-m-d H:i:s'),
-                (string) $stocktake['stocktake_number'],
-                'Stocktake approved. Counted ' . format_quantity($countedQuantity) . ' ' . $line['unit'] . ' in ' . $stocktake['storage_name'] . '.',
+                (string) $lockedStocktake['stocktake_number'],
+                'Stocktake approved. Counted ' . format_quantity($countedQuantity) . ' ' . $line['unit'] . ' in ' . $lockedStocktake['storage_name'] . '.',
                 (int) $user['id'],
                 'stocktake',
-                (int) $stocktake['id']
+                (int) $lockedStocktake['id']
             );
         }
 
@@ -273,17 +308,20 @@ function handle_stocktakes_approve_submit(array $params): void
             [
                 'approved_by' => (int) $user['id'],
                 'updated_by' => (int) $user['id'],
-                'id' => $stocktake['id'],
+                'id' => $lockedStocktake['id'],
             ]
         );
 
         $pdo->commit();
+        $stocktake = $lockedStocktake;
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
 
-        flash('danger', $exception->getMessage());
+        flash('danger', $exception instanceof RuntimeException
+            ? $exception->getMessage()
+            : 'The stocktake could not be approved. No stock was changed.');
         redirect('/stocktakes/' . $stocktake['id']);
     }
 
@@ -312,23 +350,41 @@ function handle_stocktakes_cancel_submit(array $params): void
 
     $stocktake = find_stocktake_or_abort((int) $params['id']);
 
-    if (!in_array((string) $stocktake['status'], ['draft', 'pending_approval'], true)) {
-        flash('danger', 'This stocktake cannot be cancelled.');
+    $pdo = Database::connection();
+    $pdo->beginTransaction();
+
+    try {
+        $lockedStocktake = find_stocktake_for_update((int) $stocktake['id']);
+
+        if ($lockedStocktake === null || !in_array((string) $lockedStocktake['status'], ['draft', 'pending_approval'], true)) {
+            throw new RuntimeException('This stocktake cannot be cancelled.');
+        }
+
+        Database::execute(
+            'UPDATE stocktakes
+             SET status = "cancelled",
+                 cancelled_at = NOW(),
+                 updated_by = :updated_by,
+                 updated_at = NOW()
+             WHERE id = :id',
+            [
+                'updated_by' => (int) (Auth::user()['id'] ?? 0),
+                'id' => $lockedStocktake['id'],
+            ]
+        );
+
+        $pdo->commit();
+        $stocktake = $lockedStocktake;
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        flash('danger', $exception instanceof RuntimeException
+            ? $exception->getMessage()
+            : 'The stocktake could not be cancelled. Try again.');
         redirect('/stocktakes/' . $stocktake['id']);
     }
-
-    Database::execute(
-        'UPDATE stocktakes
-         SET status = "cancelled",
-             cancelled_at = NOW(),
-             updated_by = :updated_by,
-             updated_at = NOW()
-         WHERE id = :id',
-        [
-            'updated_by' => (int) (Auth::user()['id'] ?? 0),
-            'id' => $stocktake['id'],
-        ]
-    );
 
     record_activity('stocktake.cancelled', 'stocktake', (int) $stocktake['id'], 'Cancelled stocktake ' . $stocktake['stocktake_number']);
     flash('success', 'Stocktake cancelled.');

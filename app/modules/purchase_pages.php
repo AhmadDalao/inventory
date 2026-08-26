@@ -80,13 +80,39 @@ function purchase_approvers_for_select(?int $selectedId = null): array
     );
 }
 
-function purchase_item_catalog(): array
+function purchase_item_catalog(array $includeItemIds = []): array
 {
+    $storageScope = current_user_item_storage_scope();
+    $conditions = ['items.is_active = 1'];
+    $params = [];
+    $includeItemIds = array_values(array_unique(array_filter(
+        array_map('intval', $includeItemIds),
+        static fn (int $itemId): bool => $itemId > 0
+    )));
+
+    if ($storageScope !== null) {
+        $visibleCondition = $storageScope === []
+            ? '0 = 1'
+            : 'EXISTS (
+                SELECT 1
+                FROM item_storage_balances visible_balance
+                WHERE visible_balance.item_id = items.id
+                  AND visible_balance.storage_id IN (' . item_storage_scope_sql($storageScope) . ')
+            )';
+
+        if ($includeItemIds !== []) {
+            $visibleCondition = '(' . $visibleCondition . ' OR items.id IN (' . implode(',', $includeItemIds) . '))';
+        }
+
+        $conditions[] = $visibleCondition;
+    }
+
     $rows = Database::fetchAll(
         'SELECT id, name, sku, barcode, category, unit, cost_per_unit, image_path, notes
          FROM items
-         WHERE is_active = 1
-         ORDER BY name ASC'
+         WHERE ' . implode(' AND ', $conditions) . '
+         ORDER BY name ASC',
+        $params
     );
 
     return array_map(static function (array $item): array {
@@ -312,11 +338,18 @@ function handle_purchases_edit_page(array $params): void
     Auth::requirePermission('purchases.create');
 
     $purchase = find_purchase_or_abort((int) $params['id']);
+    $blocked = purchase_draft_management_block_reason($purchase);
 
-    if ((string) $purchase['status'] !== 'draft') {
-        flash('danger', 'Only draft purchases can be edited.');
+    if ($blocked !== null) {
+        flash('danger', $blocked);
         redirect('/purchases/' . $purchase['id']);
     }
+
+    $lineRows = purchase_form_lines($purchase);
+    $linkedItemIds = array_values(array_filter(array_map(
+        static fn (array $line): int => (int) ($line['item_id'] ?? 0),
+        $lineRows
+    )));
 
     View::render('purchases/form', [
         'title' => 'Edit ' . $purchase['purchase_number'],
@@ -340,12 +373,12 @@ function handle_purchases_edit_page(array $params): void
             'currency' => old('currency', $purchase['currency'] ?: 'SAR'),
             'notes' => old('notes', $purchase['notes']),
         ],
-        'lineRows' => purchase_form_lines($purchase),
+        'lineRows' => $lineRows,
         'documents' => purchase_documents((int) $purchase['id']),
         'suppliers' => suppliers_for_select((int) $purchase['supplier_id']),
         'storages' => all_storages_for_select((int) $purchase['destination_storage_id']),
         'approvers' => purchase_approvers_for_select((int) $purchase['approver_user_id']),
-        'items' => purchase_item_catalog(),
+        'items' => purchase_item_catalog($linkedItemIds),
         'unitOptions' => item_unit_options(),
         'documentTypes' => purchase_document_type_options(),
     ]);

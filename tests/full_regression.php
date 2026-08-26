@@ -42,6 +42,18 @@ function assert_true(bool $condition, string $message): void
     }
 }
 
+function purchase_record_for_regression(int $purchaseId): array
+{
+    $purchase = Database::fetch(
+        'SELECT * FROM purchases WHERE id = :id LIMIT 1',
+        ['id' => $purchaseId]
+    );
+
+    assert_true(is_array($purchase), 'Purchase record #' . $purchaseId . ' is missing.');
+
+    return $purchase;
+}
+
 function csv_header_cells(string $bytes): array
 {
     $firstLine = strtok(ltrim($bytes, "\xEF\xBB\xBF"), "\r\n");
@@ -64,6 +76,16 @@ function assert_pdf_preview_response(array $response, string $message): void
 function response_has_item_link(string $body, int $itemId): bool
 {
     return preg_match('~href="[^"]*/items/' . $itemId . '(?:["?])~', $body) === 1;
+}
+
+function response_has_movement_reference_row(string $body, string $reference): bool
+{
+    $encodedReference = htmlspecialchars($reference, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    return preg_match(
+        '~<td\s+data-label="Reference">\s*' . preg_quote($encodedReference, '~') . '\s*</td>~i',
+        $body
+    ) === 1;
 }
 
 function assert_stock_invariants(string $context, ?string $itemNamePrefix = null): void
@@ -1301,6 +1323,7 @@ $scopedAdmin = create_user_record(
         'items.create',
         'items.export',
         'movements.view',
+        'movements.export',
     ]
 );
 
@@ -1619,6 +1642,73 @@ apply_inventory_movement(
     $prefix . ' scoped movement regression',
     (int) $owner['id']
 );
+$scopedVisibleMovementReference = $prefix . '-VISIBLE-SCOPE-MOVE';
+apply_inventory_movement(
+    find_item_or_abort((int) $scopedVisibleItem['id']),
+    'restock',
+    1.0,
+    null,
+    (int) $scopedVisibleStorage['id'],
+    date('Y-m-d H:i:s'),
+    $scopedVisibleMovementReference,
+    $prefix . ' visible scoped movement regression',
+    (int) $owner['id']
+);
+$scopedAdminMovementPage = http_request($baseUrl, $scopedAdminCookie, 'GET', '/movements?search=' . rawurlencode($prefix));
+assert_true($scopedAdminMovementPage['status'] === 200, 'Scoped admin movement log did not load.');
+assert_true(response_has_movement_reference_row($scopedAdminMovementPage['body'], $scopedVisibleMovementReference), 'Scoped admin movement log omitted an assigned-storage movement.');
+assert_true(!response_has_movement_reference_row($scopedAdminMovementPage['body'], $movementScopeReference), 'Scoped admin movement log leaked an unassigned-storage movement.');
+$scopedAdminHiddenMovementFilter = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/movements?storage_id=' . (int) $locationFilteredStorage['id'] . '&search=' . rawurlencode($movementScopeReference)
+);
+assert_true($scopedAdminHiddenMovementFilter['status'] === 200, 'Scoped admin hidden-storage movement filter did not fail safely.');
+assert_true(!response_has_movement_reference_row($scopedAdminHiddenMovementFilter['body'], $movementScopeReference), 'Explicit storage filter bypassed movement scope.');
+$scopedAdminMovementExport = http_request($baseUrl, $scopedAdminCookie, 'GET', '/exports/movements?search=' . rawurlencode($prefix));
+assert_true($scopedAdminMovementExport['status'] === 200, 'Scoped admin movement export failed.');
+assert_true(str_contains($scopedAdminMovementExport['body'], $scopedVisibleMovementReference), 'Scoped admin movement export omitted an assigned-storage movement.');
+assert_true(!str_contains($scopedAdminMovementExport['body'], $movementScopeReference), 'Scoped admin movement export leaked an unassigned-storage movement.');
+$reportScopeDate = date('Y-m-d');
+$scopedAdminReportPage = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/reports?date_from=' . $reportScopeDate . '&date_to=' . $reportScopeDate
+);
+assert_true($scopedAdminReportPage['status'] === 200, 'Scoped admin report page did not load.');
+assert_true(
+    !str_contains($scopedAdminReportPage['body'], 'Fatal error')
+        && !str_contains($scopedAdminReportPage['body'], 'Uncaught PDOException'),
+    'Scoped admin report returned a PHP fatal error page.'
+);
+assert_true(str_contains($scopedAdminReportPage['body'], $scopedVisibleMovementReference), 'Scoped admin report omitted an assigned-storage movement.');
+assert_true(!str_contains($scopedAdminReportPage['body'], $movementScopeReference), 'Scoped admin report leaked an unassigned-storage movement.');
+assert_true(str_contains($scopedAdminReportPage['body'], (string) $scopedVisibleItem['sku']), 'Scoped admin report item selector omitted an assigned-storage item.');
+assert_true(!str_contains($scopedAdminReportPage['body'], (string) $scopedHiddenItem['sku']), 'Scoped admin report item selector leaked an unassigned-storage item.');
+assert_true(!str_contains($scopedAdminReportPage['body'], (string) $scopedHiddenStorage['name']), 'Scoped admin report location selector leaked an unassigned storage.');
+$scopedAdminHiddenReportFilter = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/reports?date_from=' . $reportScopeDate
+        . '&date_to=' . $reportScopeDate
+        . '&storage_id=' . (int) $scopedHiddenStorage['id']
+        . '&item_id=' . (int) $scopedHiddenItem['id']
+);
+assert_true($scopedAdminHiddenReportFilter['status'] === 200, 'Scoped admin hidden report filter did not fail safely.');
+assert_true(!str_contains($scopedAdminHiddenReportFilter['body'], $movementScopeReference), 'Explicit report filters bypassed movement scope.');
+assert_true(!str_contains($scopedAdminHiddenReportFilter['body'], (string) $scopedHiddenStorage['name']), 'Explicit report storage filter exposed an unassigned storage name.');
+$scopedAdminReportExport = http_request(
+    $baseUrl,
+    $scopedAdminCookie,
+    'GET',
+    '/exports/daily-summary?date_from=' . $reportScopeDate . '&date_to=' . $reportScopeDate
+);
+assert_true($scopedAdminReportExport['status'] === 200, 'Scoped admin daily summary export failed.');
+assert_true(str_contains($scopedAdminReportExport['body'], $scopedVisibleMovementReference), 'Scoped admin daily summary export omitted an assigned-storage movement.');
+assert_true(!str_contains($scopedAdminReportExport['body'], $movementScopeReference), 'Scoped admin daily summary export leaked an unassigned-storage movement.');
 $sourceScopedMovementLogPage = http_request($baseUrl, $ownerCookie, 'GET', '/movements?storage_id=' . (int) $locationFilteredStorage['id']);
 assert_true($sourceScopedMovementLogPage['status'] === 200, 'Source-scoped movement log did not load.');
 assert_true(str_contains($sourceScopedMovementLogPage['body'], 'Location Change'), 'Source-scoped movement log should show location-specific change heading.');
@@ -1976,6 +2066,30 @@ $failedLoginAudits = (int) Database::scalar(
 );
 assert_true($failedLoginAudits >= 1, 'Failed login attempts were not audited.');
 
+$blankPasswordCookie = create_cookie_file();
+$blankPasswordPage = http_request($baseUrl, $blankPasswordCookie, 'GET', '/login');
+$blankPasswordSubmit = http_request($baseUrl, $blankPasswordCookie, 'POST', '/login', [
+    '_token' => extract_csrf($blankPasswordPage['body'], 'blank-password login probe'),
+    'email' => $ownerEmail,
+    'password' => '',
+    'remember_me' => '1',
+]);
+assert_true(
+    $blankPasswordSubmit['status'] === 302 && location_matches($blankPasswordSubmit['location'], '/login'),
+    'Blank-password login must be rejected even when persistent login is requested.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*)
+         FROM login_attempts
+         WHERE email = :email
+           AND success = 0
+           AND failure_reason = "missing_credentials"',
+        ['email' => $ownerEmail]
+    ) >= 1,
+    'Blank-password login attempts were not audited.'
+);
+
 note('Running password recovery and email delivery checks.');
 $emailSettingKeys = [
     'email.enabled',
@@ -2271,6 +2385,7 @@ assert_true((string) $cfoUser['role'] === 'admin' && (string) $cfoUser['position
 assert_true(in_array('purchases.approve', Auth::permissionsForUserId((int) $cfoUser['id']), true), 'CFO position preset did not grant purchase approval.');
 assert_true(in_array('files.view', Auth::permissionsForUserId((int) $cfoUser['id']), true), 'CFO position preset did not grant file library access.');
 assert_true(in_array('email_logs.view', Auth::permissionsForUserId((int) $cfoUser['id']), true), 'CFO position preset did not grant email log access.');
+$cfoCookie = login_user($baseUrl, $cfoEmail, $password);
 
 note('Checking employee documentation.');
 $ownerDocumentationPage = http_request($baseUrl, $ownerCookie, 'GET', '/documentation');
@@ -2604,7 +2719,9 @@ assert_xlsx_contains_text($assetExportXlsx['body'], $assetParentCategoryName . '
 snapshot_site_settings_for_test(['exports.asset_xlsx_thumbnails']);
 set_site_setting_for_test('exports.asset_xlsx_thumbnails', '0');
 $assetExportXlsxDisabled = http_request($baseUrl, $ownerCookie, 'GET', '/exports/assets.xlsx?search=' . rawurlencode($prefix));
-assert_true($assetExportXlsxDisabled['status'] === 403, 'Asset XLSX export should be blocked when thumbnail export setting is disabled.');
+assert_true($assetExportXlsxDisabled['status'] === 200, 'Asset XLSX export should remain available when thumbnail images are disabled.');
+assert_true(substr($assetExportXlsxDisabled['body'], 0, 2) === 'PK', 'Asset XLSX export without thumbnails did not return an XLSX archive.');
+assert_xlsx_contains_text($assetExportXlsxDisabled['body'], 'Asset Number', 'Asset XLSX export without thumbnails is missing its columns.');
 restore_site_settings_for_test();
 
 note('Running supplier purchase workflow over HTTP.');
@@ -2824,6 +2941,35 @@ $bulkDraftDocument = Database::fetch(
     ['purchase_id' => (int) $bulkDraftForCancel['id']]
 );
 assert_true(is_array($bulkDraftDocument), 'Bulk import draft is missing its document before delete coverage.');
+$foreignDraftEdit = http_request($baseUrl, $cfoCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/edit');
+assert_true(
+    $foreignDraftEdit['status'] === 302
+        && location_matches($foreignDraftEdit['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
+    'Admin with purchase-create permission should not edit another user\'s purchase draft.'
+);
+$cfoPurchaseCreatePage = http_request($baseUrl, $cfoCookie, 'GET', '/purchases/create');
+$foreignDraftEditSubmit = http_request($baseUrl, $cfoCookie, 'POST', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/edit', [
+    '_token' => extract_csrf($cfoPurchaseCreatePage['body'], 'foreign purchase draft edit'),
+]);
+assert_true(
+    $foreignDraftEditSubmit['status'] === 302
+        && location_matches($foreignDraftEditSubmit['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
+    'Admin with purchase-create permission should not update another user\'s purchase draft.'
+);
+$foreignDraftSubmit = http_request($baseUrl, $cfoCookie, 'POST', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/submit', [
+    '_token' => extract_csrf($cfoPurchaseCreatePage['body'], 'foreign purchase draft submit'),
+]);
+assert_true(
+    $foreignDraftSubmit['status'] === 302
+        && location_matches($foreignDraftSubmit['location'], '/purchases/' . (int) $bulkDraftForCancel['id']),
+    'Admin with purchase-create permission should not submit another user\'s purchase draft.'
+);
+assert_true(
+    (string) Database::scalar('SELECT status FROM purchases WHERE id = :id', ['id' => (int) $bulkDraftForCancel['id']]) === 'draft',
+    'Denied foreign purchase draft submission changed the draft status.'
+);
+$ownerDraftEdit = http_request($baseUrl, $ownerCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id'] . '/edit');
+assert_true($ownerDraftEdit['status'] === 200, 'Owner should be able to manage another user\'s purchase draft.');
 $bulkDraftPage = http_request($baseUrl, $adminCookie, 'GET', '/purchases/' . (int) $bulkDraftForCancel['id']);
 assert_true($bulkDraftPage['status'] === 200, 'Bulk import draft detail did not load before document delete.');
 $bulkDocumentDeleteDenied = http_request(
@@ -2941,7 +3087,7 @@ $rejectPurchaseCreate = http_multipart_request($baseUrl, $adminCookie, '/purchas
 ]);
 assert_true($rejectPurchaseCreate['status'] === 302, 'Rejected purchase create did not redirect.');
 $rejectPurchaseId = first_redirect_id($rejectPurchaseCreate['location'], '/purchases');
-$rejectPurchase = find_purchase_or_abort($rejectPurchaseId);
+$rejectPurchase = purchase_record_for_regression($rejectPurchaseId);
 assert_true((string) $rejectPurchase['status'] === 'pending_approval', 'Rejected purchase was not submitted for approval.');
 $rejectPurchasePage = http_request($baseUrl, $ownerCookie, 'GET', '/purchases/' . $rejectPurchaseId);
 assert_true($rejectPurchasePage['status'] === 200, 'Rejected purchase detail did not load.');
@@ -2951,7 +3097,7 @@ $rejectSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/purchases/' . $re
     'decision_notes' => $prefix . ' rejected by regression',
 ]);
 assert_true($rejectSubmit['status'] === 302, 'Purchase reject did not redirect.');
-$rejectPurchaseAfter = find_purchase_or_abort($rejectPurchaseId);
+$rejectPurchaseAfter = purchase_record_for_regression($rejectPurchaseId);
 assert_true((string) $rejectPurchaseAfter['status'] === 'rejected', 'Rejected purchase did not become rejected.');
 assert_true(balance_quantity((int) $rejectItem['id'], (int) $storages[8]['id']) === $rejectBalanceBefore, 'Rejected purchase changed storage balance.');
 
@@ -3008,7 +3154,7 @@ $purchaseCreate = http_multipart_request($baseUrl, $adminCookie, '/purchases/cre
 ]);
 assert_true($purchaseCreate['status'] === 302, 'Approved purchase create did not redirect.');
 $purchaseId = first_redirect_id($purchaseCreate['location'], '/purchases');
-$purchase = find_purchase_or_abort($purchaseId);
+$purchase = purchase_record_for_regression($purchaseId);
 assert_true((string) $purchase['status'] === 'pending_approval', 'Approved purchase was not submitted for approval.');
 $documentId = (int) Database::scalar('SELECT id FROM purchase_documents WHERE purchase_id = :purchase_id LIMIT 1', ['purchase_id' => $purchaseId]);
 assert_true($documentId > 0, 'Purchase proof document was not stored.');
@@ -3063,7 +3209,7 @@ $purchaseApprove = http_request($baseUrl, $ownerCookie, 'POST', '/purchases/' . 
     'decision_notes' => $prefix . ' approved with adjusted quantities',
 ]);
 assert_true($purchaseApprove['status'] === 302, 'Purchase approval did not redirect.');
-$purchaseAfterApprove = find_purchase_or_abort($purchaseId);
+$purchaseAfterApprove = purchase_record_for_regression($purchaseId);
 assert_true((string) $purchaseAfterApprove['status'] === 'approved', 'Purchase did not become approved.');
 $newItemId = (int) Database::scalar('SELECT item_id FROM purchase_lines WHERE id = :id', ['id' => $newLineId]);
 assert_true($newItemId > 0, 'Quick-created purchase item was not linked on approval.');
@@ -3083,7 +3229,7 @@ $purchaseReceive = http_multipart_request($baseUrl, $adminCookie, '/purchases/' 
     'documents[0]' => $receiptProof,
 ]);
 assert_true($purchaseReceive['status'] === 302, 'Purchase receipt report did not redirect.');
-$purchaseAfterReceive = find_purchase_or_abort($purchaseId);
+$purchaseAfterReceive = purchase_record_for_regression($purchaseId);
 assert_true((string) $purchaseAfterReceive['status'] === 'receipt_review', 'Purchase did not enter receipt review.');
 assert_true(balance_quantity((int) $purchaseItem['id'], (int) $purchaseDestination['id']) === $purchaseDestinationBalanceBefore, 'Receipt report should not add stock before confirmation.');
 
@@ -3098,7 +3244,7 @@ $purchaseConfirm = http_request($baseUrl, $ownerCookie, 'POST', '/purchases/' . 
     ],
 ]);
 assert_true($purchaseConfirm['status'] === 302, 'Purchase final receipt confirmation did not redirect.');
-$purchaseCompleted = find_purchase_or_abort($purchaseId);
+$purchaseCompleted = purchase_record_for_regression($purchaseId);
 assert_true((string) $purchaseCompleted['status'] === 'completed', 'Purchase did not become completed.');
 assert_true(balance_quantity((int) $purchaseItem['id'], (int) $purchaseDestination['id']) === round($purchaseDestinationBalanceBefore + 5, 2), 'Final purchase receipt did not add existing item stock.');
 assert_true(balance_quantity($newItemId, (int) $purchaseDestination['id']) === 2.0, 'Final purchase receipt did not add quick-created item stock.');
@@ -3224,7 +3370,7 @@ $reorderPurchaseCreate = http_request($baseUrl, $adminCookie, 'POST', '/reorder/
 ]);
 assert_true($reorderPurchaseCreate['status'] === 302, 'Reorder purchase draft did not redirect.');
 $reorderPurchaseEditId = first_redirect_id($reorderPurchaseCreate['location'], '/purchases');
-$reorderPurchase = find_purchase_or_abort($reorderPurchaseEditId);
+$reorderPurchase = purchase_record_for_regression($reorderPurchaseEditId);
 assert_true((string) $reorderPurchase['status'] === 'draft', 'Reorder purchase should be a draft.');
 $reorderLineCount = (int) Database::scalar('SELECT COUNT(*) FROM purchase_lines WHERE purchase_id = :purchase_id AND item_id = :item_id', [
     'purchase_id' => $reorderPurchaseEditId,
@@ -3296,6 +3442,20 @@ $stocktakeSectionSearch = http_request($baseUrl, $ownerCookie, 'GET', '/stocktak
 assert_true($stocktakeSectionSearch['status'] === 302 && strpos((string) $stocktakeSectionSearch['location'], '/stocktakes/' . $stocktakeId) !== false, 'Stocktake section search should open exact stocktake references.');
 $stocktakeMovements = (int) Database::scalar('SELECT COUNT(*) FROM inventory_movements WHERE context_type = "stocktake" AND context_id = :stocktake_id', ['stocktake_id' => $stocktakeId]);
 assert_true($stocktakeMovements >= 1, 'Stocktake approval should create inventory movement context rows.');
+$stocktakeBalanceAfterApproval = balance_quantity((int) $stocktakeItem['id'], (int) $stocktakeStorage['id']);
+$stocktakeDuplicateApprovePage = http_request($baseUrl, $ownerCookie, 'GET', '/stocktakes/' . $stocktakeId);
+$stocktakeDuplicateApprove = http_request($baseUrl, $ownerCookie, 'POST', '/stocktakes/' . $stocktakeId . '/approve', [
+    '_token' => extract_csrf($stocktakeDuplicateApprovePage['body'], 'duplicate stocktake approval'),
+]);
+assert_true($stocktakeDuplicateApprove['status'] === 302, 'Duplicate stocktake approval should redirect safely.');
+assert_true(
+    (int) Database::scalar('SELECT COUNT(*) FROM inventory_movements WHERE context_type = "stocktake" AND context_id = :stocktake_id', ['stocktake_id' => $stocktakeId]) === $stocktakeMovements,
+    'Duplicate stocktake approval created extra inventory movements.'
+);
+assert_true(
+    balance_quantity((int) $stocktakeItem['id'], (int) $stocktakeStorage['id']) === $stocktakeBalanceAfterApproval,
+    'Duplicate stocktake approval changed the storage balance.'
+);
 
 $cancelStocktakeBalanceBefore = balance_quantity((int) $stocktakeItem['id'], (int) $stocktakeStorage['id']);
 $cancelStocktakeCreatePage = http_request($baseUrl, $adminCookie, 'GET', '/stocktakes/create?storage_id=' . $stocktakeStorage['id']);

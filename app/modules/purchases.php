@@ -20,9 +20,10 @@ function handle_purchases_edit_submit(array $params): void
     verify_csrf();
 
     $purchase = find_purchase_or_abort((int) $params['id']);
+    $blocked = purchase_draft_management_block_reason($purchase);
 
-    if ((string) $purchase['status'] !== 'draft') {
-        flash('danger', 'Only draft purchases can be edited.');
+    if ($blocked !== null) {
+        flash('danger', $blocked);
         redirect('/purchases/' . $purchase['id']);
     }
 
@@ -56,9 +57,10 @@ function handle_purchases_submit_submit(array $params): void
 
     $purchase = find_purchase_or_abort((int) $params['id']);
     $user = Auth::user();
+    $blocked = purchase_draft_management_block_reason($purchase, $user);
 
-    if ((string) $purchase['status'] !== 'draft') {
-        flash('danger', 'Only draft purchases can be submitted.');
+    if ($blocked !== null) {
+        flash('danger', $blocked);
         redirect('/purchases/' . $purchase['id']);
     }
 
@@ -101,6 +103,8 @@ function purchase_history_for_item(int $itemId, int $limit = 10): array
         return [];
     }
 
+    [$visibilitySql, $visibilityParams] = purchase_visibility_condition('p');
+
     return Database::fetchAll(
         'SELECT p.id,
                 p.purchase_number,
@@ -116,9 +120,10 @@ function purchase_history_for_item(int $itemId, int $limit = 10): array
          INNER JOIN suppliers supplier ON supplier.id = p.supplier_id
          INNER JOIN storages storage ON storage.id = p.destination_storage_id
          WHERE pl.item_id = :item_id
+           AND ' . $visibilitySql . '
          ORDER BY COALESCE(p.completed_at, p.created_at) DESC, p.id DESC
          LIMIT ' . (int) $limit,
-        ['item_id' => $itemId]
+        array_merge(['item_id' => $itemId], $visibilityParams)
     );
 }
 
@@ -127,6 +132,14 @@ function purchase_history_for_storage(int $storageId, int $limit = 10): array
     if (!Auth::hasPermission('purchases.view')) {
         return [];
     }
+
+    $userId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($userId <= 0 || !user_can_view_storage($userId, $storageId)) {
+        return [];
+    }
+
+    [$visibilitySql, $visibilityParams] = purchase_visibility_condition('p');
 
     return Database::fetchAll(
         'SELECT p.id,
@@ -141,9 +154,10 @@ function purchase_history_for_storage(int $storageId, int $limit = 10): array
          INNER JOIN suppliers supplier ON supplier.id = p.supplier_id
          INNER JOIN purchase_lines pl ON pl.purchase_id = p.id
          WHERE p.destination_storage_id = :storage_id
+           AND ' . $visibilitySql . '
          GROUP BY p.id, p.purchase_number, p.status, p.currency, p.completed_at, supplier.name, p.created_at
          ORDER BY COALESCE(p.completed_at, p.created_at) DESC, p.id DESC
          LIMIT ' . (int) $limit,
-        ['storage_id' => $storageId]
+        array_merge(['storage_id' => $storageId], $visibilityParams)
     );
 }

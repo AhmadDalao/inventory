@@ -57,6 +57,7 @@ function mobile_usage_reason_normalize_code(string $value): string
 }
 
 require_once __DIR__ . '/../app/modules/measurements.php';
+require_once __DIR__ . '/../app/modules/inventory_stock.php';
 
 function measured_inventory_fail(string $message): never
 {
@@ -176,5 +177,36 @@ if (!inventory_operation_requires_proof([$rollItem], 'refill')) {
 if (!inventory_operation_requires_proof([$volumeItem, $massItem], 'usage')) {
     measured_inventory_fail('One required item must make the whole submitted batch require proof.');
 }
+
+$movementGuardCases = [
+    ['restock', 1.0, null, null, 'destination storage'],
+    ['usage', 1.0, null, null, 'source storage'],
+    ['adjustment', 1.0, null, null, 'source storage'],
+    ['transfer', 1.0, 10, 10, 'must be different'],
+    ['invented', 1.0, 10, 11, 'Unsupported'],
+    ['usage', 0.0, 10, null, 'greater than zero'],
+];
+foreach ($movementGuardCases as [$type, $quantity, $sourceId, $destinationId, $expectedMessage]) {
+    try {
+        validate_inventory_movement_request(
+            $volumeItem,
+            $type,
+            $quantity,
+            $sourceId,
+            $destinationId,
+            1
+        );
+        measured_inventory_fail("The central movement guard accepted an invalid {$type} request.");
+    } catch (InvalidArgumentException $exception) {
+        if (!str_contains($exception->getMessage(), $expectedMessage)) {
+            throw $exception;
+        }
+    }
+}
+
+validate_inventory_movement_request($volumeItem, 'restock', 1.0, null, 10, 1);
+validate_inventory_movement_request($volumeItem, 'usage', 1.0, 10, null, 1);
+validate_inventory_movement_request($volumeItem, 'adjustment', -1.0, 10, null, 1);
+validate_inventory_movement_request($volumeItem, 'transfer', 1.0, 10, 11, 1);
 
 echo '[measured-inventory] PASS' . PHP_EOL;

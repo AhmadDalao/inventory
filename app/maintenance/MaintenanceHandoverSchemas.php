@@ -15,6 +15,8 @@ trait MaintenanceHandoverSchemas
                 recipient_name VARCHAR(160) NOT NULL,
                 recipient_user_id BIGINT UNSIGNED NULL,
                 manager_user_id BIGINT UNSIGNED NULL,
+                recipient_department_id BIGINT UNSIGNED NULL,
+                recipient_department_name VARCHAR(160) NULL,
                 recipient_type ENUM("staff", "storage") NOT NULL DEFAULT "staff",
                 handover_purpose ENUM("temporary_use", "staff_custody", "storage_transfer") NOT NULL DEFAULT "temporary_use",
                 issue_condition VARCHAR(40) NOT NULL DEFAULT "good",
@@ -54,10 +56,12 @@ trait MaintenanceHandoverSchemas
                 INDEX idx_handovers_purpose (handover_purpose, status),
                 INDEX idx_handovers_recipient_user (recipient_user_id),
                 INDEX idx_handovers_manager (manager_user_id),
+                INDEX idx_handovers_recipient_department (recipient_department_id),
                 CONSTRAINT fk_handovers_source_storage FOREIGN KEY (source_storage_id) REFERENCES storages(id) ON DELETE RESTRICT,
                 CONSTRAINT fk_handovers_destination_storage FOREIGN KEY (destination_storage_id) REFERENCES storages(id) ON DELETE RESTRICT,
                 CONSTRAINT fk_handovers_approver_user FOREIGN KEY (approver_user_id) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_recipient_user FOREIGN KEY (recipient_user_id) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_handovers_recipient_department FOREIGN KEY (recipient_department_id) REFERENCES departments(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_request_approved_by FOREIGN KEY (request_approved_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_handovers_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -100,9 +104,35 @@ trait MaintenanceHandoverSchemas
             Database::execute('ALTER TABLE handovers ADD COLUMN recipient_type ENUM("staff", "storage") NOT NULL DEFAULT "staff" AFTER recipient_user_id');
         }
 
+        if (!self::columnExists('handovers', 'recipient_department_id')) {
+            Database::execute('ALTER TABLE handovers ADD COLUMN recipient_department_id BIGINT UNSIGNED NULL AFTER manager_user_id');
+        }
+
+        if (!self::columnExists('handovers', 'recipient_department_name')) {
+            Database::execute('ALTER TABLE handovers ADD COLUMN recipient_department_name VARCHAR(160) NULL AFTER recipient_department_id');
+        }
+
+        self::ensureIndexExists('handovers', 'idx_handovers_recipient_department', 'CREATE INDEX `idx_handovers_recipient_department` ON `handovers` (`recipient_department_id`)');
+        self::ensureForeignKeyExists('handovers', 'fk_handovers_recipient_department', 'ALTER TABLE `handovers` ADD CONSTRAINT `fk_handovers_recipient_department` FOREIGN KEY (`recipient_department_id`) REFERENCES `departments` (`id`) ON DELETE SET NULL');
+
         if (!self::columnExists('handovers', 'handover_purpose')) {
             Database::execute('ALTER TABLE handovers ADD COLUMN handover_purpose ENUM("temporary_use", "staff_custody", "storage_transfer") NOT NULL DEFAULT "temporary_use" AFTER recipient_type');
         }
+
+        Database::execute(
+            'UPDATE handovers handover_row
+             INNER JOIN users recipient ON recipient.id = handover_row.recipient_user_id
+             LEFT JOIN departments recipient_department ON recipient_department.id = recipient.department_id
+             SET handover_row.recipient_department_id = recipient.department_id,
+                 handover_row.recipient_department_name = COALESCE(NULLIF(recipient_department.name, ""), "Unassigned")
+             WHERE handover_row.recipient_type = "staff"
+               AND handover_row.recipient_user_id IS NOT NULL
+               AND (
+                    handover_row.recipient_department_id IS NULL
+                    OR handover_row.recipient_department_name IS NULL
+                    OR handover_row.recipient_department_name = ""
+               )'
+        );
 
         if (!self::columnExists('handovers', 'issue_condition')) {
             Database::execute('ALTER TABLE handovers ADD COLUMN issue_condition VARCHAR(40) NOT NULL DEFAULT "good" AFTER handover_purpose');

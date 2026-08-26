@@ -110,6 +110,9 @@ $usageReasons = mobile_contract_source('app/modules/mobile_usage_reasons.php');
 $admin = mobile_contract_source('app/modules/mobile_admin.php');
 $inventory = mobile_contract_source('app/modules/mobile_api_inventory.php');
 $inventoryEvents = mobile_contract_source('app/modules/inventory_events.php');
+$itemActions = mobile_contract_source('app/modules/item_actions.php');
+$itemPersistence = mobile_contract_source('app/modules/items.php');
+$itemAssignments = mobile_contract_source('app/modules/item_storage_assignments.php');
 $movements = mobile_contract_source('app/modules/mobile_api_movements.php');
 $handovers = mobile_contract_source('app/modules/mobile_api_handovers.php');
 $settings = mobile_contract_source('app/support/settings_schema.php');
@@ -141,6 +144,8 @@ foreach (['data', 'meta', 'error'] as $responseKey) {
 foreach ([
     'client_operation_id',
     'uniq_mobile_client_operation',
+    'mobile_api_existing_operation_result',
+    'mobile_api_is_duplicate_operation_exception',
     'balance_changed',
     'expected_balance',
     'mobile_api_enforce_mutation_rate_limit',
@@ -158,6 +163,26 @@ foreach ([
     if (strpos($support . $schema . $schemaState, $marker) === false) {
         fail_mobile_contract('Idempotency or conflict protection is missing marker: ' . $marker);
     }
+}
+
+if (substr_count($support, 'mobile_api_existing_operation_result($session, $operationId)') < 2
+    || strpos($support, 'if (mobile_api_is_duplicate_operation_exception($exception))') === false
+) {
+    fail_mobile_contract('Concurrent duplicate operation IDs must replay the winning committed response.');
+}
+
+if (strpos(
+    $support,
+    '$storageIds = mobile_api_inventory_scope_ids($session, $permissions);'
+) === false) {
+    fail_mobile_contract('Authoritative mutation responses must stay inside the strict mobile inventory scope.');
+}
+
+if (strpos(
+    $handovers,
+    'mobile_api_inventory_scope_ids($session, $permissions)'
+) === false) {
+    fail_mobile_contract('Mobile custody actions must use the strict mobile inventory scope.');
 }
 
 foreach ([
@@ -219,6 +244,39 @@ foreach ([
     if (strpos($inventory . $inventoryEvents, $marker) === false) {
         fail_mobile_contract('Differential synchronization is missing marker: ' . $marker);
     }
+}
+
+foreach ([
+    'inventory_record_item_change_event',
+    'inventory_record_item_change_events_for_assignments',
+] as $marker) {
+    if (strpos($inventoryEvents, $marker) === false) {
+        fail_mobile_contract('Item lifecycle synchronization is missing helper: ' . $marker);
+    }
+}
+
+if (strpos($inventory, "if ((\$itemPayload['balances'] ?? []) === [])") === false
+    || strpos($inventory, '$deletedIds[] = (int) $itemId;') === false
+) {
+    fail_mobile_contract('Items removed from an authorized storage must synchronize as tombstones.');
+}
+
+foreach (['item.unassigned', 'inventory_record_item_change_event(', '$pdo->beginTransaction()', '$pdo->rollBack()'] as $marker) {
+    if (strpos($itemActions, $marker) === false) {
+        fail_mobile_contract('Item removal lifecycle is missing transactional realtime marker: ' . $marker);
+    }
+}
+
+foreach (['item.created', 'item.assigned', 'item.updated', 'inventory_record_item_change_events_for_assignments'] as $marker) {
+    if (strpos($itemPersistence, $marker) === false) {
+        fail_mobile_contract('Item persistence is missing realtime marker: ' . $marker);
+    }
+}
+
+if (strpos($itemAssignments, 'function assign_item_to_storage(int $itemId, int $storageId): bool') === false
+    || strpos($itemAssignments, 'return !$alreadyAssigned;') === false
+) {
+    fail_mobile_contract('Storage assignment must report whether a new mobile-visible assignment was created.');
 }
 
 foreach ([
@@ -295,6 +353,8 @@ foreach ([
 
 foreach ([
     "'items.view'",
+    "'mobile.access'",
+    "'storages.view'",
     "'movements.usage'",
     "'movements.restock'",
     "'handovers.create'",
@@ -323,10 +383,41 @@ foreach ([
     }
 }
 
+$storageScopeOffset = strpos($support, 'function mobile_api_storage_ids(');
+$storageScopeSource = $storageScopeOffset === false ? '' : substr($support, $storageScopeOffset, 1400);
+foreach (['INNER JOIN storages storage', 'storage.is_active = 1', 'storage.is_system = 0'] as $scopeMarker) {
+    if (strpos($storageScopeSource, $scopeMarker) === false) {
+        fail_mobile_contract('Mobile storage assignments must exclude archived and system locations: ' . $scopeMarker);
+    }
+}
+
+$storagesHandlerOffset = strpos($inventory, 'function handle_mobile_api_storages(');
+$storagesHandlerSource = $storagesHandlerOffset === false ? '' : substr($inventory, $storagesHandlerOffset, 2600);
+if (strpos($storagesHandlerSource, '$term') !== false || strpos($storagesHandlerSource, 'item_package_presets') !== false) {
+    fail_mobile_contract('The storages endpoint must not execute item lookup logic or depend on an undefined search term.');
+}
+
+$itemLookupOffset = strpos($inventory, 'function handle_mobile_api_item_lookup(');
+$itemLookupSource = $itemLookupOffset === false ? '' : substr($inventory, $itemLookupOffset, 5000);
+foreach ([
+    'FROM item_package_presets preset',
+    'preset.scan_code = ?',
+    'matched_package_preset_id',
+    'mobile_api_item_payload(',
+] as $packageLookupMarker) {
+    if (strpos($itemLookupSource, $packageLookupMarker) === false) {
+        fail_mobile_contract('Mobile item lookup must resolve package barcodes inside the authorized storage scope: ' . $packageLookupMarker);
+    }
+}
+
 foreach ([
     'handle_mobile_api_me',
     'handle_mobile_api_bootstrap',
     'handle_mobile_api_sync',
+    'handle_mobile_api_storages',
+    'handle_mobile_api_storage_items',
+    'handle_mobile_api_item_lookup',
+    'handle_mobile_api_item_show',
 ] as $scopeHandler) {
     $handlerOffset = strpos($inventory, 'function ' . $scopeHandler . '(');
     if ($handlerOffset === false) {
@@ -356,6 +447,9 @@ foreach ([
     'mobile_api_require_handover_view',
     'mobile_api_require_handover_action',
     'handover_action_denied',
+    'mobile_api_handover_action_storage_id',
+    'mobile_api_handover_action_has_storage_scope',
+    'mobile_api_require_storage(',
 ] as $marker) {
     if (strpos($handovers, $marker) === false) {
         fail_mobile_contract('Record-level handover authorization is missing marker: ' . $marker);
@@ -364,6 +458,16 @@ foreach ([
 
 if (strpos($handovers, 'mobile_api_handover_assert_viewable') !== false) {
     fail_mobile_contract('The removed broad handover guard must not remain callable.');
+}
+
+$custodyApproveOffset = strpos($handovers, 'function handle_mobile_api_handover_custody_return_approve(');
+$custodyApproveSource = $custodyApproveOffset === false ? '' : substr($handovers, $custodyApproveOffset, 1600);
+$custodyRejectOffset = strpos($handovers, 'function handle_mobile_api_handover_custody_return_reject(');
+$custodyRejectSource = $custodyRejectOffset === false ? '' : substr($handovers, $custodyRejectOffset, 1300);
+foreach ([$custodyApproveSource, $custodyRejectSource] as $custodyReviewSource) {
+    if (strpos($custodyReviewSource, 'mobile_api_require_storage($session, (int) $handover[\'source_storage_id\'])') === false) {
+        fail_mobile_contract('Custody review mutations must enforce current source-storage access.');
+    }
 }
 
 foreach ([

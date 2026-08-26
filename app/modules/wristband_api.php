@@ -183,7 +183,7 @@ function handle_wristband_checkin_api(): void
     if ($scannedAtRaw !== '') {
         try {
             $scannedAt = (new DateTimeImmutable($scannedAtRaw))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d H:i:s');
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
             wristband_api_response(422, null, 'invalid_scanned_at', 'scanned_at must be an ISO-8601 timestamp.');
         }
     }

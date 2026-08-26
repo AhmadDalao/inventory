@@ -72,9 +72,10 @@ release_contract_has_all($authActions, [
     'Auth::revokePersistentSessionsForUser',
 ], 'Login and password-reset actions');
 release_contract_has_all($loginView, [
-    'class="field-label">Password',
-    'type="password" name="password"',
+    'class="field-label" for="login_password">Password',
+    'id="login_password" type="password" name="password"',
     'required data-password-input',
+    'data-login-password-field',
     'name="remember_me"',
     'type="hidden" name="remember_me" value="0"',
     "old('remember_me', '1')",
@@ -82,8 +83,10 @@ release_contract_has_all($loginView, [
     'data-password-toggle',
 ], 'Login interface');
 release_contract_has_all($components, [
-    '.auth-card-login .password-field {',
-    '.auth-card-login .password-input-wrap',
+    '.auth-card-login .password-field,',
+    '.auth-card-login .auth-login-password,',
+    '.auth-card-login .auth-login-password .password-input-wrap,',
+    '.auth-card-login [data-login-password-field] .password-input-wrap',
     'display: grid !important;',
     'display: block !important;',
     'visibility: visible !important;',

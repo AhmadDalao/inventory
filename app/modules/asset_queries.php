@@ -84,11 +84,28 @@ function can_view_company_asset(array $asset): bool
         return false;
     }
 
-    if (!Auth::isStaff()) {
+    $userId = (int) (Auth::user()['id'] ?? 0);
+
+    if ($userId <= 0) {
+        return false;
+    }
+
+    // Staff may inspect only assets in their own custody, even inside assigned storages.
+    if (Auth::isStaff()) {
+        return (int) ($asset['assigned_user_id'] ?? 0) === $userId;
+    }
+
+    if (user_can_view_all_storages($userId)) {
         return true;
     }
 
-    return (int) ($asset['assigned_user_id'] ?? 0) === (int) (Auth::user()['id'] ?? 0);
+    if ((int) ($asset['assigned_user_id'] ?? 0) === $userId) {
+        return true;
+    }
+
+    $storageId = (int) ($asset['storage_id'] ?? 0);
+
+    return $storageId > 0 && user_can_view_storage($userId, $storageId);
 }
 
 function find_company_asset_or_abort(int $id): array

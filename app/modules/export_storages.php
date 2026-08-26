@@ -104,6 +104,7 @@ function handle_export_storages(): void
 
 function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageSize): string
 {
+    $includeImages = storage_xlsx_thumbnail_export_enabled();
     $includeBarcodeImages = excel_export_barcode_images_enabled();
     $headers = [
         'Storage Name',
@@ -118,12 +119,18 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
         'Storage Notes',
         'Storage Updated At',
         'Row Type',
-        'Item Image',
+    ];
+
+    if ($includeImages) {
+        $headers[] = 'Item Image';
+    }
+
+    $headers = array_merge($headers, [
         'Item Name',
         'Item SKU',
         'Barcode Value',
         'Scan Code',
-    ];
+    ]);
 
     if ($includeBarcodeImages) {
         $headers[] = 'Barcode Image';
@@ -172,15 +179,22 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
             (string) ($row['storage_notes'] ?? ''),
             (string) ($row['storage_updated_at'] ?? ''),
             (string) ($row['row_type'] ?? ''),
-            workflow_xlsx_has_image_at($images, $excelRow, 12) ? '' : ((string) ($row['row_type'] ?? '') === 'Item' ? 'No image' : ''),
+        ];
+
+        if ($includeImages) {
+            $rowValues[] = workflow_xlsx_has_image_at($images, $excelRow, 12) ? '' : ((string) ($row['row_type'] ?? '') === 'Item' ? 'No image' : '');
+        }
+
+        $rowValues = array_merge($rowValues, [
             (string) ($row['item_name'] ?? ''),
             (string) ($row['item_sku'] ?? ''),
             (string) ($row['barcode_value'] ?? ''),
             (string) ($row['scan_code'] ?? ''),
-        ];
+        ]);
 
         if ($includeBarcodeImages) {
-            $rowValues[] = workflow_xlsx_has_image_at($images, $excelRow, 17) ? '' : ((string) ($row['scan_code'] ?? '') !== '' ? 'Barcode image unavailable' : '');
+            $barcodeCol = $includeImages ? 17 : 16;
+            $rowValues[] = workflow_xlsx_has_image_at($images, $excelRow, $barcodeCol) ? '' : ((string) ($row['scan_code'] ?? '') !== '' ? 'Barcode image unavailable' : '');
         }
 
         $rowValues = array_merge($rowValues, [
@@ -230,12 +244,18 @@ function storage_export_xlsx_sheet_xml(array $rows, array $images, array $imageS
         28,
         20,
         12,
-        $imageColumnWidth,
+    ];
+
+    if ($includeImages) {
+        $columnWidths[] = $imageColumnWidth;
+    }
+
+    $columnWidths = array_merge($columnWidths, [
         24,
         18,
         18,
         22,
-    ];
+    ]);
 
     if ($includeBarcodeImages) {
         $columnWidths[] = 32;
@@ -287,6 +307,7 @@ function storage_export_xlsx_payload(array $storages): string
     $rows = [];
     $images = [];
     $imageSize = item_xlsx_thumbnail_export_size();
+    $includeImages = storage_xlsx_thumbnail_export_enabled();
     $includeBarcodeImages = excel_export_barcode_images_enabled();
 
     foreach ($storages as $storage) {
@@ -314,13 +335,15 @@ function storage_export_xlsx_payload(array $storages): string
         foreach (storage_items((int) $storage['id']) as $item) {
             $scanCode = item_scan_code($item);
             $excelRow = count($rows) + 2;
-            $image = workflow_xlsx_image_asset($item['image_path'] ?? null, $imageSize);
+            if ($includeImages) {
+                $image = workflow_xlsx_image_asset($item['image_path'] ?? null, $imageSize);
 
-            if ($image !== null) {
-                $image['row'] = $excelRow;
-                $image['col'] = 12;
-                $image['name'] = 'Storage Item Thumbnail ' . $excelRow;
-                $images[] = $image;
+                if ($image !== null) {
+                    $image['row'] = $excelRow;
+                    $image['col'] = 12;
+                    $image['name'] = 'Storage Item Thumbnail ' . $excelRow;
+                    $images[] = $image;
+                }
             }
 
             if ($includeBarcodeImages && $scanCode !== '') {
@@ -328,7 +351,7 @@ function storage_export_xlsx_payload(array $storages): string
 
                 if ($barcodeImage !== null) {
                     $barcodeImage['row'] = $excelRow;
-                    $barcodeImage['col'] = 17;
+                    $barcodeImage['col'] = $includeImages ? 17 : 16;
                     $barcodeImage['name'] = 'Storage Item Barcode ' . $excelRow;
                     $images[] = $barcodeImage;
                 }
@@ -404,13 +427,9 @@ function handle_export_storages_xlsx(): void
     app_ready_or_redirect();
     Auth::requirePermission('storages.export');
 
-    if (!storage_xlsx_thumbnail_export_enabled()) {
-        abort(403, 'Storage Excel thumbnail export is disabled in Website Control.');
-    }
-
     try {
         export_xlsx('storage-export-' . date('Ymd-His') . '.xlsx', storage_export_xlsx_payload(storage_summaries(storage_filters())));
     } catch (Throwable $exception) {
-        abort(500, 'Could not export storage thumbnails. ' . $exception->getMessage());
+        abort(500, 'Could not export storages. ' . $exception->getMessage());
     }
 }

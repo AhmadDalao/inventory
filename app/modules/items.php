@@ -125,7 +125,11 @@ function handle_items_create_submit(): void
     }
 
     if ($existingItem !== null && $useExistingItem) {
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+
         try {
+            $metadataChanged = false;
             if ($payload['barcode'] !== '' && normalize_item_barcode($existingItem['barcode'] ?? '') === '') {
                 Database::execute(
                     'UPDATE items SET barcode = :barcode, updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
@@ -135,6 +139,7 @@ function handle_items_create_submit(): void
                         'id' => (int) $existingItem['id'],
                     ]
                 );
+                $metadataChanged = true;
             }
 
             if ($payload['current_quantity'] > 0) {
@@ -160,10 +165,32 @@ function handle_items_create_submit(): void
                     (int) $user['id']
                 );
             } else {
-                assign_item_to_storage((int) $existingItem['id'], (int) $storageId);
+                $assigned = assign_item_to_storage((int) $existingItem['id'], (int) $storageId);
                 sync_item_inventory_snapshot((int) $existingItem['id'], (int) $user['id']);
+                if ($assigned) {
+                    inventory_record_item_change_event(
+                        'item.assigned',
+                        (int) $existingItem['id'],
+                        (int) $storageId,
+                        (int) $user['id'],
+                        ['quantity' => 0, 'assignment_source' => 'sku_reuse']
+                    );
+                }
             }
+
+            if ($metadataChanged) {
+                inventory_record_item_change_events_for_assignments(
+                    'item.updated',
+                    (int) $existingItem['id'],
+                    (int) $user['id'],
+                    ['fields' => ['barcode']]
+                );
+            }
+            $pdo->commit();
         } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             flash('danger', $exception->getMessage());
             redirect('/items/create');
         }
@@ -253,6 +280,21 @@ function handle_items_create_submit(): void
         } elseif ($storageId !== null) {
             persist_item_storage_balance($itemId, (int) $storageId, 0.0);
             sync_item_inventory_snapshot($itemId, (int) $user['id']);
+            inventory_record_item_change_event(
+                'item.created',
+                $itemId,
+                (int) $storageId,
+                (int) $user['id'],
+                ['quantity' => 0]
+            );
+        } else {
+            inventory_record_item_change_event(
+                'item.created',
+                $itemId,
+                null,
+                (int) $user['id'],
+                ['quantity' => 0]
+            );
         }
 
         $pdo->commit();
@@ -387,6 +429,7 @@ function handle_items_edit_submit(array $params): void
 
     $storedImagePath = null;
     $nextImagePath = $item['image_path'];
+    $pdo = Database::connection();
 
     try {
         if ($imageUpload['file'] !== null) {
@@ -394,6 +437,7 @@ function handle_items_edit_submit(array $params): void
             $nextImagePath = $storedImagePath;
         }
 
+        $pdo->beginTransaction();
         Database::execute(
             'UPDATE items
              SET name = :name,
@@ -432,7 +476,34 @@ function handle_items_edit_submit(array $params): void
                 'id' => $item['id'],
             ]
         );
+        inventory_record_item_change_events_for_assignments(
+            'item.updated',
+            (int) $item['id'],
+            (int) $user['id'],
+            [
+                'fields' => [
+                    'name',
+                    'sku',
+                    'barcode',
+                    'category',
+                    'storage_id',
+                    'unit',
+                    'measurement_dimension',
+                    'usage_proof_policy',
+                    'refill_proof_policy',
+                    'external_qr_tracking_enabled',
+                    'reorder_level',
+                    'cost_per_unit',
+                    'image_path',
+                    'notes',
+                ],
+            ]
+        );
+        $pdo->commit();
     } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         if ($storedImagePath !== null) {
             delete_item_image($storedImagePath);
         }

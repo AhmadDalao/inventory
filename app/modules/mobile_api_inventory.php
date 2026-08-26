@@ -314,7 +314,12 @@ function handle_mobile_api_sync(): void
                 $deletedIds[] = (int) $itemId;
                 continue;
             }
-            $items[] = mobile_api_item_payload($item, $ids);
+            $itemPayload = mobile_api_item_payload($item, $ids);
+            if (($itemPayload['balances'] ?? []) === []) {
+                $deletedIds[] = (int) $itemId;
+                continue;
+            }
+            $items[] = $itemPayload;
         }
         $tasks = Auth::userHasPermission((int) $session['user_id'], 'handovers.view')
             ? (($workflowChanged || $after === 0) ? mobile_api_handover_list_rows($session, true) : [])
@@ -406,33 +411,10 @@ function handle_mobile_api_storages(): void
 {
     mobile_api_run(function (): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'items.view');
-        $ids = mobile_api_storage_ids($session);
+        $permissions = mobile_api_permissions((int) $session['user_id']);
+        $ids = mobile_api_inventory_scope_ids($session, $permissions);
         if ($ids === []) {
             mobile_api_success([]);
-        }
-        $packageRows = Database::fetchAll(
-            'SELECT DISTINCT item.*, preset.id AS matched_package_preset_id
-             FROM item_package_presets preset
-             INNER JOIN items item ON item.id = preset.item_id
-             INNER JOIN item_storage_balances balance ON balance.item_id = item.id
-             WHERE item.is_active = 1
-               AND preset.is_active = 1
-               AND preset.scan_code = ?
-               AND balance.storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')
-             ORDER BY preset.is_default DESC, item.name ASC
-             LIMIT 25',
-            array_merge([$term], $ids)
-        );
-        if ($packageRows !== []) {
-            mobile_api_success(array_map(
-                static fn (array $item): array => mobile_api_item_payload(
-                    $item,
-                    $ids,
-                    (int) $item['matched_package_preset_id']
-                ),
-                $packageRows
-            ));
         }
         $rows = Database::fetchAll(
             'SELECT storage.id, storage.name, storage.storage_type, assignment.is_default,
@@ -462,9 +444,12 @@ function handle_mobile_api_storage_items(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'items.view');
+        $permissions = mobile_api_permissions((int) $session['user_id']);
+        $ids = mobile_api_inventory_scope_ids($session, $permissions);
         $storageId = (int) $params['id'];
-        mobile_api_require_storage($session, $storageId);
+        if (!in_array($storageId, $ids, true)) {
+            throw new MobileApiException('storage_forbidden', 'This storage is not assigned to you.', 403);
+        }
         $search = trim((string) query('search', ''));
         $where = $search !== '' ? ' AND (item.name LIKE :search OR item.sku LIKE :search OR item.barcode LIKE :search)' : '';
         $rows = Database::fetchAll(
@@ -484,20 +469,47 @@ function handle_mobile_api_item_lookup(): void
 {
     mobile_api_run(function (): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'items.view');
+        $permissions = mobile_api_permissions((int) $session['user_id']);
         $term = trim((string) query('q', query('code', '')));
         if ($term === '') {
             throw new MobileApiException('validation_failed', 'Scan or enter an item code.', 422);
         }
-        $ids = mobile_api_storage_ids($session);
+        $ids = mobile_api_inventory_scope_ids($session, $permissions);
         $requestedStorageId = (int) query('storage_id', 0);
         if ($requestedStorageId > 0) {
-            mobile_api_require_storage($session, $requestedStorageId);
+            if (!in_array($requestedStorageId, $ids, true)) {
+                throw new MobileApiException('storage_forbidden', 'This storage is not assigned to you.', 403);
+            }
             $ids = [$requestedStorageId];
         }
         if ($ids === []) {
             mobile_api_success([]);
         }
+
+        $packageRows = Database::fetchAll(
+            'SELECT DISTINCT item.*, preset.id AS matched_package_preset_id
+             FROM item_package_presets preset
+             INNER JOIN items item ON item.id = preset.item_id
+             INNER JOIN item_storage_balances balance ON balance.item_id = item.id
+             WHERE item.is_active = 1
+               AND preset.is_active = 1
+               AND preset.scan_code = ?
+               AND balance.storage_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')
+             ORDER BY preset.is_default DESC, item.name ASC
+             LIMIT 25',
+            array_merge([$term], $ids)
+        );
+        if ($packageRows !== []) {
+            mobile_api_success(array_map(
+                static fn (array $item): array => mobile_api_item_payload(
+                    $item,
+                    $ids,
+                    (int) $item['matched_package_preset_id']
+                ),
+                $packageRows
+            ));
+        }
+
         $rows = Database::fetchAll(
             'SELECT DISTINCT item.*
              FROM items item
@@ -517,8 +529,8 @@ function handle_mobile_api_item_show(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        mobile_api_require_permission($session, 'items.view');
-        $ids = mobile_api_storage_ids($session);
+        $permissions = mobile_api_permissions((int) $session['user_id']);
+        $ids = mobile_api_inventory_scope_ids($session, $permissions);
         mobile_api_success(mobile_api_item_payload(mobile_api_find_item((int) $params['id'], $ids), $ids));
     });
 }
