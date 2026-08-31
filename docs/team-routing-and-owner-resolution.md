@@ -55,6 +55,8 @@ An item is a shared catalog identity, but its visible balance is always calculat
 
 Managers receive deduplicated notifications for direct-report requests, handovers, scan in/out, usage, restock, transfer, and other mobile stock activity. Managers can open related records only when they have the relevant view permission.
 
+The reporting line is maintained at `/users/hierarchy`. Desktop users may drag an employee onto an active owner/admin; touch users use the manager selector. Both paths call the same `team.manage`-protected action, reject self-management and cycles, update the compatibility routing field, and write an audit record.
+
 Manager routing is observational:
 
 - It does not grant receipt confirmation.
@@ -84,6 +86,17 @@ Workflow notifications are deduplicated and sent to the relevant combination of:
 - Every active global Owner.
 
 The actor is excluded from their own notification. Historical workflow rows retain the manager snapshot even if the employee later changes manager.
+
+Committed web Scan Center usage/refill batches use the same observer routing as mobile stock operations. Notification failure is logged after the inventory transaction commits; it must never roll back a valid stock movement.
+
+## Administration Surfaces
+
+- `/users/hierarchy`: reporting tree and manager assignment.
+- User create/edit: manager, department, assigned storages, default storage, and website permissions.
+- Storage detail/edit: co-owners and staff membership for that location.
+- `/mobile-access`: mobile enablement, default storage, capabilities, direct-restock grant, devices, and operation diagnostics.
+
+These controls intentionally overlap in presentation but not in authority. Manager assignment routes work; storage membership scopes stock; website permissions authorize features; Mobile Access can narrow mobile behavior but cannot expand either of the first two.
 
 ## Global Owner Resolution
 
@@ -122,4 +135,5 @@ When adding a workflow or mobile action:
 - `storages.view_all` expands read scope but does not grant stock approval.
 - Manager, storage assignment, permission, device, or account revocation takes effect on the next protected request/sync.
 - Owner resolution preserves audit history and stock invariants for every handover purpose.
-
+- Drag/drop and touch manager assignment reject reporting cycles and preserve every active user in the hierarchy view.
+- Web and mobile usage/refill notify the direct manager, relevant storage co-owners, and global Owners exactly once per accepted operation.

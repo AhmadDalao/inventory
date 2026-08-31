@@ -80,7 +80,7 @@ foreach ($permissionGroups as $group) {
                     </div>
                 </details>
 
-                <details class="panel settings-panel settings-accordion-panel" open>
+                <details class="panel settings-panel settings-accordion-panel" id="storage-access" open>
                     <summary class="settings-accordion-summary">
                         <span>
                             <span class="eyebrow">Control Group</span>

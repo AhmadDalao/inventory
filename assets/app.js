@@ -30,6 +30,7 @@ import { init as initScan } from './js/domains/scan.js';
 import { init as initMobileAdmin } from './js/domains/mobile-admin.js';
 import { init as initWristbands } from './js/domains/wristbands.js';
 import { init as initPackagePresets } from './js/domains/package-presets.js';
+import { init as initTeamHierarchy } from './js/domains/team-hierarchy.js';
 
 registerInitializer('navigation', initNavigation);
 registerInitializer('dialogs', initDialogs);
@@ -62,6 +63,7 @@ registerInitializer('scan', initScan);
 registerInitializer('mobile-admin', initMobileAdmin);
 registerInitializer('wristbands', initWristbands);
 registerInitializer('package-presets', initPackagePresets);
+registerInitializer('team-hierarchy', initTeamHierarchy);
 
 document.addEventListener('DOMContentLoaded', () => {
   initInteractiveUi(document);

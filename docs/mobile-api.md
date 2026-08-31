@@ -1,6 +1,6 @@
 # Inventory KONA Mobile API
 
-Updated: 2026-08-22
+Updated: 2026-08-31
 
 The mobile API is the controlled bridge between the Flutter application and the existing Inventory KONA stock engine. The app never writes MySQL directly and never calculates final stock locally.
 
@@ -30,6 +30,8 @@ Mobile access is disabled by default. An owner must open `/mobile-access`, searc
 
 Enabled staff accounts must have both a manager and an assigned storage. The default storage must be one of the assigned storages. Disabling mobile access revokes the employee's active mobile device sessions.
 
+The reporting line can also be maintained from `/users/hierarchy`, which provides desktop drag-and-drop and a touch-safe manager selector. Storage membership remains managed from the employee or storage page; moving someone in the reporting tree does not silently grant stock access.
+
 The existing permission catalog still applies. A mobile capability does not bypass `items.view`, movement, handover, or custody permissions. Effective access is always the intersection of the website permission, Mobile Access capability, assigned storage, active account/grant/device, supported app version, workflow status, and record relationship.
 
 The server recomputes this intersection on every protected request. Revoking a permission, storage assignment, employee grant, or device therefore blocks the next request even if the employee still has an old screen open. Bootstrap returns only effective capabilities, and handover payloads return server-computed `allowed_actions`; those fields drive the Flutter UI but never replace API authorization.
@@ -50,7 +52,7 @@ If an employee's mobile setup is incomplete, `/me`, `/bootstrap`, and `/sync` re
 - `/me` and `/bootstrap` return the employee's current direct manager when one is assigned.
 - Each authorized storage includes `access_role`: `owner` or `member`.
 - A member can see and act only within assigned storages and granted capabilities. An owner can approve stock for that storage only when the matching website permission also exists.
-- Managers receive notifications for direct-report scan in/out, usage, restock, request, and handover activity. Active global Owners and relevant storage co-owners are also notified.
+- Managers receive notifications for direct-report scan in/out, usage, restock, request, and handover activity. The same observer routing is used by mobile operations and committed web Scan Center usage/refill batches. Active global Owners and relevant storage co-owners are also notified.
 - Manager visibility never grants stock approval by itself. The API independently checks storage ownership on every request, receipt, transfer, closeout, or correction action.
 - Request, handover, and mobile-operation records snapshot the manager id for audit/history; current access is still recalculated on each protected request.
 - Changing a manager, removing a storage assignment, demoting a co-owner, or disabling a user changes the access fingerprint and takes effect on the next visible sync.

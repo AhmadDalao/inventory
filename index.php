@@ -753,6 +753,12 @@ $router->get('/exports/users', static function (): void {
 $router->get('/users', static function (): void {
     handle_users_index();
 });
+$router->get('/users/hierarchy', static function (): void {
+    handle_team_hierarchy_page();
+});
+$router->post('/users/hierarchy/move', static function (): void {
+    handle_team_hierarchy_move_submit();
+});
 $router->get('/users/create', static function (): void {
     handle_users_create_page();
 });

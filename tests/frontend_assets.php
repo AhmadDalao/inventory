@@ -204,6 +204,7 @@ $konaThemeCss = file_get_contents($root . '/assets/css/themes/kona.css') ?: '';
 $classicThemeCss = file_get_contents($root . '/assets/css/themes/classic.css') ?: '';
 $officialThemeCss = file_get_contents($root . '/assets/css/themes/official.css') ?: '';
 $assetsCss = file_get_contents($root . '/assets/css/domains/assets.css') ?: '';
+$adminCss = file_get_contents($root . '/assets/css/domains/admin.css') ?: '';
 $mobileCss = file_get_contents($root . '/assets/css/mobile.css') ?: '';
 
 foreach ([
@@ -235,6 +236,16 @@ foreach ([
     if (strpos($assetsCss, $marker) === false) {
         fail_frontend_assets('Assets CSS module is missing marker: ' . $marker);
     }
+}
+
+$teamHierarchyScript = file_get_contents($root . '/assets/js/domains/team-hierarchy.js') ?: '';
+foreach (['data-team-manager-form', 'dragstart', 'data-team-root-drop'] as $marker) {
+    if (strpos($teamHierarchyScript, $marker) === false) {
+        fail_frontend_assets('Team hierarchy JavaScript is missing marker: ' . $marker);
+    }
+}
+if (strpos($entryScript, 'initTeamHierarchy') === false || strpos($adminCss, 'Team hierarchy:') === false) {
+    fail_frontend_assets('Team hierarchy assets are not registered in the modular frontend.');
 }
 
 foreach ([

@@ -63,6 +63,39 @@ function scan_movement_batch_validate_line(
     ];
 }
 
+function scan_movement_batch_notify_observers(
+    int $actorUserId,
+    int $storageId,
+    string $movementType,
+    int $lineCount,
+    string $referenceCode,
+    ?int $movementId = null
+): void {
+    $actorName = (string) (Database::scalar(
+        'SELECT name FROM users WHERE id = :id LIMIT 1',
+        ['id' => $actorUserId]
+    ) ?: 'A staff member');
+    $storageName = (string) (Database::scalar(
+        'SELECT name FROM storages WHERE id = :id LIMIT 1',
+        ['id' => $storageId]
+    ) ?: 'the assigned storage');
+    $isRestock = $movementType === 'restock';
+    $title = $actorName . ($isRestock ? ' scanned stock in' : ' scanned stock out');
+    $message = $title . ' at ' . $storageName . ' for ' . $lineCount . ' line'
+        . ($lineCount === 1 ? '' : 's') . ' (' . $referenceCode . ').';
+
+    notify_workflow_observers(
+        $actorUserId,
+        [$storageId],
+        'scan_center_' . $movementType,
+        $title,
+        $message,
+        url('/movements?storage_id=' . $storageId . '&search=' . rawurlencode($referenceCode)),
+        'inventory_movement',
+        $movementId
+    );
+}
+
 function handle_scan_movement_batch_submit(): void
 {
     app_ready_or_redirect();
@@ -209,6 +242,19 @@ function handle_scan_movement_batch_submit(): void
             'ok' => false,
             'message' => $exception->getMessage() ?: 'The batch could not be saved.',
         ], 422);
+    }
+
+    try {
+        scan_movement_batch_notify_observers(
+            $userId,
+            $storageId,
+            $movementType,
+            count($validatedLines),
+            $referenceCode,
+            isset($movementIds[0]) ? (int) $movementIds[0] : null
+        );
+    } catch (Throwable $notificationException) {
+        error_log('[scan-center] Could not notify operation observers: ' . $notificationException->getMessage());
     }
 
     $updatedItems = [];

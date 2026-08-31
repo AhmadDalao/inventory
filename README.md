@@ -49,6 +49,7 @@ find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 node --check assets/app.js
 php tests/module_boundaries.php
 php tests/frontend_assets.php
+php tests/team_hierarchy.php
 php tests/mobile_api_contract.php
 php tests/measured_inventory.php
 php tests/persistent_package_wristband_contract.php

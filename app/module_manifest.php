@@ -32,6 +32,7 @@ return [
         'item_movements',
         'storage_support',
         'team_access',
+        'team_hierarchy',
         'storage_pages',
         'storages',
         'inventory_stock',

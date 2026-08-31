@@ -211,3 +211,196 @@
     background: #fff8ea;
 }
 
+/* Team hierarchy: reporting ownership with direct access-control handoffs. */
+.team-hierarchy-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.team-hierarchy-summary article {
+    display: grid;
+    gap: 5px;
+    min-height: 88px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--surface);
+}
+
+.team-hierarchy-summary small,
+.team-hierarchy-facts small {
+    color: var(--muted);
+}
+
+.team-hierarchy-summary strong {
+    font-size: 1.55rem;
+}
+
+.team-hierarchy-shell {
+    overflow: visible;
+}
+
+.team-hierarchy-root-drop {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    border: 1px dashed #c7b694;
+    border-radius: 18px;
+    background: #fffaf0;
+    color: var(--muted);
+}
+
+.team-hierarchy-root-drop strong {
+    color: var(--ink);
+}
+
+.team-hierarchy-root-drop.is-drop-target,
+.team-hierarchy-card.is-drop-target {
+    border-color: var(--accent);
+    background: #fff4cf;
+    box-shadow: 0 0 0 4px rgba(229, 181, 87, 0.16);
+}
+
+.team-hierarchy-tree,
+.team-hierarchy-children {
+    display: grid;
+    gap: 14px;
+}
+
+.team-hierarchy-node {
+    min-width: 0;
+}
+
+.team-hierarchy-node.is-dragging {
+    opacity: 0.45;
+}
+
+.team-hierarchy-children:not(:empty) {
+    margin: 14px 0 0 34px;
+    padding-left: 22px;
+    border-left: 2px solid #eadfcf;
+}
+
+.team-hierarchy-card {
+    display: grid;
+    gap: 13px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: var(--surface);
+    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.team-hierarchy-card.is-manager {
+    border-left: 5px solid var(--accent);
+}
+
+.team-hierarchy-card-head,
+.team-hierarchy-identity,
+.team-hierarchy-actions,
+.team-hierarchy-scan-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.team-hierarchy-card-head {
+    justify-content: space-between;
+}
+
+.team-hierarchy-identity {
+    min-width: 0;
+}
+
+.team-hierarchy-identity > span:last-child,
+.team-hierarchy-identity strong,
+.team-hierarchy-identity small {
+    display: block;
+    min-width: 0;
+}
+
+.team-hierarchy-identity small {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.team-hierarchy-drag {
+    color: #9a8a72;
+    cursor: grab;
+    font-weight: 900;
+    letter-spacing: -2px;
+}
+
+.team-hierarchy-avatar {
+    display: grid;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 15px;
+    background: var(--ink);
+    color: #fff;
+    font-weight: 900;
+}
+
+.team-hierarchy-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.team-hierarchy-facts > span {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 10px;
+    border-radius: 15px;
+    background: var(--soft);
+}
+
+.team-hierarchy-facts svg {
+    width: 18px;
+    height: 18px;
+}
+
+.team-hierarchy-facts strong,
+.team-hierarchy-facts small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.team-hierarchy-storage-copy {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.team-hierarchy-actions,
+.team-hierarchy-scan-state {
+    flex-wrap: wrap;
+}
+
+.team-hierarchy-manager-form {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    gap: 10px;
+}
+
+.team-hierarchy-manager-form select {
+    width: 100%;
+}
+
+.team-hierarchy-drop-copy {
+    color: #8a6a2a;
+    font-size: 0.78rem;
+    font-weight: 800;
+}

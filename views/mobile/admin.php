@@ -112,7 +112,7 @@
             ]);
             $openForSetup = !empty($setup['enabled']) && empty($setup['ready']);
             ?>
-            <details class="settings-accordion-panel mobile-access-user" data-mobile-user-card data-search-text="<?= e(strtolower($searchText)) ?>" <?= $openForSetup ? 'open' : '' ?>>
+            <details class="settings-accordion-panel mobile-access-user" id="mobile-user-<?= (int) $mobileUser['id'] ?>" data-mobile-user-card data-search-text="<?= e(strtolower($searchText)) ?>" <?= $openForSetup ? 'open' : '' ?>>
                 <summary class="settings-accordion-summary">
                     <span>
                         <strong><?= e($mobileUser['name']) ?></strong>

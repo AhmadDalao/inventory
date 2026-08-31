@@ -25,6 +25,7 @@
         grid-template-columns: 1fr;
     }
 }
+
 @media (max-width: 560px) {
     .storage-action-card {
         grid-template-columns: 40px minmax(0, 1fr);
@@ -2487,5 +2488,40 @@ body.app-shell {
 @media (max-width: 360px) {
     .app-shell .reports-summary-metrics {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-shell .team-hierarchy-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .app-shell .team-hierarchy-root-drop,
+    .app-shell .team-hierarchy-card-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .app-shell .team-hierarchy-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .app-shell .team-hierarchy-children:not(:empty) {
+        margin-left: 12px;
+        padding-left: 12px;
+    }
+
+    .app-shell .team-hierarchy-manager-form {
+        grid-template-columns: 1fr;
+    }
+
+    .app-shell .team-hierarchy-manager-form .ghost-button,
+    .app-shell .team-hierarchy-actions .ghost-button {
+        width: 100%;
+    }
+
+    .app-shell .team-hierarchy-drag,
+    .app-shell .team-hierarchy-drop-copy {
+        display: none;
     }
 }

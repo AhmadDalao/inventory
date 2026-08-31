@@ -6,6 +6,7 @@
         <h3 class="page-head-title"><?= ui_icon('users') ?><span><?= e(site_setting('page.users', 'Admins')) ?></span></h3>
     </div>
     <div class="page-actions">
+        <a class="ghost-button" href="<?= e(url('/users/hierarchy')) ?>"><?= ui_icon('users') ?><span>Team Hierarchy</span></a>
         <?php if (Auth::hasPermission('users.create')): ?>
             <a class="primary-button" href="<?= e(url('/users/create')) ?>"><?= ui_icon('plus') ?><span>Create User</span></a>
         <?php endif; ?>

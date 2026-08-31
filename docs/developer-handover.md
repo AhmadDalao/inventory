@@ -138,6 +138,7 @@ When adding frontend behavior:
 | `app/modules/storage_filters.php` | Storage list filters and shared storage SQL where clauses. |
 | `app/modules/storage_ownership.php` | Global-owner checks, multi-owner/member storage assignments, assigned/default storage scope, co-owner management authority, and storage selector helpers. |
 | `app/modules/team_access.php` | Staff-to-manager reporting lines, cycle prevention, direct-report scope, workflow observer routing, and deduplicated manager/storage-owner/global-owner notifications. |
+| `app/modules/team_hierarchy.php` | Readable reporting tree plus audited drag/drop or selector-based manager reassignment at `/users/hierarchy`. |
 | `app/modules/storage_lookup.php` | Storage detail lookup/404 handling and summary metrics for one storage. |
 | `app/modules/storage_inventory.php` | Storage item rows and storage summary list metrics. |
 | `app/modules/storage_form_payloads.php` | Storage create/edit form default payloads. |
@@ -517,13 +518,14 @@ Status override must stay limited to owner/super admin because it can change wor
 The reporting line and stock authority are deliberately separate:
 
 - `users.manager_user_id` assigns one active owner/admin as the employee's direct manager. Manager loops and self-management are rejected.
+- `/users/hierarchy` displays the complete reporting tree. Authorized users can drag staff onto an owner/admin on desktop or use the explicit manager selector on touch devices; both controls call the same audited, cycle-safe server action.
 - Managers can open direct-report requests and handovers and receive notifications for their staff's web/mobile actions when they have the relevant view permission.
 - Manager visibility is observational. It does not grant request approval, handover approval, receipt confirmation, or stock authority unless that manager is also an owner of the affected source/destination storage.
 - `user_storage_assignments.access_role` is the storage access authority. `owner` can manage/approve for that storage when the matching permission exists; `member` can see/use only the assigned storage within their permissions.
 - A storage can have several co-owners and several staff members. `storages.owner_user_id` remains the compatibility primary owner, but it is not the complete ownership list.
 - Staff catalog, quantity, Scan Center, request, handover, and mobile API scopes are restricted to assigned storages. The default storage must also be assigned.
 - Item list/detail/edit/copy routes, direct movement entry, selectors, AJAX payloads, and CSV/XLSX exports enforce the same assigned-storage boundary. Direct item ids outside that boundary return `404`, and visible quantities are recalculated from assigned balances rather than `items.current_quantity`.
-- Workflow notifications are deduplicated and routed to direct participants, the acting employee's manager, relevant storage co-owners, and all active global Owners. The actor is excluded from their own alert.
+- Workflow notifications are deduplicated and routed to direct participants, the acting employee's manager, relevant storage co-owners, and all active global Owners. This includes committed mobile operations and web Scan Center usage/refill batches. The actor is excluded from their own alert.
 - New requests, handovers, and mobile operations snapshot `manager_user_id` so the historical routing remains explainable if the employee's manager later changes.
 
 Global Owner resolution is not a raw status dropdown. Owner-only recovery, reopen, close, cancel, and void actions must call the purpose-aware stock service, preserve movements/files, write an audit entry, notify affected users, and refuse any transition that would make a location negative. Regular admins never receive these controls through a permission checkbox.
@@ -535,6 +537,8 @@ Relevant permissions:
 - `team.view`: see assigned direct reports.
 - `team.activity.view`: see direct-report workflow/mobile activity.
 - `team.manage`: assign or change reporting lines.
+
+The hierarchy card links directly to each employee's storage assignments and Mobile Access controls. Those are separate authorities by design: changing a manager changes routing and visibility, while changing a storage assignment changes where the employee may read or mutate stock.
 
 The maintained implementation checklist and authorization chain are in [`docs/team-routing-and-owner-resolution.md`](team-routing-and-owner-resolution.md). Update that contract whenever a new workflow, mobile action, approval route, export, or realtime payload is added.
 

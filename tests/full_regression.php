@@ -1427,6 +1427,35 @@ assert_true(
     ) === $ownerMobileAlertsBefore + 1,
     'Staff mobile usage did not notify the global owner.'
 );
+$managerScanAlertsBefore = (int) Database::scalar(
+    'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "scan_center_usage"',
+    ['user_id' => (int) $manager['id']]
+);
+$ownerScanAlertsBefore = (int) Database::scalar(
+    'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "scan_center_usage"',
+    ['user_id' => (int) $owner['id']]
+);
+scan_movement_batch_notify_observers(
+    (int) $staff['id'],
+    (int) $storages[0]['id'],
+    'usage',
+    2,
+    $prefix . '-SCAN-NOTIFY'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "scan_center_usage"',
+        ['user_id' => (int) $manager['id']]
+    ) === $managerScanAlertsBefore + 1,
+    'Staff website scan-out did not notify the assigned manager.'
+);
+assert_true(
+    (int) Database::scalar(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND notification_type = "scan_center_usage"',
+        ['user_id' => (int) $owner['id']]
+    ) === $ownerScanAlertsBefore + 1,
+    'Staff website scan-out did not notify the global owner.'
+);
 
 $seededItems = [];
 
@@ -2031,6 +2060,29 @@ assert_true(
         && (int) $httpUser['manager_user_id'] === (int) $admin['id']
         && (int) $httpUser['assigned_owner_user_id'] === (int) $admin['id'],
     'User edit did not persist the updated account profile.'
+);
+
+$teamHierarchyPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/hierarchy');
+assert_true(
+    $teamHierarchyPage['status'] === 200
+        && strpos($teamHierarchyPage['body'], 'data-team-hierarchy') !== false
+        && strpos($teamHierarchyPage['body'], $httpUserUpdatedEmail) !== false,
+    'Team hierarchy page did not render the active employee tree.'
+);
+$teamHierarchyMove = http_request($baseUrl, $ownerCookie, 'POST', '/users/hierarchy/move', [
+    '_token' => extract_csrf($teamHierarchyPage['body'], 'team hierarchy manager move'),
+    'user_id' => (string) $httpUser['id'],
+    'manager_user_id' => (string) $owner['id'],
+]);
+assert_true(
+    $teamHierarchyMove['status'] === 302 && location_matches($teamHierarchyMove['location'], '/users/hierarchy'),
+    'Team hierarchy manager move did not redirect back to the hierarchy.'
+);
+$httpUser = Database::fetch('SELECT * FROM users WHERE id = :id LIMIT 1', ['id' => (int) $httpUser['id']]);
+assert_true(
+    (int) ($httpUser['manager_user_id'] ?? 0) === (int) $owner['id']
+        && (int) ($httpUser['assigned_owner_user_id'] ?? 0) === (int) $owner['id'],
+    'Team hierarchy move did not synchronize the manager and legacy routing fields.'
 );
 
 $usersStatusPage = http_request($baseUrl, $ownerCookie, 'GET', '/users');

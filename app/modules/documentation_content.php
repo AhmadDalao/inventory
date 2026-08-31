@@ -540,6 +540,7 @@ function documentation_sections(): array
                 'Position presets apply recommended permissions.',
                 'Permissions can be customized per user.',
                 'Assign a direct manager to each employee so the manager can see the employee workflow records and receive action alerts.',
+                'Open Team Hierarchy to review reporting lines and use drag-and-drop on desktop or the manager selector on touch devices.',
                 'Assign employees to one or more storages with Member or Owner access and select one default storage.',
                 'Assign multiple co-owners to the same storage when several accountable people operate that location.',
                 'Assigned-storage scope applies to item lists, direct item links, quantities, selectors, movement entry, and exports.',
@@ -698,7 +699,7 @@ function documentation_sections(): array
                 'Live action forms show feedback and update content after actions.',
                 'Visible dashboard, item, storage, movement, Scan Center, and active workflow pages receive permission-safe stock changes within five seconds.',
                 'Hidden browser tabs stop stock synchronization until they become visible again.',
-                'Direct managers receive alerts for their staff requests, handovers, and mobile stock operations.',
+                'Direct managers receive alerts for their staff requests, handovers, mobile stock operations, and committed web Scan Center usage/refill batches.',
                 'Storage co-owners and global Owners receive the relevant stock workflow alerts without duplicate notifications.',
             ],
             'steps' => [
