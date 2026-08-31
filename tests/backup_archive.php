@@ -55,6 +55,24 @@ try {
     backup_test_assert(!empty($emptyResult['ok']), 'Empty source archive should still be valid.');
     backup_test_assert(is_file($emptyZipPath) && filesize($emptyZipPath) > 0, 'Empty source archive was not created.');
 
+    $retentionDir = $root . '/retention';
+    mkdir($retentionDir, 0775, true);
+    foreach (['20260829-120000', '20260830-120000', '20260831-120000'] as $index => $stamp) {
+        $path = $retentionDir . '/inventory-backup-' . $stamp . '.sql';
+        file_put_contents($path, 'backup-' . $stamp);
+        touch($path, time() - ((3 - $index) * 60));
+    }
+    $deleted = backup_cleanup_old_sets($retentionDir, 365, 1);
+    $retained = array_keys(backup_collect_sets($retentionDir));
+    backup_test_assert(count($deleted) === 2, 'One-set retention did not delete both superseded backups.');
+    backup_test_assert($retained === ['inventory-backup-20260831-120000'], 'One-set retention did not keep only the newest backup.');
+
+    $backupScript = file_get_contents(dirname(__DIR__) . '/scripts/backup.php') ?: '';
+    backup_test_assert(
+        strpos($backupScript, "max(1, min(100, (int) site_setting('backup.max_sets', '1')))") !== false,
+        'Backup command must permit and default to one retained set.'
+    );
+
     fwrite(STDOUT, "[backup-archive] PASS\n");
 } finally {
     $iterator = new RecursiveIteratorIterator(

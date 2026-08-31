@@ -411,8 +411,8 @@ function site_setting_schema(): array
                 ],
                 'backup.max_sets' => [
                     'label' => 'Maximum backup sets',
-                    'default' => '30',
-                    'help' => 'Caps repeated deploy and cron backups so file archives cannot quietly fill the hosting account.',
+                    'default' => '1',
+                    'help' => 'Keep one complete backup set so repeated deploy and cron archives cannot quietly fill the hosting account.',
                     'type' => 'number',
                     'maxlength' => 3,
                 ],

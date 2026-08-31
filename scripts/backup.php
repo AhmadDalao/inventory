@@ -46,7 +46,7 @@ $backupDir = base_path('storage/backups');
 ensure_directory_exists($backupDir);
 
 $retentionDays = max(1, min(365, (int) site_setting('backup.retention_days', '14')));
-$maxSets = max(2, min(100, (int) site_setting('backup.max_sets', '30')));
+$maxSets = max(1, min(100, (int) site_setting('backup.max_sets', '1')));
 $includeUploads = site_setting('backup.include_uploads', '1') === '1';
 $timestamp = date('Ymd-His');
 $baseName = 'inventory-backup-' . $timestamp;
