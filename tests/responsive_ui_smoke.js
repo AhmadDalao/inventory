@@ -53,6 +53,7 @@ const routes = [
   ['suppliers', '/suppliers'],
   ['notifications', '/notifications'],
   ['users', '/users'],
+  ['team-hierarchy', '/users/hierarchy'],
   ['settings', '/settings/site'],
   ['documentation', '/documentation'],
 ];

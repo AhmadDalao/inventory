@@ -2516,9 +2516,20 @@ body.app-shell {
         grid-template-columns: 1fr;
     }
 
-    .app-shell .team-hierarchy-manager-form .ghost-button,
-    .app-shell .team-hierarchy-actions .ghost-button {
+    .app-shell .team-hierarchy-actions,
+    .app-shell .team-hierarchy-manager-form,
+    .app-shell .team-hierarchy-manager-form label {
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .app-shell .team-hierarchy-manager-form .ghost-button,
+    .app-shell .team-hierarchy-actions .ghost-button,
+    .app-shell .team-hierarchy-manager-form select {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .app-shell .team-hierarchy-drag,
