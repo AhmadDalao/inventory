@@ -2492,6 +2492,10 @@ body.app-shell {
 }
 
 @media (max-width: 760px) {
+    .app-shell .team-hierarchy-card {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .app-shell .team-hierarchy-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
