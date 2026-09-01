@@ -412,7 +412,16 @@
 .team-hierarchy-workspace {
     display: grid;
     gap: 18px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow: visible;
+}
+
+.team-hierarchy-workspace > [data-team-view-panel] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .team-hierarchy-workspace-head,
@@ -530,6 +539,7 @@
 .team-hierarchy-directory-scroll {
     width: 100%;
     max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
 }

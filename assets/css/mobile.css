@@ -2491,6 +2491,19 @@ body.app-shell {
     }
 }
 
+.app-shell .team-hierarchy-workspace,
+.app-shell .team-hierarchy-workspace > [data-team-view-panel],
+.app-shell .team-hierarchy-directory-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.app-shell .team-hierarchy-directory-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
 @media (max-width: 760px) {
     .app-shell .team-hierarchy-card {
         grid-template-columns: minmax(0, 1fr);
