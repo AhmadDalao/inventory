@@ -55,7 +55,7 @@ An item is a shared catalog identity, but its visible balance is always calculat
 
 Managers receive deduplicated notifications for direct-report requests, handovers, scan in/out, usage, restock, transfer, and other mobile stock activity. Managers can open related records only when they have the relevant view permission.
 
-The reporting line is maintained at `/users/hierarchy`. The default directory supports search, manager/department/mobile filters, row selection, and transactional bulk assignment. The optional compact tree retains desktop drag-and-drop, while every row also has a touch-safe manager selector. All paths call the same `team.manage`-protected action, reject self-management and cycles, update the compatibility routing field, and write an audit record for each changed employee.
+The reporting line is maintained from both `/users/hierarchy` and Edit User. The default directory supports search, manager/department/mobile filters, row selection, transactional bulk assignment, and an expandable direct-report list for every employee. Edit User contains a dedicated Team & Reporting panel showing the current manager, direct reports, removal controls, and a searchable multi-select for assigning more employees to an owner/admin. The optional compact tree retains desktop drag-and-drop. All paths call the same `team.manage`-protected action, reject self-management and cycles, update the compatibility routing field, and write an audit record for each changed employee.
 
 Manager routing is observational:
 
@@ -91,8 +91,8 @@ Committed web Scan Center usage/refill batches use the same observer routing as 
 
 ## Administration Surfaces
 
-- `/users/hierarchy`: searchable staff directory, bulk manager assignment, and optional reporting tree.
-- User create/edit: manager, department, assigned storages, default storage, and website permissions.
+- `/users/hierarchy`: searchable staff directory, bidirectional reporting lists, bulk manager assignment, and optional reporting tree.
+- User create/edit: account, department, assigned storages, default storage, website permissions, and a separate Team & Reporting panel for manager/direct-report changes.
 - Storage detail/edit: co-owners and staff membership for that location.
 - `/mobile-access`: mobile enablement, default storage, capabilities, direct-restock grant, devices, and operation diagnostics.
 
@@ -135,5 +135,5 @@ When adding a workflow or mobile action:
 - `storages.view_all` expands read scope but does not grant stock approval.
 - Manager, storage assignment, permission, device, or account revocation takes effect on the next protected request/sync.
 - Owner resolution preserves audit history and stock invariants for every handover purpose.
-- Bulk assignment, drag/drop, and touch manager assignment reject reporting cycles and preserve every active user in the hierarchy view.
+- Bulk assignment, Edit User team assignment, drag/drop, and touch manager assignment reject reporting cycles and preserve every active user in the hierarchy view.
 - Web and mobile usage/refill notify the direct manager, relevant storage co-owners, and global Owners exactly once per accepted operation.

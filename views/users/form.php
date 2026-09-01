@@ -27,6 +27,14 @@ foreach ($permissionGroups as $group) {
         }
     }
 }
+$reportingManager = $reportingManager ?? null;
+$directReports = $directReports ?? [];
+$assignableTeamMembers = $assignableTeamMembers ?? [];
+$canReceiveDirectReports = (bool) ($canReceiveDirectReports ?? false);
+$canChangeReportingManager = $isEdit
+    && $canManageTeam
+    && (($userRecord['role'] ?? '') !== 'owner' || Auth::isOwner());
+$reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#reporting-lines' : '';
 ?>
 
 <section class="page-head">
@@ -35,9 +43,161 @@ foreach ($permissionGroups as $group) {
         <h3><?= $isEdit ? 'Edit User' : 'Create User' ?></h3>
     </div>
     <div class="page-actions">
+        <?php if ($isEdit): ?><a class="primary-button" href="#reporting-lines" data-open-user-reporting><?= ui_icon('users') ?><span>Team &amp; Reporting</span><span class="pill pill-muted"><?= number_format(count($directReports)) ?></span></a><?php endif; ?>
         <a class="ghost-button" href="<?= e(url('/users')) ?>">Back</a>
     </div>
 </section>
+
+<?php if ($isEdit): ?>
+    <details class="panel settings-panel settings-accordion-panel user-reporting-panel" id="reporting-lines" data-user-reporting>
+        <summary class="settings-accordion-summary">
+            <span>
+                <span class="eyebrow">Team Control</span>
+                <strong>Manager And Direct Reports</strong>
+                <small>See who manages this user, who reports to them, and update either side without leaving the account.</small>
+            </span>
+            <span class="settings-accordion-meta"><?= number_format(count($directReports)) ?> direct report<?= count($directReports) === 1 ? '' : 's' ?></span>
+        </summary>
+
+        <div class="settings-accordion-body user-reporting-body">
+            <div class="user-reporting-overview">
+                <article>
+                    <small>User</small>
+                    <strong><?= e((string) $userRecord['name']) ?></strong>
+                    <span><?= e(user_position_label($selectedPosition, $selectedRole)) ?> &middot; <?= e(user_role_label($selectedRole)) ?></span>
+                </article>
+                <article>
+                    <small>Managed By</small>
+                    <strong><?= e((string) ($reportingManager['name'] ?? 'Top level / no manager')) ?></strong>
+                    <span><?= $reportingManager ? e(user_position_label((string) ($reportingManager['position'] ?? ''), (string) ($reportingManager['role'] ?? ''))) : 'No reporting manager assigned' ?></span>
+                </article>
+                <article>
+                    <small>Manages</small>
+                    <strong><?= number_format(count($directReports)) ?> people</strong>
+                    <span><?= $canReceiveDirectReports ? 'Can receive staff requests and activity notifications' : 'This access level cannot receive direct reports' ?></span>
+                </article>
+            </div>
+
+            <div class="user-reporting-control-grid">
+                <section class="user-reporting-control-card">
+                    <div class="user-reporting-card-head">
+                        <div>
+                            <p class="eyebrow">Reports To</p>
+                            <h4>Assign This User's Manager</h4>
+                        </div>
+                    </div>
+                    <?php if ($canChangeReportingManager): ?>
+                        <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>" class="user-reporting-manager-form" data-user-manager-form>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="user_id" value="<?= (int) $userRecord['id'] ?>">
+                            <input type="hidden" name="return_to" value="<?= e($reportingReturnPath) ?>">
+                            <label class="field">
+                                <span>Manager</span>
+                                <select name="manager_user_id">
+                                    <option value="">Top level / no manager</option>
+                                    <?php foreach ($managerCandidates as $managerCandidate): ?>
+                                        <option value="<?= (int) $managerCandidate['id'] ?>" <?= selected((string) $managerCandidate['id'], (string) ($userRecord['manager_user_id'] ?? '')) ?>>
+                                            <?= e((string) $managerCandidate['name']) ?> &middot; <?= e(user_position_label((string) ($managerCandidate['position'] ?? ''), (string) $managerCandidate['role'])) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                            <button class="primary-button" type="submit" data-confirm="Change this user's reporting manager?">Save Manager</button>
+                        </form>
+                    <?php else: ?>
+                        <div class="empty-cell">You can view this reporting line, but your account cannot change it.</div>
+                    <?php endif; ?>
+                </section>
+
+                <section class="user-reporting-control-card">
+                    <div class="user-reporting-card-head">
+                        <div>
+                            <p class="eyebrow">Direct Reports</p>
+                            <h4>People Managed By This User</h4>
+                        </div>
+                        <span class="pill pill-muted"><?= number_format(count($directReports)) ?></span>
+                    </div>
+
+                    <div class="user-direct-report-list">
+                        <?php if ($directReports === []): ?><p class="empty-cell">No active employees report directly to this user.</p><?php endif; ?>
+                        <?php foreach ($directReports as $directReport): ?>
+                            <?php $canRemoveDirectReport = $canManageTeam && ((string) ($directReport['role'] ?? '') !== 'owner' || Auth::isOwner()); ?>
+                            <article class="user-direct-report-row">
+                                <span class="team-hierarchy-avatar"><?= e(strtoupper(substr((string) $directReport['name'], 0, 1))) ?></span>
+                                <span class="user-direct-report-copy">
+                                    <strong><?= e((string) $directReport['name']) ?></strong>
+                                    <small><?= e((string) $directReport['email']) ?></small>
+                                    <small><?= e((string) ($directReport['department_name'] ?: 'Unassigned')) ?> &middot; <?= number_format((int) ($directReport['storage_count'] ?? 0)) ?> storage<?= (int) ($directReport['storage_count'] ?? 0) === 1 ? '' : 's' ?></small>
+                                </span>
+                                <span class="user-direct-report-actions">
+                                    <a class="ghost-button" href="<?= e(url('/users/' . (int) $directReport['id'] . '/edit#reporting-lines')) ?>">Open</a>
+                                    <?php if ($canRemoveDirectReport): ?>
+                                        <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="user_id" value="<?= (int) $directReport['id'] ?>">
+                                            <input type="hidden" name="manager_user_id" value="">
+                                            <input type="hidden" name="return_to" value="<?= e($reportingReturnPath) ?>">
+                                            <button class="ghost-button danger-link" type="submit" data-confirm="Remove <?= e((string) $directReport['name']) ?> from this manager and move them to the top level?">Remove</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </span>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            </div>
+
+            <?php if ($canManageTeam && $canReceiveDirectReports): ?>
+                <section class="user-reporting-add-card">
+                    <div class="user-reporting-card-head">
+                        <div>
+                            <p class="eyebrow">Add To Team</p>
+                            <h4>Assign More Employees To <?= e((string) $userRecord['name']) ?></h4>
+                            <p>Search, select several employees, and assign them in one audited change.</p>
+                        </div>
+                        <strong data-user-team-selected-count>0 selected</strong>
+                    </div>
+
+                    <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>" class="user-reporting-add-form" data-user-team-add-form>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="manager_user_id" value="<?= (int) $userRecord['id'] ?>">
+                        <input type="hidden" name="return_to" value="<?= e($reportingReturnPath) ?>">
+                        <div class="user-reporting-add-toolbar">
+                            <label class="field">
+                                <span>Find Employee</span>
+                                <input type="search" placeholder="Name, email, department, or position" autocomplete="off" data-user-team-search>
+                            </label>
+                            <div class="button-row">
+                                <button class="ghost-button" type="button" data-user-team-select-visible>Select Visible</button>
+                                <button class="ghost-button" type="button" data-user-team-clear disabled>Clear</button>
+                            </div>
+                        </div>
+
+                        <div class="user-reporting-candidate-list" data-user-team-candidate-list>
+                            <?php if ($assignableTeamMembers === []): ?><p class="empty-cell">Every eligible employee is already assigned here, or no safe assignment is available.</p><?php endif; ?>
+                            <?php foreach ($assignableTeamMembers as $teamMember): ?>
+                                <?php $candidateSearch = implode(' ', [(string) $teamMember['name'], (string) $teamMember['email'], (string) ($teamMember['department_name'] ?? ''), user_position_label((string) ($teamMember['position'] ?? ''), (string) $teamMember['role'])]); ?>
+                                <label class="user-reporting-candidate" data-user-team-candidate data-search-text="<?= e(strtolower($candidateSearch)) ?>">
+                                    <input type="checkbox" name="user_ids[]" value="<?= (int) $teamMember['id'] ?>" data-user-team-checkbox>
+                                    <span class="team-hierarchy-avatar"><?= e(strtoupper(substr((string) $teamMember['name'], 0, 1))) ?></span>
+                                    <span>
+                                        <strong><?= e((string) $teamMember['name']) ?></strong>
+                                        <small><?= e((string) $teamMember['email']) ?></small>
+                                        <small><?= e(user_position_label((string) ($teamMember['position'] ?? ''), (string) $teamMember['role'])) ?> &middot; <?= e((string) ($teamMember['department_name'] ?: 'Unassigned')) ?></small>
+                                    </span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="empty-cell" data-user-team-filter-empty hidden>No employees match this search.</p>
+                        <button class="primary-button" type="submit" data-user-team-submit data-confirm="Assign the selected employees to this manager?" disabled>Add Selected Employees</button>
+                    </form>
+                </section>
+            <?php elseif ($canManageTeam): ?>
+                <div class="notice-card">Staff accounts can be assigned to a manager, but only an Owner or Admin access level can manage direct reports.</div>
+            <?php endif; ?>
+        </div>
+    </details>
+<?php endif; ?>
 
 <section class="panel form-panel access-form-panel">
     <form class="stack-form access-form" method="post" action="<?= e($action) ?>" data-admin-user-form>
@@ -160,19 +320,30 @@ foreach ($permissionGroups as $group) {
                                 <small>Admin gets operational access. Staff gets the simplified staff workflow.</small>
                             </label>
 
-                            <label class="field">
-                                <span>Manager</span>
-                                <select name="manager_user_id" <?= $canManageTeam ? '' : 'disabled' ?>>
-                                    <option value="">No assigned manager</option>
-                                    <?php foreach ($managerCandidates as $managerCandidate): ?>
-                                        <option value="<?= e((string) $managerCandidate['id']) ?>" <?= selected((string) $managerCandidate['id'], (string) ($userRecord['manager_user_id'] ?? '')) ?>>
-                                            <?= e((string) $managerCandidate['name']) ?> · <?= e(user_position_label((string) ($managerCandidate['position'] ?? ''), (string) $managerCandidate['role'])) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <?php if (!$canManageTeam): ?><input type="hidden" name="manager_user_id" value="<?= e((string) ($userRecord['manager_user_id'] ?? '')) ?>"><?php endif; ?>
-                                <small>This manager receives the employee's request and mobile stock notifications. Storage ownership stays separate.</small>
-                            </label>
+                            <?php if ($isEdit): ?>
+                                <div class="field">
+                                    <span>Manager</span>
+                                    <div class="user-reporting-inline-summary">
+                                        <strong><?= e((string) ($reportingManager['name'] ?? 'Top level / no manager')) ?></strong>
+                                        <a href="#reporting-lines" data-open-user-reporting>Change in Team &amp; Reporting</a>
+                                    </div>
+                                    <small>Reporting lines are saved separately so profile and permission edits cannot overwrite them.</small>
+                                </div>
+                            <?php else: ?>
+                                <label class="field">
+                                    <span>Manager</span>
+                                    <select name="manager_user_id" <?= $canManageTeam ? '' : 'disabled' ?>>
+                                        <option value="">No assigned manager</option>
+                                        <?php foreach ($managerCandidates as $managerCandidate): ?>
+                                            <option value="<?= e((string) $managerCandidate['id']) ?>" <?= selected((string) $managerCandidate['id'], (string) ($userRecord['manager_user_id'] ?? '')) ?>>
+                                                <?= e((string) $managerCandidate['name']) ?> &middot; <?= e(user_position_label((string) ($managerCandidate['position'] ?? ''), (string) $managerCandidate['role'])) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <?php if (!$canManageTeam): ?><input type="hidden" name="manager_user_id" value="<?= e((string) ($userRecord['manager_user_id'] ?? '')) ?>"><?php endif; ?>
+                                    <small>This manager receives the employee's request and mobile stock notifications. Storage ownership stays separate.</small>
+                                </label>
+                            <?php endif; ?>
 
                             <label class="field">
                                 <span>Department</span>

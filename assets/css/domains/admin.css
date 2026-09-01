@@ -545,7 +545,7 @@
 }
 
 .team-hierarchy-directory-table {
-    min-width: 1280px;
+    min-width: 1450px;
 }
 
 .team-hierarchy-directory-table tr.is-selected td {
@@ -621,6 +621,277 @@
     min-width: 245px;
 }
 
+.team-hierarchy-reporting-cell {
+    display: grid;
+    gap: 9px;
+    min-width: 330px;
+}
+
+.team-hierarchy-cell-label {
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.team-hierarchy-direct-report-details {
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--soft);
+}
+
+.team-hierarchy-direct-report-details summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 11px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 800;
+    list-style: none;
+}
+
+.team-hierarchy-direct-report-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.team-hierarchy-direct-report-list {
+    display: grid;
+    gap: 6px;
+    max-height: 220px;
+    padding: 0 8px 8px;
+    overflow-y: auto;
+}
+
+.team-hierarchy-direct-report-list a,
+.team-hierarchy-direct-report-list p {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 8px 9px;
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.team-hierarchy-direct-report-list a:hover {
+    background: #fff7df;
+}
+
+.team-hierarchy-direct-report-list small,
+.team-hierarchy-direct-report-list p {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.user-reporting-panel {
+    scroll-margin-top: 100px;
+    overflow: visible;
+}
+
+.user-reporting-body {
+    display: grid;
+    gap: 18px;
+}
+
+.user-reporting-overview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.user-reporting-overview article,
+.user-reporting-control-card,
+.user-reporting-add-card,
+.notice-card {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--soft);
+}
+
+.user-reporting-overview article {
+    display: grid;
+    gap: 6px;
+    padding: 16px;
+}
+
+.user-reporting-overview small,
+.user-reporting-overview span,
+.user-reporting-card-head p,
+.user-direct-report-copy small,
+.user-reporting-candidate small {
+    color: var(--muted);
+}
+
+.user-reporting-overview small {
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.user-reporting-control-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.85fr) minmax(420px, 1.4fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.user-reporting-control-card,
+.user-reporting-add-card {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+}
+
+.user-reporting-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.user-reporting-card-head h4,
+.user-reporting-card-head p {
+    margin: 0;
+}
+
+.user-reporting-manager-form {
+    display: grid;
+    gap: 12px;
+}
+
+.user-reporting-manager-form .primary-button,
+.user-reporting-add-form > .primary-button {
+    width: 100%;
+}
+
+.user-direct-report-list {
+    display: grid;
+    gap: 8px;
+    max-height: 390px;
+    overflow-y: auto;
+}
+
+.user-direct-report-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 11px;
+    align-items: center;
+    padding: 11px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+}
+
+.user-direct-report-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.user-direct-report-copy strong,
+.user-direct-report-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-direct-report-actions,
+.user-direct-report-actions form {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+}
+
+.user-direct-report-actions .ghost-button {
+    min-height: 36px;
+    padding: 8px 10px;
+}
+
+.user-reporting-add-form {
+    display: grid;
+    gap: 13px;
+}
+
+.user-reporting-add-toolbar {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.user-reporting-candidate-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 420px;
+    padding: 3px;
+    overflow-y: auto;
+}
+
+.user-reporting-candidate {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    padding: 11px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    cursor: pointer;
+}
+
+.user-reporting-candidate:hover,
+.user-reporting-candidate:has(input:checked) {
+    border-color: var(--accent);
+    background: #fff8e7;
+}
+
+.user-reporting-candidate[hidden] {
+    display: none;
+}
+
+.user-reporting-candidate input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.user-reporting-candidate > span:last-child {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.user-reporting-candidate strong,
+.user-reporting-candidate small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-reporting-inline-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 54px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--soft);
+}
+
+.notice-card {
+    padding: 14px 16px;
+    color: var(--muted);
+}
+
 .team-hierarchy-tree-head {
     margin-bottom: 14px;
 }
@@ -677,6 +948,11 @@
     }
 
     .team-hierarchy-card-compact {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .user-reporting-control-grid,
+    .user-reporting-add-toolbar {
         grid-template-columns: minmax(0, 1fr);
     }
 }

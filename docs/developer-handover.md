@@ -518,7 +518,7 @@ Status override must stay limited to owner/super admin because it can change wor
 The reporting line and stock authority are deliberately separate:
 
 - `users.manager_user_id` assigns one active owner/admin as the employee's direct manager. Manager loops and self-management are rejected.
-- `/users/hierarchy` opens with a searchable employee directory. Authorized users can filter by manager, department, and mobile access; select visible employees; and assign as many as 500 people to one manager in a single transaction. The optional compact tree retains desktop drag-and-drop and per-person selectors. Every path calls the same audited, cycle-safe server action.
+- `/users/hierarchy` opens with a searchable employee directory. Authorized users can filter by manager, department, and mobile access; inspect who manages and is managed by every user; select visible employees; and assign as many as 500 people to one manager in a single transaction. Edit User exposes the same service through a Team & Reporting panel with manager assignment, direct-report removal, employee search, and bulk add. The optional compact tree retains desktop drag-and-drop and per-person selectors. Every path calls the same audited, cycle-safe server action.
 - Managers can open direct-report requests and handovers and receive notifications for their staff's web/mobile actions when they have the relevant view permission.
 - Manager visibility is observational. It does not grant request approval, handover approval, receipt confirmation, or stock authority unless that manager is also an owner of the affected source/destination storage.
 - `user_storage_assignments.access_role` is the storage access authority. `owner` can manage/approve for that storage when the matching permission exists; `member` can see/use only the assigned storage within their permissions.
@@ -538,7 +538,7 @@ Relevant permissions:
 - `team.activity.view`: see direct-report workflow/mobile activity.
 - `team.manage`: assign or change reporting lines.
 
-The hierarchy card links directly to each employee's storage assignments and Mobile Access controls. Those are separate authorities by design: changing a manager changes routing and visibility, while changing a storage assignment changes where the employee may read or mutate stock.
+The hierarchy row links directly to Team & Reporting, account/storage assignments, and Mobile Access controls. Edit User keeps reporting changes in separate forms so saving profile or permission fields cannot overwrite a manager changed through the hierarchy service. These remain separate authorities by design: changing a manager changes routing and visibility, while changing a storage assignment changes where the employee may read or mutate stock.
 
 The maintained implementation checklist and authorization chain are in [`docs/team-routing-and-owner-resolution.md`](team-routing-and-owner-resolution.md). Update that contract whenever a new workflow, mobile action, approval route, export, or realtime payload is added.
 

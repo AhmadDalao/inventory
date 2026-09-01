@@ -2505,6 +2505,38 @@ body.app-shell {
 }
 
 @media (max-width: 760px) {
+    .app-shell .user-reporting-overview,
+    .app-shell .user-reporting-control-grid,
+    .app-shell .user-reporting-add-toolbar,
+    .app-shell .user-reporting-candidate-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell .user-reporting-card-head,
+    .app-shell .user-reporting-inline-summary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .app-shell .user-direct-report-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .app-shell .user-direct-report-actions {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .app-shell .user-direct-report-actions form,
+    .app-shell .user-direct-report-actions .ghost-button {
+        width: 100%;
+    }
+
+    .app-shell .user-reporting-add-toolbar .button-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .app-shell .team-hierarchy-card {
         grid-template-columns: minmax(0, 1fr);
     }

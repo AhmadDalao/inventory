@@ -239,7 +239,7 @@ foreach ([
 }
 
 $teamHierarchyScript = file_get_contents($root . '/assets/js/domains/team-hierarchy.js') ?: '';
-foreach (['data-team-manager-form', 'dragstart', 'data-team-root-drop', 'data-team-bulk-form', 'data-team-search', 'data-team-view-button'] as $marker) {
+foreach (['data-team-manager-form', 'dragstart', 'data-team-root-drop', 'data-team-bulk-form', 'data-team-search', 'data-team-view-button', 'data-user-reporting', 'data-user-team-add-form', 'data-team-direct-report-count'] as $marker) {
     if (strpos($teamHierarchyScript, $marker) === false) {
         fail_frontend_assets('Team hierarchy JavaScript is missing marker: ' . $marker);
     }

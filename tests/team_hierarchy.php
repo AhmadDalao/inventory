@@ -62,5 +62,11 @@ if (team_hierarchy_normalize_user_ids(['4', 2, '4', '', ['bad']], '9') !== [4, 2
 if (team_hierarchy_normalize_user_ids([], '9') !== [9]) {
     fail_team_hierarchy('Single-person manager changes must remain backward compatible.');
 }
+if (team_hierarchy_safe_return_path('/users/42/edit#reporting-lines') !== '/users/42/edit#reporting-lines') {
+    fail_team_hierarchy('Edit User reporting actions must return to the selected user.');
+}
+if (team_hierarchy_safe_return_path('https://example.com/steal-session') !== '/users/hierarchy') {
+    fail_team_hierarchy('Hierarchy return paths must reject external redirects.');
+}
 
 fwrite(STDOUT, '[team-hierarchy] PASS' . PHP_EOL);

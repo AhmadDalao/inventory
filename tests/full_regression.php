@@ -2036,7 +2036,13 @@ assert_true(
 );
 
 $userEditPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (int) $httpUser['id'] . '/edit');
-assert_true($userEditPage['status'] === 200, 'User edit page did not load.');
+assert_true(
+    $userEditPage['status'] === 200
+        && strpos($userEditPage['body'], 'data-user-reporting') !== false
+        && strpos($userEditPage['body'], 'data-user-manager-form') !== false
+        && strpos($userEditPage['body'], 'Team &amp; Reporting') !== false,
+    'User edit page did not render its reporting-line controls.'
+);
 $userEditSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/' . (int) $httpUser['id'] . '/edit', [
     '_token' => extract_csrf($userEditPage['body'], 'user edit'),
     'name' => $prefix . ' HTTP User Updated',
@@ -2072,12 +2078,23 @@ $bulkHierarchyUser = create_user_record(
     (int) $manager['id']
 );
 
+$adminReportingPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (int) $admin['id'] . '/edit#reporting-lines');
+assert_true(
+    $adminReportingPage['status'] === 200
+        && strpos($adminReportingPage['body'], 'data-user-team-add-form') !== false
+        && strpos($adminReportingPage['body'], $httpUserUpdatedEmail) !== false
+        && strpos($adminReportingPage['body'], (string) $bulkHierarchyUser['email']) !== false,
+    'Manager edit page did not show direct reports and eligible employees.'
+);
+
 $teamHierarchyPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/hierarchy');
 assert_true(
     $teamHierarchyPage['status'] === 200
         && strpos($teamHierarchyPage['body'], 'data-team-hierarchy') !== false
         && strpos($teamHierarchyPage['body'], 'data-team-bulk-form') !== false
         && strpos($teamHierarchyPage['body'], 'data-team-search') !== false
+        && strpos($teamHierarchyPage['body'], 'data-team-direct-report-count') !== false
+        && strpos($teamHierarchyPage['body'], 'Team Details') !== false
         && strpos($teamHierarchyPage['body'], $httpUserUpdatedEmail) !== false,
     'Team hierarchy page did not render the scalable employee directory.'
 );
@@ -2101,10 +2118,13 @@ $teamHierarchyBulkMove = http_request($baseUrl, $ownerCookie, 'POST', '/users/hi
     '_token' => extract_csrf($teamHierarchyPage['body'], 'team hierarchy bulk manager move'),
     'user_ids' => [(string) $httpUser['id'], (string) $bulkHierarchyUser['id']],
     'manager_user_id' => (string) $admin['id'],
+    'return_to' => '/users/' . (int) $admin['id'] . '/edit#reporting-lines',
 ]);
 assert_true(
-    $teamHierarchyBulkMove['status'] === 302 && location_matches($teamHierarchyBulkMove['location'], '/users/hierarchy'),
-    'Team hierarchy bulk manager move did not redirect back to the hierarchy.'
+    $teamHierarchyBulkMove['status'] === 302
+        && location_matches($teamHierarchyBulkMove['location'], '/users/' . (int) $admin['id'] . '/edit')
+        && strpos((string) $teamHierarchyBulkMove['location'], '#reporting-lines') !== false,
+    'Team hierarchy bulk manager move did not return to the manager profile.'
 );
 $bulkManagerRows = Database::fetchAll(
     'SELECT id, manager_user_id, assigned_owner_user_id FROM users WHERE id IN (:first_id, :second_id)',
@@ -2116,6 +2136,32 @@ assert_true(
             (int) ($row['manager_user_id'] ?? 0) === (int) $admin['id']
             && (int) ($row['assigned_owner_user_id'] ?? 0) === (int) $admin['id'])) === 2,
     'Team hierarchy bulk move did not update every selected employee atomically.'
+);
+
+$adminReportingPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (int) $admin['id'] . '/edit#reporting-lines');
+assert_true(
+    $adminReportingPage['status'] === 200
+        && substr_count($adminReportingPage['body'], 'user-direct-report-row') >= 2
+        && strpos($adminReportingPage['body'], $httpUserUpdatedEmail) !== false
+        && strpos($adminReportingPage['body'], (string) $bulkHierarchyUser['email']) !== false,
+    'Manager profile did not refresh its direct-report list after bulk assignment.'
+);
+
+$profileWithoutManagerSubmit = http_request($baseUrl, $ownerCookie, 'POST', '/users/' . (int) $httpUser['id'] . '/edit', [
+    '_token' => extract_csrf(http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (int) $httpUser['id'] . '/edit')['body'], 'user profile manager preservation'),
+    'name' => (string) $httpUser['name'],
+    'email' => (string) $httpUser['email'],
+    'position' => (string) $httpUser['position'],
+    'role' => (string) $httpUser['role'],
+    'department_id' => (string) ($httpUser['department_id'] ?? ''),
+    'password' => '',
+    'password_confirmation' => '',
+    'permissions' => [],
+]);
+assert_true(
+    $profileWithoutManagerSubmit['status'] === 302
+        && (int) Database::scalar('SELECT manager_user_id FROM users WHERE id = :id', ['id' => (int) $httpUser['id']]) === (int) $admin['id'],
+    'Saving profile details without a manager field overwrote the reporting line.'
 );
 
 $usersStatusPage = http_request($baseUrl, $ownerCookie, 'GET', '/users');

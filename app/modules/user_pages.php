@@ -78,6 +78,7 @@ function handle_users_edit_page(array $params): void
         old('department_id', (string) ($userRecord['department_id'] ?? '')),
         normalize_entity_id($userRecord['department_id'] ?? null)
     );
+    $reportingDetails = team_hierarchy_reporting_details((int) $userRecord['id']);
 
     View::render('users/form', [
         'title' => 'Edit ' . $userRecord['name'],
@@ -103,6 +104,10 @@ function handle_users_edit_page(array $params): void
         'canManageDepartments' => Auth::isOwner() || Auth::hasPermission('departments.manage'),
         'departmentOptions' => department_options(),
         'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
+        'reportingManager' => $reportingDetails['manager'],
+        'directReports' => $reportingDetails['direct_reports'],
+        'assignableTeamMembers' => $reportingDetails['assignable_team_members'],
+        'canReceiveDirectReports' => (bool) $reportingDetails['can_receive_reports'],
         'permissionGroups' => permission_groups_for_form(
             is_array(old('permissions'))
                 ? sanitize_permission_input((array) old('permissions'))

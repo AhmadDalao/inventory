@@ -55,6 +55,35 @@ function syncManagerState(workspace, userId, managerUserId, managerName) {
   });
 }
 
+function syncDirectReportLists(workspace, userId, managerUserId) {
+  workspace.querySelectorAll(`[data-team-direct-report-user-id="${userId}"]`).forEach((entry) => entry.remove());
+
+  if (managerUserId) {
+    const managerRow = workspace.querySelector(`[data-team-directory-row][data-team-user-id="${managerUserId}"]`);
+    const employeeRow = workspace.querySelector(`[data-team-directory-row][data-team-user-id="${userId}"]`);
+    const list = managerRow?.querySelector('[data-team-direct-report-list]');
+    if (list instanceof HTMLElement && employeeRow instanceof HTMLElement) {
+      const link = document.createElement('a');
+      link.href = employeeRow.dataset.teamUserEditUrl || '#';
+      link.dataset.teamDirectReportUserId = userId;
+      const name = document.createElement('strong');
+      name.textContent = employeeRow.dataset.teamUserName || 'Employee';
+      const email = document.createElement('small');
+      email.textContent = employeeRow.dataset.teamUserEmail || '';
+      link.append(name, email);
+      list.prepend(link);
+    }
+  }
+
+  workspace.querySelectorAll('.team-hierarchy-direct-report-details').forEach((details) => {
+    const entries = details.querySelectorAll('[data-team-direct-report-user-id]');
+    const count = details.querySelector('[data-team-direct-report-count]');
+    const empty = details.querySelector('[data-team-direct-report-empty]');
+    if (count) count.textContent = String(entries.length);
+    if (empty instanceof HTMLElement) empty.hidden = entries.length !== 0;
+  });
+}
+
 function initViewSwitch(workspace) {
   const buttons = [...workspace.querySelectorAll('[data-team-view-button]')];
   const panels = [...workspace.querySelectorAll('[data-team-view-panel]')];
@@ -215,6 +244,7 @@ function initManagerControls(workspace) {
 
     const payload = await saveManager(form, managerUserId);
     syncManagerState(workspace, userId, managerUserId, payload.manager_name || 'Top level');
+    syncDirectReportLists(workspace, userId, managerUserId);
     moveTreeNode(workspace, userId, managerUserId);
     workspace.dispatchEvent(new CustomEvent('team:manager-updated'));
     showGlobalFlash(payload.message || 'Manager updated.', 'success');
@@ -307,6 +337,86 @@ function initHierarchy(workspace) {
   initManagerControls(workspace);
 }
 
+function initUserReporting(panel) {
+  if (!(panel instanceof HTMLDetailsElement) || panel.dataset.userReportingBound === '1') return;
+  panel.dataset.userReportingBound = '1';
+
+  document.querySelectorAll('[data-open-user-reporting]').forEach((trigger) => {
+    if (!(trigger instanceof HTMLElement) || trigger.dataset.userReportingTriggerBound === '1') return;
+    trigger.dataset.userReportingTriggerBound = '1';
+    trigger.addEventListener('click', () => {
+      panel.open = true;
+    });
+  });
+  if (window.location.hash === '#reporting-lines') {
+    panel.open = true;
+    window.requestAnimationFrame(() => panel.scrollIntoView({ block: 'start' }));
+  }
+
+  const form = panel.querySelector('[data-user-team-add-form]');
+  if (!(form instanceof HTMLFormElement)) return;
+  const search = form.querySelector('[data-user-team-search]');
+  const candidates = [...form.querySelectorAll('[data-user-team-candidate]')];
+  const checkboxes = [...form.querySelectorAll('[data-user-team-checkbox]')]
+    .filter((checkbox) => checkbox instanceof HTMLInputElement);
+  const selectedCount = panel.querySelector('[data-user-team-selected-count]');
+  const selectVisible = form.querySelector('[data-user-team-select-visible]');
+  const clear = form.querySelector('[data-user-team-clear]');
+  const submit = form.querySelector('[data-user-team-submit]');
+  const empty = form.querySelector('[data-user-team-filter-empty]');
+
+  const updateSelection = () => {
+    const selected = checkboxes.filter((checkbox) => checkbox.checked);
+    if (selectedCount) selectedCount.textContent = `${selected.length} selected`;
+    if (clear instanceof HTMLButtonElement) clear.disabled = selected.length === 0;
+    if (submit instanceof HTMLButtonElement) {
+      submit.disabled = selected.length === 0;
+      submit.textContent = selected.length > 0 ? `Add Selected Employees (${selected.length})` : 'Add Selected Employees';
+      submit.dataset.confirm = `Assign ${selected.length} employee${selected.length === 1 ? '' : 's'} to this manager?`;
+    }
+  };
+
+  const visibleCheckboxes = () => candidates
+    .filter((candidate) => !candidate.hidden)
+    .map((candidate) => candidate.querySelector('[data-user-team-checkbox]'))
+    .filter((checkbox) => checkbox instanceof HTMLInputElement);
+
+  const applySearch = () => {
+    const query = normalizeText(search instanceof HTMLInputElement ? search.value : '');
+    let shown = 0;
+    candidates.forEach((candidate) => {
+      const visible = query === '' || normalizeText(candidate.dataset.searchText).includes(query);
+      candidate.hidden = !visible;
+      if (visible) shown += 1;
+    });
+    if (empty instanceof HTMLElement) empty.hidden = shown !== 0 || candidates.length === 0;
+  };
+
+  search?.addEventListener('input', applySearch);
+  checkboxes.forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
+  selectVisible?.addEventListener('click', () => {
+    visibleCheckboxes().forEach((checkbox) => {
+      checkbox.checked = true;
+    });
+    updateSelection();
+  });
+  clear?.addEventListener('click', () => {
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = false;
+    });
+    updateSelection();
+  });
+  form.addEventListener('submit', (event) => {
+    if (!checkboxes.some((checkbox) => checkbox.checked)) {
+      event.preventDefault();
+      showGlobalFlash('Select at least one employee first.', 'danger');
+    }
+  });
+  applySearch();
+  updateSelection();
+}
+
 export function init(root = document) {
   root.querySelectorAll('[data-team-hierarchy]').forEach(initHierarchy);
+  root.querySelectorAll('[data-user-reporting]').forEach(initUserReporting);
 }

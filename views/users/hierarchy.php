@@ -170,7 +170,7 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                     <tr>
                         <?php if ($canManageTeam): ?><th class="team-hierarchy-select-column"><input type="checkbox" aria-label="Select all visible employees" data-team-select-visible></th><?php endif; ?>
                         <th>Employee</th>
-                        <th>Manager Assignment</th>
+                        <th>Reporting Lines</th>
                         <th>Department</th>
                         <th>Storage Access</th>
                         <th>Scan Access</th>
@@ -189,6 +189,7 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                     $storageNames = trim((string) ($record['storage_names'] ?? ''));
                     $mobileState = !empty($record['mobile_enabled_effective']) ? 'on' : 'off';
                     $canChange = $canChangeRecord($record);
+                    $recordDirectReports = $record['direct_reports'] ?? [];
                     $searchText = implode(' ', [
                         (string) $record['name'],
                         (string) $record['email'],
@@ -197,6 +198,8 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                         (string) ($record['manager_name'] ?? ''),
                         $department,
                         $storageNames,
+                        implode(' ', array_column($recordDirectReports, 'name')),
+                        implode(' ', array_column($recordDirectReports, 'email')),
                     ]);
                     ?>
                     <tr
@@ -206,6 +209,9 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                         data-team-manager-id="<?= $managerId ?? 'unassigned' ?>"
                         data-team-department="<?= e($department) ?>"
                         data-team-mobile="<?= $mobileState ?>"
+                        data-team-user-name="<?= e((string) $record['name']) ?>"
+                        data-team-user-email="<?= e((string) $record['email']) ?>"
+                        data-team-user-edit-url="<?= e(url('/users/' . $userId . '/edit#reporting-lines')) ?>"
                     >
                         <?php if ($canManageTeam): ?>
                             <td class="team-hierarchy-select-column">
@@ -223,19 +229,35 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                             </div>
                         </td>
                         <td>
-                            <?php if ($canChange): ?>
-                                <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>" class="team-hierarchy-manager-form team-hierarchy-row-manager-form" data-team-manager-form>
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="user_id" value="<?= $userId ?>">
-                                    <label>
-                                        <span class="sr-only">Manager for <?= e((string) $record['name']) ?></span>
-                                        <select name="manager_user_id"><?php $renderManagerOptions($managerId, $userId); ?></select>
-                                    </label>
-                                    <button class="ghost-button" type="submit">Save</button>
-                                </form>
-                            <?php else: ?>
-                                <strong data-team-current-manager><?= e((string) ($record['manager_name'] ?: 'Top level')) ?></strong>
-                            <?php endif; ?>
+                            <div class="team-hierarchy-reporting-cell">
+                                <small class="team-hierarchy-cell-label">Managed by</small>
+                                <?php if ($canChange): ?>
+                                    <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>" class="team-hierarchy-manager-form team-hierarchy-row-manager-form" data-team-manager-form>
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="user_id" value="<?= $userId ?>">
+                                        <label>
+                                            <span class="sr-only">Manager for <?= e((string) $record['name']) ?></span>
+                                            <select name="manager_user_id"><?php $renderManagerOptions($managerId, $userId); ?></select>
+                                        </label>
+                                        <button class="ghost-button" type="submit">Save</button>
+                                    </form>
+                                <?php else: ?>
+                                    <strong data-team-current-manager><?= e((string) ($record['manager_name'] ?: 'Top level')) ?></strong>
+                                <?php endif; ?>
+
+                                <details class="team-hierarchy-direct-report-details">
+                                    <summary><span>Manages</span><strong data-team-direct-report-count><?= number_format(count($recordDirectReports)) ?></strong></summary>
+                                    <div class="team-hierarchy-direct-report-list" data-team-direct-report-list>
+                                        <?php foreach ($recordDirectReports as $directReport): ?>
+                                            <a href="<?= e(url('/users/' . (int) $directReport['id'] . '/edit#reporting-lines')) ?>" data-team-direct-report-user-id="<?= (int) $directReport['id'] ?>">
+                                                <strong><?= e((string) $directReport['name']) ?></strong>
+                                                <small><?= e(user_position_label((string) ($directReport['position'] ?? ''), (string) $directReport['role'])) ?></small>
+                                            </a>
+                                        <?php endforeach; ?>
+                                        <p data-team-direct-report-empty <?= $recordDirectReports === [] ? '' : 'hidden' ?>>No direct reports</p>
+                                    </div>
+                                </details>
+                            </div>
                         </td>
                         <td><strong><?= e($department) ?></strong></td>
                         <td class="team-hierarchy-storage-cell">
@@ -252,7 +274,8 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                         </td>
                         <td>
                             <div class="team-hierarchy-row-actions">
-                                <?php if (Auth::hasPermission('users.edit')): ?><a class="ghost-button" href="<?= e(url('/users/' . $userId . '/edit#storage-access')) ?>">Staff &amp; Storage</a><?php endif; ?>
+                                <?php if (Auth::hasPermission('users.edit')): ?><a class="primary-button" href="<?= e(url('/users/' . $userId . '/edit#reporting-lines')) ?>">Team Details</a><?php endif; ?>
+                                <?php if (Auth::hasPermission('users.edit')): ?><a class="ghost-button" href="<?= e(url('/users/' . $userId . '/edit#storage-access')) ?>">Account &amp; Storage</a><?php endif; ?>
                                 <?php if ($isOwner): ?><a class="ghost-button" href="<?= e(url('/mobile-access#mobile-user-' . $userId)) ?>">Scan Controls</a><?php endif; ?>
                             </div>
                         </td>

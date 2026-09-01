@@ -9,7 +9,8 @@ function team_hierarchy_records(): array
                 employee.email,
                 employee.role,
                 employee.position,
-                employee.manager_user_id,
+                employee.assigned_owner_user_id,
+                COALESCE(employee.manager_user_id, employee.assigned_owner_user_id) AS manager_user_id,
                 manager.name AS manager_name,
                 department.name AS department_name,
                 mobile.enabled AS mobile_enabled,
@@ -38,7 +39,7 @@ function team_hierarchy_records(): array
                   ORDER BY assignment.id ASC
                   LIMIT 1) AS default_storage_name
          FROM users employee
-         LEFT JOIN users manager ON manager.id = employee.manager_user_id
+         LEFT JOIN users manager ON manager.id = COALESCE(employee.manager_user_id, employee.assigned_owner_user_id)
          LEFT JOIN departments department ON department.id = employee.department_id
          LEFT JOIN mobile_user_access mobile ON mobile.user_id = employee.id
          WHERE employee.is_active = 1
@@ -74,6 +75,23 @@ function team_hierarchy_records(): array
     }
     unset($record);
 
+    $directReportsByManager = [];
+    foreach ($records as $record) {
+        $managerUserId = normalize_entity_id($record['manager_user_id'] ?? null);
+        if ($managerUserId !== null) {
+            $directReportsByManager[$managerUserId][] = $record;
+        }
+    }
+    foreach ($directReportsByManager as &$directReports) {
+        team_hierarchy_sort_records($directReports);
+    }
+    unset($directReports);
+    foreach ($records as &$record) {
+        $record['direct_reports'] = $directReportsByManager[(int) $record['id']] ?? [];
+        $record['direct_report_count'] = count($record['direct_reports']);
+    }
+    unset($record);
+
     return $records;
 }
 
@@ -91,6 +109,127 @@ function team_hierarchy_compare_records(array $left, array $right): int
 function team_hierarchy_sort_records(array &$records): void
 {
     usort($records, 'team_hierarchy_compare_records');
+}
+
+function team_hierarchy_reporting_details(int $userId): array
+{
+    $user = Database::fetch(
+        'SELECT employee.id,
+                employee.name,
+                employee.email,
+                employee.role,
+                employee.position,
+                employee.is_active,
+                employee.department_id,
+                COALESCE(employee.manager_user_id, employee.assigned_owner_user_id) AS manager_user_id,
+                manager.name AS manager_name,
+                manager.email AS manager_email,
+                manager.role AS manager_role,
+                manager.position AS manager_position,
+                department.name AS department_name
+         FROM users employee
+         LEFT JOIN users manager ON manager.id = COALESCE(employee.manager_user_id, employee.assigned_owner_user_id)
+         LEFT JOIN departments department ON department.id = employee.department_id
+         WHERE employee.id = :id
+         LIMIT 1',
+        ['id' => $userId]
+    );
+    if (!$user) {
+        return [
+            'manager' => null,
+            'direct_reports' => [],
+            'assignable_team_members' => [],
+            'can_receive_reports' => false,
+        ];
+    }
+
+    $directReports = Database::fetchAll(
+        'SELECT employee.id,
+                employee.name,
+                employee.email,
+                employee.role,
+                employee.position,
+                department.name AS department_name,
+                (SELECT COUNT(*)
+                   FROM user_storage_assignments assignment
+                   INNER JOIN storages storage ON storage.id = assignment.storage_id
+                  WHERE assignment.user_id = employee.id
+                    AND storage.is_active = 1
+                    AND storage.is_system = 0) AS storage_count,
+                (SELECT GROUP_CONCAT(storage.name ORDER BY assignment.is_default DESC, storage.name SEPARATOR ", ")
+                   FROM user_storage_assignments assignment
+                   INNER JOIN storages storage ON storage.id = assignment.storage_id
+                  WHERE assignment.user_id = employee.id
+                    AND storage.is_active = 1
+                    AND storage.is_system = 0) AS storage_names
+         FROM users employee
+         LEFT JOIN departments department ON department.id = employee.department_id
+         WHERE employee.is_active = 1
+           AND COALESCE(employee.manager_user_id, employee.assigned_owner_user_id) = :manager_user_id
+         ORDER BY FIELD(employee.role, "owner", "admin", "staff"), employee.name ASC',
+        ['manager_user_id' => $userId]
+    );
+
+    $managerUserId = normalize_entity_id($user['manager_user_id'] ?? null);
+    $manager = $managerUserId === null ? null : [
+        'id' => $managerUserId,
+        'name' => (string) ($user['manager_name'] ?? ''),
+        'email' => (string) ($user['manager_email'] ?? ''),
+        'role' => (string) ($user['manager_role'] ?? ''),
+        'position' => (string) ($user['manager_position'] ?? ''),
+    ];
+    $canReceiveReports = (int) ($user['is_active'] ?? 0) === 1
+        && in_array((string) ($user['role'] ?? ''), ['owner', 'admin'], true);
+
+    $assignableTeamMembers = [];
+    if ($canReceiveReports) {
+        $people = Database::fetchAll(
+            'SELECT employee.id,
+                    employee.name,
+                    employee.email,
+                    employee.role,
+                    employee.position,
+                    COALESCE(employee.manager_user_id, employee.assigned_owner_user_id) AS manager_user_id,
+                    department.name AS department_name
+             FROM users employee
+             LEFT JOIN departments department ON department.id = employee.department_id
+             WHERE employee.is_active = 1
+               AND employee.id != :user_id
+             ORDER BY FIELD(employee.role, "owner", "admin", "staff"), employee.name ASC',
+            ['user_id' => $userId]
+        );
+        $peopleById = [];
+        foreach ($people as $person) {
+            $peopleById[(int) $person['id']] = $person;
+        }
+        $peopleById[$userId] = $user;
+
+        $ancestorIds = [];
+        $cursor = $managerUserId;
+        while ($cursor !== null && !isset($ancestorIds[$cursor])) {
+            $ancestorIds[$cursor] = true;
+            $cursor = normalize_entity_id($peopleById[$cursor]['manager_user_id'] ?? null);
+        }
+
+        $directReportIds = array_fill_keys(array_map('intval', array_column($directReports, 'id')), true);
+        foreach ($people as $person) {
+            $personId = (int) $person['id'];
+            if (isset($directReportIds[$personId]) || isset($ancestorIds[$personId])) {
+                continue;
+            }
+            if ((string) ($person['role'] ?? '') === 'owner' && !Auth::isOwner()) {
+                continue;
+            }
+            $assignableTeamMembers[] = $person;
+        }
+    }
+
+    return [
+        'manager' => $manager,
+        'direct_reports' => $directReports,
+        'assignable_team_members' => $assignableTeamMembers,
+        'can_receive_reports' => $canReceiveReports,
+    ];
 }
 
 function team_hierarchy_normalize_user_ids(mixed $userIds, mixed $fallbackUserId = null): array
@@ -200,14 +339,23 @@ function handle_team_hierarchy_page(): void
     ]);
 }
 
-function team_hierarchy_move_error(string $message, int $statusCode = 422): never
+function team_hierarchy_safe_return_path(mixed $value): string
+{
+    $path = trim((string) $value);
+
+    return preg_match('~^/users/[1-9][0-9]*/edit(?:#reporting-lines)?$~', $path) === 1
+        ? $path
+        : '/users/hierarchy';
+}
+
+function team_hierarchy_move_error(string $message, int $statusCode = 422, string $returnPath = '/users/hierarchy'): never
 {
     if (request_wants_json()) {
         json_response(['ok' => false, 'message' => $message], $statusCode);
     }
 
     flash('danger', $message);
-    redirect('/users/hierarchy');
+    redirect($returnPath);
 }
 
 function handle_team_hierarchy_move_submit(): void
@@ -216,13 +364,14 @@ function handle_team_hierarchy_move_submit(): void
     Auth::requirePermission('team.manage');
     verify_csrf();
 
+    $returnPath = team_hierarchy_safe_return_path(input('return_to'));
     $userIds = team_hierarchy_normalize_user_ids(input('user_ids', []), input('user_id'));
     $managerUserId = normalize_entity_id(input('manager_user_id'));
     if ($userIds === []) {
-        team_hierarchy_move_error('Select at least one active employee.', 404);
+        team_hierarchy_move_error('Select at least one active employee.', 404, $returnPath);
     }
     if (count($userIds) > 500) {
-        team_hierarchy_move_error('Bulk manager changes are limited to 500 employees at a time.');
+        team_hierarchy_move_error('Bulk manager changes are limited to 500 employees at a time.', 422, $returnPath);
     }
 
     $pdo = Database::connection();
@@ -298,13 +447,13 @@ function handle_team_hierarchy_move_submit(): void
             $pdo->rollBack();
         }
         $statusCode = in_array($exception->getCode(), [403, 404, 422], true) ? $exception->getCode() : 422;
-        team_hierarchy_move_error($exception->getMessage(), $statusCode);
+        team_hierarchy_move_error($exception->getMessage(), $statusCode, $returnPath);
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
         error_log('Team manager assignment failed: ' . $exception->getMessage());
-        team_hierarchy_move_error('The manager assignment could not be saved safely. Nothing was changed.', 500);
+        team_hierarchy_move_error('The manager assignment could not be saved safely. Nothing was changed.', 500, $returnPath);
     }
 
     $selectedCount = count($userIds);
@@ -338,5 +487,5 @@ function handle_team_hierarchy_move_submit(): void
     }
 
     flash('success', $message);
-    redirect('/users/hierarchy');
+    redirect($returnPath);
 }

@@ -154,13 +154,15 @@ function handle_users_edit_submit(array $params): void
     verify_csrf();
 
     $userRecord = find_user_or_abort((int) $params['id']);
+    $storedManagerUserId = normalize_entity_id($userRecord['manager_user_id'] ?? $userRecord['assigned_owner_user_id'] ?? null);
+    $managerInputProvided = array_key_exists('manager_user_id', $_POST);
 
     $payload = [
         'name' => trim((string) input('name')),
         'email' => strtolower(trim((string) input('email'))),
         'position' => trim((string) input('position', (string) ($userRecord['position'] ?? 'general_admin'))),
         'role' => trim((string) input('role', (string) $userRecord['role'])),
-        'manager_user_id' => normalize_entity_id(input('manager_user_id')),
+        'manager_user_id' => $managerInputProvided ? normalize_entity_id(input('manager_user_id')) : $storedManagerUserId,
         'department_id' => valid_department_assignment_id(input('department_id')),
         'storage_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('storage_ids', []))))),
         'default_storage_id' => normalize_entity_id(input('default_storage_id')),
@@ -199,8 +201,7 @@ function handle_users_edit_submit(array $params): void
         $errors[] = 'Pick a valid position.';
     }
 
-    $storedManagerUserId = normalize_entity_id($userRecord['manager_user_id'] ?? $userRecord['assigned_owner_user_id'] ?? null);
-    if ($userRecord['role'] === 'owner') {
+    if ($managerInputProvided && $userRecord['role'] === 'owner') {
         $payload['manager_user_id'] = null;
     } elseif (!(Auth::isOwner() || Auth::hasPermission('team.manage'))) {
         $payload['manager_user_id'] = $storedManagerUserId;
