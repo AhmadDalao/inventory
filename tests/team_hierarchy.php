@@ -56,4 +56,11 @@ if (array_keys($legacyFlat) !== [10, 11]) {
     fail_team_hierarchy('Legacy cyclic data must stay visible for correction.');
 }
 
+if (team_hierarchy_normalize_user_ids(['4', 2, '4', '', ['bad']], '9') !== [4, 2]) {
+    fail_team_hierarchy('Bulk employee IDs must be positive, unique, and flat.');
+}
+if (team_hierarchy_normalize_user_ids([], '9') !== [9]) {
+    fail_team_hierarchy('Single-person manager changes must remain backward compatible.');
+}
+
 fwrite(STDOUT, '[team-hierarchy] PASS' . PHP_EOL);

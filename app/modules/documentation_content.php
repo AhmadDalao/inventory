@@ -540,7 +540,7 @@ function documentation_sections(): array
                 'Position presets apply recommended permissions.',
                 'Permissions can be customized per user.',
                 'Assign a direct manager to each employee so the manager can see the employee workflow records and receive action alerts.',
-                'Open Team Hierarchy to review reporting lines and use drag-and-drop on desktop or the manager selector on touch devices.',
+                'Open Team Hierarchy to search and filter employees, assign one manager to multiple selected staff, or use the optional compact tree for drag-and-drop and touch-safe individual changes.',
                 'Assign employees to one or more storages with Member or Owner access and select one default storage.',
                 'Assign multiple co-owners to the same storage when several accountable people operate that location.',
                 'Assigned-storage scope applies to item lists, direct item links, quantities, selectors, movement entry, and exports.',

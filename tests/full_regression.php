@@ -2062,12 +2062,24 @@ assert_true(
     'User edit did not persist the updated account profile.'
 );
 
+$bulkHierarchyUser = create_user_record(
+    $prefix . ' Hierarchy Bulk User',
+    build_email($prefix, 'hierarchy-bulk'),
+    'staff',
+    $password,
+    default_permissions_for_role('staff'),
+    null,
+    (int) $manager['id']
+);
+
 $teamHierarchyPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/hierarchy');
 assert_true(
     $teamHierarchyPage['status'] === 200
         && strpos($teamHierarchyPage['body'], 'data-team-hierarchy') !== false
+        && strpos($teamHierarchyPage['body'], 'data-team-bulk-form') !== false
+        && strpos($teamHierarchyPage['body'], 'data-team-search') !== false
         && strpos($teamHierarchyPage['body'], $httpUserUpdatedEmail) !== false,
-    'Team hierarchy page did not render the active employee tree.'
+    'Team hierarchy page did not render the scalable employee directory.'
 );
 $teamHierarchyMove = http_request($baseUrl, $ownerCookie, 'POST', '/users/hierarchy/move', [
     '_token' => extract_csrf($teamHierarchyPage['body'], 'team hierarchy manager move'),
@@ -2083,6 +2095,27 @@ assert_true(
     (int) ($httpUser['manager_user_id'] ?? 0) === (int) $owner['id']
         && (int) ($httpUser['assigned_owner_user_id'] ?? 0) === (int) $owner['id'],
     'Team hierarchy move did not synchronize the manager and legacy routing fields.'
+);
+
+$teamHierarchyBulkMove = http_request($baseUrl, $ownerCookie, 'POST', '/users/hierarchy/move', [
+    '_token' => extract_csrf($teamHierarchyPage['body'], 'team hierarchy bulk manager move'),
+    'user_ids' => [(string) $httpUser['id'], (string) $bulkHierarchyUser['id']],
+    'manager_user_id' => (string) $admin['id'],
+]);
+assert_true(
+    $teamHierarchyBulkMove['status'] === 302 && location_matches($teamHierarchyBulkMove['location'], '/users/hierarchy'),
+    'Team hierarchy bulk manager move did not redirect back to the hierarchy.'
+);
+$bulkManagerRows = Database::fetchAll(
+    'SELECT id, manager_user_id, assigned_owner_user_id FROM users WHERE id IN (:first_id, :second_id)',
+    ['first_id' => (int) $httpUser['id'], 'second_id' => (int) $bulkHierarchyUser['id']]
+);
+assert_true(
+    count($bulkManagerRows) === 2
+        && count(array_filter($bulkManagerRows, static fn (array $row): bool =>
+            (int) ($row['manager_user_id'] ?? 0) === (int) $admin['id']
+            && (int) ($row['assigned_owner_user_id'] ?? 0) === (int) $admin['id'])) === 2,
+    'Team hierarchy bulk move did not update every selected employee atomically.'
 );
 
 $usersStatusPage = http_request($baseUrl, $ownerCookie, 'GET', '/users');

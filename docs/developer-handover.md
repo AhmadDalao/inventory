@@ -138,7 +138,7 @@ When adding frontend behavior:
 | `app/modules/storage_filters.php` | Storage list filters and shared storage SQL where clauses. |
 | `app/modules/storage_ownership.php` | Global-owner checks, multi-owner/member storage assignments, assigned/default storage scope, co-owner management authority, and storage selector helpers. |
 | `app/modules/team_access.php` | Staff-to-manager reporting lines, cycle prevention, direct-report scope, workflow observer routing, and deduplicated manager/storage-owner/global-owner notifications. |
-| `app/modules/team_hierarchy.php` | Readable reporting tree plus audited drag/drop or selector-based manager reassignment at `/users/hierarchy`. |
+| `app/modules/team_hierarchy.php` | Searchable employee directory, transactional bulk manager assignment, and optional audited reporting tree at `/users/hierarchy`. |
 | `app/modules/storage_lookup.php` | Storage detail lookup/404 handling and summary metrics for one storage. |
 | `app/modules/storage_inventory.php` | Storage item rows and storage summary list metrics. |
 | `app/modules/storage_form_payloads.php` | Storage create/edit form default payloads. |
@@ -518,7 +518,7 @@ Status override must stay limited to owner/super admin because it can change wor
 The reporting line and stock authority are deliberately separate:
 
 - `users.manager_user_id` assigns one active owner/admin as the employee's direct manager. Manager loops and self-management are rejected.
-- `/users/hierarchy` displays the complete reporting tree. Authorized users can drag staff onto an owner/admin on desktop or use the explicit manager selector on touch devices; both controls call the same audited, cycle-safe server action.
+- `/users/hierarchy` opens with a searchable employee directory. Authorized users can filter by manager, department, and mobile access; select visible employees; and assign as many as 500 people to one manager in a single transaction. The optional compact tree retains desktop drag-and-drop and per-person selectors. Every path calls the same audited, cycle-safe server action.
 - Managers can open direct-report requests and handovers and receive notifications for their staff's web/mobile actions when they have the relevant view permission.
 - Manager visibility is observational. It does not grant request approval, handover approval, receipt confirmation, or stock authority unless that manager is also an owner of the affected source/destination storage.
 - `user_storage_assignments.access_role` is the storage access authority. `owner` can manage/approve for that storage when the matching permission exists; `member` can see/use only the assigned storage within their permissions.

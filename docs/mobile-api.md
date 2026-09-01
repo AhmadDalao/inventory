@@ -30,7 +30,7 @@ Mobile access is disabled by default. An owner must open `/mobile-access`, searc
 
 Enabled staff accounts must have both a manager and an assigned storage. The default storage must be one of the assigned storages. Disabling mobile access revokes the employee's active mobile device sessions.
 
-The reporting line can also be maintained from `/users/hierarchy`, which provides desktop drag-and-drop and a touch-safe manager selector. Storage membership remains managed from the employee or storage page; moving someone in the reporting tree does not silently grant stock access.
+The reporting line can also be maintained from `/users/hierarchy`, which provides a searchable directory, bulk manager assignment, desktop drag-and-drop, and touch-safe manager selectors. Storage membership remains managed from the employee or storage page; moving someone in the reporting hierarchy does not silently grant stock access.
 
 The existing permission catalog still applies. A mobile capability does not bypass `items.view`, movement, handover, or custody permissions. Effective access is always the intersection of the website permission, Mobile Access capability, assigned storage, active account/grant/device, supported app version, workflow status, and record relationship.
 

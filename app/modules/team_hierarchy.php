@@ -93,6 +93,27 @@ function team_hierarchy_sort_records(array &$records): void
     usort($records, 'team_hierarchy_compare_records');
 }
 
+function team_hierarchy_normalize_user_ids(mixed $userIds, mixed $fallbackUserId = null): array
+{
+    $values = is_array($userIds) ? $userIds : [$userIds];
+    if ($values === [] || count(array_filter($values, static fn (mixed $value): bool => is_scalar($value) && trim((string) $value) !== '')) === 0) {
+        $values = [$fallbackUserId];
+    }
+
+    $normalized = [];
+    foreach ($values as $value) {
+        if (!is_scalar($value)) {
+            continue;
+        }
+        $userId = normalize_entity_id($value);
+        if ($userId !== null) {
+            $normalized[$userId] = $userId;
+        }
+    }
+
+    return array_values($normalized);
+}
+
 function team_hierarchy_tree(array $records): array
 {
     $recordsById = [];
@@ -195,56 +216,122 @@ function handle_team_hierarchy_move_submit(): void
     Auth::requirePermission('team.manage');
     verify_csrf();
 
-    $userId = normalize_entity_id(input('user_id'));
+    $userIds = team_hierarchy_normalize_user_ids(input('user_ids', []), input('user_id'));
     $managerUserId = normalize_entity_id(input('manager_user_id'));
-    $employee = $userId !== null
-        ? Database::fetch('SELECT id, name, role, manager_user_id FROM users WHERE id = :id AND is_active = 1 LIMIT 1', ['id' => $userId])
-        : null;
-
-    if (!$employee) {
-        team_hierarchy_move_error('Pick an active employee.', 404);
+    if ($userIds === []) {
+        team_hierarchy_move_error('Select at least one active employee.', 404);
     }
-    if ((string) $employee['role'] === 'owner' && !Auth::isOwner()) {
-        team_hierarchy_move_error('Only an owner can change another owner reporting line.', 403);
+    if (count($userIds) > 500) {
+        team_hierarchy_move_error('Bulk manager changes are limited to 500 employees at a time.');
     }
 
-    $managerError = manager_assignment_block_reason((int) $employee['id'], $managerUserId);
-    if ($managerError !== null) {
-        team_hierarchy_move_error($managerError);
-    }
+    $pdo = Database::connection();
+    $employeesById = [];
+    $managerName = '';
+    $changedUserIds = [];
+    try {
+        $pdo->beginTransaction();
 
-    $oldManagerUserId = normalize_entity_id($employee['manager_user_id'] ?? null);
-    if ($oldManagerUserId !== $managerUserId) {
-        Database::execute(
-            'UPDATE users
-             SET manager_user_id = :manager_user_id,
-                 assigned_owner_user_id = :legacy_manager_user_id,
-                 updated_at = NOW()
-             WHERE id = :id',
-            [
-                'manager_user_id' => $managerUserId,
-                'legacy_manager_user_id' => $managerUserId,
-                'id' => $employee['id'],
-            ]
+        // Lock every eligible manager so two simultaneous hierarchy edits cannot race the cycle check.
+        Database::fetchAll(
+            'SELECT id FROM users WHERE is_active = 1 AND role IN ("owner", "admin") FOR UPDATE'
         );
-        record_activity('team.manager_changed', 'user', (int) $employee['id'], 'Changed manager for ' . $employee['name'], [
-            'old_manager_user_id' => $oldManagerUserId,
-            'manager_user_id' => $managerUserId,
-        ]);
+        $placeholders = implode(', ', array_fill(0, count($userIds), '?'));
+        $statement = $pdo->prepare(
+            'SELECT id, name, role, manager_user_id
+             FROM users
+             WHERE is_active = 1 AND id IN (' . $placeholders . ')
+             FOR UPDATE'
+        );
+        $statement->execute($userIds);
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $employee) {
+            $employeesById[(int) $employee['id']] = $employee;
+        }
+        if (count($employeesById) !== count($userIds)) {
+            throw new DomainException('One or more selected employees are no longer active. Refresh and try again.', 404);
+        }
+
+        foreach ($userIds as $userId) {
+            $employee = $employeesById[$userId];
+            if ((string) $employee['role'] === 'owner' && !Auth::isOwner()) {
+                throw new DomainException('Only an owner can change another owner reporting line.', 403);
+            }
+            $managerError = manager_assignment_block_reason($userId, $managerUserId);
+            if ($managerError !== null) {
+                throw new DomainException($employee['name'] . ': ' . $managerError, 422);
+            }
+        }
+
+        $managerName = $managerUserId !== null
+            ? (string) (Database::scalar('SELECT name FROM users WHERE id = :id LIMIT 1', ['id' => $managerUserId]) ?: 'the selected manager')
+            : '';
+
+        foreach ($userIds as $userId) {
+            $employee = $employeesById[$userId];
+            $oldManagerUserId = normalize_entity_id($employee['manager_user_id'] ?? null);
+            if ($oldManagerUserId === $managerUserId) {
+                continue;
+            }
+            Database::execute(
+                'UPDATE users
+                 SET manager_user_id = :manager_user_id,
+                     assigned_owner_user_id = :legacy_manager_user_id,
+                     updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'manager_user_id' => $managerUserId,
+                    'legacy_manager_user_id' => $managerUserId,
+                    'id' => $userId,
+                ]
+            );
+            record_activity('team.manager_changed', 'user', $userId, 'Changed manager for ' . $employee['name'], [
+                'old_manager_user_id' => $oldManagerUserId,
+                'manager_user_id' => $managerUserId,
+                'bulk_assignment' => count($userIds) > 1,
+                'selected_count' => count($userIds),
+            ]);
+            $changedUserIds[] = $userId;
+        }
+        $pdo->commit();
+    } catch (DomainException $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $statusCode = in_array($exception->getCode(), [403, 404, 422], true) ? $exception->getCode() : 422;
+        team_hierarchy_move_error($exception->getMessage(), $statusCode);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('Team manager assignment failed: ' . $exception->getMessage());
+        team_hierarchy_move_error('The manager assignment could not be saved safely. Nothing was changed.', 500);
     }
 
-    $managerName = $managerUserId !== null
-        ? (string) (Database::scalar('SELECT name FROM users WHERE id = :id LIMIT 1', ['id' => $managerUserId]) ?: 'the selected manager')
-        : '';
-    $message = $managerUserId === null
-        ? $employee['name'] . ' moved to the top level.'
-        : $employee['name'] . ' now reports to ' . $managerName . '.';
+    $selectedCount = count($userIds);
+    $changedCount = count($changedUserIds);
+    if ($selectedCount === 1) {
+        $employee = $employeesById[$userIds[0]];
+        $message = $managerUserId === null
+            ? $employee['name'] . ' moved to the top level.'
+            : $employee['name'] . ' now reports to ' . $managerName . '.';
+    } elseif ($managerUserId === null) {
+        $message = $changedCount > 0
+            ? $changedCount . ' employees moved to the top level.'
+            : 'The selected employees were already at the top level.';
+    } else {
+        $message = $changedCount > 0
+            ? $changedCount . ' employees now report to ' . $managerName . '.'
+            : 'The selected employees already report to ' . $managerName . '.';
+    }
 
     if (request_wants_json()) {
         json_response([
             'ok' => true,
             'message' => $message,
-            'user_id' => (int) $employee['id'],
+            'user_id' => $selectedCount === 1 ? $userIds[0] : null,
+            'user_ids' => $userIds,
+            'changed_user_ids' => $changedUserIds,
+            'changed_count' => $changedCount,
             'manager_user_id' => $managerUserId,
             'manager_name' => $managerName,
         ]);

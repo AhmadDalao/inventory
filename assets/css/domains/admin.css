@@ -404,3 +404,251 @@
     font-size: 0.78rem;
     font-weight: 800;
 }
+
+.team-hierarchy-summary {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.team-hierarchy-workspace {
+    display: grid;
+    gap: 18px;
+    overflow: visible;
+}
+
+.team-hierarchy-workspace-head,
+.team-hierarchy-result-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.team-hierarchy-workspace-head h4,
+.team-hierarchy-workspace-head p,
+.team-hierarchy-result-line {
+    margin: 0;
+}
+
+.team-hierarchy-workspace-head > div:first-child {
+    display: grid;
+    gap: 5px;
+}
+
+.team-hierarchy-view-switch {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 5px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--soft);
+}
+
+.team-hierarchy-view-switch .ghost-button {
+    min-width: 132px;
+    padding: 10px 14px;
+    background: transparent;
+    color: var(--muted);
+}
+
+.team-hierarchy-view-switch .ghost-button.is-active {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 8px 20px rgba(74, 58, 32, 0.09);
+}
+
+.team-hierarchy-filter-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.4fr) repeat(3, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 2px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--soft);
+}
+
+.team-hierarchy-filter-grid label,
+.team-hierarchy-bulk-form label {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.team-hierarchy-filter-grid label > span {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.team-hierarchy-filter-grid input,
+.team-hierarchy-filter-grid select,
+.team-hierarchy-bulk-form select {
+    width: 100%;
+    min-width: 0;
+}
+
+.team-hierarchy-result-line {
+    margin: 12px 2px;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.team-hierarchy-result-line strong {
+    color: var(--ink);
+}
+
+.team-hierarchy-bulk-form {
+    display: grid;
+    grid-template-columns: minmax(230px, 1fr) minmax(240px, 360px) auto auto;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 13px;
+    border: 1px solid #e3d2b6;
+    border-radius: 18px;
+    background: #fff8e8;
+}
+
+.team-hierarchy-bulk-count {
+    display: grid;
+    gap: 2px;
+}
+
+.team-hierarchy-bulk-count span {
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.team-hierarchy-bulk-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.team-hierarchy-directory-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+}
+
+.team-hierarchy-directory-table {
+    min-width: 1280px;
+}
+
+.team-hierarchy-directory-table tr.is-selected td {
+    background: #fff7df;
+}
+
+.team-hierarchy-select-column {
+    width: 54px;
+    text-align: center;
+}
+
+.team-hierarchy-select-column input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.team-hierarchy-person {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 230px;
+}
+
+.team-hierarchy-person > span:last-child,
+.team-hierarchy-person strong,
+.team-hierarchy-person small,
+.team-hierarchy-storage-cell strong,
+.team-hierarchy-storage-cell small {
+    display: block;
+}
+
+.team-hierarchy-person small,
+.team-hierarchy-storage-cell small {
+    max-width: 290px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.team-hierarchy-person .team-hierarchy-avatar {
+    flex-basis: 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+}
+
+.team-hierarchy-row-manager-form {
+    grid-template-columns: minmax(185px, 1fr) auto;
+    min-width: 300px;
+}
+
+.team-hierarchy-row-manager-form .ghost-button,
+.team-hierarchy-row-actions .ghost-button {
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.team-hierarchy-status-stack,
+.team-hierarchy-row-actions,
+.team-hierarchy-compact-facts {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.team-hierarchy-row-actions {
+    min-width: 245px;
+}
+
+.team-hierarchy-tree-head {
+    margin-bottom: 14px;
+}
+
+.team-hierarchy-card-compact {
+    grid-template-columns: minmax(260px, 1.1fr) minmax(260px, 1fr) minmax(280px, 0.9fr);
+    align-items: center;
+    padding: 13px 15px;
+    border-radius: 18px;
+}
+
+.team-hierarchy-card-compact .team-hierarchy-identity small {
+    max-width: 360px;
+}
+
+.team-hierarchy-card-compact .team-hierarchy-tree-manager-form {
+    grid-template-columns: minmax(190px, 1fr) auto;
+}
+
+.team-hierarchy-card-compact .team-hierarchy-tree-manager-form .ghost-button {
+    padding: 10px 13px;
+    border-radius: 12px;
+}
+
+@media (max-width: 1180px) {
+    .team-hierarchy-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .team-hierarchy-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .team-hierarchy-bulk-form {
+        grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto auto;
+    }
+
+    .team-hierarchy-card-compact {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

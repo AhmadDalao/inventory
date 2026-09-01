@@ -2496,6 +2496,35 @@ body.app-shell {
         grid-template-columns: minmax(0, 1fr);
     }
 
+    .app-shell .team-hierarchy-workspace-head,
+    .app-shell .team-hierarchy-result-line {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .app-shell .team-hierarchy-view-switch,
+    .app-shell .team-hierarchy-filter-grid,
+    .app-shell .team-hierarchy-bulk-form {
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell .team-hierarchy-view-switch {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .app-shell .team-hierarchy-view-switch .ghost-button,
+    .app-shell .team-hierarchy-bulk-form .primary-button,
+    .app-shell .team-hierarchy-bulk-form .ghost-button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .app-shell .team-hierarchy-directory-scroll {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .app-shell .team-hierarchy-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
