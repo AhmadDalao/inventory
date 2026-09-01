@@ -640,6 +640,15 @@
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    .team-hierarchy-workspace-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .team-hierarchy-view-switch {
+        width: min(100%, 420px);
+    }
+
     .team-hierarchy-filter-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
