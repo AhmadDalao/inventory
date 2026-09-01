@@ -645,7 +645,16 @@
     }
 
     .team-hierarchy-bulk-form {
-        grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .team-hierarchy-bulk-count {
+        grid-column: 1 / -1;
+    }
+
+    .team-hierarchy-bulk-form .primary-button,
+    .team-hierarchy-bulk-form .ghost-button {
+        width: 100%;
     }
 
     .team-hierarchy-card-compact {
