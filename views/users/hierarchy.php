@@ -159,7 +159,7 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                     <span class="sr-only">Bulk manager</span>
                     <select name="manager_user_id" data-team-bulk-manager><?php $renderManagerOptions(null); ?></select>
                 </label>
-                <button class="primary-button" type="submit" data-team-bulk-submit disabled>Assign Manager</button>
+                <button class="primary-button" type="submit" data-team-bulk-submit data-confirm="Assign the selected employees to this manager?" disabled>Assign Manager</button>
                 <button class="ghost-button" type="button" data-team-clear-selection disabled>Clear</button>
             </form>
         <?php endif; ?>

@@ -118,6 +118,10 @@ function initDirectory(workspace) {
     if (bulkSubmit instanceof HTMLButtonElement) {
       bulkSubmit.disabled = selected.length === 0;
       bulkSubmit.textContent = selected.length > 0 ? `Assign Manager (${selected.length})` : 'Assign Manager';
+      const managerLabel = bulkManager instanceof HTMLSelectElement
+        ? bulkManager.options[bulkManager.selectedIndex]?.textContent?.trim() || 'the selected manager'
+        : 'the selected manager';
+      bulkSubmit.dataset.confirm = `Assign ${selected.length} employee${selected.length === 1 ? '' : 's'} to ${managerLabel}?`;
     }
     if (clearSelection instanceof HTMLButtonElement) clearSelection.disabled = selected.length === 0;
     if (selectVisible instanceof HTMLInputElement) {
@@ -154,6 +158,7 @@ function initDirectory(workspace) {
   managerFilter?.addEventListener('change', applyFilters);
   departmentFilter?.addEventListener('change', applyFilters);
   mobileFilter?.addEventListener('change', applyFilters);
+  bulkManager?.addEventListener('change', updateSelection);
   selectableCheckboxes().forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
 
   if (selectVisible instanceof HTMLInputElement) {
@@ -184,12 +189,6 @@ function initDirectory(workspace) {
       event.preventDefault();
       showGlobalFlash('A selected employee cannot also be the destination manager.', 'danger');
       return;
-    }
-    const managerLabel = bulkManager instanceof HTMLSelectElement
-      ? bulkManager.options[bulkManager.selectedIndex]?.textContent?.trim() || 'the selected manager'
-      : 'the selected manager';
-    if (!window.confirm(`Assign ${selected.length} employee${selected.length === 1 ? '' : 's'} to ${managerLabel}?`)) {
-      event.preventDefault();
     }
   });
 
