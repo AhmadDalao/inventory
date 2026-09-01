@@ -372,23 +372,30 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
                     </summary>
                     <div class="settings-accordion-body">
                         <div class="settings-field-grid access-field-grid">
-                            <fieldset class="field settings-span-full">
+                            <fieldset class="access-storage-scope settings-span-full">
                                 <legend>Assigned Storages</legend>
-                                <div class="checkbox-grid">
+                                <p class="access-storage-scope-copy">Select the locations this employee can open and use. Storage-owner access stays locked here.</p>
+                                <div class="access-storage-grid">
                                     <?php foreach ($storageOptions as $storageOption): ?>
                                         <?php
                                         $storageId = (int) $storageOption['id'];
                                         $isOwned = in_array($storageId, $ownedStorageIds, true);
                                         $isChecked = $isOwned || in_array($storageId, $selectedStorageIds, true);
                                         ?>
-                                        <label class="checkbox-row">
+                                        <label class="access-storage-choice<?= $isOwned ? ' is-owned' : '' ?>">
                                             <input type="checkbox" name="storage_ids[]" value="<?= $storageId ?>" <?= $isChecked ? 'checked' : '' ?> <?= (!$canAssignStorages || $isOwned) ? 'disabled' : '' ?>>
-                                            <span><?= e((string) $storageOption['name']) ?> · <?= e(ucfirst((string) $storageOption['storage_type'])) ?><?= $isOwned ? ' · Owner' : '' ?></span>
+                                            <span class="access-storage-choice-icon"><?= ui_icon('storages') ?></span>
+                                            <span class="access-storage-choice-copy">
+                                                <strong><?= e((string) $storageOption['name']) ?></strong>
+                                                <small><?= e(storage_type_label((string) $storageOption['storage_type'])) ?><?= $isOwned ? ' · Owner access' : ' · Employee access' ?></small>
+                                            </span>
+                                            <span class="access-storage-choice-state"><?= $isOwned ? 'Owner' : 'Assigned' ?></span>
                                         </label>
                                         <?php if ($isChecked && (!$canAssignStorages || $isOwned)): ?><input type="hidden" name="storage_ids[]" value="<?= $storageId ?>"><?php endif; ?>
                                     <?php endforeach; ?>
+                                    <?php if ($storageOptions === []): ?><p class="empty-cell">No active storages are available.</p><?php endif; ?>
                                 </div>
-                                <small>Owner assignments are managed from the storage page and cannot be removed here.</small>
+                                <small class="access-storage-scope-help">Owner assignments are managed from the storage page and cannot be removed here.</small>
                             </fieldset>
                             <label class="field">
                                 <span>Default Storage</span>

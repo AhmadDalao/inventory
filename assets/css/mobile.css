@@ -122,6 +122,23 @@
 }
 
 @media (max-width: 760px) {
+    .app-shell .access-storage-scope {
+        padding: 14px;
+    }
+
+    .app-shell .access-storage-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell .access-storage-choice {
+        grid-template-columns: auto auto minmax(0, 1fr);
+    }
+
+    .app-shell .access-storage-choice-state {
+        grid-column: 2 / -1;
+        width: fit-content;
+    }
+
     .scan-manual-grid {
         grid-template-columns: 1fr;
     }
@@ -2608,6 +2625,10 @@ body.app-shell {
         width: 100%;
         min-width: 0;
         max-width: 100%;
+    }
+
+    .app-shell .team-hierarchy-direct-report-list {
+        width: min(300px, calc(100vw - 44px));
     }
 
     .app-shell .team-hierarchy-drag,

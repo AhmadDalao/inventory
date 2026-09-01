@@ -61,7 +61,7 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                 <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>" class="team-hierarchy-manager-form team-hierarchy-tree-manager-form" data-team-manager-form>
                     <?= csrf_field() ?>
                     <input type="hidden" name="user_id" value="<?= $userId ?>">
-                    <label>
+                    <label class="field team-hierarchy-manager-field">
                         <span class="sr-only">Manager for <?= e((string) $node['name']) ?></span>
                         <select name="manager_user_id"><?php $renderManagerOptions($managerId, $userId); ?></select>
                     </label>
@@ -112,11 +112,11 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
 
     <div data-team-view-panel="directory">
         <div class="team-hierarchy-filter-grid">
-            <label>
+            <label class="field team-hierarchy-filter-field">
                 <span>Search employees</span>
                 <input type="search" placeholder="Name, email, department, or storage" autocomplete="off" data-team-search>
             </label>
-            <label>
+            <label class="field team-hierarchy-filter-field">
                 <span>Current manager</span>
                 <select data-team-manager-filter>
                     <option value="all">All managers</option>
@@ -126,14 +126,14 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label>
+            <label class="field team-hierarchy-filter-field">
                 <span>Department</span>
                 <select data-team-department-filter>
                     <option value="all">All departments</option>
                     <?php foreach ($departments as $department): ?><option value="<?= e($department) ?>"><?= e($department) ?></option><?php endforeach; ?>
                 </select>
             </label>
-            <label>
+            <label class="field team-hierarchy-filter-field">
                 <span>Mobile access</span>
                 <select data-team-mobile-filter>
                     <option value="all">All mobile states</option>
@@ -155,7 +155,7 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                     <strong data-team-selected-count>0 selected</strong>
                     <span>Choose employees below, then assign one manager.</span>
                 </div>
-                <label>
+                <label class="field team-hierarchy-bulk-manager-field">
                     <span class="sr-only">Bulk manager</span>
                     <select name="manager_user_id" data-team-bulk-manager><?php $renderManagerOptions(null); ?></select>
                 </label>
@@ -235,7 +235,7 @@ $renderNode = static function (array $node) use (&$renderNode, $canChangeRecord,
                                     <form method="post" action="<?= e(url('/users/hierarchy/move')) ?>" class="team-hierarchy-manager-form team-hierarchy-row-manager-form" data-team-manager-form>
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="user_id" value="<?= $userId ?>">
-                                        <label>
+                                        <label class="field team-hierarchy-manager-field">
                                             <span class="sr-only">Manager for <?= e((string) $record['name']) ?></span>
                                             <select name="manager_user_id"><?php $renderManagerOptions($managerId, $userId); ?></select>
                                         </label>

@@ -2082,6 +2082,7 @@ $adminReportingPage = http_request($baseUrl, $ownerCookie, 'GET', '/users/' . (i
 assert_true(
     $adminReportingPage['status'] === 200
         && strpos($adminReportingPage['body'], 'data-user-team-add-form') !== false
+        && strpos($adminReportingPage['body'], 'access-storage-choice') !== false
         && strpos($adminReportingPage['body'], $httpUserUpdatedEmail) !== false
         && strpos($adminReportingPage['body'], (string) $bulkHierarchyUser['email']) !== false,
     'Manager edit page did not show direct reports and eligible employees.'
@@ -2094,6 +2095,8 @@ assert_true(
         && strpos($teamHierarchyPage['body'], 'data-team-bulk-form') !== false
         && strpos($teamHierarchyPage['body'], 'data-team-search') !== false
         && strpos($teamHierarchyPage['body'], 'data-team-direct-report-count') !== false
+        && strpos($teamHierarchyPage['body'], 'team-hierarchy-filter-field') !== false
+        && strpos($teamHierarchyPage['body'], 'team-hierarchy-direct-report-details') !== false
         && strpos($teamHierarchyPage['body'], 'Team Details') !== false
         && strpos($teamHierarchyPage['body'], $httpUserUpdatedEmail) !== false,
     'Team hierarchy page did not render the scalable employee directory.'

@@ -239,13 +239,19 @@ foreach ([
 }
 
 $teamHierarchyScript = file_get_contents($root . '/assets/js/domains/team-hierarchy.js') ?: '';
-foreach (['data-team-manager-form', 'dragstart', 'data-team-root-drop', 'data-team-bulk-form', 'data-team-search', 'data-team-view-button', 'data-user-reporting', 'data-user-team-add-form', 'data-team-direct-report-count'] as $marker) {
+foreach (['data-team-manager-form', 'dragstart', 'data-team-root-drop', 'data-team-bulk-form', 'data-team-search', 'data-team-view-button', 'data-user-reporting', 'data-user-team-add-form', 'data-team-direct-report-count', 'initDirectReportDropdowns', 'is-drop-up'] as $marker) {
     if (strpos($teamHierarchyScript, $marker) === false) {
         fail_frontend_assets('Team hierarchy JavaScript is missing marker: ' . $marker);
     }
 }
 if (strpos($entryScript, 'initTeamHierarchy') === false || strpos($adminCss, 'Team hierarchy:') === false) {
     fail_frontend_assets('Team hierarchy assets are not registered in the modular frontend.');
+}
+
+foreach (['.access-storage-choice', '.team-hierarchy-direct-report-details[open]', 'position: absolute'] as $marker) {
+    if (strpos($adminCss, $marker) === false) {
+        fail_frontend_assets('Admin controls are missing the KONA storage/dropdown presentation marker: ' . $marker);
+    }
 }
 
 foreach ([

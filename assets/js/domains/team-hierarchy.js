@@ -116,6 +116,42 @@ function initViewSwitch(workspace) {
   activate(initialView);
 }
 
+function initDirectReportDropdowns(workspace) {
+  const dropdowns = [...workspace.querySelectorAll('.team-hierarchy-direct-report-details')]
+    .filter((details) => details instanceof HTMLDetailsElement);
+  if (dropdowns.length === 0) return;
+
+  const closeAll = (except = null) => {
+    dropdowns.forEach((details) => {
+      if (details !== except) details.open = false;
+    });
+  };
+
+  dropdowns.forEach((details) => {
+    details.addEventListener('toggle', () => {
+      details.classList.remove('is-drop-up');
+      if (!details.open) return;
+      closeAll(details);
+      const summary = details.querySelector('summary');
+      const panel = details.querySelector('.team-hierarchy-direct-report-list');
+      if (!(summary instanceof HTMLElement) || !(panel instanceof HTMLElement)) return;
+      const summaryRect = summary.getBoundingClientRect();
+      const panelHeight = Math.min(panel.scrollHeight, 220) + 18;
+      if (window.innerHeight - summaryRect.bottom < panelHeight && summaryRect.top > panelHeight) {
+        details.classList.add('is-drop-up');
+      }
+    });
+  });
+
+  document.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('.team-hierarchy-direct-report-details')) return;
+    closeAll();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAll();
+  });
+}
+
 function initDirectory(workspace) {
   const rows = [...workspace.querySelectorAll('[data-team-directory-row]')];
   const search = workspace.querySelector('[data-team-search]');
@@ -333,6 +369,7 @@ function initHierarchy(workspace) {
   if (workspace.dataset.teamHierarchyBound === '1') return;
   workspace.dataset.teamHierarchyBound = '1';
   initViewSwitch(workspace);
+  initDirectReportDropdowns(workspace);
   initDirectory(workspace);
   initManagerControls(workspace);
 }
