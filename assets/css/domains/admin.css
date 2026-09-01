@@ -174,6 +174,7 @@
 }
 
 .access-storage-scope {
+    grid-column: 1 / -1;
     min-width: 0;
     margin: 0;
     padding: 17px;
@@ -793,12 +794,13 @@
 }
 
 .team-hierarchy-direct-report-details summary::after {
-    width: 8px;
-    height: 8px;
-    border-right: 2px solid var(--muted);
-    border-bottom: 2px solid var(--muted);
+    width: 14px;
+    height: 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3 5.25 7 9.25l4-4' stroke='%236c6258' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
     content: "";
-    transform: rotate(45deg) translateY(-2px);
+    transform: rotate(0deg);
     transition: transform 160ms ease;
 }
 
@@ -812,7 +814,7 @@
 }
 
 .team-hierarchy-direct-report-details[open] summary::after {
-    transform: rotate(225deg) translate(-1px, -1px);
+    transform: rotate(180deg);
 }
 
 .team-hierarchy-direct-report-details summary::-webkit-details-marker {
