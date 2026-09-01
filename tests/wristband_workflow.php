@@ -78,6 +78,12 @@ try {
     );
     $storageId = Database::lastInsertId();
 
+    Database::execute(
+        'INSERT INTO item_storage_balances (item_id, storage_id, quantity, created_at, updated_at)
+         VALUES (:item_id, :storage_id, 0, NOW(), NOW())',
+        ['item_id' => $itemId, 'storage_id' => $storageId]
+    );
+
     $apiKey = wristband_generate_api_key();
     Database::execute(
         'INSERT INTO wristband_integrations
@@ -141,7 +147,15 @@ try {
     $temporaryFile = tempnam(sys_get_temp_dir(), 'wristband-workflow-');
     assert_wristband_workflow(is_string($temporaryFile), 'Could not create the temporary import file.');
     file_put_contents($temporaryFile, "code\n{$codeOne}\n{$codeTwo}\n");
-    $import = wristband_import_codes($temporaryFile, 'wristband-workflow.csv', 'csv', 'selected_item', $itemId, $ownerId);
+    $import = wristband_import_codes(
+        $temporaryFile,
+        'wristband-workflow.csv',
+        'csv',
+        'selected_item',
+        $itemId,
+        $ownerId,
+        $storageId
+    );
     assert_wristband_workflow((int) $import['imported'] === 2, 'Two unique wristband codes should import.');
 
     $sessionId = wristband_start_session_for_handover($handoverId, $storageId, $ownerId);
