@@ -1,0 +1,1586 @@
+[
+    {
+        "position": 1,
+        "method": "GET",
+        "path": "/",
+        "handler": "inline:sha256:3bb29c0d3d73ab671bc2e219cef4009cc20367969c5294f07e22d81fdc4c7f2a"
+    },
+    {
+        "position": 2,
+        "method": "GET",
+        "path": "/setup",
+        "handler": "handle_setup_page"
+    },
+    {
+        "position": 3,
+        "method": "POST",
+        "path": "/setup",
+        "handler": "handle_setup_submit"
+    },
+    {
+        "position": 4,
+        "method": "GET",
+        "path": "/login",
+        "handler": "handle_login_page"
+    },
+    {
+        "position": 5,
+        "method": "POST",
+        "path": "/login",
+        "handler": "handle_login_submit"
+    },
+    {
+        "position": 6,
+        "method": "GET",
+        "path": "/forgot-password",
+        "handler": "handle_forgot_password_page"
+    },
+    {
+        "position": 7,
+        "method": "POST",
+        "path": "/forgot-password",
+        "handler": "handle_forgot_password_submit"
+    },
+    {
+        "position": 8,
+        "method": "GET",
+        "path": "/reset-password/{token}",
+        "handler": "handle_reset_password_page"
+    },
+    {
+        "position": 9,
+        "method": "POST",
+        "path": "/reset-password/{token}",
+        "handler": "handle_reset_password_submit"
+    },
+    {
+        "position": 10,
+        "method": "POST",
+        "path": "/logout",
+        "handler": "handle_logout_submit"
+    },
+    {
+        "position": 11,
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "handler": "handle_mobile_api_login"
+    },
+    {
+        "position": 12,
+        "method": "POST",
+        "path": "/api/v1/auth/refresh",
+        "handler": "handle_mobile_api_refresh"
+    },
+    {
+        "position": 13,
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "handler": "handle_mobile_api_logout"
+    },
+    {
+        "position": 14,
+        "method": "GET",
+        "path": "/api/v1/me",
+        "handler": "handle_mobile_api_me"
+    },
+    {
+        "position": 15,
+        "method": "POST",
+        "path": "/api/v1/me/verify-password",
+        "handler": "handle_mobile_api_verify_password"
+    },
+    {
+        "position": 16,
+        "method": "GET",
+        "path": "/api/v1/bootstrap",
+        "handler": "handle_mobile_api_bootstrap"
+    },
+    {
+        "position": 17,
+        "method": "GET",
+        "path": "/api/v1/sync",
+        "handler": "handle_mobile_api_sync"
+    },
+    {
+        "position": 18,
+        "method": "GET",
+        "path": "/api/v1/operations/mine",
+        "handler": "handle_mobile_api_operations_mine"
+    },
+    {
+        "position": 19,
+        "method": "GET",
+        "path": "/api/v1/storages",
+        "handler": "handle_mobile_api_storages"
+    },
+    {
+        "position": 20,
+        "method": "GET",
+        "path": "/api/v1/storages/{id}/items",
+        "handler": "handle_mobile_api_storage_items"
+    },
+    {
+        "position": 21,
+        "method": "GET",
+        "path": "/api/v1/items/lookup",
+        "handler": "handle_mobile_api_item_lookup"
+    },
+    {
+        "position": 22,
+        "method": "GET",
+        "path": "/api/v1/items/{id}",
+        "handler": "handle_mobile_api_item_show"
+    },
+    {
+        "position": 23,
+        "method": "POST",
+        "path": "/api/v1/movements/usage",
+        "handler": "handle_mobile_api_usage"
+    },
+    {
+        "position": 24,
+        "method": "POST",
+        "path": "/api/v1/movements/restock",
+        "handler": "handle_mobile_api_restock"
+    },
+    {
+        "position": 25,
+        "method": "POST",
+        "path": "/api/v1/movements/batch",
+        "handler": "handle_mobile_api_batch"
+    },
+    {
+        "position": 26,
+        "method": "GET",
+        "path": "/api/v1/handovers",
+        "handler": "handle_mobile_api_handovers"
+    },
+    {
+        "position": 27,
+        "method": "POST",
+        "path": "/api/v1/handovers",
+        "handler": "handle_mobile_api_handover_create"
+    },
+    {
+        "position": 28,
+        "method": "GET",
+        "path": "/api/v1/handovers/mine",
+        "handler": "handle_mobile_api_handovers_mine"
+    },
+    {
+        "position": 29,
+        "method": "GET",
+        "path": "/api/v1/handovers/{id}",
+        "handler": "handle_mobile_api_handover_show"
+    },
+    {
+        "position": 30,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/receipt",
+        "handler": "handle_mobile_api_handover_receive"
+    },
+    {
+        "position": 31,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/confirm-receipt",
+        "handler": "handle_mobile_api_handover_confirm_receipt"
+    },
+    {
+        "position": 32,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/closeout",
+        "handler": "handle_mobile_api_handover_closeout"
+    },
+    {
+        "position": 33,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/approve-closeout",
+        "handler": "handle_mobile_api_handover_approve_closeout"
+    },
+    {
+        "position": 34,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/approve-request",
+        "handler": "handle_mobile_api_handover_approve_request"
+    },
+    {
+        "position": 35,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/reject-request",
+        "handler": "handle_mobile_api_handover_reject_request"
+    },
+    {
+        "position": 36,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/cancel",
+        "handler": "handle_mobile_api_handover_cancel"
+    },
+    {
+        "position": 37,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/custody-returns",
+        "handler": "handle_mobile_api_handover_custody_return_create"
+    },
+    {
+        "position": 38,
+        "method": "GET",
+        "path": "/api/v1/handovers/{id}/custody-returns/{return_id}",
+        "handler": "handle_mobile_api_handover_custody_return_show"
+    },
+    {
+        "position": 39,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/custody-returns/{return_id}/approve",
+        "handler": "handle_mobile_api_handover_custody_return_approve"
+    },
+    {
+        "position": 40,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/custody-returns/{return_id}/reject",
+        "handler": "handle_mobile_api_handover_custody_return_reject"
+    },
+    {
+        "position": 41,
+        "method": "POST",
+        "path": "/api/v1/integrations/kona/wristband-checkins",
+        "handler": "handle_wristband_checkin_api"
+    },
+    {
+        "position": 42,
+        "method": "GET",
+        "path": "/dashboard",
+        "handler": "handle_dashboard_page"
+    },
+    {
+        "position": 43,
+        "method": "GET",
+        "path": "/notifications",
+        "handler": "handle_notifications_index"
+    },
+    {
+        "position": 44,
+        "method": "GET",
+        "path": "/notifications/feed",
+        "handler": "handle_notifications_feed"
+    },
+    {
+        "position": 45,
+        "method": "GET",
+        "path": "/live-sync",
+        "handler": "handle_web_inventory_sync"
+    },
+    {
+        "position": 46,
+        "method": "POST",
+        "path": "/notifications/read-all",
+        "handler": "handle_notifications_read_all_submit"
+    },
+    {
+        "position": 47,
+        "method": "GET",
+        "path": "/global-search",
+        "handler": "handle_global_search"
+    },
+    {
+        "position": 48,
+        "method": "GET",
+        "path": "/open/{reference}",
+        "handler": "handle_workflow_reference_open"
+    },
+    {
+        "position": 49,
+        "method": "GET",
+        "path": "/storages",
+        "handler": "handle_storages_index"
+    },
+    {
+        "position": 50,
+        "method": "GET",
+        "path": "/storages/create",
+        "handler": "handle_storages_create_page"
+    },
+    {
+        "position": 51,
+        "method": "POST",
+        "path": "/storages/create",
+        "handler": "handle_storages_create_submit"
+    },
+    {
+        "position": 52,
+        "method": "GET",
+        "path": "/storages/{id}",
+        "handler": "handle_storages_show"
+    },
+    {
+        "position": 53,
+        "method": "GET",
+        "path": "/storages/{id}/edit",
+        "handler": "handle_storages_edit_page"
+    },
+    {
+        "position": 54,
+        "method": "POST",
+        "path": "/storages/{id}/edit",
+        "handler": "handle_storages_edit_submit"
+    },
+    {
+        "position": 55,
+        "method": "POST",
+        "path": "/storages/{id}/status",
+        "handler": "handle_storages_status_submit"
+    },
+    {
+        "position": 56,
+        "method": "GET",
+        "path": "/items",
+        "handler": "handle_items_index"
+    },
+    {
+        "position": 57,
+        "method": "GET",
+        "path": "/items/create",
+        "handler": "handle_items_create_page"
+    },
+    {
+        "position": 58,
+        "method": "POST",
+        "path": "/items/create",
+        "handler": "handle_items_create_submit"
+    },
+    {
+        "position": 59,
+        "method": "GET",
+        "path": "/items/{id}",
+        "handler": "handle_items_show"
+    },
+    {
+        "position": 60,
+        "method": "GET",
+        "path": "/items/{id}/edit",
+        "handler": "handle_items_edit_page"
+    },
+    {
+        "position": 61,
+        "method": "POST",
+        "path": "/items/{id}/edit",
+        "handler": "handle_items_edit_submit"
+    },
+    {
+        "position": 62,
+        "method": "POST",
+        "path": "/items/{id}/status",
+        "handler": "handle_items_status_submit"
+    },
+    {
+        "position": 63,
+        "method": "POST",
+        "path": "/items/{id}/package-presets",
+        "handler": "handle_item_package_preset_save_submit"
+    },
+    {
+        "position": 64,
+        "method": "POST",
+        "path": "/items/{id}/package-presets/{preset_id}/delete",
+        "handler": "handle_item_package_preset_delete_submit"
+    },
+    {
+        "position": 65,
+        "method": "POST",
+        "path": "/items/{id}/locations/{storage_id}/remove",
+        "handler": "handle_item_location_remove_submit"
+    },
+    {
+        "position": 66,
+        "method": "POST",
+        "path": "/items/{id}/movements",
+        "handler": "handle_item_movement_submit"
+    },
+    {
+        "position": 67,
+        "method": "GET",
+        "path": "/company-assets",
+        "handler": "handle_assets_index"
+    },
+    {
+        "position": 68,
+        "method": "GET",
+        "path": "/company-assets/create",
+        "handler": "handle_assets_create_page"
+    },
+    {
+        "position": 69,
+        "method": "POST",
+        "path": "/company-assets/create",
+        "handler": "handle_assets_create_submit"
+    },
+    {
+        "position": 70,
+        "method": "GET",
+        "path": "/company-assets/categories",
+        "handler": "handle_asset_categories_index"
+    },
+    {
+        "position": 71,
+        "method": "POST",
+        "path": "/company-assets/categories/create",
+        "handler": "handle_asset_categories_create_submit"
+    },
+    {
+        "position": 72,
+        "method": "POST",
+        "path": "/company-assets/categories/reorder",
+        "handler": "handle_asset_categories_reorder_submit"
+    },
+    {
+        "position": 73,
+        "method": "POST",
+        "path": "/company-assets/categories/{id}/edit",
+        "handler": "handle_asset_categories_edit_submit"
+    },
+    {
+        "position": 74,
+        "method": "POST",
+        "path": "/company-assets/categories/{id}/status",
+        "handler": "handle_asset_categories_status_submit"
+    },
+    {
+        "position": 75,
+        "method": "GET",
+        "path": "/company-assets/{id}",
+        "handler": "handle_assets_show"
+    },
+    {
+        "position": 76,
+        "method": "GET",
+        "path": "/company-assets/{id}/signoff.pdf",
+        "handler": "handle_asset_signoff_pdf_download"
+    },
+    {
+        "position": 77,
+        "method": "GET",
+        "path": "/company-assets/{id}/signoff.xlsx",
+        "handler": "handle_asset_signoff_excel_download"
+    },
+    {
+        "position": 78,
+        "method": "GET",
+        "path": "/company-assets/{id}/edit",
+        "handler": "handle_assets_edit_page"
+    },
+    {
+        "position": 79,
+        "method": "POST",
+        "path": "/company-assets/{id}/edit",
+        "handler": "handle_assets_edit_submit"
+    },
+    {
+        "position": 80,
+        "method": "POST",
+        "path": "/company-assets/{id}/status",
+        "handler": "handle_assets_status_submit"
+    },
+    {
+        "position": 81,
+        "method": "POST",
+        "path": "/company-assets/{id}/assign",
+        "handler": "handle_assets_assign_submit"
+    },
+    {
+        "position": 82,
+        "method": "POST",
+        "path": "/company-assets/{id}/confirm-receipt",
+        "handler": "handle_assets_confirm_receipt_submit"
+    },
+    {
+        "position": 83,
+        "method": "POST",
+        "path": "/company-assets/{id}/request-return",
+        "handler": "handle_assets_request_return_submit"
+    },
+    {
+        "position": 84,
+        "method": "POST",
+        "path": "/company-assets/{id}/confirm-return",
+        "handler": "handle_assets_confirm_return_submit"
+    },
+    {
+        "position": 85,
+        "method": "POST",
+        "path": "/company-assets/{id}/maintenance",
+        "handler": "handle_assets_maintenance_submit"
+    },
+    {
+        "position": 86,
+        "method": "POST",
+        "path": "/company-assets/{id}/maintenance/{maintenance_id}/complete",
+        "handler": "handle_assets_maintenance_complete_submit"
+    },
+    {
+        "position": 87,
+        "method": "POST",
+        "path": "/company-assets/{id}/override-status",
+        "handler": "handle_assets_status_override_submit"
+    },
+    {
+        "position": 88,
+        "method": "POST",
+        "path": "/company-assets/{id}/documents",
+        "handler": "handle_assets_documents_submit"
+    },
+    {
+        "position": 89,
+        "method": "GET",
+        "path": "/assets/create",
+        "handler": "inline:sha256:8963e57c4a0cbf3a76afa04e76a1ee1be955922c51581d199b249639a4e33f7e"
+    },
+    {
+        "position": 90,
+        "method": "POST",
+        "path": "/assets/create",
+        "handler": "handle_assets_create_submit"
+    },
+    {
+        "position": 91,
+        "method": "GET",
+        "path": "/assets/categories",
+        "handler": "handle_asset_categories_index"
+    },
+    {
+        "position": 92,
+        "method": "POST",
+        "path": "/assets/categories/create",
+        "handler": "handle_asset_categories_create_submit"
+    },
+    {
+        "position": 93,
+        "method": "POST",
+        "path": "/assets/categories/reorder",
+        "handler": "handle_asset_categories_reorder_submit"
+    },
+    {
+        "position": 94,
+        "method": "POST",
+        "path": "/assets/categories/{id}/edit",
+        "handler": "handle_asset_categories_edit_submit"
+    },
+    {
+        "position": 95,
+        "method": "POST",
+        "path": "/assets/categories/{id}/status",
+        "handler": "handle_asset_categories_status_submit"
+    },
+    {
+        "position": 96,
+        "method": "GET",
+        "path": "/assets/{id}",
+        "handler": "inline:sha256:bb19c848322f56b27a3e1f1d4f6f5e88690ab0c32fdcc6c1443f359124708254"
+    },
+    {
+        "position": 97,
+        "method": "GET",
+        "path": "/assets/{id}/signoff.pdf",
+        "handler": "handle_asset_signoff_pdf_download"
+    },
+    {
+        "position": 98,
+        "method": "GET",
+        "path": "/assets/{id}/signoff.xlsx",
+        "handler": "handle_asset_signoff_excel_download"
+    },
+    {
+        "position": 99,
+        "method": "GET",
+        "path": "/assets/{id}/edit",
+        "handler": "inline:sha256:bb8941584450c89028eff5c8178d83c09fb247d92910ba65ffa9735473c0e80d"
+    },
+    {
+        "position": 100,
+        "method": "POST",
+        "path": "/assets/{id}/edit",
+        "handler": "handle_assets_edit_submit"
+    },
+    {
+        "position": 101,
+        "method": "POST",
+        "path": "/assets/{id}/status",
+        "handler": "handle_assets_status_submit"
+    },
+    {
+        "position": 102,
+        "method": "POST",
+        "path": "/assets/{id}/assign",
+        "handler": "handle_assets_assign_submit"
+    },
+    {
+        "position": 103,
+        "method": "POST",
+        "path": "/assets/{id}/confirm-receipt",
+        "handler": "handle_assets_confirm_receipt_submit"
+    },
+    {
+        "position": 104,
+        "method": "POST",
+        "path": "/assets/{id}/request-return",
+        "handler": "handle_assets_request_return_submit"
+    },
+    {
+        "position": 105,
+        "method": "POST",
+        "path": "/assets/{id}/confirm-return",
+        "handler": "handle_assets_confirm_return_submit"
+    },
+    {
+        "position": 106,
+        "method": "POST",
+        "path": "/assets/{id}/maintenance",
+        "handler": "handle_assets_maintenance_submit"
+    },
+    {
+        "position": 107,
+        "method": "POST",
+        "path": "/assets/{id}/maintenance/{maintenance_id}/complete",
+        "handler": "handle_assets_maintenance_complete_submit"
+    },
+    {
+        "position": 108,
+        "method": "POST",
+        "path": "/assets/{id}/override-status",
+        "handler": "handle_assets_status_override_submit"
+    },
+    {
+        "position": 109,
+        "method": "POST",
+        "path": "/assets/{id}/documents",
+        "handler": "handle_assets_documents_submit"
+    },
+    {
+        "position": 110,
+        "method": "GET",
+        "path": "/movements",
+        "handler": "handle_movements_index"
+    },
+    {
+        "position": 111,
+        "method": "GET",
+        "path": "/scan",
+        "handler": "handle_scan_index"
+    },
+    {
+        "position": 112,
+        "method": "GET",
+        "path": "/scan/manual",
+        "handler": "handle_scan_manual_page"
+    },
+    {
+        "position": 113,
+        "method": "GET",
+        "path": "/scan/lookup",
+        "handler": "handle_scan_lookup"
+    },
+    {
+        "position": 114,
+        "method": "POST",
+        "path": "/scan/manual-restock",
+        "handler": "handle_scan_manual_restock_submit"
+    },
+    {
+        "position": 115,
+        "method": "POST",
+        "path": "/scan/manual-restock/batch",
+        "handler": "handle_scan_manual_restock_batch_submit"
+    },
+    {
+        "position": 116,
+        "method": "POST",
+        "path": "/scan/movements/batch",
+        "handler": "handle_scan_movement_batch_submit"
+    },
+    {
+        "position": 117,
+        "method": "GET",
+        "path": "/requests",
+        "handler": "handle_requests_index"
+    },
+    {
+        "position": 118,
+        "method": "GET",
+        "path": "/wristbands",
+        "handler": "handle_wristband_codes_page"
+    },
+    {
+        "position": 119,
+        "method": "GET",
+        "path": "/wristbands/imports",
+        "handler": "handle_wristband_imports_page"
+    },
+    {
+        "position": 120,
+        "method": "GET",
+        "path": "/wristbands/imports/items",
+        "handler": "handle_wristband_import_items"
+    },
+    {
+        "position": 121,
+        "method": "POST",
+        "path": "/wristbands/imports/preflight",
+        "handler": "handle_wristband_import_preflight_submit"
+    },
+    {
+        "position": 122,
+        "method": "GET",
+        "path": "/wristbands/imports/sample.csv",
+        "handler": "handle_wristband_import_sample_csv"
+    },
+    {
+        "position": 123,
+        "method": "GET",
+        "path": "/wristbands/imports/sample.xlsx",
+        "handler": "handle_wristband_import_sample_xlsx"
+    },
+    {
+        "position": 124,
+        "method": "POST",
+        "path": "/wristbands/imports",
+        "handler": "handle_wristband_import_submit"
+    },
+    {
+        "position": 125,
+        "method": "GET",
+        "path": "/wristbands/sessions",
+        "handler": "handle_wristband_sessions_page"
+    },
+    {
+        "position": 126,
+        "method": "GET",
+        "path": "/wristbands/exceptions",
+        "handler": "handle_wristband_exceptions_page"
+    },
+    {
+        "position": 127,
+        "method": "GET",
+        "path": "/wristbands/integrations",
+        "handler": "handle_wristband_integrations_page"
+    },
+    {
+        "position": 128,
+        "method": "POST",
+        "path": "/wristbands/codes/{id}/state",
+        "handler": "handle_wristband_code_state_submit"
+    },
+    {
+        "position": 129,
+        "method": "POST",
+        "path": "/wristbands/integrations/global",
+        "handler": "handle_wristband_global_toggle_submit"
+    },
+    {
+        "position": 130,
+        "method": "POST",
+        "path": "/wristbands/integrations/storage/{storage_id}",
+        "handler": "handle_wristband_integration_submit"
+    },
+    {
+        "position": 131,
+        "method": "POST",
+        "path": "/wristbands/integrations/{id}/rotate",
+        "handler": "handle_wristband_rotate_key_submit"
+    },
+    {
+        "position": 132,
+        "method": "POST",
+        "path": "/wristbands/sessions/{id}/pause",
+        "handler": "handle_wristband_session_pause_submit"
+    },
+    {
+        "position": 133,
+        "method": "POST",
+        "path": "/wristbands/sessions/{id}/resume",
+        "handler": "handle_wristband_session_resume_submit"
+    },
+    {
+        "position": 134,
+        "method": "POST",
+        "path": "/wristbands/sessions/{id}/manual",
+        "handler": "handle_wristband_session_manual_submit"
+    },
+    {
+        "position": 135,
+        "method": "POST",
+        "path": "/wristbands/events/{id}/accept",
+        "handler": "handle_wristband_event_accept_submit"
+    },
+    {
+        "position": 136,
+        "method": "POST",
+        "path": "/wristbands/events/{id}/discard",
+        "handler": "handle_wristband_event_discard_submit"
+    },
+    {
+        "position": 137,
+        "method": "POST",
+        "path": "/wristbands/events/{id}/reverse",
+        "handler": "handle_wristband_event_reverse_submit"
+    },
+    {
+        "position": 138,
+        "method": "GET",
+        "path": "/requests/create",
+        "handler": "handle_requests_create_page"
+    },
+    {
+        "position": 139,
+        "method": "POST",
+        "path": "/requests/create",
+        "handler": "handle_requests_create_submit"
+    },
+    {
+        "position": 140,
+        "method": "GET",
+        "path": "/requests/{id}",
+        "handler": "handle_requests_show"
+    },
+    {
+        "position": 141,
+        "method": "POST",
+        "path": "/requests/{id}/submit",
+        "handler": "handle_requests_submit_submit"
+    },
+    {
+        "position": 142,
+        "method": "POST",
+        "path": "/requests/{id}/approve",
+        "handler": "handle_requests_approve_submit"
+    },
+    {
+        "position": 143,
+        "method": "POST",
+        "path": "/requests/{id}/reject",
+        "handler": "handle_requests_reject_submit"
+    },
+    {
+        "position": 144,
+        "method": "POST",
+        "path": "/requests/{id}/receive",
+        "handler": "handle_requests_receive_submit"
+    },
+    {
+        "position": 145,
+        "method": "POST",
+        "path": "/requests/{id}/confirm-receipt",
+        "handler": "handle_requests_confirm_receipt_submit"
+    },
+    {
+        "position": 146,
+        "method": "POST",
+        "path": "/requests/{id}/cancel",
+        "handler": "handle_requests_cancel_submit"
+    },
+    {
+        "position": 147,
+        "method": "POST",
+        "path": "/requests/{id}/recover",
+        "handler": "handle_requests_recover_submit"
+    },
+    {
+        "position": 148,
+        "method": "POST",
+        "path": "/requests/{id}/void",
+        "handler": "handle_requests_void_submit"
+    },
+    {
+        "position": 149,
+        "method": "GET",
+        "path": "/handovers",
+        "handler": "handle_handovers_index"
+    },
+    {
+        "position": 150,
+        "method": "GET",
+        "path": "/handovers/create",
+        "handler": "handle_handovers_create_page"
+    },
+    {
+        "position": 151,
+        "method": "POST",
+        "path": "/handovers/create",
+        "handler": "handle_handovers_create_submit"
+    },
+    {
+        "position": 152,
+        "method": "GET",
+        "path": "/handovers/custody",
+        "handler": "handle_handover_custody_index"
+    },
+    {
+        "position": 153,
+        "method": "GET",
+        "path": "/handovers/custody/export",
+        "handler": "handle_export_handover_custody"
+    },
+    {
+        "position": 154,
+        "method": "GET",
+        "path": "/handovers/custody/quarantine",
+        "handler": "handle_handover_custody_quarantine"
+    },
+    {
+        "position": 155,
+        "method": "POST",
+        "path": "/handovers/custody/quarantine/{line_id}/return-to-service",
+        "handler": "handle_handover_custody_quarantine_return_to_service"
+    },
+    {
+        "position": 156,
+        "method": "POST",
+        "path": "/handovers/custody/quarantine/{line_id}/dispose",
+        "handler": "handle_handover_custody_quarantine_dispose"
+    },
+    {
+        "position": 157,
+        "method": "POST",
+        "path": "/handovers/{id}/custody-returns",
+        "handler": "handle_handover_custody_return_create"
+    },
+    {
+        "position": 158,
+        "method": "GET",
+        "path": "/handovers/{id}/custody-returns/{return_id}",
+        "handler": "handle_handover_custody_return_show"
+    },
+    {
+        "position": 159,
+        "method": "POST",
+        "path": "/handovers/{id}/custody-returns/{return_id}/submit",
+        "handler": "handle_handover_custody_return_submit"
+    },
+    {
+        "position": 160,
+        "method": "POST",
+        "path": "/handovers/{id}/custody-returns/{return_id}/approve",
+        "handler": "handle_handover_custody_return_approve"
+    },
+    {
+        "position": 161,
+        "method": "POST",
+        "path": "/handovers/{id}/custody-returns/{return_id}/reject",
+        "handler": "handle_handover_custody_return_reject"
+    },
+    {
+        "position": 162,
+        "method": "POST",
+        "path": "/handovers/{id}/custody-returns/{return_id}/replacement",
+        "handler": "handle_handover_custody_replacement_create"
+    },
+    {
+        "position": 163,
+        "method": "GET",
+        "path": "/handovers/{id}",
+        "handler": "handle_handovers_show"
+    },
+    {
+        "position": 164,
+        "method": "POST",
+        "path": "/handovers/{id}/lines",
+        "handler": "handle_handovers_lines_submit"
+    },
+    {
+        "position": 165,
+        "method": "POST",
+        "path": "/handovers/{id}/approve-request",
+        "handler": "handle_handovers_approve_request_submit"
+    },
+    {
+        "position": 166,
+        "method": "POST",
+        "path": "/handovers/{id}/reject-request",
+        "handler": "handle_handovers_reject_request_submit"
+    },
+    {
+        "position": 167,
+        "method": "POST",
+        "path": "/handovers/{id}/cancel",
+        "handler": "handle_handovers_cancel_submit"
+    },
+    {
+        "position": 168,
+        "method": "POST",
+        "path": "/handovers/{id}/recover",
+        "handler": "handle_handovers_recover_submit"
+    },
+    {
+        "position": 169,
+        "method": "POST",
+        "path": "/handovers/{id}/status-override",
+        "handler": "handle_handovers_status_override_submit"
+    },
+    {
+        "position": 170,
+        "method": "POST",
+        "path": "/handovers/{id}/void",
+        "handler": "handle_handovers_void_submit"
+    },
+    {
+        "position": 171,
+        "method": "POST",
+        "path": "/handovers/{id}/receive",
+        "handler": "handle_handovers_receive_submit"
+    },
+    {
+        "position": 172,
+        "method": "POST",
+        "path": "/handovers/{id}/confirm-receipt",
+        "handler": "handle_handovers_confirm_receipt_submit"
+    },
+    {
+        "position": 173,
+        "method": "POST",
+        "path": "/handovers/{id}/close",
+        "handler": "handle_handovers_close_submit"
+    },
+    {
+        "position": 174,
+        "method": "POST",
+        "path": "/handovers/{id}/approve",
+        "handler": "handle_handovers_approve_submit"
+    },
+    {
+        "position": 175,
+        "method": "POST",
+        "path": "/handovers/{id}/wristband-session/start",
+        "handler": "handle_wristband_session_start_submit"
+    },
+    {
+        "position": 176,
+        "method": "GET",
+        "path": "/stocktakes",
+        "handler": "handle_stocktakes_index"
+    },
+    {
+        "position": 177,
+        "method": "GET",
+        "path": "/stocktakes/create",
+        "handler": "handle_stocktakes_create_page"
+    },
+    {
+        "position": 178,
+        "method": "POST",
+        "path": "/stocktakes/create",
+        "handler": "handle_stocktakes_create_submit"
+    },
+    {
+        "position": 179,
+        "method": "GET",
+        "path": "/stocktakes/{id}",
+        "handler": "handle_stocktakes_show"
+    },
+    {
+        "position": 180,
+        "method": "POST",
+        "path": "/stocktakes/{id}/count",
+        "handler": "handle_stocktakes_count_submit"
+    },
+    {
+        "position": 181,
+        "method": "POST",
+        "path": "/stocktakes/{id}/approve",
+        "handler": "handle_stocktakes_approve_submit"
+    },
+    {
+        "position": 182,
+        "method": "POST",
+        "path": "/stocktakes/{id}/cancel",
+        "handler": "handle_stocktakes_cancel_submit"
+    },
+    {
+        "position": 183,
+        "method": "GET",
+        "path": "/purchases",
+        "handler": "handle_purchases_index"
+    },
+    {
+        "position": 184,
+        "method": "GET",
+        "path": "/purchases/create",
+        "handler": "handle_purchases_create_page"
+    },
+    {
+        "position": 185,
+        "method": "POST",
+        "path": "/purchases/create",
+        "handler": "handle_purchases_create_submit"
+    },
+    {
+        "position": 186,
+        "method": "GET",
+        "path": "/purchases/import",
+        "handler": "handle_purchases_import_page"
+    },
+    {
+        "position": 187,
+        "method": "POST",
+        "path": "/purchases/import/drafts",
+        "handler": "handle_purchases_import_drafts_submit"
+    },
+    {
+        "position": 188,
+        "method": "POST",
+        "path": "/purchases/ocr-preview",
+        "handler": "handle_purchase_ocr_preview_submit"
+    },
+    {
+        "position": 189,
+        "method": "GET",
+        "path": "/purchases/{id}",
+        "handler": "handle_purchases_show"
+    },
+    {
+        "position": 190,
+        "method": "GET",
+        "path": "/purchases/{id}/edit",
+        "handler": "handle_purchases_edit_page"
+    },
+    {
+        "position": 191,
+        "method": "POST",
+        "path": "/purchases/{id}/edit",
+        "handler": "handle_purchases_edit_submit"
+    },
+    {
+        "position": 192,
+        "method": "POST",
+        "path": "/purchases/{id}/submit",
+        "handler": "handle_purchases_submit_submit"
+    },
+    {
+        "position": 193,
+        "method": "POST",
+        "path": "/purchases/{id}/approve",
+        "handler": "handle_purchases_approve_submit"
+    },
+    {
+        "position": 194,
+        "method": "POST",
+        "path": "/purchases/{id}/reject",
+        "handler": "handle_purchases_reject_submit"
+    },
+    {
+        "position": 195,
+        "method": "POST",
+        "path": "/purchases/{id}/receive",
+        "handler": "handle_purchases_receive_submit"
+    },
+    {
+        "position": 196,
+        "method": "POST",
+        "path": "/purchases/{id}/confirm-receipt",
+        "handler": "handle_purchases_confirm_receipt_submit"
+    },
+    {
+        "position": 197,
+        "method": "POST",
+        "path": "/purchases/{id}/cancel",
+        "handler": "handle_purchases_cancel_submit"
+    },
+    {
+        "position": 198,
+        "method": "GET",
+        "path": "/purchases/documents/{id}/download",
+        "handler": "handle_purchase_document_download"
+    },
+    {
+        "position": 199,
+        "method": "POST",
+        "path": "/purchases/documents/{id}/delete",
+        "handler": "handle_purchase_document_delete_submit"
+    },
+    {
+        "position": 200,
+        "method": "GET",
+        "path": "/files",
+        "handler": "handle_files_index"
+    },
+    {
+        "position": 201,
+        "method": "GET",
+        "path": "/files/{id}/download",
+        "handler": "handle_file_download"
+    },
+    {
+        "position": 202,
+        "method": "GET",
+        "path": "/workflow-documents/{id}/view",
+        "handler": "handle_workflow_document_view"
+    },
+    {
+        "position": 203,
+        "method": "GET",
+        "path": "/workflow-documents/{id}/download",
+        "handler": "handle_workflow_document_download"
+    },
+    {
+        "position": 204,
+        "method": "GET",
+        "path": "/documentation",
+        "handler": "handle_documentation_index"
+    },
+    {
+        "position": 205,
+        "method": "GET",
+        "path": "/suppliers",
+        "handler": "handle_suppliers_index"
+    },
+    {
+        "position": 206,
+        "method": "GET",
+        "path": "/suppliers/create",
+        "handler": "handle_suppliers_create_page"
+    },
+    {
+        "position": 207,
+        "method": "POST",
+        "path": "/suppliers/create",
+        "handler": "handle_suppliers_create_submit"
+    },
+    {
+        "position": 208,
+        "method": "GET",
+        "path": "/suppliers/{id}",
+        "handler": "handle_suppliers_show"
+    },
+    {
+        "position": 209,
+        "method": "GET",
+        "path": "/suppliers/{id}/edit",
+        "handler": "handle_suppliers_edit_page"
+    },
+    {
+        "position": 210,
+        "method": "POST",
+        "path": "/suppliers/{id}/edit",
+        "handler": "handle_suppliers_edit_submit"
+    },
+    {
+        "position": 211,
+        "method": "POST",
+        "path": "/suppliers/{id}/status",
+        "handler": "handle_suppliers_status_submit"
+    },
+    {
+        "position": 212,
+        "method": "GET",
+        "path": "/reorder",
+        "handler": "handle_reorder_index"
+    },
+    {
+        "position": 213,
+        "method": "POST",
+        "path": "/reorder/create-purchase",
+        "handler": "handle_reorder_create_purchase_submit"
+    },
+    {
+        "position": 214,
+        "method": "GET",
+        "path": "/labels",
+        "handler": "handle_labels_index"
+    },
+    {
+        "position": 215,
+        "method": "GET",
+        "path": "/audit-log",
+        "handler": "handle_audit_index"
+    },
+    {
+        "position": 216,
+        "method": "GET",
+        "path": "/email-logs",
+        "handler": "handle_email_logs_index"
+    },
+    {
+        "position": 217,
+        "method": "GET",
+        "path": "/reports",
+        "handler": "handle_reports_index"
+    },
+    {
+        "position": 218,
+        "method": "GET",
+        "path": "/reports/presets",
+        "handler": "handle_report_presets_index"
+    },
+    {
+        "position": 219,
+        "method": "POST",
+        "path": "/reports/presets",
+        "handler": "handle_report_preset_save_submit"
+    },
+    {
+        "position": 220,
+        "method": "POST",
+        "path": "/reports/presets/{id}/edit",
+        "handler": "handle_report_preset_save_submit"
+    },
+    {
+        "position": 221,
+        "method": "POST",
+        "path": "/reports/presets/{id}/duplicate",
+        "handler": "handle_report_preset_duplicate_submit"
+    },
+    {
+        "position": 222,
+        "method": "POST",
+        "path": "/reports/presets/{id}/archive",
+        "handler": "handle_report_preset_archive_submit"
+    },
+    {
+        "position": 223,
+        "method": "GET",
+        "path": "/exports/items",
+        "handler": "handle_export_items"
+    },
+    {
+        "position": 224,
+        "method": "GET",
+        "path": "/exports/items.xlsx",
+        "handler": "handle_export_items_xlsx"
+    },
+    {
+        "position": 225,
+        "method": "GET",
+        "path": "/exports/assets",
+        "handler": "handle_export_assets"
+    },
+    {
+        "position": 226,
+        "method": "GET",
+        "path": "/exports/assets.xlsx",
+        "handler": "handle_export_assets_xlsx"
+    },
+    {
+        "position": 227,
+        "method": "GET",
+        "path": "/exports/movements",
+        "handler": "handle_export_movements"
+    },
+    {
+        "position": 228,
+        "method": "GET",
+        "path": "/exports/movements.xlsx",
+        "handler": "handle_export_movements_xlsx"
+    },
+    {
+        "position": 229,
+        "method": "GET",
+        "path": "/exports/daily-summary",
+        "handler": "handle_export_daily_summary"
+    },
+    {
+        "position": 230,
+        "method": "GET",
+        "path": "/exports/daily-summary.xlsx",
+        "handler": "handle_export_daily_summary_xlsx"
+    },
+    {
+        "position": 231,
+        "method": "GET",
+        "path": "/exports/storages",
+        "handler": "handle_export_storages"
+    },
+    {
+        "position": 232,
+        "method": "GET",
+        "path": "/exports/storages.xlsx",
+        "handler": "handle_export_storages_xlsx"
+    },
+    {
+        "position": 233,
+        "method": "GET",
+        "path": "/exports/requests",
+        "handler": "handle_export_requests"
+    },
+    {
+        "position": 234,
+        "method": "GET",
+        "path": "/exports/handovers",
+        "handler": "handle_export_handovers"
+    },
+    {
+        "position": 235,
+        "method": "GET",
+        "path": "/exports/purchases",
+        "handler": "handle_export_purchases"
+    },
+    {
+        "position": 236,
+        "method": "GET",
+        "path": "/exports/files",
+        "handler": "handle_export_files"
+    },
+    {
+        "position": 237,
+        "method": "GET",
+        "path": "/exports/stocktakes",
+        "handler": "handle_export_stocktakes"
+    },
+    {
+        "position": 238,
+        "method": "GET",
+        "path": "/exports/suppliers",
+        "handler": "handle_export_suppliers"
+    },
+    {
+        "position": 239,
+        "method": "GET",
+        "path": "/exports/reorder",
+        "handler": "handle_export_reorder"
+    },
+    {
+        "position": 240,
+        "method": "GET",
+        "path": "/exports/audit",
+        "handler": "handle_export_audit"
+    },
+    {
+        "position": 241,
+        "method": "GET",
+        "path": "/exports/email-logs",
+        "handler": "handle_export_email_logs"
+    },
+    {
+        "position": 242,
+        "method": "GET",
+        "path": "/exports/users",
+        "handler": "handle_export_users"
+    },
+    {
+        "position": 243,
+        "method": "GET",
+        "path": "/users",
+        "handler": "handle_users_index"
+    },
+    {
+        "position": 244,
+        "method": "GET",
+        "path": "/users/hierarchy",
+        "handler": "handle_team_hierarchy_page"
+    },
+    {
+        "position": 245,
+        "method": "POST",
+        "path": "/users/hierarchy/move",
+        "handler": "handle_team_hierarchy_move_submit"
+    },
+    {
+        "position": 246,
+        "method": "GET",
+        "path": "/users/create",
+        "handler": "handle_users_create_page"
+    },
+    {
+        "position": 247,
+        "method": "POST",
+        "path": "/users/create",
+        "handler": "handle_users_create_submit"
+    },
+    {
+        "position": 248,
+        "method": "GET",
+        "path": "/users/{id}/edit",
+        "handler": "handle_users_edit_page"
+    },
+    {
+        "position": 249,
+        "method": "POST",
+        "path": "/users/{id}/edit",
+        "handler": "handle_users_edit_submit"
+    },
+    {
+        "position": 250,
+        "method": "POST",
+        "path": "/users/{id}/send-reset",
+        "handler": "handle_users_send_reset_submit"
+    },
+    {
+        "position": 251,
+        "method": "POST",
+        "path": "/users/{id}/revoke-sessions",
+        "handler": "handle_users_revoke_persistent_sessions_submit"
+    },
+    {
+        "position": 252,
+        "method": "POST",
+        "path": "/users/{id}/status",
+        "handler": "handle_users_status_submit"
+    },
+    {
+        "position": 253,
+        "method": "GET",
+        "path": "/departments",
+        "handler": "handle_departments_page"
+    },
+    {
+        "position": 254,
+        "method": "POST",
+        "path": "/departments/save",
+        "handler": "handle_department_save_submit"
+    },
+    {
+        "position": 255,
+        "method": "POST",
+        "path": "/departments/{id}/archive",
+        "handler": "handle_department_archive_submit"
+    },
+    {
+        "position": 256,
+        "method": "POST",
+        "path": "/departments/{id}/recover",
+        "handler": "handle_department_recover_submit"
+    },
+    {
+        "position": 257,
+        "method": "GET",
+        "path": "/settings/site",
+        "handler": "handle_site_settings_page"
+    },
+    {
+        "position": 258,
+        "method": "POST",
+        "path": "/settings/logo",
+        "handler": "handle_site_logo_submit"
+    },
+    {
+        "position": 259,
+        "method": "POST",
+        "path": "/settings/site",
+        "handler": "handle_site_settings_submit"
+    },
+    {
+        "position": 260,
+        "method": "POST",
+        "path": "/settings/email-test",
+        "handler": "handle_site_email_test_submit"
+    },
+    {
+        "position": 261,
+        "method": "GET",
+        "path": "/mobile-access",
+        "handler": "handle_mobile_admin_page"
+    },
+    {
+        "position": 262,
+        "method": "POST",
+        "path": "/mobile-access/settings",
+        "handler": "handle_mobile_admin_settings_submit"
+    },
+    {
+        "position": 263,
+        "method": "POST",
+        "path": "/mobile-access/users/{id}",
+        "handler": "handle_mobile_admin_user_submit"
+    },
+    {
+        "position": 264,
+        "method": "POST",
+        "path": "/mobile-access/devices/{id}/revoke",
+        "handler": "handle_mobile_admin_device_revoke"
+    }
+]

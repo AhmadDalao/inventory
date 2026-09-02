@@ -76,7 +76,9 @@ function department_regression_request(string $baseUrl, string $cookieFile, stri
         }
     }
 
-    curl_close($handle);
+    if (PHP_VERSION_ID < 80500) {
+        curl_close($handle);
+    }
 
     return ['status' => $status, 'body' => $body, 'location' => $location];
 }
@@ -117,6 +119,19 @@ if ($cookieFile === false) {
 
 $cleanup = static function () use (&$userId, &$departmentId, $email, $cookieFile): void {
     try {
+        if ($userId !== null || $departmentId !== null) {
+            $conditions = [];
+            $params = [];
+            if ($userId !== null) {
+                $conditions[] = 'performed_by = :performed_by';
+                $params['performed_by'] = $userId;
+            }
+            if ($departmentId !== null) {
+                $conditions[] = '(entity_type = "department" AND entity_id = :department_id)';
+                $params['department_id'] = $departmentId;
+            }
+            Database::execute('DELETE FROM inventory_change_events WHERE ' . implode(' OR ', $conditions), $params);
+        }
         if ($departmentId !== null) {
             Database::execute(
                 'DELETE FROM activity_logs WHERE entity_type = "department" AND entity_id = :department_id',

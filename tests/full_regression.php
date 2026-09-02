@@ -609,11 +609,15 @@ function snapshot_site_settings_for_test(array $keys): void
     }
 
     $placeholders = implode(',', array_fill(0, count($siteSettingSnapshotKeys), '?'));
-    $statement = Database::connection()->prepare('SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (' . $placeholders . ')');
+    $statement = Database::connection()->prepare('SELECT setting_key, setting_value, updated_by, updated_at FROM app_settings WHERE setting_key IN (' . $placeholders . ')');
     $statement->execute($siteSettingSnapshotKeys);
 
     foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $siteSettingSnapshot[(string) $row['setting_key']] = (string) $row['setting_value'];
+        $siteSettingSnapshot[(string) $row['setting_key']] = [
+            'value' => (string) $row['setting_value'],
+            'updated_by' => $row['updated_by'] !== null ? (int) $row['updated_by'] : null,
+            'updated_at' => (string) $row['updated_at'],
+        ];
     }
 }
 
@@ -643,13 +647,15 @@ function restore_site_settings_for_test(): void
         Database::execute('DELETE FROM app_settings WHERE setting_key = :setting_key', ['setting_key' => $key]);
     }
 
-    foreach ($siteSettingSnapshot as $key => $value) {
+    foreach ($siteSettingSnapshot as $key => $setting) {
         Database::execute(
             'INSERT INTO app_settings (setting_key, setting_value, updated_by, updated_at)
-             VALUES (:setting_key, :setting_value, NULL, NOW())',
+             VALUES (:setting_key, :setting_value, :updated_by, :updated_at)',
             [
                 'setting_key' => $key,
-                'setting_value' => $value,
+                'setting_value' => $setting['value'],
+                'updated_by' => $setting['updated_by'],
+                'updated_at' => $setting['updated_at'],
             ]
         );
     }
@@ -660,6 +666,33 @@ function restore_site_settings_for_test(): void
 }
 
 register_shutdown_function('restore_site_settings_for_test');
+
+function cleanup_test_file_assets(string $contextType, array $contextIds): void
+{
+    $contextIds = array_values(array_filter(array_map('intval', $contextIds), static fn (int $id): bool => $id > 0));
+    if ($contextIds === []) {
+        return;
+    }
+
+    $idList = implode(',', $contextIds);
+    $rows = Database::fetchAll(
+        'SELECT relative_path, archive_path FROM file_assets
+         WHERE context_type = :context_type AND context_id IN (' . $idList . ')',
+        ['context_type' => $contextType]
+    );
+    foreach ($rows as $row) {
+        foreach (['relative_path', 'archive_path'] as $column) {
+            $path = trim((string) ($row[$column] ?? ''));
+            if ($path !== '' && is_file(base_path($path))) {
+                @unlink(base_path($path));
+            }
+        }
+    }
+    Database::execute(
+        'DELETE FROM file_assets WHERE context_type = :context_type AND context_id IN (' . $idList . ')',
+        ['context_type' => $contextType]
+    );
+}
 
 function cleanup_prefix_data(string $prefix): void
 {
@@ -849,6 +882,30 @@ function cleanup_prefix_data(string $prefix): void
         ]
     );
 
+    Database::execute(
+        'DELETE FROM purchase_ocr_runs
+         WHERE source_filename LIKE :source_prefix
+            OR COALESCE(text_excerpt, "") LIKE :excerpt_prefix'
+        . ($userIds !== [] ? ' OR processed_by IN (' . implode(',', $userIds) . ')' : ''),
+        [
+            'source_prefix' => '%' . $prefix . '%',
+            'excerpt_prefix' => '%' . $prefix . '%',
+        ]
+    );
+
+    $eventConditions = ['COALESCE(payload_json, "") LIKE :event_prefix'];
+    $eventParams = ['event_prefix' => '%' . $prefix . '%'];
+    if ($itemIds !== []) {
+        $eventConditions[] = 'item_id IN (' . implode(',', $itemIds) . ')';
+    }
+    if ($storageIds !== []) {
+        $eventConditions[] = 'storage_id IN (' . implode(',', $storageIds) . ')';
+    }
+    if ($userIds !== []) {
+        $eventConditions[] = 'performed_by IN (' . implode(',', $userIds) . ')';
+    }
+    Database::execute('DELETE FROM inventory_change_events WHERE ' . implode(' OR ', $eventConditions), $eventParams);
+
     if ($requestIds !== []) {
         $documents = Database::fetchAll('SELECT stored_filename FROM workflow_documents WHERE workflow_type = "request" AND workflow_id IN (' . implode(',', $requestIds) . ')');
 
@@ -858,7 +915,7 @@ function cleanup_prefix_data(string $prefix): void
 
         Database::execute('DELETE FROM notifications WHERE entity_type = "request" AND entity_id IN (' . implode(',', $requestIds) . ')');
         Database::execute('DELETE FROM activity_logs WHERE entity_type = "request" AND entity_id IN (' . implode(',', $requestIds) . ')');
-        Database::execute('DELETE FROM file_assets WHERE context_type = "request" AND context_id IN (' . implode(',', $requestIds) . ')');
+        cleanup_test_file_assets('request', $requestIds);
         Database::execute('DELETE FROM workflow_documents WHERE workflow_type = "request" AND workflow_id IN (' . implode(',', $requestIds) . ')');
         Database::execute('DELETE FROM item_request_lines WHERE request_id IN (' . implode(',', $requestIds) . ')');
         Database::execute('DELETE FROM item_requests WHERE id IN (' . implode(',', $requestIds) . ')');
@@ -889,7 +946,7 @@ function cleanup_prefix_data(string $prefix): void
 
         Database::execute('DELETE FROM notifications WHERE entity_type = "handover" AND entity_id IN (' . implode(',', $handoverIds) . ')');
         Database::execute('DELETE FROM activity_logs WHERE entity_type = "handover" AND entity_id IN (' . implode(',', $handoverIds) . ')');
-        Database::execute('DELETE FROM file_assets WHERE context_type = "handover" AND context_id IN (' . implode(',', $handoverIds) . ')');
+        cleanup_test_file_assets('handover', $handoverIds);
         Database::execute('DELETE FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id IN (' . implode(',', $handoverIds) . ')');
         if ($custodyReturnLineIds !== []) {
             Database::execute('DELETE FROM handover_quarantine_dispositions WHERE custody_return_line_id IN (' . implode(',', $custodyReturnLineIds) . ')');
@@ -912,14 +969,14 @@ function cleanup_prefix_data(string $prefix): void
 
         Database::execute('DELETE FROM notifications WHERE entity_type = "purchase" AND entity_id IN (' . implode(',', $purchaseIds) . ')');
         Database::execute('DELETE FROM activity_logs WHERE entity_type = "purchase" AND entity_id IN (' . implode(',', $purchaseIds) . ')');
-        Database::execute('DELETE FROM file_assets WHERE context_type = "purchase" AND context_id IN (' . implode(',', $purchaseIds) . ')');
+        cleanup_test_file_assets('purchase', $purchaseIds);
         Database::execute('DELETE FROM purchase_documents WHERE purchase_id IN (' . implode(',', $purchaseIds) . ')');
         Database::execute('DELETE FROM purchase_lines WHERE purchase_id IN (' . implode(',', $purchaseIds) . ')');
         Database::execute('DELETE FROM purchases WHERE id IN (' . implode(',', $purchaseIds) . ')');
     }
 
     $fileRows = Database::fetchAll(
-        'SELECT id, archive_path
+        'SELECT id, relative_path, archive_path
          FROM file_assets
          WHERE display_name LIKE :file_prefix_display
             OR original_filename LIKE :file_prefix_original
@@ -936,10 +993,11 @@ function cleanup_prefix_data(string $prefix): void
     );
 
     foreach ($fileRows as $fileRow) {
-        $archivePath = trim((string) ($fileRow['archive_path'] ?? ''));
-
-        if ($archivePath !== '' && is_file(base_path($archivePath))) {
-            @unlink(base_path($archivePath));
+        foreach (['relative_path', 'archive_path'] as $column) {
+            $path = trim((string) ($fileRow[$column] ?? ''));
+            if ($path !== '' && is_file(base_path($path))) {
+                @unlink(base_path($path));
+            }
         }
     }
 
@@ -969,7 +1027,7 @@ function cleanup_prefix_data(string $prefix): void
 
         Database::execute('DELETE FROM notifications WHERE entity_type = "asset" AND entity_id IN (' . implode(',', $assetIds) . ')');
         Database::execute('DELETE FROM activity_logs WHERE entity_type = "asset" AND entity_id IN (' . implode(',', $assetIds) . ')');
-        Database::execute('DELETE FROM file_assets WHERE context_type = "asset" AND context_id IN (' . implode(',', $assetIds) . ')');
+        cleanup_test_file_assets('asset', $assetIds);
         Database::execute('DELETE FROM asset_custody_actions WHERE asset_id IN (' . implode(',', $assetIds) . ')');
         Database::execute('DELETE FROM asset_events WHERE asset_id IN (' . implode(',', $assetIds) . ')');
         Database::execute('DELETE FROM asset_maintenance_records WHERE asset_id IN (' . implode(',', $assetIds) . ')');

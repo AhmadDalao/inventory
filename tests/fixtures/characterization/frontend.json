@@ -1,0 +1,343 @@
+{
+    "stylesheets": [
+        "css/foundation.css",
+        "css/shell.css",
+        "css/components.css",
+        "css/tables.css",
+        "css/workflows.css",
+        "css/domains/inventory.css",
+        "css/domains/scan.css",
+        "css/domains/handovers.css",
+        "css/domains/wristbands.css",
+        "css/domains/purchases-ocr.css",
+        "css/domains/reports.css",
+        "css/domains/admin.css",
+        "css/domains/settings.css",
+        "css/domains/documentation.css",
+        "css/domains/assets.css",
+        "css/themes/classic.css",
+        "css/themes/kona.css",
+        "css/themes/official.css",
+        "css/print.css",
+        "css/mobile.css"
+    ],
+    "entrypoints": [
+        {
+            "path": "app.js",
+            "type": "module"
+        }
+    ],
+    "imports": [
+        {
+            "binding": "initNavigation",
+            "path": "./js/ui/navigation.js"
+        },
+        {
+            "binding": "initDialogs",
+            "path": "./js/ui/dialogs.js"
+        },
+        {
+            "binding": "initFormControls",
+            "path": "./js/ui/form-controls.js"
+        },
+        {
+            "binding": "initPasswordVisibility",
+            "path": "./js/ui/password-visibility.js"
+        },
+        {
+            "binding": "initBarcodes",
+            "path": "./js/ui/barcodes.js"
+        },
+        {
+            "binding": "initMedia",
+            "path": "./js/ui/media.js"
+        },
+        {
+            "binding": "initSearch",
+            "path": "./js/ui/search.js"
+        },
+        {
+            "binding": "initSelects",
+            "path": "./js/ui/selects.js"
+        },
+        {
+            "binding": "initNotifications",
+            "path": "./js/ui/notifications.js"
+        },
+        {
+            "binding": "initLiveActions",
+            "path": "./js/ui/live-actions.js"
+        },
+        {
+            "binding": "initTables",
+            "path": "./js/ui/tables.js"
+        },
+        {
+            "binding": "initFilters",
+            "path": "./js/ui/filters.js"
+        },
+        {
+            "binding": "initActionMenus",
+            "path": "./js/ui/action-menus.js"
+        },
+        {
+            "binding": "initRealtime",
+            "path": "./js/ui/realtime.js"
+        },
+        {
+            "binding": "initLabels",
+            "path": "./js/domains/labels.js"
+        },
+        {
+            "binding": "initPermissions",
+            "path": "./js/domains/permissions.js"
+        },
+        {
+            "binding": "initSettings",
+            "path": "./js/domains/settings.js"
+        },
+        {
+            "binding": "initDocumentation",
+            "path": "./js/domains/documentation.js"
+        },
+        {
+            "binding": "initReorder",
+            "path": "./js/domains/reorder.js"
+        },
+        {
+            "binding": "initSuppliers",
+            "path": "./js/domains/suppliers.js"
+        },
+        {
+            "binding": "initAssets",
+            "path": "./js/domains/assets.js"
+        },
+        {
+            "binding": "initHandovers",
+            "path": "./js/domains/handovers.js"
+        },
+        {
+            "binding": "initMovements",
+            "path": "./js/domains/movements.js"
+        },
+        {
+            "binding": "initWorkflowLines",
+            "path": "./js/domains/workflow-lines.js"
+        },
+        {
+            "binding": "initPurchases",
+            "path": "./js/domains/purchases.js"
+        },
+        {
+            "binding": "initOcr",
+            "path": "./js/domains/ocr.js"
+        },
+        {
+            "binding": "initManualStock",
+            "path": "./js/domains/manual-stock.js"
+        },
+        {
+            "binding": "initScan",
+            "path": "./js/domains/scan.js"
+        },
+        {
+            "binding": "initMobileAdmin",
+            "path": "./js/domains/mobile-admin.js"
+        },
+        {
+            "binding": "initWristbands",
+            "path": "./js/domains/wristbands.js"
+        },
+        {
+            "binding": "initPackagePresets",
+            "path": "./js/domains/package-presets.js"
+        },
+        {
+            "binding": "initTeamHierarchy",
+            "path": "./js/domains/team-hierarchy.js"
+        }
+    ],
+    "initializers": [
+        {
+            "name": "navigation",
+            "binding": "initNavigation"
+        },
+        {
+            "name": "dialogs",
+            "binding": "initDialogs"
+        },
+        {
+            "name": "form-controls",
+            "binding": "initFormControls"
+        },
+        {
+            "name": "password-visibility",
+            "binding": "initPasswordVisibility"
+        },
+        {
+            "name": "barcodes",
+            "binding": "initBarcodes"
+        },
+        {
+            "name": "media",
+            "binding": "initMedia"
+        },
+        {
+            "name": "search",
+            "binding": "initSearch"
+        },
+        {
+            "name": "selects",
+            "binding": "initSelects"
+        },
+        {
+            "name": "notifications",
+            "binding": "initNotifications"
+        },
+        {
+            "name": "live-actions",
+            "binding": "initLiveActions"
+        },
+        {
+            "name": "tables",
+            "binding": "initTables"
+        },
+        {
+            "name": "filters",
+            "binding": "initFilters"
+        },
+        {
+            "name": "action-menus",
+            "binding": "initActionMenus"
+        },
+        {
+            "name": "realtime",
+            "binding": "initRealtime"
+        },
+        {
+            "name": "labels",
+            "binding": "initLabels"
+        },
+        {
+            "name": "permissions",
+            "binding": "initPermissions"
+        },
+        {
+            "name": "settings",
+            "binding": "initSettings"
+        },
+        {
+            "name": "documentation",
+            "binding": "initDocumentation"
+        },
+        {
+            "name": "reorder",
+            "binding": "initReorder"
+        },
+        {
+            "name": "suppliers",
+            "binding": "initSuppliers"
+        },
+        {
+            "name": "assets",
+            "binding": "initAssets"
+        },
+        {
+            "name": "handovers",
+            "binding": "initHandovers"
+        },
+        {
+            "name": "movements",
+            "binding": "initMovements"
+        },
+        {
+            "name": "workflow-lines",
+            "binding": "initWorkflowLines"
+        },
+        {
+            "name": "purchases",
+            "binding": "initPurchases"
+        },
+        {
+            "name": "ocr",
+            "binding": "initOcr"
+        },
+        {
+            "name": "manual-stock",
+            "binding": "initManualStock"
+        },
+        {
+            "name": "scan",
+            "binding": "initScan"
+        },
+        {
+            "name": "mobile-admin",
+            "binding": "initMobileAdmin"
+        },
+        {
+            "name": "wristbands",
+            "binding": "initWristbands"
+        },
+        {
+            "name": "package-presets",
+            "binding": "initPackagePresets"
+        },
+        {
+            "name": "team-hierarchy",
+            "binding": "initTeamHierarchy"
+        }
+    ],
+    "javascript_modules": [
+        "assets/js/core/registry.js",
+        "assets/js/core/runtime.js",
+        "assets/js/domains/assets.js",
+        "assets/js/domains/documentation.js",
+        "assets/js/domains/handovers.js",
+        "assets/js/domains/labels.js",
+        "assets/js/domains/manual-stock.js",
+        "assets/js/domains/mobile-admin.js",
+        "assets/js/domains/movements.js",
+        "assets/js/domains/ocr.js",
+        "assets/js/domains/package-presets.js",
+        "assets/js/domains/permissions.js",
+        "assets/js/domains/purchases.js",
+        "assets/js/domains/reorder.js",
+        "assets/js/domains/scan.js",
+        "assets/js/domains/settings.js",
+        "assets/js/domains/suppliers.js",
+        "assets/js/domains/team-hierarchy.js",
+        "assets/js/domains/workflow-lines.js",
+        "assets/js/domains/wristbands.js",
+        "assets/js/ui/action-menus.js",
+        "assets/js/ui/barcodes.js",
+        "assets/js/ui/dialogs.js",
+        "assets/js/ui/filters.js",
+        "assets/js/ui/form-controls.js",
+        "assets/js/ui/live-actions.js",
+        "assets/js/ui/media.js",
+        "assets/js/ui/navigation.js",
+        "assets/js/ui/notifications.js",
+        "assets/js/ui/password-visibility.js",
+        "assets/js/ui/realtime.js",
+        "assets/js/ui/search.js",
+        "assets/js/ui/selects.js",
+        "assets/js/ui/tables.js"
+    ],
+    "events": {
+        "inventory:action-complete": {
+            "assets/js/domains/movements.js": 1,
+            "assets/js/domains/team-hierarchy.js": 1,
+            "assets/js/ui/live-actions.js": 1,
+            "assets/js/ui/notifications.js": 1,
+            "assets/js/ui/realtime.js": 1
+        },
+        "inventory:content-replaced": {
+            "assets/js/core/runtime.js": 1,
+            "assets/js/ui/filters.js": 1
+        },
+        "inventory:refresh": {
+            "assets/js/ui/filters.js": 1,
+            "assets/js/ui/realtime.js": 1
+        }
+    }
+}

@@ -29,6 +29,7 @@ $test = [
     'item_id' => 0,
     'email' => strtolower($prefix) . '@inventory.test',
     'operation_prefix' => substr($prefix, 0, 42) . '-',
+    'rate_limit_start_id' => null,
     'settings' => [],
     'setting_keys' => [
         'mobile.enabled',
@@ -113,12 +114,16 @@ function mobile_live_http(
     $body = curl_exec($ch);
     if ($body === false) {
         $error = curl_error($ch);
-        curl_close($ch);
+        if (PHP_VERSION_ID < 80500) {
+            curl_close($ch);
+        }
         mobile_live_fail('HTTP request failed for ' . $path . ': ' . $error);
     }
 
     $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
+    if (PHP_VERSION_ID < 80500) {
+        curl_close($ch);
+    }
     $decoded = json_decode((string) $body, true);
 
     if (!is_array($decoded)) {
@@ -183,6 +188,10 @@ function mobile_live_cleanup(): void
         if ((int) $test['user_id'] > 0) {
             $userId = (int) $test['user_id'];
             Database::execute(
+                'DELETE FROM notifications WHERE user_id = :user_id OR actor_user_id = :actor_user_id',
+                ['user_id' => $userId, 'actor_user_id' => $userId]
+            );
+            Database::execute(
                 'DELETE FROM activity_logs WHERE user_id = :actor_user_id OR (entity_type = "user" AND entity_id = :entity_user_id)',
                 ['actor_user_id' => $userId, 'entity_user_id' => $userId]
             );
@@ -190,6 +199,7 @@ function mobile_live_cleanup(): void
                 'DELETE FROM login_attempts WHERE user_id = :user_id OR email = :email',
                 ['user_id' => $userId, 'email' => $test['email']]
             );
+            Database::execute('DELETE FROM mobile_refresh_token_history WHERE user_id = :user_id', ['user_id' => $userId]);
             Database::execute('DELETE FROM mobile_device_sessions WHERE user_id = :user_id', ['user_id' => $userId]);
             Database::execute('DELETE FROM user_storage_assignments WHERE user_id = :user_id', ['user_id' => $userId]);
             Database::execute('DELETE FROM mobile_user_access WHERE user_id = :user_id', ['user_id' => $userId]);
@@ -215,11 +225,22 @@ function mobile_live_cleanup(): void
         foreach ((array) $test['setting_keys'] as $key) {
             Database::execute('DELETE FROM app_settings WHERE setting_key = :key', ['key' => $key]);
         }
-        foreach ((array) $test['settings'] as $key => $value) {
+        foreach ((array) $test['settings'] as $key => $setting) {
             Database::execute(
                 'INSERT INTO app_settings (setting_key, setting_value, updated_by, updated_at)
-                 VALUES (:key, :value, NULL, NOW())',
-                ['key' => $key, 'value' => $value]
+                 VALUES (:key, :value, :updated_by, :updated_at)',
+                [
+                    'key' => $key,
+                    'value' => $setting['value'],
+                    'updated_by' => $setting['updated_by'],
+                    'updated_at' => $setting['updated_at'],
+                ]
+            );
+        }
+        if ($test['rate_limit_start_id'] !== null) {
+            Database::execute(
+                'DELETE FROM mobile_api_rate_limits WHERE id > :start_id',
+                ['start_id' => (int) $test['rate_limit_start_id']]
             );
         }
         site_settings_cache_reset();
@@ -232,13 +253,18 @@ function mobile_live_cleanup(): void
 register_shutdown_function('mobile_live_cleanup');
 
 try {
+    $test['rate_limit_start_id'] = (int) Database::scalar('SELECT COALESCE(MAX(id), 0) FROM mobile_api_rate_limits');
     $placeholders = implode(',', array_fill(0, count($test['setting_keys']), '?'));
     $statement = Database::connection()->prepare(
-        'SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (' . $placeholders . ')'
+        'SELECT setting_key, setting_value, updated_by, updated_at FROM app_settings WHERE setting_key IN (' . $placeholders . ')'
     );
     $statement->execute($test['setting_keys']);
     foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $test['settings'][(string) $row['setting_key']] = (string) $row['setting_value'];
+        $test['settings'][(string) $row['setting_key']] = [
+            'value' => (string) $row['setting_value'],
+            'updated_by' => $row['updated_by'] !== null ? (int) $row['updated_by'] : null,
+            'updated_at' => (string) $row['updated_at'],
+        ];
     }
 
     $ownerId = (int) Database::scalar('SELECT id FROM users WHERE role = "owner" AND is_active = 1 ORDER BY id ASC LIMIT 1');
@@ -279,12 +305,13 @@ try {
         ['user_id' => $test['user_id'], 'created_by' => $ownerId, 'updated_by' => $ownerId]
     );
 
-    foreach (['Assigned', 'Forbidden'] as $suffix) {
+    foreach (['Assigned' => 'wristband', 'Forbidden' => 'general'] as $suffix => $usageProfile) {
         Database::execute(
-            'INSERT INTO storages (name, storage_type, notes, is_system, is_active, owner_user_id, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, "storage", :notes, 0, 1, :owner_user_id, :created_by, :updated_by, NOW(), NOW())',
+            'INSERT INTO storages (name, storage_type, usage_profile, notes, is_system, is_active, owner_user_id, created_by, updated_by, created_at, updated_at)
+             VALUES (:name, "storage", :usage_profile, :notes, 0, 1, :owner_user_id, :created_by, :updated_by, NOW(), NOW())',
             [
                 'name' => $prefix . ' ' . $suffix,
+                'usage_profile' => $usageProfile,
                 'notes' => 'Temporary mobile API lifecycle storage',
                 'owner_user_id' => $ownerId,
                 'created_by' => $ownerId,

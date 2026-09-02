@@ -12,29 +12,33 @@ See `realtime-data-flow.md` and `security.md` before changing sync, authenticati
 
 ## Backups
 
-Run this from Hostinger cron:
+Run the backup from the deployment environment with a private owner-only recovery key outside the repository and an absolute off-server destination outside the application root:
 
 ```bash
-php /home/u867436826/domains/ahmaddalao.com/public_html/inventory/scripts/backup.php
+php scripts/backup.php \
+  --password-file=/secure/path/recovery-key \
+  --output-dir=/off-server/inventory-backups
 ```
 
-The backup script creates:
+Each recovery set contains:
 
-- `storage/backups/inventory-backup-YYYYMMDD-HHMMSS.sql`
-- `storage/backups/inventory-backup-YYYYMMDD-HHMMSS.manifest.json`
-- `storage/backups/inventory-backup-YYYYMMDD-HHMMSS.files.zip` when file backups are enabled and `ZipArchive` is installed
+- `inventory-backup-YYYYMMDD-HHMMSS.database.zip`, an AES-256 encrypted consistent SQL snapshot
+- `inventory-backup-YYYYMMDD-HHMMSS.files.zip`, an AES-256 encrypted application and durable-files archive
+- `inventory-backup-YYYYMMDD-HHMMSS.manifest.json`, containing commit/runtime/schema/table/file evidence but no secrets
+- `inventory-backup-YYYYMMDD-HHMMSS.sha256`, covering all three artifacts
 
-The SQL dump is the database restore source. The zip file contains uploaded item images, purchase documents, and protected file-library assets.
+The files archive includes source/configuration plus every durable location: `uploads/`, `assets/brand/uploads/`, `storage/assets`, `storage/purchases`, `storage/workflows`, `storage/files`, `storage/audit`, and `storage/reports`. Plaintext SQL is removed before success is reported.
 
-Retention, maximum backup sets, and file inclusion are controlled from `Website Control > Operations Safety`.
-The files archive is only reported as successful after the ZIP is finalized, exists, and has a non-zero size.
+The script verifies every encrypted entry and active `file_assets` path before applying retention. Any warning or missing path fails the run. Website Control may set retention limits, but it cannot weaken required durable-path coverage.
+
+If the deployed tree has no `.git`, add `--source-commit=40_CHAR_SHA` using the independently verified deployment commit. Do not guess from an old marker; the backup command rejects missing, malformed, and Git-mismatched commit identities.
 
 ## Daily Reports
 
-Run this from Hostinger cron:
+Run this from the deployment scheduler:
 
 ```bash
-php /home/u867436826/domains/ahmaddalao.com/public_html/inventory/scripts/daily_report.php
+php /path/to/inventory/scripts/daily_report.php
 ```
 
 The report script creates:
@@ -103,23 +107,27 @@ Email settings are controlled from `Website Control > Email Delivery`. SMTP is t
 
 ## Restore Test
 
-At least once per week, download the latest SQL backup and verify it can be restored into a temporary local or hosting database. This project does not require a staging website. A backup you never test is just a lucky charm with a filename.
+Restore-verify every pre-deployment recovery set in an empty temporary web root and disposable local MariaDB database. A backup you never test is just a lucky charm with a filename.
 
-Minimum restore check:
+Required restore command:
 
 ```bash
-php -l index.php
-php tests/stock_invariants.php
+php scripts/restore_verify.php \
+  --manifest=/off-server/inventory-backups/inventory-backup-YYYYMMDD-HHMMSS.manifest.json \
+  --password-file=/secure/path/recovery-key \
+  --restore-root=/isolated/empty/web-root \
+  --database=inventory_restore_YYYYMMDD \
+  --db-user=local_restore_user
 ```
 
-For live changes, keep the current cycle: create a full live folder backup, deploy, run live PHP lint, run full regression with `--allow-live`, then run `php tests/stock_invariants.php`.
+The verifier checks checksums, encrypted extraction, SQL import, table counts, schema, active file paths, protected-download denial, application boot, and stock invariants. Any warning or mismatch is a hard stop. Before production deployment, create and verify a second recovery set, then run live PHP lint, the approved regression command, and `php tests/stock_invariants.php` after deployment.
 
 ## Mobile Screenshot Checks
 
 Use the mobile screenshot harness when changing layout-heavy screens:
 
 ```bash
-NODE_PATH=/Users/ahmaddalao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules \
+NODE_PATH=/path/to/node_modules \
 BASE_URL=https://inventory.ahmaddalao.com \
 INVENTORY_EMAIL=owner@example.com \
 INVENTORY_PASSWORD='password' \

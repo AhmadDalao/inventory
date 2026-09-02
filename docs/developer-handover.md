@@ -1,6 +1,6 @@
 # Inventory KONA Developer Handover
 
-Updated: 2026-08-24
+Updated: 2026-09-02
 
 ## 1. What This System Is
 
@@ -8,7 +8,7 @@ Inventory KONA is an internal operations system for KONA. It tracks consumable i
 
 Production URL: `https://inventory.ahmaddalao.com`
 
-Production path: `/home/u867436826/domains/ahmaddalao.com/public_html/inventory`
+Deployment access and filesystem locations are maintained outside Git.
 
 Repository: `https://github.com/AhmadDalao/inventory.git`
 
@@ -17,6 +17,12 @@ Main branch: `main`
 System data-flow and use-case diagrams: [`docs/system-diagrams.md`](system-diagrams.md)
 
 Team routing, shared storage authority, and exceptional Owner correction contract: [`docs/team-routing-and-owner-resolution.md`](team-routing-and-owner-resolution.md)
+
+Current as-built architecture: [`docs/current-architecture.md`](current-architecture.md)
+
+Step 1-2 safety evidence: [`docs/baseline/safety-baseline-2026-09-02.md`](baseline/safety-baseline-2026-09-02.md)
+
+The current safety-baseline parent is `1f6e93f6946f6e2b00343c33854272d3caa99d59`. It includes the dashboard-layout, department-persistence, and user-directory fixes and must not be reset to the older system-report commit.
 
 ## 2. Current Architecture
 
@@ -31,7 +37,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/Maintenance.php` is the schema/bootstrap orchestrator. Boot setup, reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
-- The current manifest contains 12 domain groups and 161 focused modules.
+- The current manifest contains 13 domain groups and 171 eagerly loaded modules. There are 277 physical files under `app/modules/`; the difference is deliberate because compatibility and directly included modules are not all manifest entries.
 
 Do not add new code to these compatibility loaders:
 
@@ -564,6 +570,20 @@ If the local DB is unavailable, do not assume stock tests are clean. Run stock i
 
 ## 8. Test Commands
 
+The Step 1-2 aggregate gate must run against an isolated MariaDB restore and loopback web server. It executes the static contracts and live workflows twice, then proves that every database table and required durable path returned to its exact starting state:
+
+```bash
+NODE_BINARY=/path/to/node php tests/safety_baseline.php \
+  --base-url=http://127.0.0.1:8080 \
+  --passes=2
+```
+
+Characterization fixtures are reviewed contracts. Regenerate them only for an approved behavior change:
+
+```bash
+php tests/generate_characterization_fixtures.php --write
+```
+
 Static checks:
 
 ```bash
@@ -591,7 +611,7 @@ php tests/stock_invariants.php
 Responsive browser matrix:
 
 ```bash
-NODE_PATH=/Users/ahmaddalao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules \
+NODE_PATH=/path/to/node_modules \
 BASE_URL=https://inventory.ahmaddalao.com \
 INVENTORY_EMAIL=owner@example.com \
 INVENTORY_PASSWORD='password' \
@@ -614,29 +634,40 @@ Live workflow testing should use temporary prefixed records and must be done onl
 
 ## 9. Deployment Flow
 
-Production path:
-
-```bash
-/home/u867436826/domains/ahmaddalao.com/public_html/inventory
-```
-
 Safe deployment flow:
 
-1. Confirm local branch and remote.
-2. Run local static checks.
-3. Commit and push to GitHub.
-4. SSH to production.
-5. Create a live backup.
-6. Deploy changed files.
-7. Run live PHP lint.
-8. Run live stock invariants.
-9. Smoke-check key routes.
+1. Confirm `main`, its remote tracking state, and the exact commit intended for deployment.
+2. Run local static checks, the aggregate gate twice, and Flutter checks.
+3. Create an encrypted off-server recovery set and pass isolated restore verification with no warnings.
+4. Review and secret-scan the staged diff, then commit and push.
+5. Create and restore-verify a second encrypted recovery set before production deployment.
+6. Deploy only the reviewed commit using access details held outside Git.
+7. Run live PHP lint, the approved regression command, and stock invariants.
+8. Smoke-check login, protected downloads, exports, and key routes.
+9. Confirm the deployed marker, checked-out commit, and application files agree.
 
 Never deploy a stock workflow refactor without a backup and a live invariant check.
 
 ## 10. Backup And Rollback
 
-Before production deploy, backup the current app folder and database. Keep the backup path in the deployment notes.
+Backups are encrypted recovery sets, not loose SQL files. The password file must be private to its owner, and database credentials stay outside the repository. `--output-dir` is mandatory, absolute, off-server, and outside the application root:
+
+```bash
+php scripts/backup.php \
+  --password-file=/secure/path/recovery-key \
+  --output-dir=/off-server/inventory-backups
+
+php scripts/restore_verify.php \
+  --manifest=/off-server/inventory-backups/inventory-backup-YYYYMMDD-HHMMSS.manifest.json \
+  --password-file=/secure/path/recovery-key \
+  --restore-root=/isolated/empty/web-root \
+  --database=inventory_restore_YYYYMMDD \
+  --db-user=local_restore_user
+```
+
+Each set contains encrypted database and full-files archives, a manifest, and SHA-256 checksums. Coverage includes application source/configuration plus `uploads/`, `assets/brand/uploads/`, `storage/assets`, `storage/purchases`, `storage/workflows`, `storage/files`, `storage/audit`, and `storage/reports`. Any warning, missing active file, checksum mismatch, import/schema mismatch, boot failure, protected-download failure, or stock-invariant failure is a hard stop.
+
+If a deployed source tree does not contain `.git`, pass its independently verified full SHA with `--source-commit=40_CHAR_SHA`. The script rejects a missing or malformed identity and rejects an explicit SHA that disagrees with an available Git checkout.
 
 Rollback is simple if the database did not change:
 
@@ -645,7 +676,7 @@ Rollback is simple if the database did not change:
 3. Smoke-check login/dashboard.
 4. Run stock invariants.
 
-If the database changed, restore both files and SQL from the same backup set. Do not mix old files with a newer schema unless the migration plan explicitly says it is safe.
+If the database changed, restore both encrypted archives from the same manifest. Do not mix old files with a newer schema unless the migration plan explicitly says it is safe.
 
 ## 11. How To Add A Feature Safely
 
@@ -822,7 +853,7 @@ If the full regression runs on live, run `php scripts/backup.php` first and use 
 
 ## 16. Mobile API And Flutter Application
 
-The cross-platform app lives in `mobile/` and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
+The cross-platform app lives in `mobile/`, is pinned to Flutter `3.44.9`, has application version `1.3.3+10`, and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
 
 ### Backend ownership
 
@@ -892,7 +923,7 @@ Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or pa
 
 ### Deploying mobile backend changes
 
-1. Run `php scripts/backup.php` on production.
+1. Create and restore-verify an encrypted off-server recovery set with `scripts/backup.php` and `scripts/restore_verify.php`.
 2. Deploy API, maintenance schema, Mobile Access view, and route changes while the API switch remains off.
 3. Run PHP lint, `php tests/mobile_usage_reasons.php`, `php tests/mobile_api_contract.php`, `php tests/ocr_parser_contract.php`, module-boundary/frontend-asset tests, full regression, and stock invariants.
 4. Verify disabled API login returns `503 mobile_disabled`.
@@ -977,6 +1008,8 @@ The realtime contract is documented in `docs/realtime-data-flow.md`. Security co
 The production API deployment is backward compatible. Automated tests restore the prior global mobile-switch value instead of deciding it; verify the current value in Mobile Access before each pilot. Only selected pilot employees should remain enabled. A physical-device pilot remains mandatory even though the Pixel 7 API 36 emulator, Flutter suite, authenticated live API cycle, full regression, and production stock invariants passed.
 
 ## 17. Next Technical Improvements
+
+Delivery Step 3 is intentionally blocked until the Step 1-2 safety-baseline commit is reviewed. Do not begin domain, component, route, Quick Stock, or Flutter migration work from this handover alone.
 
 Recommended order:
 

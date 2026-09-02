@@ -1,0 +1,323 @@
+[
+    {
+        "position": 11,
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "handler": "handle_mobile_api_login",
+        "documented_responses": [
+            "201",
+            "401",
+            "403",
+            "426",
+            "429",
+            "503"
+        ]
+    },
+    {
+        "position": 12,
+        "method": "POST",
+        "path": "/api/v1/auth/refresh",
+        "handler": "handle_mobile_api_refresh",
+        "documented_responses": [
+            "200",
+            "401",
+            "426"
+        ]
+    },
+    {
+        "position": 13,
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "handler": "handle_mobile_api_logout",
+        "documented_responses": [
+            "200",
+            "401"
+        ]
+    },
+    {
+        "position": 14,
+        "method": "GET",
+        "path": "/api/v1/me",
+        "handler": "handle_mobile_api_me",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 15,
+        "method": "POST",
+        "path": "/api/v1/me/verify-password",
+        "handler": "handle_mobile_api_verify_password",
+        "documented_responses": [
+            "200",
+            "403",
+            "422",
+            "429"
+        ]
+    },
+    {
+        "position": 16,
+        "method": "GET",
+        "path": "/api/v1/bootstrap",
+        "handler": "handle_mobile_api_bootstrap",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 17,
+        "method": "GET",
+        "path": "/api/v1/sync",
+        "handler": "handle_mobile_api_sync",
+        "documented_responses": [
+            "200",
+            "401",
+            "403",
+            "426",
+            "429",
+            "503"
+        ]
+    },
+    {
+        "position": 18,
+        "method": "GET",
+        "path": "/api/v1/operations/mine",
+        "handler": "handle_mobile_api_operations_mine",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 19,
+        "method": "GET",
+        "path": "/api/v1/storages",
+        "handler": "handle_mobile_api_storages",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 20,
+        "method": "GET",
+        "path": "/api/v1/storages/{id}/items",
+        "handler": "handle_mobile_api_storage_items",
+        "documented_responses": [
+            "200",
+            "403"
+        ]
+    },
+    {
+        "position": 21,
+        "method": "GET",
+        "path": "/api/v1/items/lookup",
+        "handler": "handle_mobile_api_item_lookup",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 22,
+        "method": "GET",
+        "path": "/api/v1/items/{id}",
+        "handler": "handle_mobile_api_item_show",
+        "documented_responses": [
+            "200",
+            "404"
+        ]
+    },
+    {
+        "position": 23,
+        "method": "POST",
+        "path": "/api/v1/movements/usage",
+        "handler": "handle_mobile_api_usage",
+        "documented_responses": [
+            "200",
+            "409",
+            "422"
+        ]
+    },
+    {
+        "position": 24,
+        "method": "POST",
+        "path": "/api/v1/movements/restock",
+        "handler": "handle_mobile_api_restock",
+        "documented_responses": [
+            "200",
+            "403"
+        ]
+    },
+    {
+        "position": 25,
+        "method": "POST",
+        "path": "/api/v1/movements/batch",
+        "handler": "handle_mobile_api_batch",
+        "documented_responses": [
+            "200",
+            "409",
+            "422"
+        ]
+    },
+    {
+        "position": 26,
+        "method": "GET",
+        "path": "/api/v1/handovers",
+        "handler": "handle_mobile_api_handovers",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 27,
+        "method": "POST",
+        "path": "/api/v1/handovers",
+        "handler": "handle_mobile_api_handover_create",
+        "documented_responses": [
+            "201",
+            "409",
+            "422"
+        ]
+    },
+    {
+        "position": 28,
+        "method": "GET",
+        "path": "/api/v1/handovers/mine",
+        "handler": "handle_mobile_api_handovers_mine",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 29,
+        "method": "GET",
+        "path": "/api/v1/handovers/{id}",
+        "handler": "handle_mobile_api_handover_show",
+        "documented_responses": [
+            "200",
+            "403",
+            "404"
+        ]
+    },
+    {
+        "position": 30,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/receipt",
+        "handler": "handle_mobile_api_handover_receive",
+        "documented_responses": [
+            "200",
+            "409"
+        ]
+    },
+    {
+        "position": 31,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/confirm-receipt",
+        "handler": "handle_mobile_api_handover_confirm_receipt",
+        "documented_responses": [
+            "200",
+            "409"
+        ]
+    },
+    {
+        "position": 32,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/closeout",
+        "handler": "handle_mobile_api_handover_closeout",
+        "documented_responses": [
+            "200",
+            "422"
+        ]
+    },
+    {
+        "position": 33,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/approve-closeout",
+        "handler": "handle_mobile_api_handover_approve_closeout",
+        "documented_responses": [
+            "200",
+            "409",
+            "422"
+        ]
+    },
+    {
+        "position": 34,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/approve-request",
+        "handler": "handle_mobile_api_handover_approve_request",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 35,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/reject-request",
+        "handler": "handle_mobile_api_handover_reject_request",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 36,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/cancel",
+        "handler": "handle_mobile_api_handover_cancel",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 37,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/custody-returns",
+        "handler": "handle_mobile_api_handover_custody_return_create",
+        "documented_responses": [
+            "201",
+            "422"
+        ]
+    },
+    {
+        "position": 38,
+        "method": "GET",
+        "path": "/api/v1/handovers/{id}/custody-returns/{return_id}",
+        "handler": "handle_mobile_api_handover_custody_return_show",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 39,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/custody-returns/{return_id}/approve",
+        "handler": "handle_mobile_api_handover_custody_return_approve",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 40,
+        "method": "POST",
+        "path": "/api/v1/handovers/{id}/custody-returns/{return_id}/reject",
+        "handler": "handle_mobile_api_handover_custody_return_reject",
+        "documented_responses": [
+            "200"
+        ]
+    },
+    {
+        "position": 41,
+        "method": "POST",
+        "path": "/api/v1/integrations/kona/wristband-checkins",
+        "handler": "handle_wristband_checkin_api",
+        "documented_responses": [
+            "200",
+            "201",
+            "202",
+            "401",
+            "403",
+            "409",
+            "422",
+            "426",
+            "429",
+            "500"
+        ]
+    }
+]
