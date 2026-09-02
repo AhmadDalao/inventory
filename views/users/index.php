@@ -13,7 +13,7 @@
     </div>
 </section>
 
-<section class="panel data-table-shell" data-table-shell data-empty-text="No admins match this search.">
+<section class="panel data-table-shell user-directory-shell" data-table-shell data-empty-text="No admins match this search.">
     <div class="table-shell-head">
         <div class="table-heading">
             <strong><?= ui_icon('users') ?><span><?= e(site_setting('table.users', 'All Admins')) ?></span></strong>
@@ -47,58 +47,72 @@
     </div>
 
     <div class="table-wrap">
-        <table class="data-table data-table-mobile">
+        <table class="data-table data-table-mobile user-directory-table">
             <thead>
             <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Position</th>
-                <th>Access</th>
-                <th>Manager</th>
-                <th>Storage Scope</th>
-                <th>Privileges</th>
-                <th>Status</th>
-                <th>Last Login</th>
-                <th>Created</th>
+                <th>User</th>
+                <th>Account</th>
+                <th>Reports To</th>
+                <th>Storage Access</th>
+                <th>Permissions &amp; Status</th>
+                <th>Activity</th>
                 <th></th>
             </tr>
             </thead>
             <tbody>
             <?php if ($users === []): ?>
                 <tr>
-                    <td colspan="11" class="empty-cell">No users found.</td>
+                    <td colspan="7" class="empty-cell">No users found.</td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($users as $userRow): ?>
                 <tr>
-                    <td data-label="Name"><?= e($userRow['name']) ?></td>
-                    <td data-label="Email"><?= e($userRow['email']) ?></td>
-                    <td data-label="Position">
-                        <strong><?= e(user_position_label($userRow['position'] ?? '', (string) $userRow['role'])) ?></strong>
+                    <td data-label="User">
+                        <div class="user-directory-person">
+                            <span class="user-directory-avatar" aria-hidden="true"><?= e(user_initials((string) $userRow['name'])) ?></span>
+                            <span class="user-directory-cell">
+                                <strong><?= e($userRow['name']) ?></strong>
+                                <span class="tiny-copy" title="<?= e($userRow['email']) ?>"><?= e($userRow['email']) ?></span>
+                            </span>
+                        </div>
                     </td>
-                    <td data-label="Access">
-                        <span class="pill <?= $userRow['role'] === 'owner' ? 'pill-owner' : ($userRow['role'] === 'admin' ? 'pill-admin' : 'pill-muted') ?>">
-                            <?= e(user_role_label((string) $userRow['role'])) ?>
-                        </span>
+                    <td data-label="Account">
+                        <div class="user-directory-cell">
+                            <strong><?= e(user_position_label($userRow['position'] ?? '', (string) $userRow['role'])) ?></strong>
+                            <span><span class="pill <?= $userRow['role'] === 'owner' ? 'pill-owner' : ($userRow['role'] === 'admin' ? 'pill-admin' : 'pill-muted') ?>"><?= e(user_role_label((string) $userRow['role'])) ?></span></span>
+                        </div>
                     </td>
-                    <td data-label="Manager">
-                        <?= e((string) ($userRow['manager_name'] ?: 'Not assigned')) ?>
+                    <td data-label="Reports To">
+                        <div class="user-directory-cell">
+                            <strong><?= e((string) ($userRow['manager_name'] ?: 'Not assigned')) ?></strong>
+                            <span class="tiny-copy"><?= $userRow['manager_name'] ? 'Manager' : 'Top level' ?></span>
+                        </div>
                     </td>
-                    <td data-label="Storage Scope">
-                        <strong><?= number_format((int) ($userRow['storage_count'] ?? 0)) ?></strong>
-                        <div class="tiny-copy"><?= e((string) ($userRow['storage_names'] ?: 'No assigned storage')) ?></div>
+                    <td data-label="Storage Access">
+                        <?php $storageCount = (int) ($userRow['storage_count'] ?? 0); ?>
+                        <?php $storageNames = (string) ($userRow['storage_names'] ?: 'No assigned storage'); ?>
+                        <div class="user-directory-cell">
+                            <strong><?= number_format($storageCount) ?> <?= $storageCount === 1 ? 'storage' : 'storages' ?></strong>
+                            <span class="tiny-copy" title="<?= e($storageNames) ?>"><?= e($storageNames) ?></span>
+                        </div>
                     </td>
-                    <td data-label="Privileges">
-                        <strong><?= number_format((int) ($userRow['permission_count'] ?? 0)) ?></strong>
-                        <div class="tiny-copy">active permissions</div>
+                    <td data-label="Permissions &amp; Status">
+                        <div class="user-directory-access">
+                            <span class="pill <?= (int) $userRow['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>"><?= (int) $userRow['is_active'] === 1 ? 'Active' : 'Disabled' ?></span>
+                            <span class="tiny-copy"><strong><?= number_format((int) ($userRow['permission_count'] ?? 0)) ?></strong> permissions</span>
+                        </div>
                     </td>
-                    <td data-label="Status">
-                        <span class="pill <?= (int) $userRow['is_active'] === 1 ? 'pill-active' : 'pill-muted' ?>">
-                            <?= (int) $userRow['is_active'] === 1 ? 'Active' : 'Disabled' ?>
-                        </span>
+                    <td data-label="Activity">
+                        <div class="user-directory-cell user-directory-activity">
+                            <?php if ($userRow['last_login_at']): ?>
+                                <strong><?= e(date('M j, Y', strtotime($userRow['last_login_at']))) ?></strong>
+                                <span class="tiny-copy">Last login at <?= e(date('g:i A', strtotime($userRow['last_login_at']))) ?></span>
+                            <?php else: ?>
+                                <strong>Never logged in</strong>
+                            <?php endif; ?>
+                            <span class="tiny-copy">Created <?= e(date('M j, Y', strtotime($userRow['created_at']))) ?></span>
+                        </div>
                     </td>
-                    <td data-label="Last Login"><?= $userRow['last_login_at'] ? e(date('M j, Y g:i A', strtotime($userRow['last_login_at']))) : 'Never' ?></td>
-                    <td data-label="Created"><?= e(date('M j, Y', strtotime($userRow['created_at']))) ?></td>
                     <td data-label="Actions" class="table-actions-cell">
                         <details class="row-action-menu">
                             <summary aria-label="User actions"><?= ui_icon('menu') ?></summary>

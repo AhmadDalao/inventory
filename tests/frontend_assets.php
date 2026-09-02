@@ -278,6 +278,21 @@ foreach (['.access-storage-choice', '.team-hierarchy-direct-report-details[open]
     }
 }
 
+$usersView = file_get_contents($root . '/views/users/index.php') ?: '';
+foreach (['user-directory-table', 'Permissions &amp; Status', 'Storage Access', 'Reports To'] as $marker) {
+    if (strpos($usersView, $marker) === false) {
+        fail_frontend_assets('User directory is missing its compact table marker: ' . $marker);
+    }
+}
+foreach (['.user-directory-table', 'table-layout: fixed', '.user-directory-person', '.user-directory-access'] as $marker) {
+    if (strpos($adminCss, $marker) === false) {
+        fail_frontend_assets('User directory CSS is missing its compact layout marker: ' . $marker);
+    }
+}
+if (strpos($mobileCss, '.app-shell .user-directory-table') === false) {
+    fail_frontend_assets('The user directory must retain a controlled mobile table width.');
+}
+
 foreach ([
     'Sidebar scroll fix',
     'Mobile hardening',

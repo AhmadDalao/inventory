@@ -1501,6 +1501,10 @@ body.app-shell {
         min-width: 1180px !important;
     }
 
+    .app-shell .user-directory-table {
+        min-width: 1040px !important;
+    }
+
     .app-shell .data-table-mobile thead,
     .app-shell .workflow-line-table thead,
     .app-shell .workflow-close-table thead {
