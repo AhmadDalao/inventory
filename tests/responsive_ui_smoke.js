@@ -139,6 +139,59 @@ const inspectLayout = async (page) => page.evaluate(() => {
   };
 });
 
+const inspectDashboardWorkflowCards = async (page) => page.evaluate(() => {
+  const grid = document.querySelector('.workflow-panel-grid');
+  const rows = Array.from(document.querySelectorAll('.workflow-mini-card'));
+  const issues = [];
+
+  rows.forEach((row, index) => {
+    if (!(row instanceof HTMLElement)) {
+      return;
+    }
+
+    const copy = row.querySelector('.workflow-mini-card-copy');
+    const meta = row.querySelector('.workflow-mini-card-meta');
+    if (!(copy instanceof HTMLElement) || !(meta instanceof HTMLElement)) {
+      issues.push(`row ${index + 1} is missing its copy or metadata region`);
+      return;
+    }
+
+    if (row.scrollWidth > row.clientWidth + 2) {
+      issues.push(`row ${index + 1} overflows horizontally`);
+    }
+
+    const metaStyle = window.getComputedStyle(meta);
+    if (meta.getBoundingClientRect().width < 88) {
+      issues.push(`row ${index + 1} metadata collapsed below 88px`);
+    }
+
+    meta.querySelectorAll('.pill, .tiny-copy').forEach((element) => {
+      const style = window.getComputedStyle(element);
+      if (style.overflowWrap === 'anywhere') {
+        issues.push(`row ${index + 1} metadata can wrap at every character`);
+      }
+    });
+
+    if (metaStyle.textAlign !== 'right' && window.innerWidth > 560) {
+      issues.push(`row ${index + 1} desktop metadata alignment changed`);
+    }
+  });
+
+  const columnCount = grid instanceof HTMLElement
+    ? window.getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length
+    : 0;
+
+  if (window.innerWidth > 1100 && columnCount > 2) {
+    issues.push(`workflow queue uses ${columnCount} columns instead of at most 2`);
+  }
+
+  if (window.innerWidth <= 1024 && columnCount > 1) {
+    issues.push(`workflow queue uses ${columnCount} columns on a phone or tablet`);
+  }
+
+  return { rows: rows.length, columnCount, issues };
+});
+
 const inspectSidebar = async (page) => {
   await page.click('.main-panel [data-menu-toggle]');
   await page.waitForTimeout(220);
@@ -262,6 +315,13 @@ const inspectSidebar = async (page) => {
         }
         if (failedResponses.length) {
           addFailure(viewport.name, route, `failed same-origin responses: ${failedResponses.join(' | ')}`);
+        }
+
+        if (route === '/dashboard') {
+          const workflowCards = await inspectDashboardWorkflowCards(page);
+          if (workflowCards.issues.length) {
+            addFailure(viewport.name, route, `workflow card layout: ${workflowCards.issues.join(' | ')}`);
+          }
         }
 
         if (captureScreenshots) {

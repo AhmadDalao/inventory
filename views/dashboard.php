@@ -436,14 +436,14 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                     <?php foreach ($workflowSnapshot['recent_requests'] as $request): ?>
                         <?php $isIssueRequest = (string) ($request['request_mode'] ?? 'transfer') === 'issue'; ?>
                         <a class="mini-row workflow-mini-card" href="<?= e(url('/requests/' . $request['id'])) ?>">
-                            <div>
+                            <div class="workflow-mini-card-copy">
                                 <strong><?= e($request['request_number']) ?></strong>
                                 <span>
                                     <?= e($request['requester_name']) ?> · <?= e($request['source_storage_name']) ?>
                                     <?= $isIssueRequest ? ' · staff use request' : ' to ' . e((string) $request['destination_storage_name']) ?>
                                 </span>
                             </div>
-                            <div class="align-right">
+                            <div class="align-right workflow-mini-card-meta">
                                 <strong><?= format_quantity($request['total_requested']) ?></strong>
                                 <span class="pill pill-<?= e((string) $request['status']) ?>"><?= e(request_status_label((string) $request['status'])) ?></span>
                             </div>
@@ -470,11 +470,11 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                 <div class="mini-list workflow-card-list">
                     <?php foreach ($workflowSnapshot['recent_handovers'] as $handover): ?>
                         <a class="mini-row workflow-mini-card" href="<?= e(url('/handovers/' . $handover['id'])) ?>">
-                            <div>
+                            <div class="workflow-mini-card-copy">
                                 <strong><?= e($handover['handover_number']) ?></strong>
                                 <span><?= e($handover['recipient_name']) ?> · <?= e($handover['source_storage_name']) ?></span>
                             </div>
-                            <div class="align-right">
+                            <div class="align-right workflow-mini-card-meta">
                                 <strong><?= format_quantity($handover['total_handed']) ?></strong>
                                 <span class="pill pill-<?= e((string) $handover['status']) ?>"><?= e(handover_status_label((string) $handover['status'])) ?></span>
                             </div>
@@ -501,11 +501,11 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                 <div class="mini-list workflow-card-list">
                     <?php foreach ($workflowSnapshot['recent_purchases'] as $purchase): ?>
                         <a class="mini-row workflow-mini-card" href="<?= e(url('/purchases/' . $purchase['id'])) ?>">
-                            <div>
+                            <div class="workflow-mini-card-copy">
                                 <strong><?= e($purchase['purchase_number']) ?></strong>
                                 <span><?= e($purchase['supplier_name']) ?> · <?= e($purchase['storage_name']) ?></span>
                             </div>
-                            <div class="align-right">
+                            <div class="align-right workflow-mini-card-meta">
                                 <strong><?= e($purchase['currency']) ?> <?= number_format((float) $purchase['total_value'], 2) ?></strong>
                                 <span class="pill pill-<?= e((string) $purchase['status']) ?>"><?= e(purchase_status_label((string) $purchase['status'])) ?></span>
                             </div>
@@ -533,11 +533,11 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                     <?php foreach ($operationalSnapshot['recent_stocktakes'] as $stocktake): ?>
                         <?php $variance = (float) $stocktake['total_variance']; ?>
                         <a class="mini-row workflow-mini-card" href="<?= e(url('/stocktakes/' . $stocktake['id'])) ?>">
-                            <div>
+                            <div class="workflow-mini-card-copy">
                                 <strong><?= e($stocktake['stocktake_number']) ?></strong>
                                 <span><?= e($stocktake['storage_name']) ?> · <?= e(format_datetime_display((string) $stocktake['created_at'])) ?></span>
                             </div>
-                            <div class="align-right">
+                            <div class="align-right workflow-mini-card-meta">
                                 <strong class="<?= $variance < 0 ? 'danger-text' : ($variance > 0 ? 'success-text' : '') ?>"><?= format_quantity($variance) ?></strong>
                                 <span class="pill pill-<?= e((string) $stocktake['status']) ?>"><?= e(stocktake_status_label((string) $stocktake['status'])) ?></span>
                             </div>
@@ -562,8 +562,8 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
         <?php else: ?>
             <div class="mini-list workflow-card-list dashboard-notification-list">
                 <?php foreach ($dashboardNotifications as $notification): ?>
-                    <a class="mini-row workflow-mini-card" href="<?= e((string) ($notification['action_url'] ?: '#')) ?>">
-                        <div>
+                    <a class="mini-row workflow-mini-card workflow-mini-card-notification" href="<?= e((string) ($notification['action_url'] ?: '#')) ?>">
+                        <div class="workflow-mini-card-copy">
                             <strong><?= e((string) $notification['title']) ?></strong>
                             <?php if (!empty($notification['actor_name'])): ?>
                                 <span class="tiny-copy">By <?= e((string) $notification['actor_name']) ?></span>
@@ -572,7 +572,7 @@ $movementLogUrl = url('/movements' . ($movementLogQuery !== '' ? '?' . $movement
                                 <span><?= e((string) $notification['message']) ?></span>
                             <?php endif; ?>
                         </div>
-                        <div class="align-right">
+                        <div class="align-right workflow-mini-card-meta">
                             <span class="tiny-copy"><?= e(format_datetime_display((string) $notification['created_at'])) ?></span>
                             <?php if (empty($notification['read_at'])): ?>
                                 <span class="pill pill-usage">New</span>

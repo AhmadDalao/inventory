@@ -741,23 +741,95 @@
 }
 
 .workflow-card-panel {
+    min-width: 0;
     min-height: 0;
 }
 
-.workflow-card-list {
-    max-height: 310px;
-    overflow: auto;
-    padding-right: 4px;
-    scroll-padding: 12px;
+.workflow-card-panel > .panel-head {
+    align-items: flex-start;
+    gap: 16px;
 }
 
-.workflow-mini-card {
-    align-items: stretch;
+.workflow-card-panel > .panel-head > div {
+    min-width: 0;
+}
+
+.workflow-card-panel > .panel-head .text-link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.workflow-card-list {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+}
+
+.mini-row.workflow-mini-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, max-content);
+    align-items: start;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
     border: 1px solid #eee2d3;
     background: #fbfaf7;
     border-radius: 20px;
     padding: 16px;
     box-shadow: none;
+}
+
+.workflow-mini-card-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.workflow-mini-card-copy > strong {
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.workflow-mini-card-copy > span {
+    display: block;
+    line-height: 1.45;
+    overflow-wrap: break-word;
+}
+
+.workflow-mini-card > .workflow-mini-card-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+    justify-self: end;
+    gap: 8px;
+    min-width: 112px;
+    max-width: 164px;
+    text-align: right;
+}
+
+.workflow-mini-card-meta > strong {
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.workflow-mini-card .workflow-mini-card-meta .pill,
+.workflow-mini-card .workflow-mini-card-meta .tiny-copy {
+    max-width: 164px;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+}
+
+.workflow-mini-card .workflow-mini-card-meta .pill {
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+}
+
+.workflow-mini-card .workflow-mini-card-meta .tiny-copy {
+    line-height: 1.4;
+    white-space: normal;
 }
 
 .workflow-mini-card:hover {
@@ -767,7 +839,7 @@
 }
 
 .dashboard-notification-list {
-    max-height: 360px;
+    max-height: none;
 }
 
 .notification-panel {

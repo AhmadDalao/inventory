@@ -1,6 +1,6 @@
 /* Workflows: shared request, handover, purchase, and operational form patterns. */
 .workflow-panel-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .workflow-line-builder,
@@ -180,4 +180,3 @@
     color: var(--muted);
     text-align: center;
 }
-

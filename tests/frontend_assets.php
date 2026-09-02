@@ -228,6 +228,30 @@ if (strpos($componentsCss, '.notification-menu:not([open]) > .notification-panel
     fail_frontend_assets('Closed topbar popovers must not remain rendered off-canvas.');
 }
 
+$dashboardView = file_get_contents($root . '/views/dashboard.php') ?: '';
+foreach ([
+    '.workflow-mini-card-copy',
+    '.workflow-mini-card > .workflow-mini-card-meta',
+    'overflow-wrap: normal',
+    'max-height: none',
+] as $marker) {
+    if (strpos($componentsCss, $marker) === false) {
+        fail_frontend_assets('Dashboard workflow card CSS is missing layout marker: ' . $marker);
+    }
+}
+
+foreach (['workflow-mini-card-copy', 'workflow-mini-card-meta'] as $marker) {
+    if (strpos($dashboardView, $marker) === false) {
+        fail_frontend_assets('Dashboard workflow cards are missing semantic region: ' . $marker);
+    }
+}
+
+if (strpos($workflowsCss, 'grid-template-columns: repeat(2, minmax(0, 1fr))') === false
+    || strpos($mobileCss, '.app-shell .workflow-panel-grid') === false
+) {
+    fail_frontend_assets('Dashboard workflow queues must not collapse into narrow three-column cards.');
+}
+
 foreach ([
     'Asset module',
     '.assets-page',
