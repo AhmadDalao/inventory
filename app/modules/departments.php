@@ -139,8 +139,13 @@ function handle_department_save_submit(): void
     } else {
         Database::execute(
             'INSERT INTO departments (name, code, is_active, created_by, updated_by, created_at, updated_at)
-             VALUES (:name, :code, 1, :user_id, :user_id, NOW(), NOW())',
-            ['name' => $name, 'code' => $code, 'user_id' => $userId]
+             VALUES (:name, :code, 1, :created_by, :updated_by, NOW(), NOW())',
+            [
+                'name' => $name,
+                'code' => $code,
+                'created_by' => $userId,
+                'updated_by' => $userId,
+            ]
         );
         record_activity('department.created', 'department', Database::lastInsertId(), 'Department created: ' . $name);
     }
