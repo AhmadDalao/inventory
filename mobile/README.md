@@ -51,7 +51,7 @@ Mock mode uses fixture repositories and never contacts production:
 ```bash
 flutter run -d chrome \
   --dart-define=MOCK_MODE=true \
-  --dart-define=APP_VERSION=1.3.3
+  --dart-define=APP_VERSION=1.3.4
 ```
 
 The reviewed phone/tablet captures are in `../docs/mobile/mockups/`. The approved prototype becomes the production UI; there is no separate throwaway design app.
@@ -62,7 +62,7 @@ The reviewed phone/tablet captures are in `../docs/mobile/mockups/`. The approve
 flutter run -d <device-id> \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.3
+  --dart-define=APP_VERSION=1.3.4
 ```
 
 The server's Mobile API switch is disabled by default. Enable only selected pilot employees from `/mobile-access` after API deployment and live stock checks.
@@ -86,27 +86,27 @@ Build the internal APK:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.3
+  --dart-define=APP_VERSION=1.3.4
 ```
 
 Output: `build/app/outputs/flutter-apk/app-release.apk`.
 
-Current storage-profile pilot artifact (generated during the release gate):
+Current internal pilot artifact (generated during the release gate):
 
-- File: `../output/mobile/inventory-kona-1.3.3+10.apk`
+- File: `../output/mobile/inventory-kona-1.3.4+11.apk`
 - Package: `com.konajeddah.inventory`
-- Version: `1.3.3` (`versionCode 10`)
+- Version: `1.3.4` (`versionCode 11`)
 - Minimum Android: API 24
-- SHA-256: recorded in `../output/mobile/inventory-kona-1.3.3+10.sha256` after the signed build.
-- Checksum file: `../output/mobile/inventory-kona-1.3.3+10.sha256`
-- Release evidence: `../docs/mobile/release-1.3.3.md`
+- SHA-256: recorded in `../output/mobile/inventory-kona-1.3.4+11.apk.sha256` after the signed build.
+- Checksum file: `../output/mobile/inventory-kona-1.3.4+11.apk.sha256`
+- Release evidence: `../docs/mobile/release-1.3.4.md`
 
 Verify it before distribution:
 
 ```bash
-shasum -a 256 ../output/mobile/inventory-kona-1.3.3+10.apk
+shasum -a 256 ../output/mobile/inventory-kona-1.3.4+11.apk
 $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs \
-  ../output/mobile/inventory-kona-1.3.3+10.apk
+  ../output/mobile/inventory-kona-1.3.4+11.apk
 ```
 
 ## iOS
@@ -122,7 +122,7 @@ flutter build web --release --dart-define=MOCK_MODE=true
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.3
+  --dart-define=APP_VERSION=1.3.4
 ```
 
 Physical-device acceptance must cover repeated scans, package conversion, exact/short/excess receipt, usage, transfer, temporary handover, custody return proof, token expiry, offline draft retry, and a stale-balance conflict.

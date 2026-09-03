@@ -534,6 +534,54 @@ void main() {
     expect(lines.single.baseQuantity, 2000);
   });
 
+  test(
+    'stale cart lines rebase to authoritative quantity and package data',
+    () {
+      const oldItem = InventoryItem(
+        id: 15,
+        name: 'Blue Wristband',
+        sku: 'WB-BLUE',
+        unit: 'pcs',
+        quantity: 100,
+        storageId: 10,
+        storageName: 'KONA',
+        packagePresets: [
+          ItemPackagePreset(id: 7, label: 'Old box', piecesPerUnit: 25),
+        ],
+      );
+      const latestItem = InventoryItem(
+        id: 15,
+        name: 'Blue Wristband',
+        sku: 'WB-BLUE',
+        unit: 'pcs',
+        quantity: 94,
+        storageId: 10,
+        storageName: 'KONA',
+        packagePresets: [
+          ItemPackagePreset(id: 7, label: 'Box', piecesPerUnit: 20),
+        ],
+      );
+      const line = CartLine(
+        item: oldItem,
+        quantity: 2,
+        packageLabel: 'Old box',
+        packageMultiplier: 25,
+        packagePresetId: 7,
+        expectedBalance: 100,
+        reasonCode: 'school',
+      );
+
+      final rebased = rebaseMeasuredLine(line, latestItem);
+
+      expect(rebased.item.quantity, 94);
+      expect(rebased.expectedBalance, 94);
+      expect(rebased.packageLabel, 'Box');
+      expect(rebased.packageMultiplier, 20);
+      expect(rebased.baseQuantity, 40);
+      expect(rebased.reasonCode, 'school');
+    },
+  );
+
   test('item proof requirements are parsed for usage and refill', () {
     final item = InventoryItem.fromJson(const {
       'id': 40,

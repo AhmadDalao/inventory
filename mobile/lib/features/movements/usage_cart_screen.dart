@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
@@ -28,6 +29,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
   String _defaultReason = 'online';
   int? _storageId;
   XFile? _proof;
+  String? _clientOperationId;
   bool _catalogInitialized = false;
   bool _submitting = false;
 
@@ -178,6 +180,130 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
     return null;
   }
 
+  Future<void> _pickProof() async {
+    try {
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Take photo'),
+                onTap: () => context.pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () => context.pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted) return;
+      final image = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 82,
+      );
+      if (mounted && image != null) setState(() => _proof = image);
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'The proof image could not be opened. Check camera or photo access and try again.',
+        );
+      }
+    }
+  }
+
+  Future<bool> _refreshCartAfterBalanceConflict(ApiFailure failure) async {
+    await ref.read(bootstrapProvider.notifier).reload();
+    if (!mounted) return false;
+
+    final latestData = ref.read(bootstrapProvider).valueOrNull;
+    final conflictItemId = _detailInt(failure.details['item_id']);
+    final conflictStorageId = _detailInt(failure.details['storage_id']);
+    final conflictBalance = _detailDouble(failure.details['current_balance']);
+    final nextLines = <CartLine>[];
+    var refreshed = false;
+
+    for (final line in _lines) {
+      InventoryItem? latestItem;
+      for (final candidate in latestData?.items ?? const <InventoryItem>[]) {
+        if (candidate.id == line.item.id &&
+            candidate.storageId == line.item.storageId) {
+          latestItem = candidate;
+          break;
+        }
+      }
+      if (conflictBalance != null &&
+          conflictItemId == line.item.id &&
+          conflictStorageId == line.item.storageId) {
+        latestItem = (latestItem ?? line.item).copyWith(
+          quantity: conflictBalance,
+        );
+      }
+
+      if (latestItem == null) {
+        nextLines.add(line);
+      } else {
+        nextLines.add(rebaseMeasuredLine(line, latestItem));
+        refreshed = true;
+      }
+    }
+
+    if (refreshed) {
+      setState(() {
+        _lines
+          ..clear()
+          ..addAll(nextLines);
+      });
+    }
+    return refreshed;
+  }
+
+  Future<void> _showSubmissionFailure(Object error) async {
+    var message = apiErrorMessage(error);
+    if (error is ApiFailure && error.code == 'balance_changed') {
+      final refreshed = await _refreshCartAfterBalanceConflict(error);
+      if (!mounted) return;
+      if (refreshed) {
+        message =
+            'Stock changed while this cart was open. The latest balance is now loaded. Review the quantity and submit again.';
+      }
+    } else if (error is! ApiFailure) {
+      message =
+          '$message\n\nRetry this cart from this screen. The app will reuse the same operation ID so it cannot be deducted twice.';
+    }
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('usage-submit-error-dialog'),
+        icon: const Icon(Icons.error_outline, color: KonaColors.danger),
+        title: const Text('Usage not confirmed'),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => context.pop(),
+            child: const Text('Review cart'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static int? _detailInt(Object? value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  static double? _detailDouble(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
   Future<void> _submit(MobileBootstrap data) async {
     final validation = _validationMessage(data);
     if (validation != null) {
@@ -185,6 +311,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       return;
     }
     setState(() => _submitting = true);
+    _clientOperationId ??= const Uuid().v4();
     try {
       final receipt = await ref
           .read(inventoryRepositoryProvider)
@@ -197,6 +324,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
                 : _defaultCustomReason.text.trim(),
             notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
             proofPath: _proof?.path,
+            clientOperationId: _clientOperationId,
           );
       if (!mounted) return;
       await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
@@ -224,7 +352,8 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
       );
       if (mounted) context.go('/home');
     } catch (error) {
-      if (mounted) _message(apiErrorMessage(error));
+      if (error is ApiFailure) _clientOperationId = null;
+      if (mounted) await _showSubmissionFailure(error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -443,13 +572,7 @@ class _UsageCartScreenState extends ConsumerState<UsageCartScreen> {
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () async {
-                  final image = await ImagePicker().pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 82,
-                  );
-                  if (mounted) setState(() => _proof = image);
-                },
+                onPressed: _pickProof,
                 icon: Icon(
                   _proof == null
                       ? Icons.camera_alt_outlined

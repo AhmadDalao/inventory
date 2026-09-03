@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:inventory_kona/app.dart';
 import 'package:inventory_kona/core/api/api_client.dart';
 import 'package:inventory_kona/core/data/mock_inventory_repository.dart';
 import 'package:inventory_kona/core/data/providers.dart';
+import 'package:inventory_kona/core/models/inventory_models.dart';
 import 'package:inventory_kona/core/security/biometric_authenticator.dart';
 import 'package:inventory_kona/core/widgets/numeric_input.dart';
 import 'package:inventory_kona/features/movements/usage_cart_screen.dart';
@@ -45,6 +48,78 @@ class _UnavailableBiometricAuthenticator implements BiometricAuthenticator {
 
   @override
   Future<bool> authenticate({required String reason}) async => false;
+}
+
+class _TransientUsageRepository extends MockInventoryRepository {
+  final List<String?> operationIds = [];
+
+  @override
+  Future<OperationReceipt> submitUsage({
+    required int storageId,
+    required List<CartLine> lines,
+    required String defaultReason,
+    String? defaultCustomReason,
+    String? notes,
+    String? proofPath,
+    String? clientOperationId,
+  }) async {
+    operationIds.add(clientOperationId);
+    if (operationIds.length == 1) {
+      throw DioException(
+        requestOptions: RequestOptions(path: '/movements/batch'),
+        type: DioExceptionType.connectionError,
+      );
+    }
+    return const OperationReceipt(
+      reference: 'MOB-BATCH-42',
+      status: 'completed',
+    );
+  }
+}
+
+class _BalanceConflictUsageRepository extends MockInventoryRepository {
+  int bootstrapCalls = 0;
+  final List<double?> submittedBalances = [];
+
+  @override
+  Future<MobileBootstrap> bootstrap() async {
+    final data = await super.bootstrap();
+    bootstrapCalls++;
+    if (bootstrapCalls == 1) return data;
+    return data.copyWith(
+      items: [
+        for (final item in data.items)
+          if (item.id == 15 && item.storageId == 1)
+            item.copyWith(quantity: 240)
+          else
+            item,
+      ],
+    );
+  }
+
+  @override
+  Future<OperationReceipt> submitUsage({
+    required int storageId,
+    required List<CartLine> lines,
+    required String defaultReason,
+    String? defaultCustomReason,
+    String? notes,
+    String? proofPath,
+    String? clientOperationId,
+  }) async {
+    submittedBalances.add(lines.single.expectedBalance);
+    throw const ApiFailure(
+      'balance_changed',
+      'Stock changed since this item was reviewed.',
+      retrySafe: true,
+      details: {
+        'item_id': 15,
+        'storage_id': 1,
+        'expected_balance': 246,
+        'current_balance': 240,
+      },
+    );
+  }
 }
 
 void main() {
@@ -153,6 +228,89 @@ void main() {
     otherChip.onSelected?.call(true);
     await tester.pumpAndSettle();
     expect(find.text('Describe Other'), findsOneWidget);
+  });
+
+  testWidgets('usage retry reuses its operation ID after a network failure', (
+    tester,
+  ) async {
+    final repository = _TransientUsageRepository();
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const UsageCartScreen()),
+        GoRoute(path: '/home', builder: (_, _) => const Scaffold()),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [inventoryRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Blue Wristband').last);
+    await tester.pumpAndSettle();
+    final submit = find.widgetWithText(ElevatedButton, 'Submit 1 units');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('usage-submit-error-dialog')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('reuse the same operation ID'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Review cart'));
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(repository.operationIds, hasLength(2));
+    expect(repository.operationIds.first, isNotNull);
+    expect(repository.operationIds.last, repository.operationIds.first);
+    expect(find.text('Usage submitted'), findsOneWidget);
+  });
+
+  testWidgets('usage conflict reloads the balance before a retry', (
+    tester,
+  ) async {
+    final repository = _BalanceConflictUsageRepository();
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const UsageCartScreen()),
+        GoRoute(path: '/home', builder: (_, _) => const Scaffold()),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [inventoryRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Blue Wristband').last);
+    await tester.pumpAndSettle();
+    final submit = find.widgetWithText(ElevatedButton, 'Submit 1 units');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('latest balance is now loaded'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Review cart'));
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(repository.submittedBalances, [246, 240]);
   });
 
   testWidgets('quick scan exposes direct usage and refill actions', (

@@ -6,7 +6,7 @@
 - The safety-baseline parent is `1f6e93f6946f6e2b00343c33854272d3caa99d59`.
 - The three fixes after the prior system report are `1870084` (dashboard layout), `51e38e9` (department persistence), and `1f6e93f` (user directory). Never reset them away.
 - This is a plain PHP/MariaDB application with a Flutter client. It is not Laravel, React, or Vite.
-- Flutter is pinned to `3.44.9`; the application version is `1.3.3+10`.
+- Flutter is pinned to `3.44.9`; the application version is `1.3.4+11`.
 
 ## Read First
 

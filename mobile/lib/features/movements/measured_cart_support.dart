@@ -35,6 +35,27 @@ void addOrIncrementMeasuredLine(List<CartLine> lines, InventoryItem item) {
   lines[index] = lines[index].copyWith(quantity: lines[index].quantity + 1);
 }
 
+CartLine rebaseMeasuredLine(CartLine line, InventoryItem latestItem) {
+  ItemPackagePreset? selectedPreset;
+  for (final preset in latestItem.packagePresets) {
+    if (preset.id == line.packagePresetId) {
+      selectedPreset = preset;
+      break;
+    }
+  }
+
+  return CartLine(
+    item: latestItem,
+    quantity: line.quantity,
+    packageLabel: selectedPreset?.label ?? latestItem.canonicalUnit,
+    packageMultiplier: selectedPreset?.piecesPerUnit ?? 1,
+    packagePresetId: selectedPreset?.id,
+    expectedBalance: latestItem.quantity,
+    reasonCode: line.reasonCode,
+    customReason: line.customReason,
+  );
+}
+
 String measuredNumber(double value) => value == value.roundToDouble()
     ? value.toInt().toString()
     : value

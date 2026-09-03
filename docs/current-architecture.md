@@ -130,11 +130,11 @@ The wristband endpoint authenticates an integration key, optionally enforces IP 
 
 ## Flutter Client
 
-The Flutter application is under `mobile/`, pinned by `mobile/.fvmrc` to Flutter `3.44.9`, and versioned `1.3.3+10`. `mobile/lib` contains 44 Dart files organized into shared core infrastructure and feature folders.
+The Flutter application is under `mobile/`, pinned by `mobile/.fvmrc` to Flutter `3.44.9`, and versioned `1.3.4+11`. `mobile/lib` contains 44 Dart files organized into shared core infrastructure and feature folders.
 
 Core code owns Dio/API access, secure token storage, Drift-backed local drafts, Riverpod providers, foreground differential sync, and scanner/reconciliation rules. Features cover authentication, inventory/storage lookup, scanning, usage/restock, handovers/custody, sync/conflict review, and settings.
 
-Offline entries are drafts only. The client never edits authoritative balances locally and never stores the employee password. It sends stable operation IDs, expected balances, canonical/package input, proof, and workflow intent; PHP revalidates all of it.
+Offline entries are drafts only. The client never edits authoritative balances locally and never stores the employee password. It sends stable operation IDs, expected balances, canonical/package input, proof, and workflow intent; PHP revalidates all of it. Usage retries preserve the same operation ID after an ambiguous transport failure, while a definite balance conflict reloads and rebases the cart to the authoritative storage quantity before confirmation.
 
 ## Tests
 

@@ -490,6 +490,59 @@ try {
     mobile_live_note('Usage and idempotent retry passed.');
 
     $expectedBalance = 18.0;
+    $flutterBatchPayload = [
+        'client_operation_id' => $test['operation_prefix'] . 'flutter-wristband-batch',
+        'lines' => [[
+            'type' => 'usage',
+            'item_id' => (int) $test['item_id'],
+            'storage_id' => $assignedStorageId,
+            'input_quantity' => 1,
+            'package_preset_id' => null,
+            'expected_balance' => $expectedBalance,
+            'reason' => 'online',
+            'custom_reason' => null,
+            'notes' => 'Exact Flutter wristband usage payload',
+        ]],
+    ];
+    $flutterBatch = mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/movements/batch', $flutterBatchPayload, $access),
+        201
+    );
+    $expectedBalance -= 1;
+    mobile_live_assert(
+        mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance,
+        'The exact Flutter wristband batch payload did not deduct stock.'
+    );
+    mobile_live_assert(
+        (float) ($flutterBatch['data']['lines'][0]['storage_balance'] ?? -1) === $expectedBalance,
+        'The Flutter batch response omitted its line balance.'
+    );
+    mobile_live_assert(
+        count((array) ($flutterBatch['data']['balance_updates'] ?? [])) === 1,
+        'The Flutter batch response omitted its authoritative balance update.'
+    );
+    mobile_live_assert(
+        (int) ($flutterBatch['data']['sync_cursor'] ?? 0) > $syncCursor,
+        'The Flutter batch response omitted its sync cursor.'
+    );
+    $flutterBatchRetry = mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/movements/batch', $flutterBatchPayload, $access),
+        201
+    );
+    mobile_live_assert(
+        (int) ($flutterBatchRetry['data']['operation_id'] ?? 0) === (int) ($flutterBatch['data']['operation_id'] ?? -1),
+        'The exact Flutter batch retry returned a different operation.'
+    );
+    mobile_live_assert(
+        (int) ($flutterBatchRetry['data']['lines'][0]['movement_id'] ?? 0) === (int) ($flutterBatch['data']['lines'][0]['movement_id'] ?? -1),
+        'The exact Flutter batch retry returned a different movement.'
+    );
+    mobile_live_assert(
+        mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $expectedBalance,
+        'The exact Flutter batch retry deducted stock twice.'
+    );
+    mobile_live_note('Exact Flutter wristband batch payload and idempotent retry passed.');
+
     foreach ($usageReasons as $reasonIndex => $reason) {
         $reasonCode = (string) ($reason['code'] ?? '');
         mobile_live_assert($reasonCode !== '', 'Bootstrap returned an empty usage reason code.');
