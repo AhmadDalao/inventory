@@ -118,6 +118,7 @@ $movements = mobile_contract_source('app/modules/mobile_api_movements.php');
 $handovers = mobile_contract_source('app/modules/mobile_api_handovers.php');
 $settings = mobile_contract_source('app/support/settings_schema.php');
 $permissions = mobile_contract_source('app/support/permission_catalog.php');
+$adminView = mobile_contract_source('views/mobile/admin.php');
 $schema = mobile_contract_source('app/maintenance/MaintenanceMobileSchemas.php');
 $schemaState = mobile_contract_source('app/maintenance/MaintenanceSchemaState.php');
 $schemaHelpers = mobile_contract_source('app/maintenance/MaintenanceSchemaHelpers.php');
@@ -356,6 +357,14 @@ if (strpos($settings, "'mobile.enabled'") === false
 
 if (strpos($permissions, "'mobile.access'") === false) {
     fail_mobile_contract('Permission catalog is missing mobile.access.');
+}
+if (strpos($permissions, "'label' => 'Mobile App Eligibility'") === false
+    || strpos($permissions, 'Sign-in must still be enabled from Mobile Access.') === false
+) {
+    fail_mobile_contract('Mobile permission must be labeled as eligibility, not operational enablement.');
+}
+if (strpos($adminView, '<strong>Enable mobile sign-in</strong>') === false) {
+    fail_mobile_contract('Per-employee mobile activation must be labeled as the sign-in switch.');
 }
 
 foreach ([

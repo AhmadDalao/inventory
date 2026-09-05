@@ -740,7 +740,7 @@ function documentation_sections(): array
                 'Optional biometric unlock protects a saved cold-start session and can be disabled in Settings.',
             ],
             'steps' => [
-                'Ask the owner to enable Mobile Access and assign your storages.',
+                'Ask the owner to grant Mobile App Eligibility, enable mobile sign-in, and assign your storages.',
                 'Sign in with the same employee email and password used by the website.',
                 'Scan or search an item, choose Usage, Restock, Transfer, Handover, or Custody, then review the cart.',
                 'For measured stock, select the item package and enter the package count; the server confirms the canonical amount.',

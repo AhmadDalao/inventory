@@ -199,9 +199,9 @@ function permission_catalog(): array
             ],
         ],
         'mobile' => [
-            'label' => 'Mobile App',
+            'label' => 'Mobile App Eligibility',
             'permissions' => [
-                'mobile.access' => 'Sign in to the Inventory KONA mobile application.',
+                'mobile.access' => 'Makes this account eligible for mobile. Sign-in must still be enabled from Mobile Access.',
             ],
         ],
         'settings' => [

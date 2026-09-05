@@ -18,11 +18,11 @@ The mobile API is the controlled bridge between the Flutter application and the 
 
 ## Enablement
 
-Mobile access is disabled by default. An owner must open `/mobile-access`, search for the employee, and configure the employee from one setup card:
+Mobile access is disabled by default. **Mobile App Eligibility** in the permission checklist allows an account to be considered for mobile use, but does not enable sign-in. An owner must open `/mobile-access`, search for the employee, and configure the employee from one setup card:
 
 1. Enable the global API switch.
 2. Select the employee's direct manager.
-3. Enable mobile access for the employee.
+3. Enable mobile sign-in for the employee.
 4. Assign one or more allowed storages and one default storage.
 5. Grant only the required mobile capabilities.
 6. Review the matching website permissions. The page can add the required baseline permissions automatically.

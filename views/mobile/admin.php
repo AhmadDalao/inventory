@@ -151,7 +151,7 @@
 
                     <?php if (!$isOwner): ?>
                         <div class="mobile-capability-grid">
-                            <label class="mobile-capability-card is-primary"><input type="checkbox" name="enabled" value="1" <?= (int) ($mobileUser['enabled'] ?? 0) === 1 ? 'checked' : '' ?>><span><?= ui_icon('scan') ?><strong>Mobile access</strong><small>Allow this employee to sign in.</small></span></label>
+                            <label class="mobile-capability-card is-primary"><input type="checkbox" name="enabled" value="1" <?= (int) ($mobileUser['enabled'] ?? 0) === 1 ? 'checked' : '' ?>><span><?= ui_icon('scan') ?><strong>Enable mobile sign-in</strong><small>Turn on sign-in after eligibility and setup checks pass.</small></span></label>
                             <?php foreach (['usage' => ['Report usage', 'Consume stock with a reason.'], 'restock' => ['Restock', 'Add stock when permitted.'], 'transfer' => ['Storage transfer', 'Move stock between assigned storages.'], 'handover' => ['Staff handover', 'Issue or request temporary stock.'], 'custody' => ['Long-term custody', 'Track durable inventory held by staff.']] as $key => [$label, $copy]): ?>
                                 <label class="mobile-capability-card"><input type="checkbox" name="can_<?= e($key) ?>" value="1" <?= (int) ($mobileUser['can_' . $key] ?? 0) === 1 ? 'checked' : '' ?>><span><?= ui_icon($key === 'transfer' ? 'movements' : ($key === 'handover' || $key === 'custody' ? 'handover' : 'items')) ?><strong><?= e($label) ?></strong><small><?= e($copy) ?></small></span></label>
                             <?php endforeach; ?>

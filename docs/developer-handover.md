@@ -525,7 +525,7 @@ Owner has full access. Admin access is controlled by permission flags and positi
 
 The seeded departments are Management, Operations, Housekeeping & Cleaning, Inventory & Stores, Finance, Information Technology, Maintenance, Guest Services, and Beach Operations. The seeded positions cover operations management, cleaning staff/supervision, stores, maintenance staff/supervision, finance manager/officer, IT support, guest services, beach operations, office administration, and general staff. These are editable defaults, not hard-coded job titles.
 
-Position templates do not assign storage ownership, manager routing, or mobile capabilities. Those controls stay explicit because they grant real stock scope, approval routing, or device access. `mobile.access` in a template only satisfies one prerequisite; `/mobile-access` must still enable the employee and choose capabilities and storage scope.
+Position templates do not assign storage ownership, manager routing, or mobile capabilities. Those controls stay explicit because they grant real stock scope, approval routing, or device access. The **Mobile App Eligibility** permission (`mobile.access`) in a template only satisfies one prerequisite; `/mobile-access` must still enable mobile sign-in and choose capabilities and storage scope.
 
 Status override must stay limited to owner/super admin because it can change workflow state outside the normal cycle.
 
