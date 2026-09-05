@@ -7,6 +7,7 @@ export const initPermissionBuilders = (root = document) => {
     const form = builder.closest('form');
     const roleSelect = form ? form.querySelector('[data-role-select]') : null;
     const positionSelect = form ? form.querySelector('[data-position-select]') : null;
+    const departmentSelect = form ? form.querySelector('[data-department-select]') : null;
     const applyButton = builder.querySelector('[data-apply-role-defaults]');
     const applyPositionButton = builder.querySelector('[data-apply-position-defaults]');
     const permissionSearch = builder.querySelector('[data-permission-search]') || (form ? form.querySelector('[data-permission-search]') : null);
@@ -25,6 +26,7 @@ export const initPermissionBuilders = (root = document) => {
     let roleDefaults = {};
     let positionDefaults = {};
     let positionRoles = {};
+    let positionDepartments = {};
     let syncingPositionRole = false;
 
     try {
@@ -43,6 +45,12 @@ export const initPermissionBuilders = (root = document) => {
       positionRoles = JSON.parse(builder.dataset.positionRoles || '{}');
     } catch (error) {
       positionRoles = {};
+    }
+
+    try {
+      positionDepartments = JSON.parse(builder.dataset.positionDepartments || '{}');
+    } catch (error) {
+      positionDepartments = {};
     }
 
     function permissionInputs() {
@@ -144,6 +152,11 @@ export const initPermissionBuilders = (root = document) => {
         roleSelect.value = role;
         roleSelect.dispatchEvent(new Event('change', { bubbles: true }));
         syncingPositionRole = false;
+      }
+
+      const departmentId = positionDepartments[key];
+      if (departmentId && departmentSelect instanceof HTMLSelectElement && !departmentSelect.disabled) {
+        departmentSelect.value = String(departmentId);
       }
 
       const defaults = new Set(positionDefaults[key] || []);

@@ -65,7 +65,7 @@ function documentation_important_sections(): array
         [
             'title' => 'Access Control',
             'icon' => 'users',
-            'summary' => 'Owner/admin/staff access, business positions, permissions, and assigned storage owners.',
+            'summary' => 'Owner/admin/staff access, editable business-position templates, permissions, departments, and assigned storage owners.',
             'anchor' => 'doc-admins-users',
             'tags' => ['Owner', 'Admin', 'CFO', 'Accountant', 'Staff'],
         ],
@@ -174,7 +174,7 @@ function documentation_department_guides(): array
             'icon' => 'settings',
             'roles' => ['Owner', 'General Admin'],
             'responsibilities' => [
-                'Creates users, assigns positions, applies permission presets, and adjusts custom permissions.',
+                'Creates users, maintains editable position templates, applies defaults, and adjusts true per-user exceptions.',
                 'Assigns each employee to a direct manager and to one or more storages as a member or co-owner.',
                 'Keeps manager visibility separate from storage approval authority.',
                 'Manages website labels and interface style from Website Control.',

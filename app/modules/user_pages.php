@@ -19,11 +19,14 @@ function handle_users_create_page(): void
 
     $selectedPosition = (string) old('position', 'operations_manager');
     $selectedRole = (string) old('role', access_role_for_position($selectedPosition));
-    $selectedPermissions = old('permissions', default_permissions_for_position($selectedPosition));
+    $selectedPermissions = old('permissions', position_template_permissions($selectedPosition));
     $managerUserId = normalize_entity_id(old('manager_user_id', ''));
     $selectedStorageIds = array_values(array_unique(array_filter(array_map('intval', (array) old('storage_ids', [])))));
     $defaultStorageId = normalize_entity_id(old('default_storage_id', ''));
-    $departmentId = valid_department_assignment_id(old('department_id', unassigned_department_id()));
+    $departmentId = valid_department_assignment_id(old(
+        'department_id',
+        position_template_default_department_id($selectedPosition) ?? unassigned_department_id()
+    ));
 
     View::render('users/form', [
         'title' => 'Create Admin',
@@ -48,7 +51,8 @@ function handle_users_create_page(): void
         'canManageDepartments' => Auth::isOwner() || Auth::hasPermission('departments.manage'),
         'departmentOptions' => department_options(),
         'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
-        'permissionGroups' => permission_groups_for_form(is_array($selectedPermissions) ? sanitize_permission_input($selectedPermissions) : default_permissions_for_position($selectedPosition)),
+        'canManagePermissions' => Auth::hasPermission('users.permissions'),
+        'permissionGroups' => permission_groups_for_form(is_array($selectedPermissions) ? sanitize_permission_input($selectedPermissions) : position_template_permissions($selectedPosition)),
     ]);
 }
 
@@ -79,6 +83,16 @@ function handle_users_edit_page(array $params): void
         normalize_entity_id($userRecord['department_id'] ?? null)
     );
     $reportingDetails = team_hierarchy_reporting_details((int) $userRecord['id']);
+    $selectedPosition = (string) old('position', $userRecord['position'] ?: ($userRecord['role'] === 'owner' ? 'owner_operator' : ($userRecord['role'] === 'admin' ? 'general_admin' : 'staff')));
+    $positionOptions = user_position_options();
+    if (!array_key_exists($selectedPosition, $positionOptions)) {
+        $selectedTemplate = position_template_by_code($selectedPosition, true);
+        if ($selectedTemplate !== null) {
+            $positionOptions[$selectedPosition] = (string) $selectedTemplate['name'] . ' (Archived)';
+        } elseif ($selectedPosition !== '') {
+            $positionOptions[$selectedPosition] = user_position_label($selectedPosition, (string) $userRecord['role']) . ' (Legacy)';
+        }
+    }
 
     View::render('users/form', [
         'title' => 'Edit ' . $userRecord['name'],
@@ -87,13 +101,13 @@ function handle_users_edit_page(array $params): void
             'id' => $userRecord['id'],
             'name' => old('name', $userRecord['name']),
             'email' => old('email', $userRecord['email']),
-            'position' => old('position', $userRecord['position'] ?: ($userRecord['role'] === 'owner' ? 'owner_operator' : ($userRecord['role'] === 'admin' ? 'general_admin' : 'staff'))),
+            'position' => $selectedPosition,
             'role' => old('role', $userRecord['role']),
             'manager_user_id' => $managerUserId,
             'department_id' => $departmentId,
             'is_active' => (int) $userRecord['is_active'],
         ],
-        'positionOptions' => user_position_options(),
+        'positionOptions' => $positionOptions,
         'roleOptions' => user_role_options(),
         'managerCandidates' => manager_candidates_for_select($managerUserId, (int) $userRecord['id']),
         'storageOptions' => all_storages_for_select($defaultStorageId),
@@ -104,6 +118,7 @@ function handle_users_edit_page(array $params): void
         'canManageDepartments' => Auth::isOwner() || Auth::hasPermission('departments.manage'),
         'departmentOptions' => department_options(),
         'canAssignStorages' => Auth::isOwner() || Auth::hasPermission('storages.assign_users'),
+        'canManagePermissions' => Auth::hasPermission('users.permissions'),
         'reportingManager' => $reportingDetails['manager'],
         'directReports' => $reportingDetails['direct_reports'],
         'assignableTeamMembers' => $reportingDetails['assignable_team_members'],

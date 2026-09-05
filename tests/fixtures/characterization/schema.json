@@ -4528,6 +4528,168 @@
             "extra": ""
         },
         {
+            "table_name": "position_templates",
+            "column_name": "id",
+            "ordinal_position": 1,
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": "auto_increment"
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "code",
+            "ordinal_position": 2,
+            "column_type": "varchar(80)",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "name",
+            "ordinal_position": 3,
+            "column_type": "varchar(120)",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "description",
+            "ordinal_position": 4,
+            "column_type": "varchar(255)",
+            "is_nullable": "YES",
+            "column_default": "NULL",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "access_role",
+            "ordinal_position": 5,
+            "column_type": "enum('admin','staff')",
+            "is_nullable": "NO",
+            "column_default": "'staff'",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "default_department_id",
+            "ordinal_position": 6,
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "YES",
+            "column_default": "NULL",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "is_system",
+            "ordinal_position": 7,
+            "column_type": "tinyint(1)",
+            "is_nullable": "NO",
+            "column_default": "0",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "is_active",
+            "ordinal_position": 8,
+            "column_type": "tinyint(1)",
+            "is_nullable": "NO",
+            "column_default": "1",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "sort_order",
+            "ordinal_position": 9,
+            "column_type": "int(10) unsigned",
+            "is_nullable": "NO",
+            "column_default": "100",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "created_by",
+            "ordinal_position": 10,
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "YES",
+            "column_default": "NULL",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "updated_by",
+            "ordinal_position": 11,
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "YES",
+            "column_default": "NULL",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "archived_by",
+            "ordinal_position": 12,
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "YES",
+            "column_default": "NULL",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "archived_at",
+            "ordinal_position": 13,
+            "column_type": "datetime",
+            "is_nullable": "YES",
+            "column_default": "NULL",
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "created_at",
+            "ordinal_position": 14,
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
+            "table_name": "position_templates",
+            "column_name": "updated_at",
+            "ordinal_position": 15,
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
+            "table_name": "position_template_permissions",
+            "column_name": "position_template_id",
+            "ordinal_position": 1,
+            "column_type": "bigint(20) unsigned",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
+            "table_name": "position_template_permissions",
+            "column_name": "permission_key",
+            "ordinal_position": 2,
+            "column_type": "varchar(120)",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
+            "table_name": "position_template_permissions",
+            "column_name": "created_at",
+            "ordinal_position": 3,
+            "column_type": "datetime",
+            "is_nullable": "NO",
+            "column_default": null,
+            "extra": ""
+        },
+        {
             "table_name": "purchases",
             "column_name": "id",
             "ordinal_position": 1,
@@ -9142,6 +9304,102 @@
             "sub_part": null
         },
         {
+            "table_name": "position_templates",
+            "index_name": "fk_position_templates_archived_by",
+            "non_unique": 1,
+            "seq_in_index": 1,
+            "column_name": "archived_by",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "fk_position_templates_created_by",
+            "non_unique": 1,
+            "seq_in_index": 1,
+            "column_name": "created_by",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "fk_position_templates_updated_by",
+            "non_unique": 1,
+            "seq_in_index": 1,
+            "column_name": "updated_by",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "idx_position_templates_active",
+            "non_unique": 1,
+            "seq_in_index": 1,
+            "column_name": "is_active",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "idx_position_templates_active",
+            "non_unique": 1,
+            "seq_in_index": 2,
+            "column_name": "archived_at",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "idx_position_templates_active",
+            "non_unique": 1,
+            "seq_in_index": 3,
+            "column_name": "sort_order",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "idx_position_templates_department",
+            "non_unique": 1,
+            "seq_in_index": 1,
+            "column_name": "default_department_id",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "PRIMARY",
+            "non_unique": 0,
+            "seq_in_index": 1,
+            "column_name": "id",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_templates",
+            "index_name": "uniq_position_templates_code",
+            "non_unique": 0,
+            "seq_in_index": 1,
+            "column_name": "code",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_template_permissions",
+            "index_name": "idx_position_template_permissions_key",
+            "non_unique": 1,
+            "seq_in_index": 1,
+            "column_name": "permission_key",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_template_permissions",
+            "index_name": "PRIMARY",
+            "non_unique": 0,
+            "seq_in_index": 1,
+            "column_name": "position_template_id",
+            "sub_part": null
+        },
+        {
+            "table_name": "position_template_permissions",
+            "index_name": "PRIMARY",
+            "non_unique": 0,
+            "seq_in_index": 2,
+            "column_name": "permission_key",
+            "sub_part": null
+        },
+        {
             "table_name": "purchases",
             "index_name": "fk_purchases_approved_by",
             "non_unique": 1,
@@ -11202,6 +11460,51 @@
             "constraint_name": "fk_persistent_login_user",
             "column_name": "user_id",
             "referenced_table_name": "users",
+            "referenced_column_name": "id",
+            "update_rule": "RESTRICT",
+            "delete_rule": "CASCADE"
+        },
+        {
+            "table_name": "position_templates",
+            "constraint_name": "fk_position_templates_archived_by",
+            "column_name": "archived_by",
+            "referenced_table_name": "users",
+            "referenced_column_name": "id",
+            "update_rule": "RESTRICT",
+            "delete_rule": "SET NULL"
+        },
+        {
+            "table_name": "position_templates",
+            "constraint_name": "fk_position_templates_created_by",
+            "column_name": "created_by",
+            "referenced_table_name": "users",
+            "referenced_column_name": "id",
+            "update_rule": "RESTRICT",
+            "delete_rule": "SET NULL"
+        },
+        {
+            "table_name": "position_templates",
+            "constraint_name": "fk_position_templates_department",
+            "column_name": "default_department_id",
+            "referenced_table_name": "departments",
+            "referenced_column_name": "id",
+            "update_rule": "RESTRICT",
+            "delete_rule": "SET NULL"
+        },
+        {
+            "table_name": "position_templates",
+            "constraint_name": "fk_position_templates_updated_by",
+            "column_name": "updated_by",
+            "referenced_table_name": "users",
+            "referenced_column_name": "id",
+            "update_rule": "RESTRICT",
+            "delete_rule": "SET NULL"
+        },
+        {
+            "table_name": "position_template_permissions",
+            "constraint_name": "fk_position_template_permissions_template",
+            "column_name": "position_template_id",
+            "referenced_table_name": "position_templates",
             "referenced_column_name": "id",
             "update_rule": "RESTRICT",
             "delete_rule": "CASCADE"

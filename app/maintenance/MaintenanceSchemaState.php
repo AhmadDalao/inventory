@@ -33,6 +33,7 @@ trait MaintenanceSchemaState
             && self::workflowDocumentSchemaIsCurrent()
             && self::assetCategorySchemaIsCurrent()
             && self::reportPresetSchemaIsCurrent()
+            && self::accessTemplateSchemaIsCurrent()
             && self::wristbandSchemaIsCurrent()
             && self::mobileSchemaIsCurrent();
     }
@@ -73,6 +74,14 @@ trait MaintenanceSchemaState
             && self::columnExists('report_presets', 'filters_json')
             && self::columnExists('report_presets', 'visibility')
             && self::columnExists('report_presets', 'archived_by');
+    }
+
+    private static function accessTemplateSchemaIsCurrent(): bool
+    {
+        return self::tableExists('position_templates')
+            && self::columnExists('position_templates', 'default_department_id')
+            && self::columnExists('position_templates', 'archived_at')
+            && self::tableExists('position_template_permissions');
     }
 
     private static function assetCategorySchemaIsCurrent(): bool

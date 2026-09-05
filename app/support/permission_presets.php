@@ -110,7 +110,7 @@ function default_permissions_for_role(string $role): array
     ];
 }
 
-function default_permissions_for_position(string $position): array
+function legacy_default_permissions_for_position(string $position): array
 {
     switch ($position) {
         case 'owner_operator':
@@ -368,4 +368,358 @@ function default_permissions_for_position(string $position): array
         default:
             return default_permissions_for_role('admin');
     }
+}
+
+function position_permissions_in_catalog_order(array $permissions): array
+{
+    $selected = array_fill_keys($permissions, true);
+
+    return array_values(array_filter(
+        permission_keys(),
+        static fn (string $permission): bool => isset($selected[$permission])
+    ));
+}
+
+/**
+ * Built-in templates are copied into the database once. Owners may then edit the
+ * stored copies without a later deployment overwriting their choices.
+ */
+function built_in_position_templates(): array
+{
+    static $templates;
+
+    if ($templates !== null) {
+        return $templates;
+    }
+
+    $staffOperations = array_merge(legacy_default_permissions_for_position('staff'), [
+        'movements.view',
+        'movements.usage',
+        'mobile.access',
+    ]);
+
+    $templates = [
+        'owner_operator' => [
+            'name' => 'Owner / General Manager',
+            'description' => 'Global owner access. This protected template cannot be archived or assigned to another account.',
+            'access_role' => 'admin',
+            'department_code' => 'MANAGEMENT',
+            'sort_order' => 10,
+            'permissions' => legacy_default_permissions_for_position('owner_operator'),
+        ],
+        'operations_manager' => [
+            'name' => 'Operations Manager',
+            'description' => 'Runs daily operations, teams, handovers, receiving, and stock counts without finance approval or stock-adjustment authority.',
+            'access_role' => 'admin',
+            'department_code' => 'OPERATIONS',
+            'sort_order' => 20,
+            'permissions' => [
+                'dashboard.view',
+                'storages.view',
+                'storages.view_all',
+                'storages.assign_users',
+                'storages.create',
+                'storages.edit',
+                'storages.copy',
+                'storages.export',
+                'items.view',
+                'items.create',
+                'items.edit',
+                'items.copy',
+                'items.remove_from_storage',
+                'items.export',
+                'assets.view',
+                'assets.create',
+                'assets.edit',
+                'assets.categories',
+                'assets.assign',
+                'assets.maintenance',
+                'assets.export',
+                'assets.files',
+                'movements.view',
+                'movements.create',
+                'movements.usage',
+                'movements.restock',
+                'movements.transfer',
+                'movements.export',
+                'requests.view',
+                'requests.create',
+                'requests.approve',
+                'requests.receive',
+                'requests.cancel',
+                'requests.export',
+                'handovers.view',
+                'handovers.create',
+                'handovers.close',
+                'handovers.approve',
+                'handovers.custody_approve',
+                'handovers.custody_dispose',
+                'handovers.export',
+                'wristbands.view',
+                'wristbands.manage',
+                'wristbands.sessions',
+                'wristbands.exceptions',
+                'wristbands.evidence',
+                'purchases.view',
+                'purchases.create',
+                'purchases.receive',
+                'purchases.export',
+                'purchases.files',
+                'files.view',
+                'files.download',
+                'files.export',
+                'stocktakes.view',
+                'stocktakes.create',
+                'stocktakes.cancel',
+                'stocktakes.export',
+                'suppliers.view',
+                'suppliers.create',
+                'suppliers.edit',
+                'suppliers.export',
+                'reorder.view',
+                'reorder.create_purchase',
+                'reorder.export',
+                'labels.view',
+                'audit.view',
+                'team.view',
+                'team.activity.view',
+                'team.manage',
+                'departments.view',
+                'mobile.access',
+            ],
+        ],
+        'cleaning_supervisor' => [
+            'name' => 'Cleaning Operations Supervisor',
+            'description' => 'Supervises housekeeping staff, usage, requests, handovers, and assigned assets without restock or adjustment authority.',
+            'access_role' => 'admin',
+            'department_code' => 'HOUSEKEEPING',
+            'sort_order' => 30,
+            'permissions' => [
+                'dashboard.view',
+                'storages.view',
+                'items.view',
+                'assets.view',
+                'assets.maintenance',
+                'movements.view',
+                'movements.usage',
+                'requests.view',
+                'requests.create',
+                'requests.approve',
+                'requests.receive',
+                'requests.cancel',
+                'handovers.view',
+                'handovers.create',
+                'handovers.close',
+                'handovers.approve',
+                'handovers.custody_approve',
+                'team.view',
+                'team.activity.view',
+                'team.manage',
+                'departments.view',
+                'mobile.access',
+            ],
+        ],
+        'cleaner' => [
+            'name' => 'Cleaner / Housekeeping Staff',
+            'description' => 'Uses assigned supplies and submits requests or returns from the web or mobile app.',
+            'access_role' => 'staff',
+            'department_code' => 'HOUSEKEEPING',
+            'sort_order' => 40,
+            'permissions' => $staffOperations,
+        ],
+        'storage_manager' => [
+            'name' => 'Storekeeper / Storage Manager',
+            'description' => 'Controls assigned storages, receiving, transfers, requests, handovers, and counts. Actual storage-owner approval is assigned per storage.',
+            'access_role' => 'admin',
+            'department_code' => 'INVENTORY_STORES',
+            'sort_order' => 50,
+            'permissions' => [
+                'dashboard.view',
+                'storages.view',
+                'storages.assign_users',
+                'storages.create',
+                'storages.edit',
+                'storages.copy',
+                'storages.export',
+                'items.view',
+                'items.create',
+                'items.edit',
+                'items.copy',
+                'items.remove_from_storage',
+                'items.export',
+                'assets.view',
+                'assets.create',
+                'assets.edit',
+                'assets.categories',
+                'assets.assign',
+                'assets.maintenance',
+                'assets.export',
+                'assets.files',
+                'movements.view',
+                'movements.create',
+                'movements.usage',
+                'movements.restock',
+                'movements.transfer',
+                'movements.export',
+                'requests.view',
+                'requests.create',
+                'requests.approve',
+                'requests.receive',
+                'requests.cancel',
+                'requests.export',
+                'handovers.view',
+                'handovers.create',
+                'handovers.close',
+                'handovers.approve',
+                'handovers.custody_approve',
+                'handovers.custody_dispose',
+                'handovers.export',
+                'purchases.view',
+                'purchases.receive',
+                'purchases.files',
+                'files.view',
+                'files.download',
+                'stocktakes.view',
+                'stocktakes.create',
+                'stocktakes.cancel',
+                'stocktakes.export',
+                'reorder.view',
+                'labels.view',
+                'team.view',
+                'team.activity.view',
+                'departments.view',
+                'mobile.access',
+            ],
+        ],
+        'maintenance_supervisor' => [
+            'name' => 'Maintenance Supervisor',
+            'description' => 'Manages maintenance work, assigned assets, staff requests, custody, and team activity without stock adjustment authority.',
+            'access_role' => 'admin',
+            'department_code' => 'MAINTENANCE',
+            'sort_order' => 60,
+            'permissions' => [
+                'dashboard.view',
+                'storages.view',
+                'items.view',
+                'assets.view',
+                'assets.create',
+                'assets.edit',
+                'assets.assign',
+                'assets.maintenance',
+                'assets.files',
+                'movements.view',
+                'movements.usage',
+                'requests.view',
+                'requests.create',
+                'requests.approve',
+                'requests.receive',
+                'requests.cancel',
+                'handovers.view',
+                'handovers.create',
+                'handovers.close',
+                'handovers.approve',
+                'handovers.custody_approve',
+                'files.view',
+                'files.download',
+                'team.view',
+                'team.activity.view',
+                'team.manage',
+                'departments.view',
+                'mobile.access',
+            ],
+        ],
+        'maintenance_technician' => [
+            'name' => 'Maintenance Technician',
+            'description' => 'Uses assigned parts, records asset maintenance, and returns custody items from the mobile workflow.',
+            'access_role' => 'staff',
+            'department_code' => 'MAINTENANCE',
+            'sort_order' => 70,
+            'permissions' => array_merge($staffOperations, [
+                'assets.maintenance',
+                'assets.files',
+            ]),
+        ],
+        'cfo' => [
+            'name' => 'Finance Manager / CFO',
+            'description' => 'Approves purchases and reviews finance, supplier, audit, and protected document records.',
+            'access_role' => 'admin',
+            'department_code' => 'FINANCE',
+            'sort_order' => 80,
+            'permissions' => legacy_default_permissions_for_position('cfo'),
+        ],
+        'accountant' => [
+            'name' => 'Finance Officer / Accountant',
+            'description' => 'Prepares purchases and finance records without final purchase approval.',
+            'access_role' => 'admin',
+            'department_code' => 'FINANCE',
+            'sort_order' => 90,
+            'permissions' => legacy_default_permissions_for_position('accountant'),
+        ],
+        'it_support' => [
+            'name' => 'IT Support',
+            'description' => 'Supports accounts, passwords, logs, and configuration visibility without permission-template or secret access.',
+            'access_role' => 'admin',
+            'department_code' => 'IT',
+            'sort_order' => 100,
+            'permissions' => [
+                'dashboard.view',
+                'departments.view',
+                'audit.view',
+                'email_logs.view',
+                'users.view',
+                'users.create',
+                'users.edit',
+                'users.disable',
+                'users.export',
+                'team.view',
+                'settings.view',
+            ],
+        ],
+        'reception_staff' => [
+            'name' => 'Guest Services / Reception Staff',
+            'description' => 'Handles assigned guest-service supplies, requests, handovers, usage, and returns.',
+            'access_role' => 'staff',
+            'department_code' => 'GUEST_SERVICES',
+            'sort_order' => 110,
+            'permissions' => $staffOperations,
+        ],
+        'beach_operations_staff' => [
+            'name' => 'Beach Operations Staff',
+            'description' => 'Uses and returns assigned beach or watersports inventory through the staff and mobile workflows.',
+            'access_role' => 'staff',
+            'department_code' => 'BEACH_OPERATIONS',
+            'sort_order' => 120,
+            'permissions' => $staffOperations,
+        ],
+        'general_admin' => [
+            'name' => 'Office Administrator',
+            'description' => 'Broad operational administration using the existing admin baseline.',
+            'access_role' => 'admin',
+            'department_code' => 'MANAGEMENT',
+            'sort_order' => 130,
+            'permissions' => legacy_default_permissions_for_position('general_admin'),
+        ],
+        'staff' => [
+            'name' => 'General Staff',
+            'description' => 'Basic assigned inventory, request, handover, usage, and mobile access.',
+            'access_role' => 'staff',
+            'department_code' => 'UNASSIGNED',
+            'sort_order' => 140,
+            'permissions' => $staffOperations,
+        ],
+    ];
+
+    foreach ($templates as &$template) {
+        $template['permissions'] = position_permissions_in_catalog_order($template['permissions']);
+    }
+    unset($template);
+
+    return $templates;
+}
+
+function default_permissions_for_position(string $position): array
+{
+    $templates = built_in_position_templates();
+
+    return $templates[$position]['permissions'] ?? $templates['general_admin']['permissions'];
 }

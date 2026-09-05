@@ -37,7 +37,7 @@ The refactor keeps behavior unchanged and introduces a domain loader:
 - `app/Maintenance.php` is the schema/bootstrap orchestrator. Boot setup, reusable schema helpers, schema-current checks, backfills, and permission seed routines live under `app/maintenance/`.
 - Old aggregate files now only load `app/modules.php` for compatibility, or load their focused child modules when included directly by older tooling.
 - Existing route handler function names are preserved.
-- The current manifest contains 13 domain groups and 171 eagerly loaded modules. There are 277 physical files under `app/modules/`; the difference is deliberate because compatibility and directly included modules are not all manifest entries.
+- The current manifest contains 13 domain groups and 174 eagerly loaded modules. There are 280 physical files under `app/modules/`; the difference is deliberate because compatibility and directly included modules are not all manifest entries.
 
 Do not add new code to these compatibility loaders:
 
@@ -110,7 +110,7 @@ When adding frontend behavior:
 | `app/modules/email_delivery.php` | PHP `mail()` transport, delivery orchestration, log-only mode, recipient validation, and email delivery log writes. |
 | `app/modules/email_workflow.php` | Workflow notification email type allowlist and in-app notification email copy dispatcher. |
 | `app/modules/options.php` | Compatibility loader for option catalogs. New option logic belongs in focused `option_*` modules. |
-| `app/modules/option_users.php` | User role, position, initials, and position-to-access helpers. |
+| `app/modules/option_users.php` | User role helpers and cached editable position-template lookup, labels, permissions, access level, and default department. |
 | `app/modules/option_suppliers.php` | Supplier type options and labels, including custom `Other` display. |
 | `app/modules/option_workflows.php` | Request, handover, purchase, and stocktake status labels/badge helpers. |
 | `app/modules/option_movements.php` | Movement type options and movement permission filtering. |
@@ -127,6 +127,9 @@ When adding frontend behavior:
 | `app/modules/user_queries.php` | User list data, active user selectors, active staff selectors, and permission-scoped user selectors. |
 | `app/modules/user_pages.php` | User index/create/edit page render handlers and form payload setup. |
 | `app/modules/user_actions.php` | User create, update, disable/restore, and admin-triggered password reset submit handlers. |
+| `app/modules/position_template_support.php` | Position code normalization, payload validation, protected-owner rule, and normalized permission persistence. |
+| `app/modules/position_template_pages.php` | Position-template directory and create/edit page handlers. |
+| `app/modules/position_template_actions.php` | Audited position-template create, update, archive, and recover actions. |
 | `app/modules/item_support.php` | Compatibility loader for item/catalog helpers. Primary loading comes from the focused item modules below. |
 | `app/modules/item_filters.php` | Item list filters, item SQL where clauses, filtered storage quantity selects, and displayed quantity selection. |
 | `app/modules/item_lookup.php` | Active item SKU/barcode lookup, copy-source lookup, and item detail lookup/404 handling. |
@@ -361,6 +364,7 @@ When adding frontend behavior:
 | `app/maintenance/MaintenanceSchemaHelpers.php` | Schema/bootstrap helper trait for setting writes, table/column checks, indexes, and foreign-key checks used by `app/Maintenance.php`. |
 | `app/maintenance/MaintenanceSchemaState.php` | Schema version and current-state inspection trait used by `app/Maintenance.php` to decide whether bootstrapping can be skipped safely. |
 | `app/maintenance/MaintenancePlatformSchemas.php` | Platform table setup for permissions, app settings, report presets, login attempts, password reset tokens, and email delivery logs. |
+| `app/maintenance/MaintenanceAccessTemplateSchemas.php` | Editable position-template tables plus idempotent company department and least-privilege position seeds. |
 | `app/maintenance/MaintenanceInventorySchemas.php` | Storage, item barcode/image/location, item package preset, storage owner fallback, and item storage balance schema setup used by `app/Maintenance.php`. Keep inventory bootstrap changes here and stock behavior in `app/modules/inventory_stock.php`. |
 | `app/maintenance/MaintenanceFileWorkflowSchemas.php` | File-library and workflow-document table setup used by `app/Maintenance.php`. Keep proof/signoff document schema changes here instead of bloating `syncSchema()`. |
 | `app/maintenance/MaintenanceNotificationSchemas.php` | Notification table setup and legacy actor-column/index repair used by `app/Maintenance.php`. Keep notification schema changes here instead of bloating `syncSchema()`. |
@@ -517,6 +521,12 @@ Reports summarize daily activity, usage by item, usage by reason, users, transfe
 
 Owner has full access. Admin access is controlled by permission flags and position defaults. Staff sees only the workflows assigned to them where applicable. CFO/accountant-style positions can be granted finance, report, purchase, file, and asset visibility without giving broad stock-control power.
 
+`/users/positions` manages reusable business-position templates. Each template has an immutable code, editable label/description, recommended admin/staff access level, default department, and normalized permission rows. Applying a template copies defaults to one user; later template edits or archive/recover actions never mutate that user's role, department, or permissions. Archived positions cannot be assigned to new users but remain readable on existing records. The protected owner template cannot be assigned to another account. Disabling or archiving a department moves affected template defaults to Unassigned. Only Owner or a user with `users.permissions` can manage templates, and crafted user-update requests cannot change permission rows without that permission.
+
+The seeded departments are Management, Operations, Housekeeping & Cleaning, Inventory & Stores, Finance, Information Technology, Maintenance, Guest Services, and Beach Operations. The seeded positions cover operations management, cleaning staff/supervision, stores, maintenance staff/supervision, finance manager/officer, IT support, guest services, beach operations, office administration, and general staff. These are editable defaults, not hard-coded job titles.
+
+Position templates do not assign storage ownership, manager routing, or mobile capabilities. Those controls stay explicit because they grant real stock scope, approval routing, or device access. `mobile.access` in a template only satisfies one prerequisite; `/mobile-access` must still enable the employee and choose capabilities and storage scope.
+
 Status override must stay limited to owner/super admin because it can change workflow state outside the normal cycle.
 
 ### Team Routing, Shared Storage Ownership, And Owner Resolution
@@ -593,6 +603,7 @@ node --check assets/app.js
 find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check
 php tests/module_boundaries.php
 php tests/frontend_assets.php
+php tests/position_templates_regression.php --base-url=http://127.0.0.1:8080
 php tests/backup_archive.php
 php tests/persistent_package_wristband_contract.php
 php tests/wristband_api_contract.php
@@ -853,7 +864,7 @@ If the full regression runs on live, run `php scripts/backup.php` first and use 
 
 ## 16. Mobile API And Flutter Application
 
-The cross-platform app lives in `mobile/`, is pinned to Flutter `3.44.9`, has application version `1.3.4+11`, and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
+The cross-platform app lives in `mobile/`, is pinned to Flutter `3.44.9`, has application version `1.3.5+12`, and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
 
 ### Backend ownership
 
@@ -907,7 +918,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.4
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.5
 ```
 
 Production-connected builds use:
@@ -916,7 +927,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.4
+  --dart-define=APP_VERSION=1.3.5
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.

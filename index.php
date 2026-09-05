@@ -753,6 +753,24 @@ $router->get('/exports/users', static function (): void {
 $router->get('/users', static function (): void {
     handle_users_index();
 });
+$router->get('/users/positions', static function (): void {
+    handle_position_templates_index();
+});
+$router->get('/users/positions/create', static function (): void {
+    handle_position_template_create_page();
+});
+$router->get('/users/positions/{id}/edit', static function (array $params): void {
+    handle_position_template_edit_page($params);
+});
+$router->post('/users/positions/save', static function (): void {
+    handle_position_template_save_submit();
+});
+$router->post('/users/positions/{id}/archive', static function (array $params): void {
+    handle_position_template_archive_submit($params);
+});
+$router->post('/users/positions/{id}/recover', static function (array $params): void {
+    handle_position_template_recover_submit($params);
+});
 $router->get('/users/hierarchy', static function (): void {
     handle_team_hierarchy_page();
 });

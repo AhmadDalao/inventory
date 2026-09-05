@@ -20,6 +20,8 @@ $critical = [
     'inventory_movements' => ['item_id', 'movement_type', 'quantity_delta', 'balance_after', 'source_storage_id', 'destination_storage_id'],
     'items' => ['current_quantity', 'measurement_dimension', 'usage_proof_policy', 'refill_proof_policy'],
     'file_assets' => ['relative_path', 'archive_path', 'deleted_at'],
+    'position_templates' => ['code', 'name', 'access_role', 'default_department_id', 'is_active', 'archived_at'],
+    'position_template_permissions' => ['position_template_id', 'permission_key'],
 ];
 foreach ($critical as $table => $requiredColumns) {
     foreach ($requiredColumns as $column) {

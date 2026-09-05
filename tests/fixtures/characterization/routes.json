@@ -1460,125 +1460,161 @@
     {
         "position": 244,
         "method": "GET",
+        "path": "/users/positions",
+        "handler": "handle_position_templates_index"
+    },
+    {
+        "position": 245,
+        "method": "GET",
+        "path": "/users/positions/create",
+        "handler": "handle_position_template_create_page"
+    },
+    {
+        "position": 246,
+        "method": "GET",
+        "path": "/users/positions/{id}/edit",
+        "handler": "handle_position_template_edit_page"
+    },
+    {
+        "position": 247,
+        "method": "POST",
+        "path": "/users/positions/save",
+        "handler": "handle_position_template_save_submit"
+    },
+    {
+        "position": 248,
+        "method": "POST",
+        "path": "/users/positions/{id}/archive",
+        "handler": "handle_position_template_archive_submit"
+    },
+    {
+        "position": 249,
+        "method": "POST",
+        "path": "/users/positions/{id}/recover",
+        "handler": "handle_position_template_recover_submit"
+    },
+    {
+        "position": 250,
+        "method": "GET",
         "path": "/users/hierarchy",
         "handler": "handle_team_hierarchy_page"
     },
     {
-        "position": 245,
+        "position": 251,
         "method": "POST",
         "path": "/users/hierarchy/move",
         "handler": "handle_team_hierarchy_move_submit"
     },
     {
-        "position": 246,
+        "position": 252,
         "method": "GET",
         "path": "/users/create",
         "handler": "handle_users_create_page"
     },
     {
-        "position": 247,
+        "position": 253,
         "method": "POST",
         "path": "/users/create",
         "handler": "handle_users_create_submit"
     },
     {
-        "position": 248,
+        "position": 254,
         "method": "GET",
         "path": "/users/{id}/edit",
         "handler": "handle_users_edit_page"
     },
     {
-        "position": 249,
+        "position": 255,
         "method": "POST",
         "path": "/users/{id}/edit",
         "handler": "handle_users_edit_submit"
     },
     {
-        "position": 250,
+        "position": 256,
         "method": "POST",
         "path": "/users/{id}/send-reset",
         "handler": "handle_users_send_reset_submit"
     },
     {
-        "position": 251,
+        "position": 257,
         "method": "POST",
         "path": "/users/{id}/revoke-sessions",
         "handler": "handle_users_revoke_persistent_sessions_submit"
     },
     {
-        "position": 252,
+        "position": 258,
         "method": "POST",
         "path": "/users/{id}/status",
         "handler": "handle_users_status_submit"
     },
     {
-        "position": 253,
+        "position": 259,
         "method": "GET",
         "path": "/departments",
         "handler": "handle_departments_page"
     },
     {
-        "position": 254,
+        "position": 260,
         "method": "POST",
         "path": "/departments/save",
         "handler": "handle_department_save_submit"
     },
     {
-        "position": 255,
+        "position": 261,
         "method": "POST",
         "path": "/departments/{id}/archive",
         "handler": "handle_department_archive_submit"
     },
     {
-        "position": 256,
+        "position": 262,
         "method": "POST",
         "path": "/departments/{id}/recover",
         "handler": "handle_department_recover_submit"
     },
     {
-        "position": 257,
+        "position": 263,
         "method": "GET",
         "path": "/settings/site",
         "handler": "handle_site_settings_page"
     },
     {
-        "position": 258,
+        "position": 264,
         "method": "POST",
         "path": "/settings/logo",
         "handler": "handle_site_logo_submit"
     },
     {
-        "position": 259,
+        "position": 265,
         "method": "POST",
         "path": "/settings/site",
         "handler": "handle_site_settings_submit"
     },
     {
-        "position": 260,
+        "position": 266,
         "method": "POST",
         "path": "/settings/email-test",
         "handler": "handle_site_email_test_submit"
     },
     {
-        "position": 261,
+        "position": 267,
         "method": "GET",
         "path": "/mobile-access",
         "handler": "handle_mobile_admin_page"
     },
     {
-        "position": 262,
+        "position": 268,
         "method": "POST",
         "path": "/mobile-access/settings",
         "handler": "handle_mobile_admin_settings_submit"
     },
     {
-        "position": 263,
+        "position": 269,
         "method": "POST",
         "path": "/mobile-access/users/{id}",
         "handler": "handle_mobile_admin_user_submit"
     },
     {
-        "position": 264,
+        "position": 270,
         "method": "POST",
         "path": "/mobile-access/devices/{id}/revoke",
         "handler": "handle_mobile_admin_device_revoke"

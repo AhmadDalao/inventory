@@ -112,12 +112,13 @@ $departmentCode = substr($prefix . '_OPS', 0, 40);
 $cookieFile = tempnam(sys_get_temp_dir(), 'inventory-dept-reg-');
 $userId = null;
 $departmentId = null;
+$templateId = null;
 
 if ($cookieFile === false) {
     department_regression_fail('Could not create a cookie jar.');
 }
 
-$cleanup = static function () use (&$userId, &$departmentId, $email, $cookieFile): void {
+$cleanup = static function () use (&$userId, &$departmentId, &$templateId, $email, $cookieFile): void {
     try {
         if ($userId !== null || $departmentId !== null) {
             $conditions = [];
@@ -131,6 +132,10 @@ $cleanup = static function () use (&$userId, &$departmentId, $email, $cookieFile
                 $params['department_id'] = $departmentId;
             }
             Database::execute('DELETE FROM inventory_change_events WHERE ' . implode(' OR ', $conditions), $params);
+        }
+        if ($templateId !== null) {
+            Database::execute('DELETE FROM position_template_permissions WHERE position_template_id = :id', ['id' => $templateId]);
+            Database::execute('DELETE FROM position_templates WHERE id = :id', ['id' => $templateId]);
         }
         if ($departmentId !== null) {
             Database::execute(
@@ -202,9 +207,13 @@ department_regression_assert((int) $department['updated_by'] === $userId, 'Depar
 $departmentsPage = department_regression_request($baseUrl, $cookieFile, 'GET', '/departments');
 department_regression_assert(str_contains((string) $departmentsPage['body'], 'Department saved.'), 'Save confirmation was not shown.');
 department_regression_assert(str_contains((string) $departmentsPage['body'], $departmentName), 'Saved department is missing from the directory.');
+$departmentEditPage = department_regression_request($baseUrl, $cookieFile, 'GET', '/departments?edit=' . $departmentId);
+department_regression_assert($departmentEditPage['status'] === 200, 'Department edit form did not load.');
+department_regression_assert(str_contains((string) $departmentEditPage['body'], 'name="department_id" value="' . $departmentId . '"'), 'Department edit form is missing its record id.');
+department_regression_assert(str_contains((string) $departmentEditPage['body'], 'value="' . $departmentName . '"'), 'Department edit form did not preload its name.');
 
 $update = department_regression_request($baseUrl, $cookieFile, 'POST', '/departments/save', [
-    '_token' => department_regression_csrf((string) $departmentsPage['body']),
+    '_token' => department_regression_csrf((string) $departmentEditPage['body']),
     'department_id' => (string) $departmentId,
     'name' => $updatedDepartmentName,
     'code' => $departmentCode,
@@ -215,6 +224,28 @@ $department = Database::fetch('SELECT * FROM departments WHERE id = :id LIMIT 1'
 department_regression_assert((string) ($department['name'] ?? '') === $updatedDepartmentName, 'Department name update was not persisted.');
 department_regression_assert((string) ($department['code'] ?? '') === $departmentCode, 'Department code update was not persisted.');
 
+Database::execute(
+    'INSERT INTO position_templates (
+        code, name, description, access_role, default_department_id, is_system, is_active,
+        sort_order, created_by, updated_by, created_at, updated_at
+     ) VALUES (
+        :code, :name, NULL, "staff", :department_id, 0, 1,
+        9990, :created_by, :updated_by, NOW(), NOW()
+     )',
+    [
+        'code' => strtolower($departmentCode) . '_template',
+        'name' => $prefix . ' Department Template',
+        'department_id' => $departmentId,
+        'created_by' => $userId,
+        'updated_by' => $userId,
+    ]
+);
+$templateId = Database::lastInsertId();
+Database::execute(
+    'INSERT INTO position_template_permissions (position_template_id, permission_key, created_at) VALUES (:id, "dashboard.view", NOW())',
+    ['id' => $templateId]
+);
+
 $departmentsPage = department_regression_request($baseUrl, $cookieFile, 'GET', '/departments');
 $archive = department_regression_request($baseUrl, $cookieFile, 'POST', '/departments/' . $departmentId . '/archive', [
     '_token' => department_regression_csrf((string) $departmentsPage['body']),
@@ -222,6 +253,10 @@ $archive = department_regression_request($baseUrl, $cookieFile, 'POST', '/depart
 department_regression_assert($archive['status'] === 302, 'Department archive did not redirect.');
 $department = Database::fetch('SELECT * FROM departments WHERE id = :id LIMIT 1', ['id' => $departmentId]);
 department_regression_assert((int) ($department['is_active'] ?? 1) === 0 && !empty($department['deleted_at']), 'Department archive was not persisted.');
+department_regression_assert(
+    (int) Database::scalar('SELECT default_department_id FROM position_templates WHERE id = :id', ['id' => $templateId]) === (int) unassigned_department_id(),
+    'Archived department remained a default on a position template.'
+);
 
 $departmentsPage = department_regression_request($baseUrl, $cookieFile, 'GET', '/departments');
 $recover = department_regression_request($baseUrl, $cookieFile, 'POST', '/departments/' . $departmentId . '/recover', [

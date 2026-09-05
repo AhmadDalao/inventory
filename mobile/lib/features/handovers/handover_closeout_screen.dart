@@ -127,6 +127,29 @@ class _HandoverCloseoutScreenState
     return HandoverReconciliationMath.operationalUsed(_reasonValues(unit));
   }
 
+  Future<void> _showSubmissionFailure(Object error) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('handover-closeout-submit-error-dialog'),
+        icon: const Icon(Icons.error_outline, color: KonaColors.danger),
+        title: Text(
+          widget.issuerApproval
+              ? 'Closeout not approved'
+              : 'Closeout not submitted',
+        ),
+        content: Text(apiErrorMessage(error)),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Review closeout'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit(HandoverDetail detail) async {
     final action = widget.issuerApproval
         ? 'approve_closeout'
@@ -201,6 +224,8 @@ class _HandoverCloseoutScreenState
       } else {
         context.go('/handovers/${widget.handoverId}');
       }
+    } catch (error) {
+      if (mounted) await _showSubmissionFailure(error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

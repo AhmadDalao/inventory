@@ -6,6 +6,12 @@
         <h3 class="page-head-title"><?= ui_icon('users') ?><span><?= e(site_setting('page.users', 'Admins')) ?></span></h3>
     </div>
     <div class="page-actions">
+        <?php if (Auth::hasPermission('users.permissions')): ?>
+            <a class="ghost-button" href="<?= e(url('/users/positions')) ?>"><span>Positions &amp; Permissions</span></a>
+        <?php endif; ?>
+        <?php if (Auth::hasPermission('departments.view')): ?>
+            <a class="ghost-button" href="<?= e(url('/departments')) ?>"><span>Departments</span></a>
+        <?php endif; ?>
         <a class="ghost-button" href="<?= e(url('/users/hierarchy')) ?>"><?= ui_icon('users') ?><span>Team Hierarchy</span></a>
         <?php if (Auth::hasPermission('users.create')): ?>
             <a class="primary-button" href="<?= e(url('/users/create')) ?>"><?= ui_icon('plus') ?><span>Create User</span></a>

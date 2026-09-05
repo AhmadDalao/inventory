@@ -16,7 +16,7 @@ require __DIR__ . '/support/characterization.php';
 $routes = characterization_routes($root . '/index.php');
 $api = characterization_api_contract($root);
 
-if (count($routes) !== 264 || count($api) !== 31) {
+if (count($routes) !== 270 || count($api) !== 31) {
     throw new RuntimeException('Refusing to generate fixtures from an unexpected route inventory.');
 }
 

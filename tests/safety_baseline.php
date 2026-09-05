@@ -150,6 +150,7 @@ for ($pass = 1; $pass <= $passes; $pass++) {
     safety_run([$node, $root . '/tests/frontend_registry_characterization.mjs'], $root);
     safety_run([$php, $root . '/tests/api_v1_characterization.php', '--base-url=' . $baseUrl], $root);
     safety_run([$php, $root . '/tests/departments_regression.php', '--base-url=' . $baseUrl, '--prefix=ZZBASEDEPTP' . $pass], $root);
+    safety_run([$php, $root . '/tests/position_templates_regression.php', '--base-url=' . $baseUrl, '--prefix=ZZBASEPOSITIONP' . $pass], $root);
     safety_run([$php, $root . '/tests/mobile_api_live.php', '--base-url=' . $baseUrl, '--prefix=ZZBASEMOBILEP' . $pass], $root);
     safety_run([$php, $root . '/tests/full_regression.php', '--base-url=' . $baseUrl, '--prefix=ZZBASEFULLP' . $pass], $root);
     safety_run([$php, $root . '/tests/wristband_workflow.php', '--require-db'], $root);

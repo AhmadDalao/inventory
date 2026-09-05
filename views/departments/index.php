@@ -4,18 +4,29 @@
         <h3>Departments</h3>
         <p class="muted-copy">Assign employees once. Every new stock movement keeps a historical department snapshot.</p>
     </div>
+    <div class="page-actions">
+        <?php if (Auth::hasPermission('users.permissions')): ?><a class="ghost-button" href="<?= e(url('/users/positions')) ?>">Positions &amp; Permissions</a><?php endif; ?>
+        <?php if (Auth::hasPermission('users.view')): ?><a class="ghost-button" href="<?= e(url('/users')) ?>">Users</a><?php endif; ?>
+    </div>
 </section>
 
 <?php if (Auth::isOwner() || Auth::hasPermission('departments.manage')): ?>
-    <section class="panel form-panel">
+    <section class="panel form-panel" id="department-form">
         <div class="panel-head">
-            <div><p class="eyebrow">Managed List</p><h3>Add Department</h3></div>
+            <div><p class="eyebrow">Managed List</p><h3><?= $editingDepartment ? 'Edit Department' : 'Add Department' ?></h3></div>
         </div>
         <form class="filter-grid" method="post" action="<?= e(url('/departments/save')) ?>">
             <?= csrf_field() ?>
-            <label class="field"><span>Name</span><input type="text" name="name" placeholder="Housekeeping, Operations, IT" required></label>
-            <label class="field"><span>Code</span><input type="text" name="code" placeholder="Auto-generated when blank"></label>
-            <button class="primary-button" type="submit"><?= ui_icon('plus') ?> Add Department</button>
+            <?php if ($editingDepartment): ?><input type="hidden" name="department_id" value="<?= (int) $editingDepartment['id'] ?>"><?php endif; ?>
+            <label class="field"><span>Name</span><input type="text" name="name" value="<?= e((string) ($editingDepartment['name'] ?? '')) ?>" placeholder="Housekeeping, Operations, IT" required></label>
+            <label class="field"><span>Code</span><input type="text" name="code" value="<?= e((string) ($editingDepartment['code'] ?? '')) ?>" placeholder="Auto-generated when blank"></label>
+            <?php if ($editingDepartment): ?>
+                <label class="choice-row"><input type="checkbox" name="is_active" value="1" <?= checked((int) $editingDepartment['is_active'] === 1) ?>><span><strong>Active</strong><small>Inactive departments cannot be assigned to new users.</small></span></label>
+            <?php endif; ?>
+            <div class="button-row">
+                <button class="primary-button" type="submit"><?= $editingDepartment ? ui_icon('edit') . ' Save Department' : ui_icon('plus') . ' Add Department' ?></button>
+                <?php if ($editingDepartment): ?><a class="ghost-button" href="<?= e(url('/departments')) ?>">Cancel</a><?php endif; ?>
+            </div>
         </form>
     </section>
 <?php endif; ?>
@@ -39,6 +50,7 @@
                         <?php if ((Auth::isOwner() || Auth::hasPermission('departments.manage')) && (string) $department['code'] !== 'UNASSIGNED'): ?>
                             <details class="table-action-menu"><summary aria-label="Department actions"><?= ui_icon('menu') ?></summary><div>
                                 <?php if (empty($department['deleted_at'])): ?>
+                                    <a href="<?= e(url('/departments?edit=' . $department['id'] . '#department-form')) ?>">Edit</a>
                                     <form method="post" action="<?= e(url('/departments/' . $department['id'] . '/archive')) ?>"><?= csrf_field() ?><button class="danger-link" type="submit">Archive</button></form>
                                 <?php else: ?>
                                     <form method="post" action="<?= e(url('/departments/' . $department['id'] . '/recover')) ?>"><?= csrf_field() ?><button type="submit">Recover</button></form>

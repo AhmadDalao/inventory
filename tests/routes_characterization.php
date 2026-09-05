@@ -9,7 +9,7 @@ $expected = characterization_fixture($root, 'routes');
 $actual = characterization_routes($root . '/index.php');
 
 characterization_assert($actual === $expected, $suite, 'Ordered method/path/handler snapshot changed. Review route order and regenerate intentionally.');
-characterization_assert(count($actual) === 264, $suite, 'Expected exactly 264 web and API routes.');
+characterization_assert(count($actual) === 270, $suite, 'Expected exactly 270 web and API routes.');
 
 $seen = [];
 foreach ($actual as $index => $route) {
@@ -20,4 +20,4 @@ foreach ($actual as $index => $route) {
     $seen[$key] = true;
 }
 
-echo '[' . $suite . '] PASS (264 ordered routes)' . PHP_EOL;
+echo '[' . $suite . '] PASS (270 ordered routes)' . PHP_EOL;

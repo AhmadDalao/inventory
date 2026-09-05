@@ -7,18 +7,23 @@ function handle_users_create_submit(): void
     Auth::requirePermission('users.create');
     verify_csrf();
 
+    $submittedPosition = trim((string) input('position', 'operations_manager'));
     $payload = [
         'name' => trim((string) input('name')),
         'email' => strtolower(trim((string) input('email'))),
-        'position' => trim((string) input('position', 'operations_manager')),
-        'role' => trim((string) input('role', 'admin')),
+        'position' => $submittedPosition,
+        'role' => trim((string) input('role', access_role_for_position($submittedPosition))),
         'manager_user_id' => normalize_entity_id(input('manager_user_id')),
-        'department_id' => valid_department_assignment_id(input('department_id')),
+        'department_id' => valid_department_assignment_id(
+            input('department_id'),
+            position_template_default_department_id($submittedPosition)
+        ),
         'storage_ids' => array_values(array_unique(array_filter(array_map('intval', (array) input('storage_ids', []))))),
         'default_storage_id' => normalize_entity_id(input('default_storage_id')),
         'password' => (string) input('password'),
         'password_confirmation' => (string) input('password_confirmation'),
         'permissions' => is_array(input('permissions', [])) ? input('permissions', []) : [],
+        'permissions_present' => input('permissions_present') === '1',
     ];
 
     flash_old_input([
@@ -93,11 +98,10 @@ function handle_users_create_submit(): void
         redirect('/users/create');
     }
 
-    $permissions = sanitize_permission_input($payload['permissions']);
-
-    if ($permissions === []) {
-        $permissions = default_permissions_for_position($payload['position']);
-    }
+    $canManagePermissions = Auth::hasPermission('users.permissions');
+    $permissions = $canManagePermissions && $payload['permissions_present']
+        ? sanitize_permission_input($payload['permissions'])
+        : position_template_permissions($payload['position']);
 
     $pdo = Database::connection();
     $pdo->beginTransaction();
@@ -169,6 +173,7 @@ function handle_users_edit_submit(array $params): void
         'password' => (string) input('password'),
         'password_confirmation' => (string) input('password_confirmation'),
         'permissions' => is_array(input('permissions', [])) ? input('permissions', []) : [],
+        'permissions_present' => input('permissions_present') === '1',
     ];
 
     flash_old_input([
@@ -197,7 +202,10 @@ function handle_users_edit_submit(array $params): void
         $errors[] = 'Pick a valid role.';
     }
 
-    if (!array_key_exists($payload['position'], user_position_options())) {
+    $activePositionOptions = user_position_options();
+    $positionIsCurrent = $payload['position'] !== ''
+        && $payload['position'] === (string) ($userRecord['position'] ?? '');
+    if (!array_key_exists($payload['position'], $activePositionOptions) && !$positionIsCurrent) {
         $errors[] = 'Pick a valid position.';
     }
 
@@ -255,12 +263,18 @@ function handle_users_edit_submit(array $params): void
     }
 
     $nextRole = $userRecord['role'] === 'owner' ? 'owner' : $payload['role'];
-    $permissions = $nextRole === 'owner'
-        ? permission_keys()
-        : sanitize_permission_input($payload['permissions']);
-
-    if ($nextRole !== 'owner' && $permissions === []) {
-        $permissions = default_permissions_for_position($payload['position']);
+    $canManagePermissions = Auth::hasPermission('users.permissions');
+    if ($nextRole === 'owner') {
+        $permissions = permission_keys();
+    } elseif (!$canManagePermissions) {
+        $permissions = Auth::permissionsForUserId((int) $userRecord['id']);
+    } elseif ($payload['permissions_present']) {
+        $permissions = sanitize_permission_input($payload['permissions']);
+    } else {
+        $permissions = sanitize_permission_input($payload['permissions']);
+        if ($permissions === []) {
+            $permissions = position_template_permissions($payload['position']);
+        }
     }
 
     $pdo = Database::connection();

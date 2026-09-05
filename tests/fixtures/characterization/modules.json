@@ -10,6 +10,9 @@
             "email_delivery",
             "email_workflow",
             "options",
+            "position_template_support",
+            "position_template_pages",
+            "position_template_actions",
             "auth_request",
             "auth_password_resets",
             "auth_pages",
@@ -199,7 +202,7 @@
         ]
     },
     "group_count": 13,
-    "module_count": 171,
+    "module_count": 174,
     "loaded_modules": [
         "core",
         "frontend_assets",
@@ -210,6 +213,9 @@
         "email_delivery",
         "email_workflow",
         "options",
+        "position_template_support",
+        "position_template_pages",
+        "position_template_actions",
         "auth_request",
         "auth_password_resets",
         "auth_pages",

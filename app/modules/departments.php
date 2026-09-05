@@ -100,9 +100,19 @@ function handle_departments_page(): void
     app_ready_or_redirect();
     Auth::requirePermission('departments.view');
 
+    $editingDepartment = null;
+    $editId = normalize_entity_id(query('edit'));
+    if ($editId !== null && (Auth::isOwner() || Auth::hasPermission('departments.manage'))) {
+        $candidate = department_record($editId);
+        if ($candidate !== null && empty($candidate['deleted_at']) && (string) $candidate['code'] !== 'UNASSIGNED') {
+            $editingDepartment = $candidate;
+        }
+    }
+
     View::render('departments/index', [
         'title' => 'Departments',
         'departments' => department_options(true),
+        'editingDepartment' => $editingDepartment,
     ]);
 }
 
@@ -131,10 +141,17 @@ function handle_department_save_submit(): void
 
     $userId = (int) Auth::id();
     if ($id !== null) {
+        $isActive = input('is_active', '0') === '1' ? 1 : 0;
         Database::execute(
             'UPDATE departments SET name = :name, code = :code, is_active = :is_active, updated_by = :user_id, updated_at = NOW() WHERE id = :id',
-            ['name' => $name, 'code' => $code, 'is_active' => input('is_active', '0') === '1' ? 1 : 0, 'user_id' => $userId, 'id' => $id]
+            ['name' => $name, 'code' => $code, 'is_active' => $isActive, 'user_id' => $userId, 'id' => $id]
         );
+        if ($isActive === 0) {
+            Database::execute(
+                'UPDATE position_templates SET default_department_id = :fallback, updated_at = NOW() WHERE default_department_id = :id',
+                ['fallback' => unassigned_department_id(), 'id' => $id]
+            );
+        }
         record_activity('department.updated', 'department', $id, 'Department updated: ' . $name);
     } else {
         Database::execute(
@@ -170,6 +187,10 @@ function handle_department_archive_submit(array $params): void
     $pdo->beginTransaction();
     try {
         Database::execute('UPDATE users SET department_id = :fallback, updated_at = NOW() WHERE department_id = :id', ['fallback' => $unassignedId, 'id' => $department['id']]);
+        Database::execute(
+            'UPDATE position_templates SET default_department_id = :fallback, updated_at = NOW() WHERE default_department_id = :id',
+            ['fallback' => $unassignedId, 'id' => $department['id']]
+        );
         Database::execute('UPDATE departments SET is_active = 0, deleted_at = NOW(), deleted_by = :user_id, updated_at = NOW() WHERE id = :id', ['user_id' => Auth::id(), 'id' => $department['id']]);
         $pdo->commit();
     } catch (Throwable $exception) {

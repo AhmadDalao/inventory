@@ -15,6 +15,7 @@ require_once __DIR__ . '/maintenance/MaintenanceMovementSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMobileSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceWristbandSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceMeasurementSchemas.php';
+require_once __DIR__ . '/maintenance/MaintenanceAccessTemplateSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceFileWorkflowSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceNotificationSchemas.php';
 require_once __DIR__ . '/maintenance/MaintenanceBackfills.php';
@@ -36,12 +37,13 @@ final class Maintenance
     use MaintenanceMobileSchemas;
     use MaintenanceWristbandSchemas;
     use MaintenanceMeasurementSchemas;
+    use MaintenanceAccessTemplateSchemas;
     use MaintenanceFileWorkflowSchemas;
     use MaintenanceNotificationSchemas;
     use MaintenanceBackfills;
     use MaintenancePermissionSeeds;
 
-    private const SCHEMA_VERSION = '2026-08-26-storage-usage-profiles-v1';
+    private const SCHEMA_VERSION = '2026-09-05-position-templates-v1';
     private const SCHEMA_VERSION_SETTING_KEY = 'maintenance.schema_version';
     private static bool $booted = false;
 
@@ -123,6 +125,8 @@ final class Maintenance
         self::ensureStorageItemSchemas();
 
         self::ensureMeasurementCatalogSchemas();
+
+        self::ensureAccessTemplateSchemas();
 
         self::ensureNotificationSchemas();
 

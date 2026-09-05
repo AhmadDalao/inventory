@@ -13,7 +13,7 @@ $frontend = characterization_frontend_contract($root);
 characterization_assert($modules === characterization_fixture($root, 'modules'), $suite, 'Module manifest snapshot changed.');
 characterization_assert($frontend === characterization_fixture($root, 'frontend'), $suite, 'Frontend registry/cascade/event snapshot changed.');
 characterization_assert($modules['group_count'] === 13, $suite, 'Expected 13 module groups.');
-characterization_assert($modules['module_count'] === 171, $suite, 'Expected 171 eagerly loaded modules.');
+characterization_assert($modules['module_count'] === 174, $suite, 'Expected 174 eagerly loaded modules.');
 characterization_assert(count($frontend['stylesheets']) === 20, $suite, 'Expected 20 stylesheets in cascade order.');
 characterization_assert(count($frontend['javascript_modules']) === 34, $suite, 'Expected 34 physical JavaScript modules.');
 

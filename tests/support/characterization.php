@@ -249,7 +249,8 @@ function characterization_domain_contract(): array
     $handoverStatuses = array_keys(handover_status_options());
     $purchaseStatuses = array_values(array_diff(array_keys(purchase_status_options()), ['all']));
     $stocktakeStatuses = array_values(array_diff(array_keys(stocktake_status_options()), ['all', 'open']));
-    $positions = ['owner_operator', 'cfo', 'accountant', 'operations_manager', 'storage_manager', 'reception_staff', 'staff', 'general_admin'];
+    $positionTemplates = built_in_position_templates();
+    $positions = array_keys($positionTemplates);
     $unitSamples = ['pcs', 'box', 'ml', 'l', 'g', 'kg', 'mm', 'cm', 'm', 'm2', 'm²', 'sqm', 'custom-label'];
 
     return [
@@ -264,6 +265,13 @@ function characterization_domain_contract(): array
             $positions,
             array_map(static fn (string $position): array => default_permissions_for_position($position), $positions)
         ),
+        'position_templates' => array_map(static fn (array $template): array => [
+            'name' => $template['name'],
+            'description' => $template['description'],
+            'access_role' => $template['access_role'],
+            'department_code' => $template['department_code'],
+            'sort_order' => $template['sort_order'],
+        ], $positionTemplates),
         'mobile_required_permissions' => [
             'staff_all' => mobile_admin_required_permissions(
                 ['role' => 'staff'],

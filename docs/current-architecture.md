@@ -1,6 +1,6 @@
 # Inventory KONA Current Architecture
 
-Updated: 2026-09-02
+Updated: 2026-09-05
 
 This document describes the application at the Step 1-2 safety baseline. It is an as-built map, not the target modularization design.
 
@@ -8,18 +8,18 @@ This document describes the application at the Step 1-2 safety baseline. It is a
 
 | Area | Current count |
 |---|---:|
-| Routes in `index.php` | 264 |
+| Routes in `index.php` | 270 |
 | `/api/v1` routes | 31 |
-| Route methods | 117 GET, 147 POST |
+| Route methods | 120 GET, 150 POST |
 | Manifest groups | 13 |
-| Eagerly loaded modules | 171 |
-| Physical `app/modules/*.php` files | 277 |
-| PHP views | 64 |
+| Eagerly loaded modules | 174 |
+| Physical `app/modules/*.php` files | 280 |
+| PHP views | 66 |
 | JavaScript modules under `assets/js` | 34 |
 | Registered CSS files | 20 |
 | Dart files under `mobile/lib` | 44 |
 | Dart files excluding generated build/cache output | 51 |
-| Database tables | 58 |
+| Database tables | 60 |
 
 The route, API, module, frontend, domain, and schema inventories are locked under `tests/fixtures/characterization/`.
 
@@ -37,11 +37,11 @@ Apache routes non-file requests through `.htaccess` to `index.php`; local develo
 4. Run `Maintenance::boot()`.
 5. Attempt persistent-cookie authentication through `Auth::restoreFromPersistentCookie()`.
 
-`Maintenance::boot()` can create or upgrade schema and seed permissions before route dispatch. Its current schema marker is `2026-08-26-storage-usage-profiles-v1`. That coupling is convenient but makes bootstrap changes high risk.
+`Maintenance::boot()` can create or upgrade schema and seed permissions before route dispatch. Its current schema marker is `2026-09-05-position-templates-v1`. That coupling is convenient but makes bootstrap changes high risk.
 
 ## PHP Module Graph
 
-`app/module_manifest.php` is the ordered dependency graph. `app/modules.php` flattens its 13 groups, rejects duplicates/missing files, and requires 171 modules in order. The groups are:
+`app/module_manifest.php` is the ordered dependency graph. `app/modules.php` flattens its 13 groups, rejects duplicates/missing files, and requires 174 modules in order. The groups are:
 
 1. `core`
 2. `inventory`
@@ -62,6 +62,14 @@ The modules expose procedural functions in the global namespace. Load order is a
 `app/support/` contains bootstrap-safe catalogs and helpers, including permissions, defaults, settings schema/access, and presentation/security support. `app/maintenance/` contains schema checks, table/index/foreign-key creation, backfills, and permission seeds. Business workflow logic belongs in `app/modules/`, not maintenance.
 
 The compatibility files `app/controllers.php`, `app/workflows.php`, `app/company_assets.php`, and `app/report_presets.php` only require `app/modules.php`. Older focused loader modules also remain because tests and tools may include them directly.
+
+## Users, Departments, And Position Templates
+
+`users.role` remains the small technical access level (`owner`, `admin`, or `staff`). `users.position` stores a stable business-position code, while `user_permissions` remains the effective per-user authorization list. Position names do not bypass permission or storage checks.
+
+Editable defaults live in `position_templates` with normalized rows in `position_template_permissions`. A template recommends an access level, department, and permission set. Applying one to a user copies those values explicitly; editing or archiving the template never rewrites existing users. Archived templates disappear from new assignments but retain their label for users already assigned to them. The owner template is protected and cannot be assigned to another account. Disabling or archiving a department moves affected template defaults to Unassigned.
+
+Maintenance seeds Management, Operations, Housekeeping & Cleaning, Inventory & Stores, Finance, Information Technology, Maintenance, Guest Services, and Beach Operations when equivalent departments do not exist. It also seeds least-privilege position templates for those teams. Storage membership/ownership, reporting manager, and mobile capability enablement remain separate per-user controls.
 
 ## Inventory And Stock Flow
 
@@ -90,7 +98,7 @@ Permission checks are layered. Browser handlers use `Auth::requireLogin()`, `Aut
 
 ## Views
 
-`View::render()` loads PHP templates under `views/` inside `views/layout.php`. Handlers build arrays and views still call global helpers for URLs, formatting, settings, permission display, and some lookups. There are 64 PHP view files. The layout renders registered assets, navigation, topbar, notifications, flash messages, and the page template.
+`View::render()` loads PHP templates under `views/` inside `views/layout.php`. Handlers build arrays and views still call global helpers for URLs, formatting, settings, permission display, and some lookups. There are 66 PHP view files. The layout renders registered assets, navigation, topbar, notifications, flash messages, and the page template.
 
 Views are server-rendered. Partial page updates return HTML fragments or JSON from existing handlers; there is no client-side router or component framework. This means route handlers, view variable names, DOM hooks, and JavaScript initializers are coupled contracts.
 
@@ -130,7 +138,7 @@ The wristband endpoint authenticates an integration key, optionally enforces IP 
 
 ## Flutter Client
 
-The Flutter application is under `mobile/`, pinned by `mobile/.fvmrc` to Flutter `3.44.9`, and versioned `1.3.4+11`. `mobile/lib` contains 44 Dart files organized into shared core infrastructure and feature folders.
+The Flutter application is under `mobile/`, pinned by `mobile/.fvmrc` to Flutter `3.44.9`, and versioned `1.3.5+12`. `mobile/lib` contains 44 Dart files organized into shared core infrastructure and feature folders.
 
 Core code owns Dio/API access, secure token storage, Drift-backed local drafts, Riverpod providers, foreground differential sync, and scanner/reconciliation rules. Features cover authentication, inventory/storage lookup, scanning, usage/restock, handovers/custody, sync/conflict review, and settings.
 
@@ -142,7 +150,7 @@ The safety baseline combines three layers:
 
 - Static contracts for module boundaries, frontend assets, route order, API markers/OpenAPI, permissions, workflow states, exports, and schema.
 - Transactional characterizations for stock, package/unit conversion, proof/file archive behavior, negative-stock rejection, and cleanup.
-- HTTP lifecycle regression for auth, CRUD, permissions, requests, handovers, custody, purchases, stocktakes, assets, exports, departments, and mobile API behavior.
+- HTTP lifecycle regression for auth, CRUD, permissions, position templates, requests, handovers, custody, purchases, stocktakes, assets, exports, departments, and mobile API behavior.
 
 `tests/safety_baseline.php` runs the relevant suite twice against loopback only. It snapshots every database table and every required durable file before testing, then requires an exact match after each pass. Fixture generation is an explicit review action, never part of a normal test run.
 

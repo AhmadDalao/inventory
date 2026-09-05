@@ -105,4 +105,61 @@ void main() {
       expect(receipt.balanceUpdates.single.storageBalance, 98);
     },
   );
+
+  test('handover closeout sends the reconciliation contract', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final session = MobileSessionStore(const FlutterSecureStorage());
+    addTearDown(session.dispose);
+    final api = ApiClient(session);
+    late RequestOptions request;
+    api.dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          request = options;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: const {
+                'data': {
+                  'operation_id': 43,
+                  'handover_id': 104,
+                  'reference': 'HDO-TEST-104',
+                  'status': 'pending_approval',
+                },
+                'meta': {'idempotent': true},
+                'error': null,
+              },
+            ),
+          );
+        },
+      ),
+    );
+    final repository = ApiInventoryRepository(api, session);
+
+    final receipt = await repository.submitCloseout(
+      handoverId: 104,
+      returnedQuantities: const {1040: 2},
+      reconciliations: const {
+        'pcs': {'online': 8, 'noshow': 1, 'walkin': 1},
+      },
+      discrepancyNotes: const {'pcs': 'Count checked.'},
+      notes: 'Shift complete.',
+      clientOperationId: 'closeout-retry-safe-43',
+    );
+
+    expect(request.path, '/handovers/104/closeout');
+    final payload = Map<String, dynamic>.from(request.data as Map);
+    expect(payload['client_operation_id'], 'closeout-retry-safe-43');
+    expect(payload['returned_quantities'], {'1040': 2});
+    expect(payload['close_notes'], 'Shift complete.');
+    final reconciliation = Map<String, dynamic>.from(
+      (payload['reconciliations'] as List).single as Map,
+    );
+    expect(reconciliation['unit'], 'pcs');
+    expect(reconciliation['reasons'], {'online': 8, 'noshow': 1, 'walkin': 1});
+    expect(reconciliation['discrepancy_notes'], 'Count checked.');
+    expect(receipt.reference, 'HDO-TEST-104');
+    expect(receipt.status, 'pending_approval');
+  });
 }

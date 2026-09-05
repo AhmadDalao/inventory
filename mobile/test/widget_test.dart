@@ -11,6 +11,7 @@ import 'package:inventory_kona/core/data/providers.dart';
 import 'package:inventory_kona/core/models/inventory_models.dart';
 import 'package:inventory_kona/core/security/biometric_authenticator.dart';
 import 'package:inventory_kona/core/widgets/numeric_input.dart';
+import 'package:inventory_kona/features/handovers/handover_closeout_screen.dart';
 import 'package:inventory_kona/features/movements/usage_cart_screen.dart';
 import 'package:inventory_kona/features/handovers/handover_receipt_screen.dart';
 import 'package:inventory_kona/features/scanner/scan_hub_screen.dart';
@@ -118,6 +119,54 @@ class _BalanceConflictUsageRepository extends MockInventoryRepository {
         'expected_balance': 246,
         'current_balance': 240,
       },
+    );
+  }
+}
+
+class _RejectingCloseoutRepository extends MockInventoryRepository {
+  @override
+  Future<HandoverDetail> handover(int id) async => const HandoverDetail(
+    task: MobileTask(
+      id: 104,
+      reference: 'HDO-TEST-104',
+      title: 'Close wristband handover',
+      status: 'delivered',
+      purpose: 'temporary_use',
+      itemCount: 1,
+      quantity: 10,
+      source: 'KONA Main',
+      allowedActions: {'report_closeout'},
+      requiresAction: true,
+    ),
+    lines: [
+      HandoverLine(
+        id: 1040,
+        itemId: 15,
+        name: 'Blue Wristband',
+        sku: 'WB-BLUE',
+        unit: 'pcs',
+        quantityIssued: 10,
+        quantityReceived: 10,
+        quantityUsed: 0,
+        quantityReturned: 0,
+        quantityHeld: 0,
+      ),
+    ],
+  );
+
+  @override
+  Future<OperationReceipt> submitCloseout({
+    required int handoverId,
+    required Map<int, double> returnedQuantities,
+    required Map<String, Map<String, double>> reconciliations,
+    Map<String, String> discrepancyNotes = const {},
+    String? notes,
+    String? proofPath,
+    String? clientOperationId,
+  }) async {
+    throw const ApiFailure(
+      'reconciliation_mismatch',
+      'Explain the wristband difference before submitting.',
     );
   }
 }
@@ -377,6 +426,44 @@ void main() {
       find.textContaining('Mention shortages, extra items'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('handover closeout shows a rejected submission', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          inventoryRepositoryProvider.overrideWithValue(
+            _RejectingCloseoutRepository(),
+          ),
+        ],
+        child: const MaterialApp(home: HandoverCloseoutScreen(handoverId: 104)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final submit = find.widgetWithText(
+      ElevatedButton,
+      'Submit for issuer approval',
+    );
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('handover-closeout-submit-error-dialog')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Explain the wristband difference before submitting.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Review closeout'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('handover-closeout-submit-error-dialog')),
+      findsNothing,
+    );
+    expect(tester.widget<ElevatedButton>(submit).onPressed, isNotNull);
   });
 
   testWidgets('persistent sign-in requires the current password', (

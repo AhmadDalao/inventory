@@ -11,22 +11,30 @@ $roleDefaultsJson = json_encode([
     'admin' => default_permissions_for_role('admin'),
     'staff' => default_permissions_for_role('staff'),
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-$positionDefaults = [];
-$positionRoles = [];
-foreach (array_keys($availablePositionOptions) as $positionKey) {
-    $positionDefaults[$positionKey] = default_permissions_for_position($positionKey);
-    $positionRoles[$positionKey] = access_role_for_position($positionKey);
-}
-$positionDefaultsJson = json_encode($positionDefaults, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-$positionRolesJson = json_encode($positionRoles, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$selectedPermissionKeys = [];
 $selectedPermissionCount = 0;
 foreach ($permissionGroups as $group) {
     foreach ($group['permissions'] as $permission) {
         if (!empty($permission['checked'])) {
+            $selectedPermissionKeys[] = (string) $permission['key'];
             $selectedPermissionCount++;
         }
     }
 }
+$positionDefaults = [];
+$positionRoles = [];
+$positionDepartments = [];
+foreach (array_keys($availablePositionOptions) as $positionKey) {
+    $storedTemplate = position_template_by_code($positionKey, true);
+    $isLegacySelection = $storedTemplate === null && $positionKey === $selectedPosition;
+    $positionDefaults[$positionKey] = $isLegacySelection ? $selectedPermissionKeys : position_template_permissions($positionKey);
+    $positionRoles[$positionKey] = $isLegacySelection ? $selectedRole : access_role_for_position($positionKey);
+    $positionDepartments[$positionKey] = position_template_default_department_id($positionKey);
+}
+$positionDefaultsJson = json_encode($positionDefaults, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$positionRolesJson = json_encode($positionRoles, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$positionDepartmentsJson = json_encode($positionDepartments, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$canManagePermissions = (bool) ($canManagePermissions ?? Auth::hasPermission('users.permissions'));
 $reportingManager = $reportingManager ?? null;
 $directReports = $directReports ?? [];
 $assignableTeamMembers = $assignableTeamMembers ?? [];
@@ -202,6 +210,7 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
 <section class="panel form-panel access-form-panel">
     <form class="stack-form access-form" method="post" action="<?= e($action) ?>" data-admin-user-form>
         <?= csrf_field() ?>
+        <?php if ($canManagePermissions): ?><input type="hidden" name="permissions_present" value="1"><?php endif; ?>
 
         <section
             class="permission-builder"
@@ -209,9 +218,11 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
             data-role-defaults="<?= e((string) $roleDefaultsJson) ?>"
             data-position-defaults="<?= e((string) $positionDefaultsJson) ?>"
             data-position-roles="<?= e((string) $positionRolesJson) ?>"
+            data-position-departments="<?= e((string) $positionDepartmentsJson) ?>"
             data-auto-role-defaults="<?= $isEdit ? 'false' : 'true' ?>"
         >
             <div class="settings-accordion access-accordion">
+                <?php if ($canManagePermissions): ?>
                 <details class="panel settings-panel settings-accordion-panel access-tools-panel" open>
                     <summary class="settings-accordion-summary">
                         <span>
@@ -230,7 +241,7 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
                             </label>
                             <?php if (($userRecord['role'] ?? '') !== 'owner'): ?>
                                 <div class="button-row">
-                                    <button class="ghost-button" type="button" data-apply-position-defaults>Use Position Defaults</button>
+                                    <button class="ghost-button" type="button" data-apply-position-defaults>Apply Position Template</button>
                                     <button class="ghost-button" type="button" data-apply-role-defaults>Use Access Level Defaults</button>
                                     <button class="ghost-button" type="button" data-select-all-permissions>Select All</button>
                                     <button class="ghost-button" type="button" data-clear-permissions>Clear</button>
@@ -239,6 +250,7 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
                         </div>
                     </div>
                 </details>
+                <?php endif; ?>
 
                 <details class="panel settings-panel settings-accordion-panel" id="storage-access" open>
                     <summary class="settings-accordion-summary">
@@ -302,7 +314,7 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
                                             <option value="<?= e($positionKey) ?>" <?= selected($positionKey, $selectedPosition) ?>><?= e($positionLabel) ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <small>Position controls the preset. Permissions still control the real access.</small>
+                                    <small>Applying a position sets recommended access, department, and permissions. Existing edits stay custom until you apply it.</small>
                                 <?php endif; ?>
                             </label>
 
@@ -347,7 +359,7 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
 
                             <label class="field">
                                 <span>Department</span>
-                                <select name="department_id" <?= $canManageDepartments ? '' : 'disabled' ?>>
+                                <select name="department_id" data-department-select <?= $canManageDepartments ? '' : 'disabled' ?>>
                                     <?php foreach ($departmentOptions as $departmentOption): ?>
                                         <option value="<?= (int) $departmentOption['id'] ?>" <?= selected((string) $departmentOption['id'], (string) ($userRecord['department_id'] ?? '')) ?>>
                                             <?= e((string) $departmentOption['name']) ?>
@@ -412,6 +424,7 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
                     </div>
                 </details>
 
+                <?php if ($canManagePermissions): ?>
                 <details class="panel settings-panel settings-accordion-panel" open>
                     <summary class="settings-accordion-summary">
                         <span>
@@ -467,6 +480,9 @@ $reportingReturnPath = $isEdit ? '/users/' . (int) $userRecord['id'] . '/edit#re
                         </div>
                     </div>
                 </details>
+                <?php else: ?>
+                    <div class="notice-card">Permission changes require the Users: Manage privilege checklists permission. Creating a user applies the selected position template; editing a user keeps their current permissions.</div>
+                <?php endif; ?>
             </div>
         </section>
 
