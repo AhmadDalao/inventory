@@ -2718,7 +2718,8 @@ assert_true(strpos($assetCreatePage['body'], 'New Asset') !== false, 'Asset crea
 $assetName = $prefix . ' Laptop Asset';
 $assetBarcode = $prefix . '-ASSET-001';
 $assetSerial = $prefix . '-SERIAL-001';
-$assetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/create', [
+$assetImage = create_temp_png($prefix . ' asset image');
+$assetCreate = http_multipart_request($baseUrl, $ownerCookie, '/company-assets/create', [
     '_token' => extract_csrf($assetCreatePage['body'], 'asset create'),
     'name' => $assetName,
     'category_id' => (string) $assetChildCategory['id'],
@@ -2739,6 +2740,8 @@ $assetCreate = http_request($baseUrl, $ownerCookie, 'POST', '/company-assets/cre
     'salvage_value' => '100.00',
     'warranty_expires_at' => date('Y-m-d', strtotime('+1 year')),
     'notes' => $prefix . ' asset workflow test',
+], [
+    'image' => $assetImage,
 ]);
 assert_true($assetCreate['status'] === 302, 'Asset create did not redirect.');
 $assetRecord = Database::fetch('SELECT * FROM company_assets WHERE barcode = :barcode LIMIT 1', ['barcode' => $assetBarcode]);
@@ -2746,6 +2749,21 @@ assert_true(is_array($assetRecord), 'Created asset was not found in the database
 assert_true((string) $assetRecord['status'] === 'pending_receipt', 'New assigned asset should wait for receipt confirmation.');
 assert_true((int) $assetRecord['assigned_user_id'] === (int) $staff['id'], 'New asset was not assigned to staff.');
 assert_true((int) ($assetRecord['category_id'] ?? 0) === (int) $assetChildCategory['id'], 'New asset was not assigned to the managed child category.');
+$assetImageRecord = Database::fetch(
+    'SELECT relative_path, archive_path, file_size
+     FROM file_assets
+     WHERE source_type = "asset_image" AND source_id = :source_id AND deleted_at IS NULL
+     ORDER BY id DESC LIMIT 1',
+    ['source_id' => (int) $assetRecord['id']]
+);
+$expectedAssetImagePath = file_asset_relative_path('uploads/assets', (string) $assetRecord['image_path']);
+assert_true(is_array($assetImageRecord), 'Asset image was not indexed in the file library.');
+assert_true((string) $assetImageRecord['relative_path'] === $expectedAssetImagePath, 'Asset image registry path does not match the stored image.');
+assert_true((int) $assetImageRecord['file_size'] > 0, 'Asset image registry recorded an empty file.');
+if (!array_key_exists('allow-live', $options)) {
+    assert_true(is_file(base_path($expectedAssetImagePath)), 'Registered asset image source file is missing.');
+    assert_true(is_file(base_path((string) $assetImageRecord['archive_path'])), 'Registered asset image archive copy is missing.');
+}
 $assetFinancials = asset_financials($assetRecord);
 assert_true((int) $assetFinancials['useful_life_months'] === 60, 'Asset useful life months were not saved.');
 assert_true(abs((float) $assetFinancials['salvage_value'] - 100.00) < 0.01, 'Asset salvage value was not saved.');

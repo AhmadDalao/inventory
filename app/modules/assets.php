@@ -228,7 +228,7 @@ function handle_assets_create_submit(): void
             $createdNumbers[] = $assetNumber;
 
             if ($imagePath !== null) {
-                register_asset_image_asset($assetId, $assetNumber, $imagePath, $userId);
+                register_asset_image_asset($assetId, $imagePath, $assetNumber, $userId);
             }
 
             asset_event_log($assetId, 'created', 'Asset ' . $assetNumber . ' created.', [
@@ -352,7 +352,7 @@ function handle_assets_edit_submit(array $params): void
 
     if ($newImage !== null) {
         $imagePath = $newImage;
-        register_asset_image_asset((int) $asset['id'], (string) $asset['asset_number'], $imagePath, (int) (Auth::user()['id'] ?? 0));
+        register_asset_image_asset((int) $asset['id'], $imagePath, (string) $asset['asset_number'], (int) (Auth::user()['id'] ?? 0));
     }
 
     Database::execute(
