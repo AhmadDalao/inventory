@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-$options = getopt('', ['base-url:', 'prefix::', 'allow-live']);
+$options = getopt('', ['base-url:', 'prefix::', 'allow-live', 'closeout-only']);
 
 if (!isset($options['base-url'])) {
-    fwrite(STDERR, "Usage: php tests/mobile_api_live.php --base-url=https://inventory.example.com [--prefix=ZZMOBILEAPI...] [--allow-live]\n");
+    fwrite(STDERR, "Usage: php tests/mobile_api_live.php --base-url=https://inventory.example.com [--prefix=ZZMOBILEAPI...] [--allow-live] [--closeout-only]\n");
     exit(1);
 }
 
@@ -24,9 +24,13 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 require dirname(__DIR__) . '/app/modules.php';
 
 $test = [
+    'owner_id' => 0,
+    'owner_created' => false,
+    'owner_email' => strtolower($prefix) . '-owner@inventory.test',
     'user_id' => 0,
     'storage_ids' => [],
     'item_id' => 0,
+    'handover_ids' => [],
     'email' => strtolower($prefix) . '@inventory.test',
     'operation_prefix' => substr($prefix, 0, 42) . '-',
     'rate_limit_start_id' => null,
@@ -157,6 +161,102 @@ function mobile_live_expect(array $response, int $status, ?string $errorCode = n
     return $json;
 }
 
+function mobile_live_test_handover_closeout(
+    string $accessToken,
+    int $handoverId,
+    int $handoverLineId,
+    int $itemId,
+    int $storageId
+): void {
+    global $test;
+
+    $operationId = (string) $test['operation_prefix'] . 'handover-closeout';
+    $payload = [
+        'client_operation_id' => $operationId,
+        'returned_quantities' => [(string) $handoverLineId => 2],
+        'reconciliations' => [[
+            'unit' => 'pcs',
+            'reasons' => array_fill_keys(array_keys(handover_operational_reason_options()), 0),
+            'discrepancy_notes' => '',
+        ]],
+        'close_notes' => 'Native prepare handover closeout regression.',
+    ];
+    $balanceBefore = mobile_live_balance($itemId, $storageId);
+    $totalBefore = round((float) Database::scalar(
+        'SELECT current_quantity FROM items WHERE id = :id',
+        ['id' => $itemId]
+    ), 2);
+
+    $closeout = mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/handovers/' . $handoverId . '/closeout', $payload, $accessToken),
+        200
+    );
+    mobile_live_assert(
+        (string) ($closeout['data']['status'] ?? '') === 'pending_approval',
+        'Mobile handover closeout did not return pending_approval.'
+    );
+    $storedHandover = Database::fetch(
+        'SELECT status, submitted_by, updated_by FROM handovers WHERE id = :id',
+        ['id' => $handoverId]
+    );
+    mobile_live_assert(
+        (string) ($storedHandover['status'] ?? '') === 'pending_approval'
+        && (int) ($storedHandover['submitted_by'] ?? 0) === (int) $test['user_id']
+        && (int) ($storedHandover['updated_by'] ?? 0) === (int) $test['user_id'],
+        'Mobile handover closeout did not persist its status and actors.'
+    );
+    $storedLine = Database::fetch(
+        'SELECT quantity_used, quantity_returned FROM handover_lines WHERE id = :id',
+        ['id' => $handoverLineId]
+    );
+    mobile_live_assert(
+        (float) ($storedLine['quantity_used'] ?? -1) === 0.0
+        && (float) ($storedLine['quantity_returned'] ?? -1) === 2.0,
+        'Mobile handover closeout did not persist the returned quantity.'
+    );
+    $reconciliationId = (int) Database::scalar(
+        'SELECT id FROM handover_reconciliations WHERE handover_id = :handover_id AND unit = "pcs"',
+        ['handover_id' => $handoverId]
+    );
+    mobile_live_assert($reconciliationId > 0, 'Mobile handover closeout did not create its reconciliation.');
+    mobile_live_assert(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM handover_reconciliation_entries WHERE reconciliation_id = :reconciliation_id',
+            ['reconciliation_id' => $reconciliationId]
+        ) === count(handover_operational_reason_options()),
+        'Mobile handover closeout did not persist every operational reason.'
+    );
+    mobile_live_assert(
+        mobile_live_balance($itemId, $storageId) === $balanceBefore
+        && round((float) Database::scalar(
+            'SELECT current_quantity FROM items WHERE id = :id',
+            ['id' => $itemId]
+        ), 2) === $totalBefore,
+        'Submitting a closeout changed stock before approval.'
+    );
+
+    $retry = mobile_live_expect(
+        mobile_live_http('POST', '/api/v1/handovers/' . $handoverId . '/closeout', $payload, $accessToken),
+        200
+    );
+    mobile_live_assert($retry['data'] === $closeout['data'], 'Idempotent handover closeout retry returned different data.');
+    mobile_live_assert(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM mobile_operations WHERE client_operation_id = :client_operation_id AND status = "succeeded"',
+            ['client_operation_id' => $operationId]
+        ) === 1,
+        'Idempotent handover closeout retry created another operation.'
+    );
+    mobile_live_assert(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM handover_reconciliations WHERE handover_id = :handover_id',
+            ['handover_id' => $handoverId]
+        ) === 1,
+        'Idempotent handover closeout retry duplicated reconciliation data.'
+    );
+    mobile_live_note('Delivered handover closeout, native prepares, stock neutrality, and idempotent retry passed.');
+}
+
 function mobile_live_cleanup(): void
 {
     global $test;
@@ -183,6 +283,52 @@ function mobile_live_cleanup(): void
                 'DELETE FROM inventory_movements WHERE context_type = "mobile_operation" AND context_id IN (' . $idList . ')'
             );
             Database::execute('DELETE FROM mobile_operations WHERE id IN (' . $idList . ')');
+        }
+
+        $handoverIds = array_values(array_filter(
+            array_map('intval', (array) $test['handover_ids']),
+            static fn (int $id): bool => $id > 0
+        ));
+        if ($handoverIds !== []) {
+            $idList = implode(',', $handoverIds);
+            $documents = Database::fetchAll(
+                'SELECT stored_filename FROM workflow_documents
+                 WHERE workflow_type = "handover" AND workflow_id IN (' . $idList . ')'
+            );
+            foreach ($documents as $document) {
+                delete_workflow_document_file((string) ($document['stored_filename'] ?? ''));
+            }
+
+            $assets = Database::fetchAll(
+                'SELECT relative_path, archive_path FROM file_assets
+                 WHERE context_type = "handover" AND context_id IN (' . $idList . ')'
+            );
+            foreach ($assets as $asset) {
+                foreach (['relative_path', 'archive_path'] as $column) {
+                    $path = trim((string) ($asset[$column] ?? ''));
+                    if ($path !== '' && is_file(base_path($path))) {
+                        @unlink(base_path($path));
+                    }
+                }
+            }
+
+            Database::execute(
+                'DELETE FROM file_assets WHERE context_type = "handover" AND context_id IN (' . $idList . ')'
+            );
+            Database::execute(
+                'DELETE FROM workflow_documents WHERE workflow_type = "handover" AND workflow_id IN (' . $idList . ')'
+            );
+            Database::execute(
+                'DELETE FROM notifications WHERE entity_type = "handover" AND entity_id IN (' . $idList . ')'
+            );
+            Database::execute(
+                'DELETE FROM activity_logs WHERE entity_type = "handover" AND entity_id IN (' . $idList . ')'
+            );
+            Database::execute(
+                'DELETE FROM inventory_change_events WHERE entity_type = "handover" AND entity_id IN (' . $idList . ')'
+            );
+            Database::execute('DELETE FROM handover_lines WHERE handover_id IN (' . $idList . ')');
+            Database::execute('DELETE FROM handovers WHERE id IN (' . $idList . ')');
         }
 
         if ((int) $test['user_id'] > 0) {
@@ -243,6 +389,17 @@ function mobile_live_cleanup(): void
                 ['start_id' => (int) $test['rate_limit_start_id']]
             );
         }
+        if (($test['owner_created'] ?? false) === true && (int) ($test['owner_id'] ?? 0) > 0) {
+            Database::execute(
+                'DELETE FROM activity_logs WHERE user_id = :user_id OR (entity_type = "user" AND entity_id = :entity_id)',
+                ['user_id' => (int) $test['owner_id'], 'entity_id' => (int) $test['owner_id']]
+            );
+            Database::execute(
+                'DELETE FROM login_attempts WHERE user_id = :user_id OR email = :email',
+                ['user_id' => (int) $test['owner_id'], 'email' => (string) $test['owner_email']]
+            );
+            Database::execute('DELETE FROM users WHERE id = :user_id', ['user_id' => (int) $test['owner_id']]);
+        }
         site_settings_cache_reset();
         mobile_live_note('Temporary records and settings cleaned.');
     } catch (Throwable $exception) {
@@ -268,7 +425,20 @@ try {
     }
 
     $ownerId = (int) Database::scalar('SELECT id FROM users WHERE role = "owner" AND is_active = 1 ORDER BY id ASC LIMIT 1');
-    mobile_live_assert($ownerId > 0, 'An active owner is required to seed isolated test records.');
+    if ($ownerId <= 0) {
+        Database::execute(
+            'INSERT INTO users (name, email, password_hash, role, position, is_active, created_at, updated_at)
+             VALUES (:name, :email, :password_hash, "owner", "Owner", 1, NOW(), NOW())',
+            [
+                'name' => $prefix . ' Owner',
+                'email' => $test['owner_email'],
+                'password_hash' => password_hash('MobileLifecycleOwner!2026', PASSWORD_DEFAULT),
+            ]
+        );
+        $ownerId = Database::lastInsertId();
+        $test['owner_created'] = true;
+    }
+    $test['owner_id'] = $ownerId;
 
     $password = 'MobileLifecycle!2026';
     Database::execute(
@@ -289,7 +459,16 @@ try {
     );
     $test['user_id'] = Database::lastInsertId();
 
-    foreach (['mobile.access', 'storages.view', 'items.view', 'movements.view', 'movements.usage', 'movements.restock'] as $permission) {
+    foreach ([
+        'mobile.access',
+        'storages.view',
+        'items.view',
+        'movements.view',
+        'movements.usage',
+        'movements.restock',
+        'handovers.view',
+        'handovers.close',
+    ] as $permission) {
         Database::execute(
             'INSERT INTO user_permissions (user_id, permission_key, created_by, created_at)
              VALUES (:user_id, :permission, :owner_id, NOW())',
@@ -301,7 +480,7 @@ try {
         'INSERT INTO mobile_user_access (
             user_id, enabled, can_usage, can_restock, can_transfer, can_handover, can_custody,
             direct_restock_enabled, created_by, updated_by, created_at, updated_at
-         ) VALUES (:user_id, 1, 1, 1, 0, 0, 0, 1, :created_by, :updated_by, NOW(), NOW())',
+         ) VALUES (:user_id, 1, 1, 1, 0, 1, 0, 1, :created_by, :updated_by, NOW(), NOW())',
         ['user_id' => $test['user_id'], 'created_by' => $ownerId, 'updated_by' => $ownerId]
     );
 
@@ -353,6 +532,47 @@ try {
         ['item_id' => $test['item_id'], 'storage_id' => $assignedStorageId]
     );
 
+    Database::execute(
+        'INSERT INTO handovers (
+            handover_number, source_storage_id, approver_user_id, recipient_name, recipient_user_id,
+            recipient_type, handover_purpose, issue_condition, usage_reporting_mode,
+            handover_mode, status, issued_at, receipt_reported_at, created_by, updated_by,
+            created_at, updated_at
+         ) VALUES (
+            :handover_number, :source_storage_id, :approver_user_id, :recipient_name, :recipient_user_id,
+            "staff", "temporary_use", "good", "operational_summary",
+            "direct", "delivered", NOW(), NOW(), :created_by, :updated_by,
+            NOW(), NOW()
+         )',
+        [
+            'handover_number' => $prefix . '-HDO',
+            'source_storage_id' => $assignedStorageId,
+            'approver_user_id' => $ownerId,
+            'recipient_name' => $prefix . ' Employee',
+            'recipient_user_id' => $test['user_id'],
+            'created_by' => $ownerId,
+            'updated_by' => $ownerId,
+        ]
+    );
+    $handoverId = Database::lastInsertId();
+    $test['handover_ids'][] = $handoverId;
+    Database::execute(
+        'INSERT INTO handover_lines (
+            handover_id, item_id, item_name, item_sku, unit, quantity_handed,
+            quantity_received, quantity_used, quantity_returned, created_at, updated_at
+         ) VALUES (
+            :handover_id, :item_id, :item_name, :item_sku, "pcs", 2,
+            2, 0, 0, NOW(), NOW()
+         )',
+        [
+            'handover_id' => $handoverId,
+            'item_id' => $test['item_id'],
+            'item_name' => $prefix . ' Item',
+            'item_sku' => $prefix . '-SKU',
+        ]
+    );
+    $handoverLineId = Database::lastInsertId();
+
     mobile_live_setting('mobile.enabled', '1');
     mobile_live_setting('mobile.manual_restock_enabled', '1');
     mobile_live_setting('mobile.require_usage_proof', '0');
@@ -388,6 +608,19 @@ try {
         'Current-password verification did not return a verified result.'
     );
     mobile_live_note('Authenticated current-password verification passed.');
+
+    mobile_live_test_handover_closeout(
+        $access,
+        $handoverId,
+        $handoverLineId,
+        (int) $test['item_id'],
+        $assignedStorageId
+    );
+    if (array_key_exists('closeout-only', $options)) {
+        mobile_live_cleanup();
+        mobile_live_note('PASS (closeout only)');
+        exit(0);
+    }
 
     $bootstrap = mobile_live_expect(mobile_live_http('GET', '/api/v1/bootstrap', null, $access), 200);
     $storageIds = array_map('intval', array_column((array) ($bootstrap['data']['storages'] ?? []), 'id'));

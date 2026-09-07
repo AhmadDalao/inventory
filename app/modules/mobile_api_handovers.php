@@ -791,13 +791,20 @@ function handle_mobile_api_handover_closeout(array $params): void
 {
     mobile_api_run(function () use ($params): void {
         $session = mobile_api_session();
-        $handover = mobile_api_handover_fetch((int) $params['id']);
-        mobile_api_require_handover_action($session, $handover, 'report_closeout');
         $payload = mobile_api_request_payload();
         $completed = mobile_api_completed_operation($session, $payload);
         if ($completed !== null) {
+            if ((int) ($completed['handover_id'] ?? 0) !== (int) $params['id']) {
+                throw new MobileApiException(
+                    'operation_id_conflict',
+                    'That operation ID belongs to another handover.',
+                    409
+                );
+            }
             mobile_api_success($completed, ['idempotent' => true]);
         }
+        $handover = mobile_api_handover_fetch((int) $params['id']);
+        mobile_api_require_handover_action($session, $handover, 'report_closeout');
         $lines = handover_lines((int) $handover['id']);
         [$lineUpdates, $lineErrors] = build_handover_operational_line_updates($lines, mobile_api_line_quantity_map($payload, 'returned_quantities'));
         [$reconciliations, $reconciliationErrors] = build_handover_reconciliation_payloads($lines, $lineUpdates, $payload['reconciliations'] ?? [], false);
@@ -813,7 +820,17 @@ function handle_mobile_api_handover_closeout(array $params): void
                 }
                 clear_legacy_handover_usage_breakdowns((int) $handover['id']);
                 save_handover_reconciliations((int) $handover['id'], $reconciliations, (int) $session['user_id'], false);
-                Database::execute('UPDATE handovers SET status = "pending_approval", closed_notes = :notes, submitted_at = NOW(), submitted_by = :user_id, updated_by = :user_id, updated_at = NOW() WHERE id = :id', ['notes' => trim((string) ($payload['close_notes'] ?? '')) ?: null, 'user_id' => (int) $session['user_id'], 'id' => (int) $handover['id']]);
+                Database::execute(
+                    'UPDATE handovers SET status = "pending_approval", closed_notes = :notes,
+                        submitted_at = NOW(), submitted_by = :submitted_by,
+                        updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
+                    [
+                        'notes' => trim((string) ($payload['close_notes'] ?? '')) ?: null,
+                        'submitted_by' => (int) $session['user_id'],
+                        'updated_by' => (int) $session['user_id'],
+                        'id' => (int) $handover['id'],
+                    ]
+                );
                 mobile_api_handover_commit_proof($handover, 'closeout_report', $proof);
                 record_activity('mobile.handover_closeout_submitted', 'handover', (int) $handover['id'], 'Submitted mobile handover usage and returns for issuer review.', ['mobile_operation_id' => $ledgerId]);
                 return ['_entity_type' => 'handover', '_entity_id' => (int) $handover['id'], 'handover_id' => (int) $handover['id'], 'status' => 'pending_approval'];
@@ -853,7 +870,19 @@ function handle_mobile_api_handover_approve_closeout(array $params): void
             clear_legacy_handover_usage_breakdowns((int) $handover['id']);
             save_handover_reconciliations((int) $handover['id'], $reconciliations, (int) $session['user_id'], true);
             finalize_handover_inventory($handover, $lineUpdates, (int) $session['user_id']);
-            Database::execute('UPDATE handovers SET status = "closed", closed_notes = :notes, approved_at = NOW(), completed_at = NOW(), approved_by = :user_id, completed_by = :user_id, updated_by = :user_id, updated_at = NOW() WHERE id = :id', ['notes' => trim((string) ($payload['approval_notes'] ?? $handover['closed_notes'] ?? '')) ?: null, 'user_id' => (int) $session['user_id'], 'id' => (int) $handover['id']]);
+            Database::execute(
+                'UPDATE handovers SET status = "closed", closed_notes = :notes,
+                    approved_at = NOW(), completed_at = NOW(), approved_by = :approved_by,
+                    completed_by = :completed_by, updated_by = :updated_by, updated_at = NOW()
+                 WHERE id = :id',
+                [
+                    'notes' => trim((string) ($payload['approval_notes'] ?? $handover['closed_notes'] ?? '')) ?: null,
+                    'approved_by' => (int) $session['user_id'],
+                    'completed_by' => (int) $session['user_id'],
+                    'updated_by' => (int) $session['user_id'],
+                    'id' => (int) $handover['id'],
+                ]
+            );
             record_activity('mobile.handover_closeout_approved', 'handover', (int) $handover['id'], 'Approved mobile handover closeout and posted final stock.', ['mobile_operation_id' => $ledgerId]);
             return ['_entity_type' => 'handover', '_entity_id' => (int) $handover['id'], 'handover_id' => (int) $handover['id'], 'status' => 'closed'];
         });
@@ -880,12 +909,13 @@ function handle_mobile_api_handover_approve_request(array $params): void
             Database::execute(
                 'UPDATE handovers
                  SET status = "awaiting_receipt", request_decision_notes = :notes,
-                     request_approved_at = NOW(), request_approved_by = :user_id,
-                     issued_at = NOW(), updated_by = :user_id, updated_at = NOW()
+                     request_approved_at = NOW(), request_approved_by = :request_approved_by,
+                     issued_at = NOW(), updated_by = :updated_by, updated_at = NOW()
                  WHERE id = :id',
                 [
                     'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
-                    'user_id' => (int) $session['user_id'],
+                    'request_approved_by' => (int) $session['user_id'],
+                    'updated_by' => (int) $session['user_id'],
                     'id' => (int) $handover['id'],
                 ]
             );
@@ -1109,14 +1139,16 @@ function handle_mobile_api_handover_custody_return_create(array $params): void
                         submitted_by, submitted_at, created_by, updated_by, created_at, updated_at
                      ) VALUES (
                         :handover_id, :return_number, "submitted", :return_date, :notes,
-                        :user_id, NOW(), :user_id, :user_id, NOW(), NOW()
+                        :submitted_by, NOW(), :created_by, :updated_by, NOW(), NOW()
                      )',
                     [
                         'handover_id' => (int) $handover['id'],
                         'return_number' => $returnNumber,
                         'return_date' => normalize_workflow_date(trim((string) ($payload['return_date'] ?? ''))) ?: date('Y-m-d'),
                         'notes' => trim((string) ($payload['notes'] ?? '')) ?: null,
-                        'user_id' => (int) $session['user_id'],
+                        'submitted_by' => (int) $session['user_id'],
+                        'created_by' => (int) $session['user_id'],
+                        'updated_by' => (int) $session['user_id'],
                     ]
                 );
                 $returnId = Database::lastInsertId();
@@ -1256,14 +1288,25 @@ function handle_mobile_api_handover_custody_return_approve(array $params): void
             $nextStatus = $heldTotal <= 0.009 ? 'closed' : 'delivered';
             Database::execute(
                 'UPDATE handover_custody_returns SET status = "approved", review_notes = :notes,
-                    reviewed_by = :user_id, reviewed_at = NOW(), updated_by = :user_id, updated_at = NOW() WHERE id = :id',
-                ['notes' => trim((string) ($payload['review_notes'] ?? '')) ?: null, 'user_id' => (int) $session['user_id'], 'id' => (int) $custodyReturn['id']]
+                    reviewed_by = :reviewed_by, reviewed_at = NOW(), updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
+                [
+                    'notes' => trim((string) ($payload['review_notes'] ?? '')) ?: null,
+                    'reviewed_by' => (int) $session['user_id'],
+                    'updated_by' => (int) $session['user_id'],
+                    'id' => (int) $custodyReturn['id'],
+                ]
             );
             if ($nextStatus === 'closed') {
                 Database::execute(
                     'UPDATE handovers SET status = "closed", approved_at = NOW(), completed_at = NOW(),
-                        approved_by = :user_id, completed_by = :user_id, updated_by = :user_id, updated_at = NOW() WHERE id = :id',
-                    ['user_id' => (int) $session['user_id'], 'id' => (int) $handover['id']]
+                        approved_by = :approved_by, completed_by = :completed_by,
+                        updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
+                    [
+                        'approved_by' => (int) $session['user_id'],
+                        'completed_by' => (int) $session['user_id'],
+                        'updated_by' => (int) $session['user_id'],
+                        'id' => (int) $handover['id'],
+                    ]
                 );
             } else {
                 Database::execute(
@@ -1303,8 +1346,13 @@ function handle_mobile_api_handover_custody_return_reject(array $params): void
         $result = mobile_api_operation($session, 'handover.custody_return.reject', $payload, function (int $ledgerId) use ($session, $handover, $custodyReturn, $reason): array {
             Database::execute(
                 'UPDATE handover_custody_returns SET status = "rejected", rejection_notes = :reason,
-                    reviewed_by = :user_id, reviewed_at = NOW(), updated_by = :user_id, updated_at = NOW() WHERE id = :id',
-                ['reason' => $reason, 'user_id' => (int) $session['user_id'], 'id' => (int) $custodyReturn['id']]
+                    reviewed_by = :reviewed_by, reviewed_at = NOW(), updated_by = :updated_by, updated_at = NOW() WHERE id = :id',
+                [
+                    'reason' => $reason,
+                    'reviewed_by' => (int) $session['user_id'],
+                    'updated_by' => (int) $session['user_id'],
+                    'id' => (int) $custodyReturn['id'],
+                ]
             );
             record_activity('mobile.custody_return_rejected', 'handover', (int) $handover['id'], 'Rejected mobile custody return ' . (string) $custodyReturn['return_number'] . ' for correction.', ['mobile_operation_id' => $ledgerId]);
             return ['_entity_type' => 'handover_custody_return', '_entity_id' => (int) $custodyReturn['id'], 'handover_id' => (int) $handover['id'], 'custody_return_id' => (int) $custodyReturn['id'], 'status' => 'rejected'];
