@@ -529,8 +529,12 @@ function handle_mobile_api_handover_create(): void
         if ($purpose === 'staff_custody' && $reviewDate === '') {
             throw new MobileApiException('validation_failed', 'Set a custody review date.', 422, ['custody_review_date' => ['Required.']]);
         }
+        $issueCondition = (string) ($payload['issue_condition'] ?? 'good');
+        if (!in_array($issueCondition, array_keys(handover_issue_condition_options()), true)) {
+            $issueCondition = 'good';
+        }
 
-        $result = mobile_api_operation($session, 'handover.create', $payload, function (int $ledgerId) use ($session, $payload, $purpose, $sourceStorage, $destinationStorage, $destinationStorageId, $recipient, $recipientName, $lines, $isRequest, $reviewDate): array {
+        $result = mobile_api_operation($session, 'handover.create', $payload, function (int $ledgerId) use ($session, $payload, $purpose, $sourceStorage, $destinationStorage, $destinationStorageId, $recipient, $recipientName, $lines, $isRequest, $reviewDate, $issueCondition): array {
             if (!$isRequest) {
                 foreach ($lines as $line) {
                     mobile_api_assert_expected_balance(
@@ -572,7 +576,7 @@ function handle_mobile_api_handover_create(): void
                     'recipient_user' => (int) $recipient['id'],
                     'recipient_type' => $purpose === 'storage_transfer' ? 'storage' : 'staff',
                     'purpose' => $purpose,
-                    'issue_condition' => in_array((string) ($payload['issue_condition'] ?? 'good'), array_keys(handover_issue_condition_options()), true) ? (string) $payload['issue_condition'] : 'good',
+                    'issue_condition' => $issueCondition,
                     'review_date' => $reviewDate !== '' ? $reviewDate : null,
                     'usage_mode' => $purpose === 'temporary_use' ? 'operational_summary' : 'legacy_per_item',
                     'handover_mode' => $isRequest ? 'request' : 'direct',

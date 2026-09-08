@@ -8,6 +8,8 @@ This release makes staff handovers request-only on both sides of API v1. A staff
 
 Flutter now uses the authenticated role from bootstrap, automatically selects the logged-in employee for a staff request, hides direct transfer and custody creation from staff, preserves the handover operation ID across ambiguous transport retries, and shows server or network errors instead of silently returning a submit button to its prior state. Receipt, closeout, custody return, handover decisions, cancellation, and quantity lookup all retain visible failure feedback.
 
+API handover creation also applies the existing `good` issue-condition default without reading a missing payload key. The omitted-field lifecycle is asserted and the captured PHP server log is warning-free.
+
 ## Safety Evidence
 
 - The existing web staff flow already enforced self-request behavior and was not changed.

@@ -718,7 +718,7 @@ try {
     $staffRequestId = (int) ($staffRequest['data']['handover_id'] ?? 0);
     $test['handover_ids'][] = $staffRequestId;
     $staffRequestRecord = Database::fetch(
-        'SELECT recipient_user_id, created_by, handover_mode, status FROM handovers WHERE id = :id',
+        'SELECT recipient_user_id, created_by, handover_mode, status, issue_condition FROM handovers WHERE id = :id',
         ['id' => $staffRequestId]
     );
     mobile_live_assert(
@@ -728,6 +728,10 @@ try {
         && (string) ($staffRequestRecord['handover_mode'] ?? '') === 'request'
         && (string) ($staffRequestRecord['status'] ?? '') === 'requested',
         'A staff handover.create grant bypassed self-request enforcement.'
+    );
+    mobile_live_assert(
+        (string) ($staffRequestRecord['issue_condition'] ?? '') === 'good',
+        'A handover without an explicit issue condition did not retain the good default.'
     );
     mobile_live_assert(
         (int) Database::scalar(
