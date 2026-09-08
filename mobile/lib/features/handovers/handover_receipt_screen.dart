@@ -101,6 +101,12 @@ class _HandoverReceiptScreenState extends ConsumerState<HandoverReceiptScreen> {
       } else {
         context.go('/handovers/${widget.handoverId}');
       }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

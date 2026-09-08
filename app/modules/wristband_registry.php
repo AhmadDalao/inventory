@@ -268,7 +268,7 @@ function wristband_import_csv_rows(string $path): array
     $delimiter = ',';
     $bestCount = 0;
     foreach ($delimiters as $candidate) {
-        $count = count(str_getcsv($firstLine, $candidate));
+        $count = count(str_getcsv($firstLine, $candidate, '"', '\\'));
         if ($count > $bestCount) {
             $bestCount = $count;
             $delimiter = $candidate;
@@ -276,7 +276,7 @@ function wristband_import_csv_rows(string $path): array
     }
 
     $rows = [];
-    while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+    while (($row = fgetcsv($handle, 0, $delimiter, '"', '\\')) !== false) {
         if (count($rows) >= $maximumRows) {
             fclose($handle);
             throw new RuntimeException('The import exceeds the 250,000-row safety limit. Split it into smaller files.');

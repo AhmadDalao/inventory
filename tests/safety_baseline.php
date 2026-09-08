@@ -121,6 +121,7 @@ $staticTests = [
     'mobile_api_contract.php',
     'mobile_usage_reasons.php',
     'mobile_api_native_prepares.php',
+    'mobile_submission_feedback.php',
     'module_boundaries.php',
     'ocr_parser_contract.php',
     'persistent_package_wristband_contract.php',

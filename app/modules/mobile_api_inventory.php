@@ -151,14 +151,21 @@ function handle_mobile_api_bootstrap(): void
         $capabilities = mobile_api_effective_capabilities($access, $permissions, $ids);
         $recipients = [];
         if (array_intersect($capabilities, ['handover', 'custody']) !== []) {
-            $recipients = Database::fetchAll(
-                'SELECT id, name, role, position
-                 FROM users
-                 WHERE is_active = 1 AND role = "staff" AND id <> :user_id
-                 ORDER BY name ASC
-                 LIMIT 500',
-                ['user_id' => $session['user_id']]
-            );
+            $recipients = (string) ($session['role'] ?? '') === 'staff'
+                ? [[
+                    'id' => (int) $session['user_id'],
+                    'name' => (string) $session['name'],
+                    'role' => 'staff',
+                    'position' => (string) ($session['position'] ?? ''),
+                ]]
+                : Database::fetchAll(
+                    'SELECT id, name, role, position
+                     FROM users
+                     WHERE is_active = 1 AND role = "staff" AND id <> :user_id
+                     ORDER BY name ASC
+                     LIMIT 500',
+                    ['user_id' => $session['user_id']]
+                );
         }
         $cursor = inventory_latest_event_cursor();
         mobile_api_success([
@@ -213,6 +220,7 @@ function mobile_api_access_fingerprint(array $session, array $permissions, array
     }
     return hash('sha256', json_encode([
         'user_id' => (int) $session['user_id'],
+        'user_role' => (string) ($session['role'] ?? ''),
         'manager_user_id' => manager_user_id_for((int) $session['user_id']),
         'department_id' => inventory_actor_department_snapshot((int) $session['user_id'])['department_id'],
         'permissions' => array_values($permissions),

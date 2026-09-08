@@ -10,11 +10,15 @@ void main() {
   );
 
   MobileBootstrap access({
+    int userId = 1,
+    String userRole = 'admin',
     Set<String> permissions = const {},
     Set<String> capabilities = const {},
     List<StorageLocation> storages = const [storage],
     Map<String, dynamic> settings = const {'manual_restock_enabled': true},
   }) => MobileBootstrap(
+    userId: userId,
+    userRole: userRole,
     userName: 'Employee',
     storages: storages,
     items: const [],
@@ -126,6 +130,26 @@ void main() {
       expect(issuer.canCreateHandoverPurpose('temporary_use'), isTrue);
       expect(issuer.canCreateHandoverPurpose('storage_transfer'), isTrue);
       expect(issuer.canCreateHandoverPurpose('staff_custody'), isTrue);
+    });
+
+    test('a staff role stays request-only after a mistaken create grant', () {
+      final staff = access(
+        userId: 7,
+        userRole: 'staff',
+        permissions: const {
+          'mobile.access',
+          'storages.view',
+          'items.view',
+          'handovers.create',
+          'handovers.request',
+        },
+        capabilities: const {'handover', 'transfer', 'custody'},
+      );
+
+      expect(staff.isStaffAccount, isTrue);
+      expect(staff.canCreateHandoverPurpose('temporary_use'), isTrue);
+      expect(staff.canCreateHandoverPurpose('storage_transfer'), isFalse);
+      expect(staff.canCreateHandoverPurpose('staff_custody'), isFalse);
     });
 
     test('mobile and storage-view permissions are both required', () {

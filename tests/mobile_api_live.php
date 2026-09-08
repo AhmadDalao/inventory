@@ -28,10 +28,12 @@ $test = [
     'owner_created' => false,
     'owner_email' => strtolower($prefix) . '-owner@inventory.test',
     'user_id' => 0,
+    'peer_user_id' => 0,
     'storage_ids' => [],
     'item_id' => 0,
     'handover_ids' => [],
     'email' => strtolower($prefix) . '@inventory.test',
+    'peer_email' => strtolower($prefix) . '-peer@inventory.test',
     'operation_prefix' => substr($prefix, 0, 42) . '-',
     'rate_limit_start_id' => null,
     'settings' => [],
@@ -352,6 +354,18 @@ function mobile_live_cleanup(): void
             Database::execute('DELETE FROM user_permissions WHERE user_id = :user_id', ['user_id' => $userId]);
         }
 
+        if ((int) $test['peer_user_id'] > 0) {
+            $peerUserId = (int) $test['peer_user_id'];
+            Database::execute(
+                'DELETE FROM activity_logs WHERE user_id = :user_id OR (entity_type = "user" AND entity_id = :entity_id)',
+                ['user_id' => $peerUserId, 'entity_id' => $peerUserId]
+            );
+            Database::execute(
+                'DELETE FROM login_attempts WHERE user_id = :user_id OR email = :email',
+                ['user_id' => $peerUserId, 'email' => $test['peer_email']]
+            );
+        }
+
         if ((int) $test['item_id'] > 0) {
             $itemId = (int) $test['item_id'];
             Database::execute(
@@ -366,6 +380,9 @@ function mobile_live_cleanup(): void
         }
         if ((int) $test['user_id'] > 0) {
             Database::execute('DELETE FROM users WHERE id = :user_id', ['user_id' => (int) $test['user_id']]);
+        }
+        if ((int) $test['peer_user_id'] > 0) {
+            Database::execute('DELETE FROM users WHERE id = :user_id', ['user_id' => (int) $test['peer_user_id']]);
         }
 
         foreach ((array) $test['setting_keys'] as $key) {
@@ -459,6 +476,24 @@ try {
     );
     $test['user_id'] = Database::lastInsertId();
 
+    Database::execute(
+        'INSERT INTO users (
+            name, email, password_hash, role, position, is_active,
+            assigned_owner_user_id, manager_user_id, created_at, updated_at
+         ) VALUES (
+            :name, :email, :password_hash, "staff", "Peer Staff", 1,
+            :owner_id, :manager_user_id, NOW(), NOW()
+         )',
+        [
+            'name' => $prefix . ' Peer Employee',
+            'email' => $test['peer_email'],
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'owner_id' => $ownerId,
+            'manager_user_id' => $ownerId,
+        ]
+    );
+    $test['peer_user_id'] = Database::lastInsertId();
+
     foreach ([
         'mobile.access',
         'storages.view',
@@ -467,6 +502,8 @@ try {
         'movements.usage',
         'movements.restock',
         'handovers.view',
+        'handovers.create',
+        'handovers.request',
         'handovers.close',
     ] as $permission) {
         Database::execute(
@@ -480,7 +517,7 @@ try {
         'INSERT INTO mobile_user_access (
             user_id, enabled, can_usage, can_restock, can_transfer, can_handover, can_custody,
             direct_restock_enabled, created_by, updated_by, created_at, updated_at
-         ) VALUES (:user_id, 1, 1, 1, 0, 1, 0, 1, :created_by, :updated_by, NOW(), NOW())',
+         ) VALUES (:user_id, 1, 1, 1, 1, 1, 1, 1, :created_by, :updated_by, NOW(), NOW())',
         ['user_id' => $test['user_id'], 'created_by' => $ownerId, 'updated_by' => $ownerId]
     );
 
@@ -638,6 +675,73 @@ try {
     mobile_live_assert(in_array('other', $usageReasonCodes, true), 'Bootstrap usage reasons are missing Other.');
     $syncCursor = (int) ($bootstrap['meta']['sync_cursor'] ?? 0);
     mobile_live_note('Bootstrap storage isolation and server-owned usage reasons passed.');
+
+    $handoverRecipients = array_values(array_filter(
+        (array) ($bootstrap['data']['recipients'] ?? []),
+        'is_array'
+    ));
+    mobile_live_assert(
+        count($handoverRecipients) === 1
+        && (int) ($handoverRecipients[0]['id'] ?? 0) === (int) $test['user_id'],
+        'A staff bootstrap exposed another employee as a handover recipient.'
+    );
+    foreach (['storage_transfer', 'staff_custody'] as $forbiddenPurpose) {
+        mobile_live_expect(mobile_live_http('POST', '/api/v1/handovers', [
+            'client_operation_id' => $test['operation_prefix'] . 'staff-' . $forbiddenPurpose . '-guard',
+            'purpose' => $forbiddenPurpose,
+            'source_storage_id' => $assignedStorageId,
+            'destination_storage_id' => $forbiddenStorageId,
+            'recipient_user_id' => (int) $test['peer_user_id'],
+            'custody_review_date' => date('Y-m-d', strtotime('+30 days')),
+            'lines' => [[
+                'item_id' => (int) $test['item_id'],
+                'quantity' => 1,
+            ]],
+        ], $access), 403, 'forbidden');
+    }
+    $staffRequestBalance = mobile_live_balance((int) $test['item_id'], $assignedStorageId);
+    $staffRequestTotal = round((float) Database::scalar(
+        'SELECT current_quantity FROM items WHERE id = :id',
+        ['id' => $test['item_id']]
+    ), 2);
+    $staffRequest = mobile_live_expect(mobile_live_http('POST', '/api/v1/handovers', [
+        'client_operation_id' => $test['operation_prefix'] . 'staff-peer-guard',
+        'purpose' => 'temporary_use',
+        'source_storage_id' => $assignedStorageId,
+        'recipient_user_id' => (int) $test['peer_user_id'],
+        'lines' => [[
+            'item_id' => (int) $test['item_id'],
+            'quantity' => 1,
+            'expected_balance' => $staffRequestBalance,
+        ]],
+    ], $access), 201);
+    $staffRequestId = (int) ($staffRequest['data']['handover_id'] ?? 0);
+    $test['handover_ids'][] = $staffRequestId;
+    $staffRequestRecord = Database::fetch(
+        'SELECT recipient_user_id, created_by, handover_mode, status FROM handovers WHERE id = :id',
+        ['id' => $staffRequestId]
+    );
+    mobile_live_assert(
+        $staffRequestId > 0
+        && (int) ($staffRequestRecord['recipient_user_id'] ?? 0) === (int) $test['user_id']
+        && (int) ($staffRequestRecord['created_by'] ?? 0) === (int) $test['user_id']
+        && (string) ($staffRequestRecord['handover_mode'] ?? '') === 'request'
+        && (string) ($staffRequestRecord['status'] ?? '') === 'requested',
+        'A staff handover.create grant bypassed self-request enforcement.'
+    );
+    mobile_live_assert(
+        (int) Database::scalar(
+            'SELECT COUNT(*) FROM inventory_movements WHERE context_type = "handover" AND context_id = :context_id',
+            ['context_id' => $staffRequestId]
+        ) === 0
+        && mobile_live_balance((int) $test['item_id'], $assignedStorageId) === $staffRequestBalance
+        && round((float) Database::scalar(
+            'SELECT current_quantity FROM items WHERE id = :id',
+            ['id' => $test['item_id']]
+        ), 2) === $staffRequestTotal,
+        'A staff self-request changed stock before approval.'
+    );
+    mobile_live_note('Staff self-request enforcement resisted direct-create, transfer, and custody grants.');
 
     $lookup = mobile_live_expect(mobile_live_http(
         'GET',

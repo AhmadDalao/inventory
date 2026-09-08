@@ -12,6 +12,6 @@ class AppConfig {
   );
   static const appVersion = String.fromEnvironment(
     'APP_VERSION',
-    defaultValue: '1.3.5',
+    defaultValue: '1.3.6',
   );
 }

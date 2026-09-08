@@ -343,17 +343,27 @@ class _NextActionCard extends ConsumerWidget {
     WidgetRef ref,
     bool approve,
   ) async {
-    final receipt = await ref
-        .read(inventoryRepositoryProvider)
-        .decideRequest(detail.task.id, approve: approve);
-    await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(receipt.message ?? (approve ? 'Approved.' : 'Rejected.')),
-      ),
-    );
-    onChanged();
+    try {
+      final receipt = await ref
+          .read(inventoryRepositoryProvider)
+          .decideRequest(detail.task.id, approve: approve);
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            receipt.message ?? (approve ? 'Approved.' : 'Rejected.'),
+          ),
+        ),
+      );
+      onChanged();
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+      }
+    }
   }
 
   Future<void> _cancel(BuildContext context, WidgetRef ref) async {
@@ -377,15 +387,23 @@ class _NextActionCard extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final receipt = await ref
-        .read(inventoryRepositoryProvider)
-        .cancelHandover(detail.task.id, notes: 'Cancelled from mobile app');
-    await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(receipt.message ?? 'Cancelled.')));
-    onChanged();
+    try {
+      final receipt = await ref
+          .read(inventoryRepositoryProvider)
+          .cancelHandover(detail.task.id, notes: 'Cancelled from mobile app');
+      await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(receipt.message ?? 'Cancelled.')));
+      onChanged();
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+      }
+    }
   }
 }
 

@@ -472,7 +472,9 @@ function handle_mobile_api_handover_create(): void
             $requiredCapability = 'custody';
         }
         mobile_api_require_capability($session, $requiredCapability);
-        $canCreate = Auth::userHasPermission((int) $session['user_id'], 'handovers.create');
+        $isStaffRequest = (string) ($session['role'] ?? '') === 'staff';
+        $canCreate = !$isStaffRequest
+            && Auth::userHasPermission((int) $session['user_id'], 'handovers.create');
         $canRequest = Auth::userHasPermission((int) $session['user_id'], 'handovers.request');
         if (!$canCreate && !$canRequest) {
             throw new MobileApiException('forbidden', 'You cannot create or request handovers.', 403);
@@ -492,7 +494,9 @@ function handle_mobile_api_handover_create(): void
         }
 
         $destinationStorageId = $purpose === 'storage_transfer' ? (int) ($payload['destination_storage_id'] ?? 0) : 0;
-        $recipientUserId = $purpose === 'storage_transfer' ? 0 : (int) ($payload['recipient_user_id'] ?? 0);
+        $recipientUserId = $purpose === 'storage_transfer'
+            ? 0
+            : ($isStaffRequest ? (int) $session['user_id'] : (int) ($payload['recipient_user_id'] ?? 0));
         $recipientName = '';
         $destinationStorage = null;
         if ($purpose === 'storage_transfer') {
@@ -519,7 +523,7 @@ function handle_mobile_api_handover_create(): void
         }
         $recipientName = (string) $recipient['name'];
 
-        $isRequest = !$canCreate;
+        $isRequest = $isStaffRequest || !$canCreate;
         $lines = mobile_api_handover_parse_lines($payload, $sourceStorageId, !$isRequest);
         $reviewDate = normalize_workflow_date(trim((string) ($payload['custody_review_date'] ?? '')));
         if ($purpose === 'staff_custody' && $reviewDate === '') {

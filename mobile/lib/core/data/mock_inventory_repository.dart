@@ -160,6 +160,8 @@ class MockInventoryRepository implements InventoryRepository {
   Future<MobileBootstrap> bootstrap() async {
     await _wait();
     return MobileBootstrap(
+      userId: 1,
+      userRole: 'admin',
       userName: 'Alaa',
       storages: _storages,
       items: List.unmodifiable(_items),

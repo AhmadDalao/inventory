@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
@@ -28,6 +29,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
   int? _sourceStorageId;
   int? _destinationStorageId;
   int? _recipientUserId;
+  String? _clientOperationId;
   bool _submitting = false;
 
   @override
@@ -118,7 +120,9 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
             'purpose': _purpose,
             'source_storage_id': _sourceStorageId,
             'destination_storage_id': _destinationStorageId,
-            'recipient_user_id': _recipientUserId,
+            'recipient_user_id': access.isStaffAccount
+                ? access.userId
+                : _recipientUserId,
             'lines': [
               for (final line in _lines)
                 {
@@ -142,8 +146,9 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
       _accessChanged();
       return;
     }
-    if (!_valid) return;
+    if (!_isValid(access)) return;
     setState(() => _submitting = true);
+    _clientOperationId ??= const Uuid().v4();
     try {
       final receipt = await ref
           .read(inventoryRepositoryProvider)
@@ -155,8 +160,9 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
                 : null,
             recipientUserId: _purpose == 'storage_transfer'
                 ? null
-                : _recipientUserId,
+                : (access.isStaffAccount ? access.userId : _recipientUserId),
             lines: _lines,
+            clientOperationId: _clientOperationId,
           );
       ref.invalidate(handoversProvider);
       await ref.read(bootstrapProvider.notifier).applyOperationReceipt(receipt);
@@ -182,18 +188,21 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
         ),
       );
       if (mounted) context.go('/handovers');
+    } catch (error) {
+      if (error is ApiFailure) _clientOperationId = null;
+      if (mounted) _message(apiErrorMessage(error));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
-  bool get _valid =>
+  bool _isValid(MobileBootstrap access) =>
       _sourceStorageId != null &&
       _lines.isNotEmpty &&
       (_purpose == 'storage_transfer'
           ? _destinationStorageId != null &&
                 _destinationStorageId != _sourceStorageId
-          : _recipientUserId != null);
+          : access.isStaffAccount || _recipientUserId != null);
 
   void _accessChanged() {
     ref.invalidate(bootstrapProvider);
@@ -254,6 +263,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
       });
     }
     _sourceStorageId ??= data.defaultStorage?.id;
+    if (data.isStaffAccount) _recipientUserId = data.userId;
     final sourceItems = data.items
         .where((item) => item.storageId == _sourceStorageId)
         .toList();
@@ -279,7 +289,7 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
           Expanded(
             flex: 2,
             child: ElevatedButton.icon(
-              onPressed: !_valid || _submitting ? null : _submit,
+              onPressed: !_isValid(data) || _submitting ? null : _submit,
               icon: const Icon(Icons.arrow_forward),
               label: Text(_submitting ? 'Creating' : 'Create handover'),
             ),
@@ -358,18 +368,27 @@ class _CreateHandoverScreenState extends ConsumerState<CreateHandoverScreen> {
                         : 'Staff recipient',
                     prefixIcon: const Icon(Icons.badge_outlined),
                   ),
-                  items: data.recipients
-                      .map(
-                        (recipient) => DropdownMenuItem(
-                          value: recipient.id,
-                          child: Text(
-                            '${recipient.name}${recipient.position == null ? '' : ' · ${recipient.position}'}',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) =>
-                      setState(() => _recipientUserId = value),
+                  items:
+                      (data.isStaffAccount
+                              ? [
+                                  MobileRecipient(
+                                    id: data.userId,
+                                    name: data.userName,
+                                  ),
+                                ]
+                              : data.recipients)
+                          .map(
+                            (recipient) => DropdownMenuItem(
+                              value: recipient.id,
+                              child: Text(
+                                '${recipient.name}${recipient.position == null ? '' : ' · ${recipient.position}'}',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: data.isStaffAccount
+                      ? null
+                      : (value) => setState(() => _recipientUserId = value),
                 ),
             ],
           ),

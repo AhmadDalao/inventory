@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/data/providers.dart';
 import '../../core/models/inventory_models.dart';
 import '../../core/theme/kona_theme.dart';
@@ -45,6 +46,12 @@ class _QuantityCheckScreenState extends ConsumerState<QuantityCheckScreen> {
           .read(inventoryRepositoryProvider)
           .searchItems(_search.text, storageId: _storageId);
       if (mounted) setState(() => _results = results);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

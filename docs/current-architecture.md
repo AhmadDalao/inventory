@@ -138,7 +138,7 @@ The wristband endpoint authenticates an integration key, optionally enforces IP 
 
 ## Flutter Client
 
-The Flutter application is under `mobile/`, pinned by `mobile/.fvmrc` to Flutter `3.44.9`, and versioned `1.3.5+12`. `mobile/lib` contains 44 Dart files organized into shared core infrastructure and feature folders.
+The Flutter application is under `mobile/`, pinned by `mobile/.fvmrc` to Flutter `3.44.9`, and versioned `1.3.6+13`. `mobile/lib` contains 44 Dart files organized into shared core infrastructure and feature folders.
 
 Core code owns Dio/API access, secure token storage, Drift-backed local drafts, Riverpod providers, foreground differential sync, and scanner/reconciliation rules. Features cover authentication, inventory/storage lookup, scanning, usage/restock, handovers/custody, sync/conflict review, and settings.
 

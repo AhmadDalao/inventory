@@ -90,6 +90,8 @@ class ApiInventoryRepository implements InventoryRepository {
           )
         : null;
     return MobileBootstrap(
+      userId: (user['id'] as num? ?? 0).toInt(),
+      userRole: user['role'] as String? ?? 'staff',
       userName: user['name'] as String? ?? 'Employee',
       storages: storages,
       items: items,

@@ -30,7 +30,20 @@ function mobile_native_sql_literal(string $literal): string
 }
 
 $failures = [];
-$files = glob($root . '/app/modules/mobile_api_*.php') ?: [];
+$files = [$root . '/index.php'];
+foreach (['app', 'scripts', 'views'] as $directory) {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $entry) {
+        if ($entry->isFile() && strtolower($entry->getExtension()) === 'php') {
+            $files[] = $entry->getPathname();
+        }
+    }
+}
+$files = array_values(array_unique($files));
+sort($files);
 
 foreach ($files as $file) {
     $source = file_get_contents($file);
@@ -54,7 +67,7 @@ foreach ($files as $file) {
             if ($count > 1) {
                 $failures[] = sprintf(
                     '%s:%d repeats :%s %d times',
-                    basename($file),
+                    substr($file, strlen($root) + 1),
                     (int) $token[2],
                     $placeholder,
                     $count
@@ -74,4 +87,4 @@ if ($failures !== []) {
     exit(1);
 }
 
-echo '[mobile-api-native-prepares] PASS (' . count($files) . ' mobile API modules checked)' . PHP_EOL;
+echo '[mobile-api-native-prepares] PASS (' . count($files) . ' runtime PHP files checked)' . PHP_EOL;

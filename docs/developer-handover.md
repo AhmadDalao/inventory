@@ -864,7 +864,7 @@ If the full regression runs on live, run `php scripts/backup.php` first and use 
 
 ## 16. Mobile API And Flutter Application
 
-The cross-platform app lives in `mobile/`, is pinned to Flutter `3.44.9`, has application version `1.3.5+12`, and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
+The cross-platform app lives in `mobile/`, is pinned to Flutter `3.44.9`, has application version `1.3.6+13`, and uses bundle ID `com.konajeddah.inventory`. It is a thin operational client: the website's PHP services, `item_storage_balances`, database locks, movement history, and permission checks remain authoritative.
 
 ### Backend ownership
 
@@ -918,7 +918,7 @@ The clickable acceptance baseline is stored in `docs/mobile/mockups/`. Run it wi
 
 ```bash
 cd mobile
-flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.5
+flutter run -d chrome --dart-define=MOCK_MODE=true --dart-define=APP_VERSION=1.3.6
 ```
 
 Production-connected builds use:
@@ -927,7 +927,7 @@ Production-connected builds use:
 flutter build apk --release \
   --dart-define=MOCK_MODE=false \
   --dart-define=API_BASE_URL=https://inventory.ahmaddalao.com/api/v1 \
-  --dart-define=APP_VERSION=1.3.5
+  --dart-define=APP_VERSION=1.3.6
 ```
 
 Never commit `mobile/android/key.properties`, `.jks`, `.keystore`, tokens, or passwords. Preserve the upload key in the owner's password manager.

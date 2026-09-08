@@ -565,6 +565,8 @@ class MobileOperation {
 
 class MobileBootstrap {
   const MobileBootstrap({
+    this.userId = 0,
+    this.userRole = 'staff',
     required this.userName,
     required this.storages,
     required this.items,
@@ -576,6 +578,8 @@ class MobileBootstrap {
     this.manager,
   });
 
+  final int userId;
+  final String userRole;
   final String userName;
   final List<StorageLocation> storages;
   final List<InventoryItem> items;
@@ -589,6 +593,8 @@ class MobileBootstrap {
   bool hasPermission(String permission) => permissions.contains(permission);
 
   bool hasCapability(String capability) => capabilities.contains(capability);
+
+  bool get isStaffAccount => userRole == 'staff';
 
   bool get canViewItems =>
       hasPermission('mobile.access') &&
@@ -611,17 +617,21 @@ class MobileBootstrap {
 
   bool get canCreateTemporaryHandover =>
       canViewItems &&
-      (hasPermission('handovers.create') ||
-          hasPermission('handovers.request')) &&
+      (isStaffAccount
+          ? hasPermission('handovers.request')
+          : (hasPermission('handovers.create') ||
+                hasPermission('handovers.request'))) &&
       hasCapability('handover');
 
   bool get canCreateTransfer =>
       canViewItems &&
+      !isStaffAccount &&
       hasPermission('handovers.create') &&
       hasCapability('transfer');
 
   bool get canCreateCustody =>
       canViewItems &&
+      !isStaffAccount &&
       hasPermission('handovers.create') &&
       hasCapability('custody');
 
@@ -723,6 +733,8 @@ class MobileBootstrap {
     Set<String>? permissions,
     MobileManager? manager,
   }) => MobileBootstrap(
+    userId: userId,
+    userRole: userRole,
     userName: userName,
     storages: storages ?? this.storages,
     items: items ?? this.items,
